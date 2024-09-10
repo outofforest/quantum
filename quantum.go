@@ -15,8 +15,6 @@ import (
 func New[K comparable, V any]() Snapshot[K, V] {
 	massNodes := mass.New[node[K, V]](1000)
 	return Snapshot[K, V]{
-		root:         massNodes.New(),
-		rootSet:      new(bool),
 		massNodes:    massNodes,
 		defaultValue: *new(V),
 	}
@@ -26,7 +24,6 @@ func New[K comparable, V any]() Snapshot[K, V] {
 type Snapshot[K comparable, V any] struct {
 	version      uint64
 	root         *node[K, V]
-	rootSet      *bool
 	massNodes    *mass.Mass[node[K, V]]
 	defaultValue V
 	hasher       hasher[K]
@@ -36,18 +33,11 @@ type Snapshot[K comparable, V any] struct {
 // Next transitions to the next snapshot of the state.
 func (s Snapshot[K, V]) Next() Snapshot[K, V] {
 	s.version++
-
-	r := *s.root
-	s.root = &r
-
-	rs := *s.rootSet
-	s.rootSet = &rs
-
 	return s
 }
 
 // Get gets the value of the key.
-func (s Snapshot[K, V]) Get(key K) (value V, exists bool) {
+func (s *Snapshot[K, V]) Get(key K) (value V, exists bool) {
 	h := s.hasher.Hash(key)
 	n := s.root
 	for {
@@ -80,24 +70,13 @@ func (s Snapshot[K, V]) Get(key K) (value V, exists bool) {
 }
 
 // Set sets the value for the key.
-func (s Snapshot[K, V]) Set(key K, value V) {
+func (s *Snapshot[K, V]) Set(key K, value V) {
 	const (
 		leftChild int = iota
 		rightChild
 	)
 
 	h := s.hasher.Hash(key)
-
-	if !*s.rootSet {
-		*s.root = node[K, V]{
-			Key:     key,
-			Value:   value,
-			Version: s.version,
-			Hash:    h,
-		}
-		*s.rootSet = true
-		return
-	}
 
 	var parentNode *node[K, V]
 	var child int
@@ -110,11 +89,19 @@ func (s Snapshot[K, V]) Set(key K, value V) {
 			n.Version = s.version
 			n.Hash = h
 
-			if child == leftChild {
+			if s.root == nil {
+				s.root = n
+				return
+			}
+			switch {
+			case s.root == nil:
+				s.root = n
+			case child == leftChild:
 				parentNode.Left = n
-			} else {
+			default:
 				parentNode.Right = n
 			}
+
 			return
 		}
 		if n.Version < s.version {
@@ -126,19 +113,18 @@ func (s Snapshot[K, V]) Set(key K, value V) {
 			n2.Left = n.Left
 			n2.Right = n.Right
 			n2.hasher = n.hasher
+			n = n2
 
 			switch {
 			case parentNode == nil:
-				*s.root = *n2
-				n = s.root
+				s.root = n
 			case child == leftChild:
-				n = n2
 				parentNode.Left = n
 			default:
-				n = n2
 				parentNode.Right = n
 			}
 		}
+
 		if n.Hash == h {
 			if n.Key == key {
 				n.Value = value
