@@ -74,10 +74,12 @@ func TestGetCollisions(t *testing.T) {
 			s.Set(i, i)
 		}
 	}
+
 	for _, set := range collisions {
 		for _, i := range set {
-			v, _ := s.Get(i)
-			read = append(read, v)
+			if v, exists := s.Get(i); exists {
+				read = append(read, v)
+			}
 		}
 	}
 
@@ -174,22 +176,31 @@ func TestFindCollisions(t *testing.T) {
 
 func collect(s Snapshot[int, int]) []int {
 	values := []int{}
-	stack := []*node[int, int]{s.root}
+	typeStack := []PointerType{s.rootNodeType}
+	nodeStack := []node[int, int]{s.root}
 
 	for {
-		if len(stack) == 0 {
+		if len(nodeStack) == 0 {
 			sort.Ints(values)
 			return values
 		}
 
-		n := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
+		t := typeStack[len(typeStack)-1]
+		n := nodeStack[len(nodeStack)-1]
+		typeStack = typeStack[:len(typeStack)-1]
+		nodeStack = nodeStack[:len(nodeStack)-1]
 
-		if n == nil {
-			continue
+		for i := range arraySize {
+			if n.Types[i] == FreePointerType {
+				continue
+			}
+			switch t {
+			case KVPointerType:
+				values = append(values, n.KVs[i].Value)
+			default:
+				typeStack = append(typeStack, n.Types[i])
+				nodeStack = append(nodeStack, n.Pointers[i])
+			}
 		}
-
-		values = append(values, n.Value)
-		stack = append(stack, n.Right, n.Left)
 	}
 }

@@ -5,17 +5,33 @@ import (
 
 	"github.com/cespare/xxhash"
 
-	"github.com/outofforest/mass"
 	"github.com/outofforest/photon"
 )
 
 // FIXME (wojciech): reclaim abandoned nodes to save on heap allocations.
 
+const (
+	bitsPerHop   = 4
+	arraySize    = 1 << bitsPerHop
+	mask         = arraySize - 1
+	uint64Length = 8
+)
+
+type PointerType byte
+
+const (
+	FreePointerType PointerType = iota
+	KVPointerType
+	NodePointerType
+)
+
 // New creates new quantum store.
 func New[K comparable, V any]() Snapshot[K, V] {
-	massNodes := mass.New[node[K, V]](1000)
 	return Snapshot[K, V]{
-		massNodes:    massNodes,
+		root: node[K, V]{
+			KVs: &[arraySize]kvPair[K, V]{},
+		},
+		rootNodeType: KVPointerType,
 		defaultValue: *new(V),
 	}
 }
@@ -23,8 +39,8 @@ func New[K comparable, V any]() Snapshot[K, V] {
 // Snapshot represents the state at particular point in time.
 type Snapshot[K comparable, V any] struct {
 	version      uint64
-	root         *node[K, V]
-	massNodes    *mass.Mass[node[K, V]]
+	root         node[K, V]
+	rootNodeType PointerType
 	defaultValue V
 	hasher       hasher[K]
 	hashMod      uint64
@@ -39,134 +55,180 @@ func (s Snapshot[K, V]) Next() Snapshot[K, V] {
 // Get gets the value of the key.
 func (s *Snapshot[K, V]) Get(key K) (value V, exists bool) {
 	h := s.hasher.Hash(key)
+	nType := s.rootNodeType
 	n := s.root
 	for {
-		if n == nil {
-			return s.defaultValue, false
-		}
-		if n.Hash == h {
-			if n.Key == key {
-				return n.Value, true
-			}
-
-			// conflict
-			if s.hasher.bytes == nil {
-				s.hashMod++
-				n.hasher = newHasher[K](s.hashMod)
-			}
+		if n.hasher.bytes != nil {
 			h = n.hasher.Hash(key)
 		}
 
-		bit := h & 0x01
-		h >>= 1
+		index := h & mask
+		h >>= bitsPerHop
 
-		switch bit {
-		case 0x00:
-			n = n.Left
+		if n.Types[index] == FreePointerType {
+			return s.defaultValue, false
+		}
+
+		switch nType {
+		case NodePointerType:
+			nType = n.Types[index]
+			n = n.Pointers[index]
 		default:
-			n = n.Right
+			kv := n.KVs[index]
+			if kv.Hash == h && kv.Key == key {
+				return kv.Value, true
+			}
+			return s.defaultValue, false
 		}
 	}
 }
 
 // Set sets the value for the key.
 func (s *Snapshot[K, V]) Set(key K, value V) {
-	const (
-		leftChild int = iota
-		rightChild
-	)
-
 	h := s.hasher.Hash(key)
+	nType := s.rootNodeType
+	n := &s.root
 
 	var parentNode *node[K, V]
-	var child int
-	n := s.root
+	var parentIndex uint64
+
 	for {
-		if n == nil {
-			n = s.massNodes.New()
-			n.Key = key
-			n.Value = value
-			n.Version = s.version
-			n.Hash = h
-
-			if s.root == nil {
-				s.root = n
-				return
-			}
-			switch {
-			case s.root == nil:
-				s.root = n
-			case child == leftChild:
-				parentNode.Left = n
-			default:
-				parentNode.Right = n
-			}
-
-			return
-		}
 		if n.Version < s.version {
-			n2 := s.massNodes.New()
-			n2.Key = n.Key
-			n2.Value = n.Value
-			n2.Version = s.version
-			n2.Hash = n.Hash
-			n2.Left = n.Left
-			n2.Right = n.Right
-			n2.hasher = n.hasher
-			n = n2
+			n2 := node[K, V]{
+				Version: s.version,
+				Types:   n.Types,
+				hasher:  n.hasher,
+			}
+			if nType == KVPointerType {
+				kvs := *n.KVs
+				n2.KVs = &kvs
+			} else {
+				pointers := *n.Pointers
+				n2.Pointers = &pointers
+			}
 
 			switch {
 			case parentNode == nil:
-				s.root = n
-			case child == leftChild:
-				parentNode.Left = n
+				s.root = n2
+				n = &s.root
 			default:
-				parentNode.Right = n
+				parentNode.Pointers[parentIndex] = n2
+				n = &parentNode.Pointers[parentIndex]
 			}
 		}
 
-		if n.Hash == h {
-			if n.Key == key {
-				n.Value = value
-				return
-			}
-
-			// conflict
-			if s.hasher.bytes == nil {
-				s.hashMod++
-				n.hasher = newHasher[K](s.hashMod)
-			}
+		if n.hasher.bytes != nil {
 			h = n.hasher.Hash(key)
 		}
 
-		bit := h & 0x01
-		h >>= 1
-		parentNode = n
+		index := h & mask
+		h >>= bitsPerHop
 
-		switch bit {
-		case 0x00:
-			n = n.Left
-			child = leftChild
-		case 0x01:
-			n = n.Right
-			child = rightChild
+		switch nType {
+		case NodePointerType:
+			if n.Types[index] == FreePointerType {
+				n.Types[index] = KVPointerType
+				n.Pointers[index] = node[K, V]{
+					Version: s.version,
+					KVs:     &[arraySize]kvPair[K, V]{},
+				}
+			}
+			parentIndex = index
+			parentNode = n
+			nType = n.Types[index]
+			n = &n.Pointers[index]
+		default:
+			if n.Types[index] == FreePointerType {
+				n.Types[index] = KVPointerType
+				n.KVs[index] = kvPair[K, V]{
+					Hash:  h,
+					Key:   key,
+					Value: value,
+				}
+				return
+			}
+
+			kv := n.KVs[index]
+			var conflict bool
+			if kv.Hash == h {
+				if kv.Key == key {
+					n.KVs[index].Value = value
+					return
+				}
+
+				// hash conflict
+
+				conflict = true
+			}
+
+			// conflict or split needed
+
+			n2 := node[K, V]{
+				Version:  s.version,
+				Pointers: &[arraySize]node[K, V]{},
+				hasher:   n.hasher,
+			}
+
+			for i := range uint64(arraySize) {
+				if n.Types[i] == FreePointerType {
+					continue
+				}
+
+				n2.Types[i] = KVPointerType
+				n2.Pointers[i] = node[K, V]{
+					Version: s.version,
+					KVs:     &[arraySize]kvPair[K, V]{},
+				}
+
+				kv := n.KVs[i]
+				var hash uint64
+				if conflict && i == index {
+					s.hashMod++
+					n2.Pointers[i].hasher = newHasher[K](s.hashMod)
+					hash = n2.Pointers[i].hasher.Hash(kv.Key)
+				} else {
+					hash = kv.Hash
+				}
+
+				index := hash & mask
+				n2.Pointers[i].Types[index] = KVPointerType
+				n2.Pointers[i].KVs[index] = kvPair[K, V]{
+					Hash:  hash >> bitsPerHop,
+					Key:   kv.Key,
+					Value: kv.Value,
+				}
+			}
+
+			if parentNode == nil {
+				s.rootNodeType = NodePointerType
+				s.root = n2
+				parentNode = &s.root
+			} else {
+				parentNode.Types[parentIndex] = NodePointerType
+				parentNode.Pointers[parentIndex] = n2
+				parentNode = &parentNode.Pointers[parentIndex]
+			}
+
+			parentIndex = index
+			n = &n2.Pointers[index]
 		}
 	}
 }
 
-type node[K comparable, V any] struct {
+type kvPair[K comparable, V any] struct {
+	Hash  uint64
 	Key   K
 	Value V
-
-	Version uint64
-	Hash    uint64
-	Left    *node[K, V]
-	Right   *node[K, V]
-
-	hasher hasher[K]
 }
 
-const uint64Length = 8
+type node[K comparable, V any] struct {
+	Version uint64
+	hasher  hasher[K]
+
+	Types    [arraySize]PointerType
+	KVs      *[arraySize]kvPair[K, V]
+	Pointers *[arraySize]node[K, V]
+}
 
 func newHasher[K comparable](mod uint64) hasher[K] {
 	var k K
@@ -195,7 +257,7 @@ func (h hasher[K]) Hash(key K) uint64 {
 		hash = xxhash.Sum64(photon.NewFromValue[K](&key).B)
 	} else {
 		copy(h.data, photon.NewFromValue[K](&key).B)
-		hash = xxhash.Sum64(h.data)
+		hash = xxhash.Sum64(h.bytes)
 	}
 	if isTesting {
 		hash = testHash(hash)
