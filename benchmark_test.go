@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// go test -benchtime=10000x -bench=BenchmarkQuantum -run=^$ -cpuprofile profile.out
+// go test -benchtime=100x -bench=BenchmarkQuantum -run=^$ -cpuprofile profile.out
 // go tool pprof -http="localhost:8000" pprofbin ./profile.out
 
 type key struct {
@@ -34,9 +34,13 @@ func BenchmarkMaps(b *testing.B) {
 
 	for range b.N {
 		b.StartTimer()
-		for i := range 10 {
-			for j := i * 10; j < i*10+100; j++ {
-				snapshot2[keys[j]] = j
+		for i := range 1000 {
+			for j := i * 10; j < i*10+10; j++ {
+				k := keys[j]
+				v2 := snapshot2[k]
+				v1 := snapshot1[k]
+				v := db[k]
+				snapshot2[k] = v + v1 + v2 + j
 			}
 			for k, v := range snapshot2 {
 				snapshot1[k] = v
@@ -70,10 +74,12 @@ func BenchmarkQuantum(b *testing.B) {
 	for range b.N {
 		b.StartTimer()
 		snapshot1 := db.Next()
-		for i := range 10 {
+		for i := range 1000 {
 			snapshot2 := snapshot1.Next()
-			for j := i * 10; j < i*10+100; j++ {
-				snapshot2.Set(keys[j], j)
+			for j := i * 10; j < i*10+10; j++ {
+				k := keys[j]
+				v, _ := snapshot2.Get(k)
+				snapshot2.Set(k, v+j)
 			}
 			snapshot1 = snapshot2
 		}
