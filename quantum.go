@@ -5,16 +5,19 @@ import (
 
 	"github.com/cespare/xxhash"
 
+	"github.com/outofforest/mass"
 	"github.com/outofforest/photon"
 )
 
-// FIXME (wojciech): avoid individual heap allocations for nodes.
+// FIXME (wojciech): reclaim abandoned nodes to save on heap allocations.
 
 // New creates new quantum store.
 func New[K comparable, V any]() Snapshot[K, V] {
+	massNodes := mass.New[node[K, V]](1000)
 	return Snapshot[K, V]{
-		root:         new(node[K, V]),
+		root:         massNodes.New(),
 		rootSet:      new(bool),
+		massNodes:    massNodes,
 		defaultValue: *new(V),
 	}
 }
@@ -24,6 +27,7 @@ type Snapshot[K comparable, V any] struct {
 	version      uint64
 	root         *node[K, V]
 	rootSet      *bool
+	massNodes    *mass.Mass[node[K, V]]
 	defaultValue V
 	hasher       hasher[K]
 	hashMod      uint64
@@ -86,8 +90,8 @@ func (s Snapshot[K, V]) Set(key K, value V) {
 
 	if !*s.rootSet {
 		*s.root = node[K, V]{
-			Value:   value,
 			Key:     key,
+			Value:   value,
 			Version: s.version,
 			Hash:    h,
 		}
@@ -100,12 +104,11 @@ func (s Snapshot[K, V]) Set(key K, value V) {
 	n := s.root
 	for {
 		if n == nil {
-			n = &node[K, V]{
-				Value:   value,
-				Key:     key,
-				Version: s.version,
-				Hash:    h,
-			}
+			n = s.massNodes.New()
+			n.Key = key
+			n.Value = value
+			n.Version = s.version
+			n.Hash = h
 
 			if child == leftChild {
 				parentNode.Left = n
@@ -115,18 +118,24 @@ func (s Snapshot[K, V]) Set(key K, value V) {
 			return
 		}
 		if n.Version < s.version {
-			n2 := *n
+			n2 := s.massNodes.New()
+			n2.Key = n.Key
+			n2.Value = n.Value
 			n2.Version = s.version
+			n2.Hash = n.Hash
+			n2.Left = n.Left
+			n2.Right = n.Right
+			n2.hasher = n.hasher
 
 			switch {
 			case parentNode == nil:
-				*s.root = n2
+				*s.root = *n2
 				n = s.root
 			case child == leftChild:
-				n = &n2
+				n = n2
 				parentNode.Left = n
 			default:
-				n = &n2
+				n = n2
 				parentNode.Right = n
 			}
 		}

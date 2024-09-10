@@ -4,8 +4,9 @@ go 1.22
 
 require (
 	github.com/cespare/xxhash v1.1.0
+	github.com/outofforest/mass v0.2.1
 	github.com/outofforest/photon v0.5.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 )
 
 require (
