@@ -50,7 +50,6 @@ func init() {
 		j := mathrand.Intn(i + 1)
 		keys[i], keys[j] = keys[j], keys[i]
 	}
-
 }
 
 func BenchmarkMaps(b *testing.B) {
