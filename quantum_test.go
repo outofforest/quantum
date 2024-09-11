@@ -176,7 +176,7 @@ func TestFindCollisions(t *testing.T) {
 
 func collect(s Snapshot[int, int]) []int {
 	values := []int{}
-	typeStack := []PointerType{s.rootNodeType}
+	typeStack := []pointerType{s.rootNodeType}
 	nodeStack := []node[int, int]{s.root}
 
 	for {
@@ -191,11 +191,11 @@ func collect(s Snapshot[int, int]) []int {
 		nodeStack = nodeStack[:len(nodeStack)-1]
 
 		for i := range arraySize {
-			if n.Types[i] == FreePointerType {
+			if n.Types[i] == freePointerType {
 				continue
 			}
 			switch t {
-			case KVPointerType:
+			case kvPointerType:
 				values = append(values, n.KVs[i].Value)
 			default:
 				typeStack = append(typeStack, n.Types[i])

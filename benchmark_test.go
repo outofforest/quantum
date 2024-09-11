@@ -1,7 +1,8 @@
 package quantum
 
 import (
-	"math/rand"
+	"crypto/rand"
+	mathrand "math/rand"
 	"testing"
 )
 
@@ -36,7 +37,7 @@ func BenchmarkMaps(b *testing.B) {
 		b.StartTimer()
 		for range 1000 {
 			for range 30 {
-				k := keys[rand.Intn(len(keys))]
+				k := keys[mathrand.Intn(len(keys))]
 				v2 := snapshot2[k]
 				v1 := snapshot1[k]
 				v := db[k]
@@ -76,7 +77,7 @@ func BenchmarkQuantum(b *testing.B) {
 		for range 1000 {
 			db = db.Next()
 			for range 30 {
-				k := keys[rand.Intn(len(keys))]
+				k := keys[mathrand.Intn(len(keys))]
 				v, _ := db.Get(k)
 				db.Set(k, v)
 			}
