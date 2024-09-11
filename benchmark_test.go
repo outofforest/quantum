@@ -14,33 +14,63 @@ type key struct {
 	key   [32]byte
 }
 
-func BenchmarkMaps(b *testing.B) {
-	b.StopTimer()
-	b.ResetTimer()
+const (
+	loop1 = 1000
+	loop2 = 30
+)
 
-	db := map[key]int{}
+var keys = func() []key {
 	keys := make([]key, 0, 1000_000)
 
-	for i := range cap(keys) {
+	for range cap(keys) {
 		var k key
 		_, _ = rand.Read(k.store[:])
 		_, _ = rand.Read(k.key[:])
 		keys = append(keys, k)
+	}
 
+	return keys
+}()
+
+var dbMap = func() map[key]int {
+	db := map[key]int{}
+	for i, k := range keys {
 		db[k] = i
 	}
+	return db
+}()
+
+var dbQuantum = func() Snapshot[key, int] {
+	db := New[key, int]()
+	for i, k := range keys {
+		db.Set(k, i)
+	}
+	return db
+}()
+
+func BenchmarkMaps(b *testing.B) {
+	b.StopTimer()
+	b.ResetTimer()
 
 	snapshot1 := map[key]int{}
 	snapshot2 := map[key]int{}
 
 	for range b.N {
+		rands := make([]int, 0, loop1*loop2)
+		for range cap(rands) {
+			rands = append(rands, mathrand.Intn(len(keys)))
+		}
+
+		var ri int
+
 		b.StartTimer()
-		for range 1000 {
-			for range 30 {
-				k := keys[mathrand.Intn(len(keys))]
+		for range loop1 {
+			for range loop2 {
+				k := keys[rands[ri]]
+				ri++
 				v2 := snapshot2[k]
 				v1 := snapshot1[k]
-				v := db[k]
+				v := dbMap[k]
 				snapshot2[k] = v + v1 + v2
 			}
 			for k, v := range snapshot2 {
@@ -49,7 +79,7 @@ func BenchmarkMaps(b *testing.B) {
 			clear(snapshot2)
 		}
 		for k, v := range snapshot1 {
-			db[k] = v
+			dbMap[k] = v
 		}
 		clear(snapshot1)
 		b.StopTimer()
@@ -60,26 +90,22 @@ func BenchmarkQuantum(b *testing.B) {
 	b.StopTimer()
 	b.ResetTimer()
 
-	db := New[key, int]()
-	keys := make([]key, 0, 1000_000)
-
-	for i := range cap(keys) {
-		var k key
-		_, _ = rand.Read(k.store[:])
-		_, _ = rand.Read(k.key[:])
-		keys = append(keys, k)
-
-		db.Set(k, i)
-	}
-
 	for range b.N {
+		rands := make([]int, 0, loop1*loop2)
+		for range cap(rands) {
+			rands = append(rands, mathrand.Intn(len(keys)))
+		}
+
+		var ri int
+
 		b.StartTimer()
-		for range 1000 {
-			db = db.Next()
-			for range 30 {
-				k := keys[mathrand.Intn(len(keys))]
-				v, _ := db.Get(k)
-				db.Set(k, v)
+		for range loop1 {
+			dbQuantum = dbQuantum.Next()
+			for range loop2 {
+				k := keys[rands[ri]]
+				ri++
+				v, _ := dbQuantum.Get(k)
+				dbQuantum.Set(k, v)
 			}
 		}
 		b.StopTimer()

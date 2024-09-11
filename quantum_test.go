@@ -177,7 +177,7 @@ func TestFindCollisions(t *testing.T) {
 func collect(s Snapshot[int, int]) []int {
 	values := []int{}
 	typeStack := []pointerType{s.rootNodeType}
-	nodeStack := []node[int, int]{s.root}
+	nodeStack := []*node[int, int]{s.root}
 
 	for {
 		if len(nodeStack) == 0 {
