@@ -15,12 +15,19 @@ type key struct {
 }
 
 const (
-	loop1 = 1000
-	loop2 = 30
+	keysNum = 10_000_000
+	loop1   = 1000
+	loop2   = 30
 )
 
-var keys = func() []key {
-	keys := make([]key, 0, 1000_000)
+var (
+	keys      []key
+	dbMap     map[key]int
+	dbQuantum Snapshot[key, int]
+)
+
+func init() {
+	keys = make([]key, 0, keysNum)
 
 	for range cap(keys) {
 		var k key
@@ -29,24 +36,22 @@ var keys = func() []key {
 		keys = append(keys, k)
 	}
 
-	return keys
-}()
-
-var dbMap = func() map[key]int {
-	db := map[key]int{}
+	dbMap = map[key]int{}
 	for i, k := range keys {
-		db[k] = i
+		dbMap[k] = i
 	}
-	return db
-}()
 
-var dbQuantum = func() Snapshot[key, int] {
-	db := New[key, int]()
+	dbQuantum = New[key, int]()
 	for i, k := range keys {
-		db.Set(k, i)
+		dbQuantum.Set(k, i)
 	}
-	return db
-}()
+
+	for i := len(keys) - 1; i > 0; i-- {
+		j := mathrand.Intn(i + 1)
+		keys[i], keys[j] = keys[j], keys[i]
+	}
+
+}
 
 func BenchmarkMaps(b *testing.B) {
 	b.StopTimer()
