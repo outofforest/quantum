@@ -2,10 +2,11 @@ package quantum
 
 import (
 	"crypto/rand"
+	mathrand "math/rand"
 	"testing"
 )
 
-// go test -benchtime=100x -bench=BenchmarkQuantum -run=^$ -cpuprofile profile.out
+// go test -benchtime=10x -bench=BenchmarkQuantum -run=^$ -cpuprofile profile.out
 // go tool pprof -http="localhost:8000" pprofbin ./profile.out
 
 type key struct {
@@ -18,9 +19,9 @@ func BenchmarkMaps(b *testing.B) {
 	b.ResetTimer()
 
 	db := map[key]int{}
-	keys := make([]key, 0, 10_000)
+	keys := make([]key, 0, 1000_000)
 
-	for i := range 10_000 {
+	for i := range cap(keys) {
 		var k key
 		_, _ = rand.Read(k.store[:])
 		_, _ = rand.Read(k.key[:])
@@ -34,13 +35,13 @@ func BenchmarkMaps(b *testing.B) {
 
 	for range b.N {
 		b.StartTimer()
-		for i := range 1000 {
-			for j := i * 10; j < i*10+10; j++ {
-				k := keys[j]
+		for range 1000 {
+			for range 30 {
+				k := keys[mathrand.Intn(len(keys))]
 				v2 := snapshot2[k]
 				v1 := snapshot1[k]
 				v := db[k]
-				snapshot2[k] = v + v1 + v2 + j
+				snapshot2[k] = v + v1 + v2
 			}
 			for k, v := range snapshot2 {
 				snapshot1[k] = v
@@ -60,9 +61,9 @@ func BenchmarkQuantum(b *testing.B) {
 	b.ResetTimer()
 
 	db := New[key, int]()
-	keys := make([]key, 0, 10_000)
+	keys := make([]key, 0, 1000_000)
 
-	for i := range 10_000 {
+	for i := range cap(keys) {
 		var k key
 		_, _ = rand.Read(k.store[:])
 		_, _ = rand.Read(k.key[:])
@@ -73,17 +74,14 @@ func BenchmarkQuantum(b *testing.B) {
 
 	for range b.N {
 		b.StartTimer()
-		snapshot1 := db.Next()
-		for i := range 1000 {
-			snapshot2 := snapshot1.Next()
-			for j := i * 10; j < i*10+10; j++ {
-				k := keys[j]
-				v, _ := snapshot2.Get(k)
-				snapshot2.Set(k, v+j)
+		for range 1000 {
+			db = db.Next()
+			for range 30 {
+				k := keys[mathrand.Intn(len(keys))]
+				v, _ := db.Get(k)
+				db.Set(k, v)
 			}
-			snapshot1 = snapshot2
 		}
-		db = snapshot1
 		b.StopTimer()
 	}
 }
