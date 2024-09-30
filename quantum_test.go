@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/outofforest/photon"
 )
 
 var collisions = [][]int{
@@ -23,20 +25,20 @@ var collisions = [][]int{
 	{32134280, 33645087, 37005304, 83416269},
 }
 
-func TestCollisions(t *testing.T) {
-	var hasher hasher[int]
+var config = Config{TotalSize: 10 * 1024 * 1024}
 
+func TestCollisions(t *testing.T) {
 	for _, set := range collisions {
 		m := map[uint64]struct{}{}
 		for _, i := range set {
-			m[hasher.Hash(i)] = struct{}{}
+			m[hashKey(i, 0)] = struct{}{}
 		}
 		assert.Len(t, m, 1)
 	}
 }
 
 func TestSet(t *testing.T) {
-	s := New[int, int]()
+	s := New[int, int](config)
 
 	for i := range 10 {
 		s.Set(i, i)
@@ -46,7 +48,7 @@ func TestSet(t *testing.T) {
 }
 
 func TestSetCollisions(t *testing.T) {
-	s := New[int, int]()
+	s := New[int, int](config)
 
 	allValues := make([]int, 0, len(collisions)*len(collisions[0]))
 
@@ -63,7 +65,7 @@ func TestSetCollisions(t *testing.T) {
 }
 
 func TestGetCollisions(t *testing.T) {
-	s := New[int, int]()
+	s := New[int, int](config)
 
 	inserted := make([]int, 0, len(collisions)*len(collisions[0]))
 	read := make([]int, 0, len(collisions)*len(collisions[0]))
@@ -90,7 +92,7 @@ func TestGetCollisions(t *testing.T) {
 }
 
 func TestSetOnNext(t *testing.T) {
-	s := New[int, int]()
+	s := New[int, int](config)
 
 	for i := range 10 {
 		s.Set(i, i)
@@ -106,7 +108,7 @@ func TestSetOnNext(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
-	s := New[int, int]()
+	s := New[int, int](config)
 
 	for i := range 10 {
 		s.Set(i, i)
@@ -119,7 +121,7 @@ func TestGet(t *testing.T) {
 }
 
 func TestReplace(t *testing.T) {
-	s1 := New[int, int]()
+	s1 := New[int, int](config)
 
 	for i := range 10 {
 		s1.Set(i, i)
@@ -160,11 +162,9 @@ func TestFindCollisions(t *testing.T) {
 
 	fmt.Println("started")
 
-	var hasher hasher[int]
-
 	m := map[uint64][]int{}
 	for i := range math.MaxInt {
-		h := hasher.Hash(i)
+		h := hashKey(i, 0)
 		if h2 := m[h]; len(h2) == 4 {
 			sort.Ints(h2)
 			fmt.Printf("%#v\n", h2)
@@ -176,8 +176,8 @@ func TestFindCollisions(t *testing.T) {
 
 func collect(s Snapshot[int, int]) []int {
 	values := []int{}
-	typeStack := []pointerType{s.rootNodeType}
-	nodeStack := []*node[int, int]{s.root}
+	typeStack := []State{s.rootNodeType}
+	nodeStack := []uint64{s.rootNode}
 
 	for {
 		if len(nodeStack) == 0 {
@@ -190,16 +190,21 @@ func collect(s Snapshot[int, int]) []int {
 		typeStack = typeStack[:len(typeStack)-1]
 		nodeStack = nodeStack[:len(nodeStack)-1]
 
-		for i := range arraySize {
-			if n.Types[i] == freePointerType {
-				continue
+		switch t {
+		case stateData:
+			node := photon.NewFromBytes[DataNode[int, int]](s.node(n))
+			for i := range arraySize {
+				if node.V.States[i] == stateData {
+					values = append(values, node.V.Items[i].Value)
+				}
 			}
-			switch t {
-			case kvPointerType:
-				values = append(values, n.KVs[i].Value)
-			default:
-				typeStack = append(typeStack, n.Types[i])
-				nodeStack = append(nodeStack, n.Pointers[i])
+		default:
+			node := photon.NewFromBytes[PointerNode](s.node(n))
+			for i := range arraySize {
+				if node.V.States[i] != stateFree {
+					typeStack = append(typeStack, node.V.States[i])
+					nodeStack = append(nodeStack, node.V.Pointers[i])
+				}
 			}
 		}
 	}

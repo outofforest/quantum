@@ -1,53 +1,81 @@
 package quantum
 
 import (
-	"unsafe"
-
 	"github.com/cespare/xxhash"
 
-	"github.com/outofforest/mass"
 	"github.com/outofforest/photon"
 )
-
-// FIXME (wojciech): reclaim abandoned nodes to save on heap allocations.
 
 const (
 	bitsPerHop   = 4
 	arraySize    = 1 << bitsPerHop
 	mask         = arraySize - 1
+	pageSize     = 512
 	uint64Length = 8
 )
 
-type pointerType byte
+// State enumerates possible slot states.
+type State byte
 
 const (
-	freePointerType pointerType = iota
-	kvPointerType
-	nodePointerType
+	stateFree State = iota
+	stateData
+	statePointer
 )
 
+// Config stores configuration.
+type Config struct {
+	TotalSize uint64
+}
+
+// NodeHeader is the header common to all node types.
+type NodeHeader struct {
+	Version uint64
+	HashMod uint64
+}
+
+// PointerNode is the node containing pointers to other nodes.
+type PointerNode struct {
+	Header   NodeHeader
+	States   [arraySize]State
+	Pointers [arraySize]uint64
+}
+
+// DataItem stores single key-value pair.
+type DataItem[K, V comparable] struct {
+	Hash  uint64
+	Key   K
+	Value V
+}
+
+// DataNode stores the data items.
+type DataNode[K, V comparable] struct {
+	Header NodeHeader
+	States [arraySize]State
+	Items  [arraySize]DataItem[K, V]
+}
+
 // New creates new quantum store.
-func New[K comparable, V any]() Snapshot[K, V] {
+func New[K, V comparable](config Config) Snapshot[K, V] {
 	s := Snapshot[K, V]{
-		rootNodeType: kvPointerType,
+		version:      0,
+		data:         make([]byte, config.TotalSize),
+		rootNodeType: stateData,
 		defaultValue: *new(V),
-		massNodes:    mass.New[node[K, V]](1000),
-		massKVPairs:  mass.New[kvPair[K, V]](1000),
 	}
-	s.root = s.massNodes.New()
 	return s
 }
 
 // Snapshot represents the state at particular point in time.
-type Snapshot[K comparable, V any] struct {
+type Snapshot[K, V comparable] struct {
 	version      uint64
-	root         *node[K, V]
-	rootNodeType pointerType
-	defaultValue V
-	hasher       hasher[K]
+	rootNode     uint64
+	rootNodeType State
 	hashMod      uint64
-	massNodes    *mass.Mass[node[K, V]]
-	massKVPairs  *mass.Mass[kvPair[K, V]]
+	defaultValue V
+
+	data               []byte
+	allocatedNodeIndex uint64
 }
 
 // Next transitions to the next snapshot of the state.
@@ -58,29 +86,35 @@ func (s Snapshot[K, V]) Next() Snapshot[K, V] {
 
 // Get gets the value of the key.
 func (s *Snapshot[K, V]) Get(key K) (value V, exists bool) {
-	h := s.hasher.Hash(key)
+	h := hashKey(key, 0)
 	nType := s.rootNodeType
-	n := s.root
+	n := s.node(s.rootNode)
 	for {
-		if n.hasher.bytes != nil {
-			h = n.hasher.Hash(key)
+		header := photon.NewFromBytes[NodeHeader](n)
+
+		if header.V.HashMod > 0 {
+			h = hashKey(key, header.V.HashMod)
 		}
 
 		index := h & mask
 		h >>= bitsPerHop
 
-		if n.Types[index] == freePointerType {
-			return s.defaultValue, false
-		}
-
 		switch nType {
-		case nodePointerType:
-			nType = n.Types[index]
-			n = n.Pointers[index]
+		case statePointer:
+			node := photon.NewFromBytes[PointerNode](n)
+			if node.V.States[index] == stateFree {
+				return s.defaultValue, false
+			}
+			nType = node.V.States[index]
+			n = s.node(node.V.Pointers[index])
 		default:
-			kv := n.KVs[index]
-			if kv.Hash == h && kv.Key == key {
-				return kv.Value, true
+			node := photon.NewFromBytes[DataNode[K, V]](n)
+			if node.V.States[index] == stateFree {
+				return s.defaultValue, false
+			}
+			item := node.V.Items[index]
+			if item.Hash == h && item.Key == key {
+				return item.Value, true
 			}
 			return s.defaultValue, false
 		}
@@ -89,179 +123,158 @@ func (s *Snapshot[K, V]) Get(key K) (value V, exists bool) {
 
 // Set sets the value for the key.
 func (s *Snapshot[K, V]) Set(key K, value V) {
-	h := s.hasher.Hash(key)
+	h := hashKey(key, 0)
 	nType := s.rootNodeType
-	n := s.root
+	n := s.node(s.rootNode)
 
-	var parentNode *node[K, V]
+	var parentNode photon.Union[*PointerNode]
 	var parentIndex uint64
 
 	for {
-		if n.Version < s.version {
-			n2 := s.massNodes.New()
-			n2.Version = s.version
-			n2.Types = n.Types
-			n2.hasher = n.hasher
-			if nType == kvPointerType {
-				n2.KVs = n.KVs
-			} else {
-				n2.Pointers = n.Pointers
-			}
+		header := photon.NewFromBytes[NodeHeader](n)
+		if header.V.Version < s.version {
+			newNodeIndex, newNodeData := s.allocateNode()
+			copy(newNodeData, n)
+			header = photon.NewFromBytes[NodeHeader](newNodeData)
+			header.V.Version = s.version
+			n = newNodeData
 
 			switch {
-			case parentNode == nil:
-				s.root = n2
-				n = s.root
+			case parentNode.V == nil:
+				s.rootNode = newNodeIndex
 			default:
-				parentNode.Pointers[parentIndex] = n2
-				n = parentNode.Pointers[parentIndex]
+				parentNode.V.Pointers[parentIndex] = newNodeIndex
 			}
 		}
 
-		if n.hasher.bytes != nil {
-			h = n.hasher.Hash(key)
+		if header.V.HashMod > 0 {
+			h = hashKey(key, header.V.HashMod)
 		}
 
 		index := h & mask
 		h >>= bitsPerHop
 
 		switch nType {
-		case nodePointerType:
-			if n.Types[index] == freePointerType {
-				n.Types[index] = kvPointerType
-				n.Pointers[index] = s.massNodes.New()
-				n.Version = s.version
+		case statePointer:
+			node := photon.NewFromBytes[PointerNode](n)
+			if node.V.States[index] == stateFree {
+				node.V.States[index] = stateData
+				nodeIndex, nodeData := s.allocateNode()
+				node.V.Pointers[index] = nodeIndex
+
+				dataNode := photon.NewFromBytes[DataNode[K, V]](nodeData)
+				dataNode.V.Header.Version = s.version
 			}
 			parentIndex = index
-			parentNode = n
-			nType = n.Types[index]
-			n = n.Pointers[index]
+			parentNode = node
+			nType = node.V.States[index]
+			n = s.node(node.V.Pointers[index])
 		default:
-			if n.Types[index] == freePointerType {
-				n.Types[index] = kvPointerType
-				kv := s.massKVPairs.New()
-				kv.Hash = h
-				kv.Key = key
-				kv.Value = value
-				n.KVs[index] = kv
+			node := photon.NewFromBytes[DataNode[K, V]](n)
+			if node.V.States[index] == stateFree {
+				node.V.States[index] = stateData
+				node.V.Items[index] = DataItem[K, V]{
+					Hash:  h,
+					Key:   key,
+					Value: value,
+				}
 				return
 			}
 
-			kv := n.KVs[index]
+			item := node.V.Items[index]
 			var conflict bool
-			if kv.Hash == h {
-				if kv.Key == key {
-					kv2 := s.massKVPairs.New()
-					kv2.Hash = kv.Hash
-					kv2.Key = kv.Key
-					kv2.Value = value
-					n.KVs[index] = kv2
+			if item.Hash == h {
+				if item.Key == key {
+					node.V.Items[index].Value = value
 					return
 				}
 
 				// hash conflict
-
 				conflict = true
 			}
 
 			// conflict or split needed
 
-			n2 := s.massNodes.New()
-			n2.Version = s.version
-			n2.hasher = n.hasher
+			pointerNodeIndex, pointerNodeData := s.allocateNode()
+			pointerNode := photon.NewFromBytes[PointerNode](pointerNodeData)
+			pointerNode.V.Header = NodeHeader{
+				Version: s.version,
+				HashMod: node.V.Header.HashMod,
+			}
 
 			for i := range uint64(arraySize) {
-				if n.Types[i] == freePointerType {
+				if node.V.States[i] == stateFree {
 					continue
 				}
 
-				n2.Types[i] = kvPointerType
-				n2.Pointers[i] = s.massNodes.New()
-				n2.Pointers[i].Version = s.version
+				pointerNode.V.States[i] = stateData
+				dataNodeIndex, dataNodeData := s.allocateNode()
+				pointerNode.V.Pointers[i] = dataNodeIndex
+				dataNode := photon.NewFromBytes[DataNode[K, V]](dataNodeData)
+				dataNode.V.Header.Version = s.version
 
-				kv := n.KVs[i]
+				item := node.V.Items[i]
 				var hash uint64
 				if conflict && i == index {
 					s.hashMod++
-					n2.Pointers[i].hasher = newHasher[K](s.hashMod)
-					hash = n2.Pointers[i].hasher.Hash(kv.Key)
+					dataNode.V.Header.HashMod = s.hashMod
+					hash = hashKey(item.Key, s.hashMod)
 				} else {
-					hash = kv.Hash
+					hash = item.Hash
 				}
 
 				index := hash & mask
-				n2.Pointers[i].Types[index] = kvPointerType
-
-				kv2 := s.massKVPairs.New()
-				kv2.Hash = hash >> bitsPerHop
-				kv2.Key = kv.Key
-				kv2.Value = kv.Value
-				n2.Pointers[i].KVs[index] = kv2
+				dataNode.V.States[index] = stateData
+				dataNode.V.Items[index] = DataItem[K, V]{
+					Hash:  hash >> bitsPerHop,
+					Key:   item.Key,
+					Value: item.Value,
+				}
 			}
 
-			if parentNode == nil {
-				s.rootNodeType = nodePointerType
-				s.root = n2
-				parentNode = s.root
+			if parentNode.V == nil {
+				s.rootNodeType = statePointer
+				s.rootNode = pointerNodeIndex
 			} else {
-				parentNode.Types[parentIndex] = nodePointerType
-				parentNode.Pointers[parentIndex] = n2
-				parentNode = parentNode.Pointers[parentIndex]
+				parentNode.V.States[parentIndex] = statePointer
+				parentNode.V.Pointers[parentIndex] = pointerNodeIndex
 			}
 
+			parentNode = pointerNode
 			parentIndex = index
-			n = n2.Pointers[index]
+			n = s.node(pointerNode.V.Pointers[index])
 		}
 	}
 }
 
-type kvPair[K comparable, V any] struct {
-	Hash  uint64
-	Key   K
-	Value V
+func (s *Snapshot[K, V]) node(n uint64) []byte {
+	return s.data[n*pageSize : (n+1)*pageSize]
 }
 
-type node[K comparable, V any] struct {
-	Version uint64
-	hasher  hasher[K]
+func (s *Snapshot[K, V]) allocateNode() (uint64, []byte) {
+	// FIXME (wojciech): Copy 0x00 bytes to allocated node.
 
-	Types    [arraySize]pointerType
-	KVs      [arraySize]*kvPair[K, V]
-	Pointers [arraySize]*node[K, V]
+	s.allocatedNodeIndex++
+	return s.allocatedNodeIndex, s.node(s.allocatedNodeIndex)
 }
 
-func newHasher[K comparable](mod uint64) hasher[K] {
-	var k K
-	var bytes []byte
-	var data []byte
-	if mod > 0 {
-		bytes = make([]byte, uint64Length+unsafe.Sizeof(k))
-		copy(bytes, photon.NewFromValue(&mod).B)
-		data = bytes[uint64Length:]
-	}
-
-	return hasher[K]{
-		bytes: bytes,
-		data:  data,
-	}
-}
-
-type hasher[K comparable] struct {
-	bytes []byte
-	data  []byte
-}
-
-func (h hasher[K]) Hash(key K) uint64 {
+func hashKey[K comparable](key K, hashMod uint64) uint64 {
 	var hash uint64
-	if h.bytes == nil {
-		hash = xxhash.Sum64(photon.NewFromValue[K](&key).B)
+	p := photon.NewFromValue[K](&key)
+	if hashMod == 0 {
+		hash = xxhash.Sum64(p.B)
 	} else {
-		copy(h.data, photon.NewFromValue[K](&key).B)
-		hash = xxhash.Sum64(h.bytes)
+		// FIXME (wojciech): Remove heap allocation
+		b := make([]byte, uint64Length+len(p.B))
+		copy(b, photon.NewFromValue(&hashMod).B)
+		copy(b[uint64Length:], photon.NewFromValue[K](&key).B)
+		hash = xxhash.Sum64(b)
 	}
+
 	if isTesting {
 		hash = testHash(hash)
 	}
+
 	return hash
 }
 
