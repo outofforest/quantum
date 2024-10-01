@@ -1,10 +1,7 @@
 package quantum
 
 import (
-	"unsafe"
-
 	"github.com/cespare/xxhash"
-	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
 	"github.com/outofforest/photon"
@@ -21,10 +18,9 @@ const (
 	statePointer
 )
 
-// Config stores configuration.
-type Config struct {
-	TotalSize uint64
-	NodeSize  uint64
+// SnapshotConfig stores snapshot configuration.
+type SnapshotConfig struct {
+	Allocator *Allocator
 }
 
 // NodeHeader is the header common to all node types.
@@ -48,22 +44,21 @@ type DataItem[K, V comparable] struct {
 }
 
 // New creates new quantum store.
-func New[K, V comparable](config Config) (Snapshot[K, V], error) {
-	pointerNodeDescriptor, err := NewNodeDescriptor[uint64](config.NodeSize)
+func New[K, V comparable](config SnapshotConfig) (Snapshot[K, V], error) {
+	pointerNodeAllocator, err := NewNodeAllocator[uint64](config.Allocator)
 	if err != nil {
 		return Snapshot[K, V]{}, err
 	}
 
-	dataNodeDescriptor, err := NewNodeDescriptor[DataItem[K, V]](config.NodeSize)
+	dataNodeAllocator, err := NewNodeAllocator[DataItem[K, V]](config.Allocator)
 	if err != nil {
 		return Snapshot[K, V]{}, err
 	}
 
 	s := Snapshot[K, V]{
-		config:                config,
-		pointerNodeDescriptor: pointerNodeDescriptor,
-		dataNodeDescriptor:    dataNodeDescriptor,
-		data:                  make([]byte, config.TotalSize),
+		config:               config,
+		pointerNodeAllocator: pointerNodeAllocator,
+		dataNodeAllocator:    dataNodeAllocator,
 		rootInfo: parentInfo{
 			State: lo.ToPtr(stateFree),
 			Item:  lo.ToPtr[uint64](0),
@@ -75,17 +70,14 @@ func New[K, V comparable](config Config) (Snapshot[K, V], error) {
 
 // Snapshot represents the state at particular point in time.
 type Snapshot[K, V comparable] struct {
-	config                Config
-	pointerNodeDescriptor NodeDescriptor[uint64]
-	dataNodeDescriptor    NodeDescriptor[DataItem[K, V]]
+	config               SnapshotConfig
+	pointerNodeAllocator NodeAllocator[uint64]
+	dataNodeAllocator    NodeAllocator[DataItem[K, V]]
 
 	version      uint64
 	rootInfo     parentInfo
 	hashMod      uint64
 	defaultValue V
-
-	data               []byte
-	allocatedNodeIndex uint64
 }
 
 // Next transitions to the next snapshot of the state.
@@ -108,12 +100,12 @@ func (s *Snapshot[K, V]) Get(key K) (value V, exists bool) {
 		case stateFree:
 			return s.defaultValue, false
 		case stateData:
-			dataNode := s.dataNodeDescriptor.ToNode(s.node(*pInfo.Item))
+			_, dataNode := s.dataNodeAllocator.Get(*pInfo.Item)
 			if dataNode.Header.HashMod > 0 {
 				h = hashKey(key, dataNode.Header.HashMod)
 			}
 
-			index := h & s.dataNodeDescriptor.addressMask
+			index := s.dataNodeAllocator.Index(h)
 
 			if dataNode.States[index] == stateFree {
 				return s.defaultValue, false
@@ -124,13 +116,13 @@ func (s *Snapshot[K, V]) Get(key K) (value V, exists bool) {
 			}
 			return s.defaultValue, false
 		default:
-			pointerNode := s.pointerNodeDescriptor.ToNode(s.node(*pInfo.Item))
+			_, pointerNode := s.pointerNodeAllocator.Get(*pInfo.Item)
 			if pointerNode.Header.HashMod > 0 {
 				h = hashKey(key, pointerNode.Header.HashMod)
 			}
 
-			index := h & s.pointerNodeDescriptor.addressMask
-			h >>= s.pointerNodeDescriptor.bitsPerHop
+			index := s.pointerNodeAllocator.Index(h)
+			h = s.pointerNodeAllocator.Shift(h)
 
 			pInfo = parentInfo{
 				State: &pointerNode.States[index],
@@ -158,25 +150,23 @@ func (s *Snapshot[K, V]) set(pInfo parentInfo, item DataItem[K, V]) {
 	for {
 		switch *pInfo.State {
 		case stateFree:
-			dataNodeIndex, dataNodeData := s.allocateNode()
-			dataNode := s.dataNodeDescriptor.ToNode(dataNodeData)
+			dataNodeIndex, _, dataNode := s.dataNodeAllocator.Allocate()
 			dataNode.Header.Version = s.version
 
 			*pInfo.State = stateData
 			*pInfo.Item = dataNodeIndex
 
-			index := item.Hash & s.dataNodeDescriptor.addressMask
+			index := s.dataNodeAllocator.Index(item.Hash)
 			dataNode.States[index] = stateData
 			dataNode.Items[index] = item
 
 			return
 		case stateData:
-			node := s.node(*pInfo.Item)
-			dataNode := s.dataNodeDescriptor.ToNode(node)
+			dataNodeData, dataNode := s.dataNodeAllocator.Get(*pInfo.Item)
 			if dataNode.Header.Version < s.version {
-				newNodeIndex, newNodeData := s.allocateNode()
-				copy(newNodeData, node)
-				dataNode = s.dataNodeDescriptor.ToNode(newNodeData)
+				newNodeIndex, newNodeData, newNode := s.dataNodeAllocator.Allocate()
+				copy(newNodeData, dataNodeData)
+				dataNode = newNode
 				dataNode.Header.Version = s.version
 				*pInfo.Item = newNodeIndex
 			}
@@ -184,7 +174,7 @@ func (s *Snapshot[K, V]) set(pInfo parentInfo, item DataItem[K, V]) {
 				item.Hash = hashKey(item.Key, dataNode.Header.HashMod)
 			}
 
-			index := item.Hash & s.dataNodeDescriptor.addressMask
+			index := s.dataNodeAllocator.Index(item.Hash)
 			if dataNode.States[index] == stateFree {
 				dataNode.States[index] = stateData
 				dataNode.Items[index] = item
@@ -209,12 +199,11 @@ func (s *Snapshot[K, V]) set(pInfo parentInfo, item DataItem[K, V]) {
 
 			return
 		default:
-			node := s.node(*pInfo.Item)
-			pointerNode := s.pointerNodeDescriptor.ToNode(node)
+			pointerNodeData, pointerNode := s.pointerNodeAllocator.Get(*pInfo.Item)
 			if pointerNode.Header.Version < s.version {
-				newNodeIndex, newNodeData := s.allocateNode()
-				copy(newNodeData, node)
-				pointerNode = s.pointerNodeDescriptor.ToNode(newNodeData)
+				newNodeIndex, newNodeData, newNode := s.pointerNodeAllocator.Allocate()
+				copy(newNodeData, pointerNodeData)
+				pointerNode = newNode
 				pointerNode.Header.Version = s.version
 				*pInfo.Item = newNodeIndex
 			}
@@ -222,8 +211,8 @@ func (s *Snapshot[K, V]) set(pInfo parentInfo, item DataItem[K, V]) {
 				item.Hash = hashKey(item.Key, pointerNode.Header.HashMod)
 			}
 
-			index := item.Hash & s.pointerNodeDescriptor.addressMask
-			item.Hash >>= s.pointerNodeDescriptor.bitsPerHop
+			index := s.pointerNodeAllocator.Index(item.Hash)
+			item.Hash = s.pointerNodeAllocator.Shift(item.Hash)
 
 			pInfo = parentInfo{
 				State: &pointerNode.States[index],
@@ -234,10 +223,9 @@ func (s *Snapshot[K, V]) set(pInfo parentInfo, item DataItem[K, V]) {
 }
 
 func (s *Snapshot[K, V]) redistributeNode(pInfo parentInfo) {
-	dataNode := s.dataNodeDescriptor.ToNode(s.node(*pInfo.Item))
+	_, dataNode := s.dataNodeAllocator.Get(*pInfo.Item)
 
-	pointerNodeIndex, pointerNodeData := s.allocateNode()
-	pointerNode := s.pointerNodeDescriptor.ToNode(pointerNodeData)
+	pointerNodeIndex, _, pointerNode := s.pointerNodeAllocator.Allocate()
 	*pointerNode.Header = NodeHeader{
 		Version: s.version,
 		HashMod: dataNode.Header.HashMod,
@@ -246,80 +234,12 @@ func (s *Snapshot[K, V]) redistributeNode(pInfo parentInfo) {
 	*pInfo.State = statePointer
 	*pInfo.Item = pointerNodeIndex
 
-	for i := range s.dataNodeDescriptor.numOfItems {
-		if dataNode.States[i] == stateFree {
+	for i, state := range dataNode.States {
+		if state == stateFree {
 			continue
 		}
 
 		s.set(pInfo, dataNode.Items[i])
-	}
-}
-
-func (s *Snapshot[K, V]) node(n uint64) []byte {
-	return s.data[n*s.config.NodeSize : (n+1)*s.config.NodeSize]
-}
-
-func (s *Snapshot[K, V]) allocateNode() (uint64, []byte) {
-	// FIXME (wojciech): Copy 0x00 bytes to allocated node.
-
-	s.allocatedNodeIndex++
-	return s.allocatedNodeIndex, s.node(s.allocatedNodeIndex)
-}
-
-// NewNodeDescriptor creates new descriptor converting byte slices of `nodeSize` size to node objects.
-func NewNodeDescriptor[T comparable](nodeSize uint64) (NodeDescriptor[T], error) {
-	headerSize := uint64(unsafe.Sizeof(NodeHeader{}))
-	if headerSize >= nodeSize {
-		return NodeDescriptor[T]{}, errors.New("node size is too small")
-	}
-
-	stateOffset := headerSize + headerSize%uint64Length
-	spaceLeft := nodeSize - stateOffset
-
-	var t T
-	itemSize := uint64(unsafe.Sizeof(t))
-	itemSize += itemSize % uint64Length
-
-	numOfItems := spaceLeft / (itemSize + 1) // 1 is for slot state
-	if numOfItems == 0 {
-		return NodeDescriptor[T]{}, errors.New("node size is too small")
-	}
-	numOfItems, _ = highestPowerOfTwo(numOfItems)
-	spaceLeft -= numOfItems
-	spaceLeft -= numOfItems % uint64Length
-
-	numOfItems = spaceLeft / itemSize
-	numOfItems, bitsPerHop := highestPowerOfTwo(numOfItems)
-	if numOfItems == 0 {
-		return NodeDescriptor[T]{}, errors.New("node size is too small")
-	}
-
-	return NodeDescriptor[T]{
-		numOfItems:  numOfItems,
-		itemSize:    itemSize,
-		stateOffset: stateOffset,
-		itemOffset:  nodeSize - spaceLeft,
-		addressMask: numOfItems - 1,
-		bitsPerHop:  bitsPerHop,
-	}, nil
-}
-
-// NodeDescriptor describes the data structure of node.
-type NodeDescriptor[T comparable] struct {
-	numOfItems  uint64
-	itemSize    uint64
-	stateOffset uint64
-	itemOffset  uint64
-	addressMask uint64
-	bitsPerHop  uint64
-}
-
-// ToNode converts byte representation of the node to object.
-func (nd NodeDescriptor[T]) ToNode(data []byte) Node[T] {
-	return Node[T]{
-		Header: (*NodeHeader)(unsafe.Pointer(&data[0])),
-		States: unsafe.Slice((*State)(unsafe.Pointer(&data[nd.stateOffset])), nd.numOfItems),
-		Items:  unsafe.Slice((*T)(unsafe.Pointer(&data[nd.itemOffset])), nd.numOfItems),
 	}
 }
 
@@ -345,14 +265,4 @@ func hashKey[K comparable](key K, hashMod uint64) uint64 {
 
 func testHash(hash uint64) uint64 {
 	return hash & 0x7fffffff
-}
-
-func highestPowerOfTwo(n uint64) (uint64, uint64) {
-	var m uint64 = 1
-	var p uint64
-	for m <= n {
-		m <<= 1 // Multiply m by 2 (left shift)
-		p++
-	}
-	return m >> 1, p - 1 // Divide by 2 (right shift) to get the highest power of 2 <= n
 }
