@@ -23,12 +23,17 @@ var collisions = [][]int{
 	{32134280, 33645087, 37005304, 83416269},
 }
 
-var config = SnapshotConfig{
-	Allocator: NewAllocator(AllocatorConfig{
-		TotalSize: 10 * 1024 * 1024,
-		NodeSize:  512,
-	}),
+func config() SnapshotConfig {
+	return SnapshotConfig{
+		SnapshotID: 0,
+		Allocator: NewAllocator(AllocatorConfig{
+			TotalSize: 10 * 1024 * 1024,
+			NodeSize:  512,
+		}),
+	}
 }
+
+const spaceID = 0x00
 
 func TestCollisions(t *testing.T) {
 	for _, set := range collisions {
@@ -41,18 +46,24 @@ func TestCollisions(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
-	s, err := New[int, int](config)
+	s, err := NewSnapshot(config())
+	require.NoError(t, err)
+
+	space, err := GetSpace[int, int](spaceID, s)
 	require.NoError(t, err)
 
 	for i := range 10 {
-		s.Set(i, i)
+		space.Set(i, i)
 	}
 
-	require.Equal(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, collect(s))
+	require.Equal(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, collect(space))
 }
 
 func TestSetCollisions(t *testing.T) {
-	s, err := New[int, int](config)
+	s, err := NewSnapshot(config())
+	require.NoError(t, err)
+
+	space, err := GetSpace[int, int](spaceID, s)
 	require.NoError(t, err)
 
 	allValues := make([]int, 0, len(collisions)*len(collisions[0]))
@@ -60,17 +71,20 @@ func TestSetCollisions(t *testing.T) {
 	for _, set := range collisions {
 		for _, i := range set {
 			allValues = append(allValues, i)
-			s.Set(i, i)
+			space.Set(i, i)
 		}
 	}
 
 	sort.Ints(allValues)
 
-	require.Equal(t, allValues, collect(s))
+	require.Equal(t, allValues, collect(space))
 }
 
 func TestGetCollisions(t *testing.T) {
-	s, err := New[int, int](config)
+	s, err := NewSnapshot(config())
+	require.NoError(t, err)
+
+	space, err := GetSpace[int, int](spaceID, s)
 	require.NoError(t, err)
 
 	inserted := make([]int, 0, len(collisions)*len(collisions[0]))
@@ -79,13 +93,13 @@ func TestGetCollisions(t *testing.T) {
 	for _, set := range collisions {
 		for _, i := range set {
 			inserted = append(inserted, i)
-			s.Set(i, i)
+			space.Set(i, i)
 		}
 	}
 
 	for _, set := range collisions {
 		for _, i := range set {
-			if v, exists := s.Get(i); exists {
+			if v, exists := space.Get(i); exists {
 				read = append(read, v)
 			}
 		}
@@ -98,64 +112,82 @@ func TestGetCollisions(t *testing.T) {
 }
 
 func TestSetOnNext(t *testing.T) {
-	s, err := New[int, int](config)
+	s1, err := NewSnapshot(config())
+	require.NoError(t, err)
+
+	space1, err := GetSpace[int, int](spaceID, s1)
 	require.NoError(t, err)
 
 	for i := range 10 {
-		s.Set(i, i)
+		space1.Set(i, i)
 	}
 
-	s2 := s.Next()
+	s2, err := s1.Commit()
+	require.NoError(t, err)
+
+	space2, err := GetSpace[int, int](spaceID, s2)
+	require.NoError(t, err)
+
 	for i := range 5 {
-		s2.Set(i, i+10)
+		space2.Set(i, i+10)
 	}
 
-	require.Equal(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, collect(s))
-	require.Equal(t, []int{5, 6, 7, 8, 9, 10, 11, 12, 13, 14}, collect(s2))
+	require.Equal(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, collect(space1))
+	require.Equal(t, []int{5, 6, 7, 8, 9, 10, 11, 12, 13, 14}, collect(space2))
 }
 
 func TestGet(t *testing.T) {
-	s, err := New[int, int](config)
+	s, err := NewSnapshot(config())
+	require.NoError(t, err)
+
+	space, err := GetSpace[int, int](spaceID, s)
 	require.NoError(t, err)
 
 	for i := range 10 {
-		s.Set(i, i)
+		space.Set(i, i)
 	}
 	for i := range 10 {
-		v, exists := s.Get(i)
+		v, exists := space.Get(i)
 		require.True(t, exists)
 		require.Equal(t, i, v)
 	}
 }
 
 func TestReplace(t *testing.T) {
-	s1, err := New[int, int](config)
+	s1, err := NewSnapshot(config())
+	require.NoError(t, err)
+
+	space1, err := GetSpace[int, int](spaceID, s1)
 	require.NoError(t, err)
 
 	for i := range 10 {
-		s1.Set(i, i)
+		space1.Set(i, i)
 	}
 
-	s2 := s1.Next()
+	s2, err := s1.Commit()
+	require.NoError(t, err)
+
+	space2, err := GetSpace[int, int](spaceID, s2)
+	require.NoError(t, err)
 
 	for i, j := 0, 10; i < 5; i, j = i+1, j+1 {
-		s2.Set(i, j)
+		space2.Set(i, j)
 	}
 
 	for i := range 10 {
-		v, exists := s1.Get(i)
+		v, exists := space1.Get(i)
 		require.True(t, exists)
 		require.Equal(t, i, v)
 	}
 
 	for i := range 5 {
-		v, exists := s2.Get(i)
+		v, exists := space2.Get(i)
 		require.True(t, exists)
 		require.Equal(t, i+10, v)
 	}
 
 	for i := 5; i < 10; i++ {
-		v, exists := s2.Get(i)
+		v, exists := space2.Get(i)
 		require.True(t, exists)
 		require.Equal(t, i, v)
 	}
@@ -183,10 +215,10 @@ func TestFindCollisions(t *testing.T) {
 	}
 }
 
-func collect(s Snapshot[int, int]) []int {
+func collect(space *Space[int, int]) []int {
 	values := []int{}
-	typeStack := []State{*s.rootInfo.State}
-	nodeStack := []uint64{*s.rootInfo.Item}
+	typeStack := []State{*space.config.SpaceRoot.State}
+	nodeStack := []uint64{*space.config.SpaceRoot.Item}
 
 	for {
 		if len(nodeStack) == 0 {
@@ -201,14 +233,14 @@ func collect(s Snapshot[int, int]) []int {
 
 		switch t {
 		case stateData:
-			_, node := s.dataNodeAllocator.Get(n)
+			_, node := space.dataNodeAllocator.Get(n)
 			for i := range len(node.Items) {
 				if node.States[i] == stateData {
 					values = append(values, node.Items[i].Value)
 				}
 			}
 		default:
-			_, node := s.pointerNodeAllocator.Get(n)
+			_, node := space.pointerNodeAllocator.Get(n)
 			for i := range len(node.Items) {
 				if node.States[i] != stateFree {
 					typeStack = append(typeStack, node.States[i])
