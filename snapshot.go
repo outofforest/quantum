@@ -1,268 +1,204 @@
 package quantum
 
 import (
-	"github.com/cespare/xxhash"
+	"sort"
+
+	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
 	"github.com/outofforest/photon"
 )
 
-const uint64Length = 8
-
-// State enumerates possible slot states.
-type State byte
-
-const (
-	stateFree State = iota
-	stateData
-	statePointer
-)
-
-// SnapshotConfig stores snapshot configuration.
-type SnapshotConfig struct {
-	Allocator *Allocator
-}
-
-// NodeHeader is the header common to all node types.
-type NodeHeader struct {
-	Version uint64
+// SpaceInfo stores information required to retrieve space.
+type SpaceInfo struct {
+	State   State
+	Node    uint64
 	HashMod uint64
 }
 
-// Node represents data stored inside node.
-type Node[T comparable] struct {
-	Header *NodeHeader
-	States []State
-	Items  []T
+// SnapshotInfo stores information required to retrieve snapshot.
+type SnapshotInfo struct {
+	SnapshotID   uint64
+	SnapshotRoot SpaceInfo
+	SpaceRoot    SpaceInfo
 }
 
-// DataItem stores single key-value pair.
-type DataItem[K, V comparable] struct {
-	Hash  uint64
-	Key   K
-	Value V
+type spaceToCommit struct {
+	HashMod      *uint64
+	PInfo        ParentInfo
+	OriginalItem uint64
 }
 
-// New creates new quantum store.
-func New[K, V comparable](config SnapshotConfig) (Snapshot[K, V], error) {
-	pointerNodeAllocator, err := NewNodeAllocator[uint64](config.Allocator)
-	if err != nil {
-		return Snapshot[K, V]{}, err
+// SnapshotConfig stores snapshot configuration.
+type SnapshotConfig struct {
+	SnapshotID uint64
+	Allocator  *Allocator
+}
+
+// NewSnapshot creates new snapshot.
+func NewSnapshot(config SnapshotConfig) (Snapshot, error) {
+	if config.SnapshotID == 0 {
+		_, node := config.Allocator.Allocate()
+		snapshotInfo := photon.FromBytes[SnapshotInfo](node)
+		*snapshotInfo = SnapshotInfo{}
 	}
 
-	dataNodeAllocator, err := NewNodeAllocator[DataItem[K, V]](config.Allocator)
-	if err != nil {
-		return Snapshot[K, V]{}, err
+	snapshotInfo := *photon.FromBytes[SnapshotInfo](config.Allocator.Node(0))
+	if config.SnapshotID > 0 && snapshotInfo.SnapshotID < config.SnapshotID-1 {
+		return Snapshot{}, errors.Errorf("snapshot %d does not exist", config.SnapshotID)
 	}
 
-	s := Snapshot[K, V]{
-		config:               config,
-		pointerNodeAllocator: pointerNodeAllocator,
-		dataNodeAllocator:    dataNodeAllocator,
-		rootInfo: parentInfo{
-			State: lo.ToPtr(stateFree),
-			Item:  lo.ToPtr[uint64](0),
+	if snapshotInfo.SnapshotID > config.SnapshotID {
+		snapshots, err := NewSpace[uint64, SnapshotInfo](SpaceConfig{
+			SnapshotID: config.SnapshotID,
+			HashMod:    &snapshotInfo.SnapshotRoot.HashMod,
+			Allocator:  config.Allocator,
+			SpaceRoot: ParentInfo{
+				State: lo.ToPtr(snapshotInfo.SnapshotRoot.State),
+				Item:  lo.ToPtr[uint64](snapshotInfo.SnapshotRoot.Node),
+			},
+		})
+
+		if err != nil {
+			return Snapshot{}, err
+		}
+
+		var exists bool
+		snapshotInfo, exists = snapshots.Get(config.SnapshotID)
+		if !exists {
+			return Snapshot{}, errors.Errorf("snapshot %d does not exist", config.SnapshotID)
+		}
+	}
+
+	snapshots, err := NewSpace[uint64, SnapshotInfo](SpaceConfig{
+		SnapshotID: config.SnapshotID,
+		HashMod:    &snapshotInfo.SnapshotRoot.HashMod,
+		Allocator:  config.Allocator,
+		SpaceRoot: ParentInfo{
+			State: lo.ToPtr(snapshotInfo.SnapshotRoot.State),
+			Item:  lo.ToPtr(snapshotInfo.SnapshotRoot.Node),
 		},
-		defaultValue: *new(V),
+	})
+
+	if err != nil {
+		return Snapshot{}, err
+	}
+
+	spaces, err := NewSpace[uint64, SpaceInfo](SpaceConfig{
+		SnapshotID: config.SnapshotID,
+		HashMod:    &snapshotInfo.SpaceRoot.HashMod,
+		Allocator:  config.Allocator,
+		SpaceRoot: ParentInfo{
+			State: lo.ToPtr(snapshotInfo.SpaceRoot.State),
+			Item:  lo.ToPtr(snapshotInfo.SpaceRoot.Node),
+		},
+	})
+
+	if err != nil {
+		return Snapshot{}, err
+	}
+
+	s := Snapshot{
+		config:         config,
+		spaces:         spaces,
+		snapshots:      snapshots,
+		spacesToCommit: map[uint64]spaceToCommit{},
 	}
 	return s, nil
 }
 
 // Snapshot represents the state at particular point in time.
-type Snapshot[K, V comparable] struct {
-	config               SnapshotConfig
-	pointerNodeAllocator NodeAllocator[uint64]
-	dataNodeAllocator    NodeAllocator[DataItem[K, V]]
+type Snapshot struct {
+	config    SnapshotConfig
+	spaces    *Space[uint64, SpaceInfo]
+	snapshots *Space[uint64, SnapshotInfo]
 
-	version      uint64
-	rootInfo     parentInfo
-	hashMod      uint64
-	defaultValue V
+	spacesToCommit map[uint64]spaceToCommit
 }
 
-// Next transitions to the next snapshot of the state.
-func (s Snapshot[K, V]) Next() Snapshot[K, V] {
-	s.version++
-	s.rootInfo = parentInfo{
-		State: lo.ToPtr(*s.rootInfo.State),
-		Item:  lo.ToPtr(*s.rootInfo.Item),
-	}
-	return s
-}
-
-// Get gets the value of the key.
-func (s *Snapshot[K, V]) Get(key K) (value V, exists bool) {
-	h := hashKey(key, 0)
-	pInfo := s.rootInfo
-
-	for {
-		switch *pInfo.State {
-		case stateFree:
-			return s.defaultValue, false
-		case stateData:
-			_, dataNode := s.dataNodeAllocator.Get(*pInfo.Item)
-			if dataNode.Header.HashMod > 0 {
-				h = hashKey(key, dataNode.Header.HashMod)
-			}
-
-			index := s.dataNodeAllocator.Index(h)
-
-			if dataNode.States[index] == stateFree {
-				return s.defaultValue, false
-			}
-			item := dataNode.Items[index]
-			if item.Hash == h && item.Key == key {
-				return item.Value, true
-			}
-			return s.defaultValue, false
-		default:
-			_, pointerNode := s.pointerNodeAllocator.Get(*pInfo.Item)
-			if pointerNode.Header.HashMod > 0 {
-				h = hashKey(key, pointerNode.Header.HashMod)
-			}
-
-			index := s.pointerNodeAllocator.Index(h)
-			h = s.pointerNodeAllocator.Shift(h)
-
-			pInfo = parentInfo{
-				State: &pointerNode.States[index],
-				Item:  &pointerNode.Items[index],
-			}
-		}
-	}
-}
-
-// Set sets the value for the key.
-func (s *Snapshot[K, V]) Set(key K, value V) {
-	s.set(s.rootInfo, DataItem[K, V]{
-		Hash:  hashKey(key, 0),
-		Key:   key,
-		Value: value,
-	})
-}
-
-type parentInfo struct {
-	State *State
-	Item  *uint64
-}
-
-func (s *Snapshot[K, V]) set(pInfo parentInfo, item DataItem[K, V]) {
-	for {
-		switch *pInfo.State {
-		case stateFree:
-			dataNodeIndex, _, dataNode := s.dataNodeAllocator.Allocate()
-			dataNode.Header.Version = s.version
-
-			*pInfo.State = stateData
-			*pInfo.Item = dataNodeIndex
-
-			index := s.dataNodeAllocator.Index(item.Hash)
-			dataNode.States[index] = stateData
-			dataNode.Items[index] = item
-
-			return
-		case stateData:
-			dataNodeData, dataNode := s.dataNodeAllocator.Get(*pInfo.Item)
-			if dataNode.Header.Version < s.version {
-				newNodeIndex, newNodeData, newNode := s.dataNodeAllocator.Allocate()
-				copy(newNodeData, dataNodeData)
-				dataNode = newNode
-				dataNode.Header.Version = s.version
-				*pInfo.Item = newNodeIndex
-			}
-			if dataNode.Header.HashMod > 0 {
-				item.Hash = hashKey(item.Key, dataNode.Header.HashMod)
-			}
-
-			index := s.dataNodeAllocator.Index(item.Hash)
-			if dataNode.States[index] == stateFree {
-				dataNode.States[index] = stateData
-				dataNode.Items[index] = item
-
-				return
-			}
-
-			if item.Hash == dataNode.Items[index].Hash {
-				if item.Key == dataNode.Items[index].Key {
-					dataNode.Items[index] = item
-
-					return
-				}
-
-				// hash conflict
-				s.hashMod++
-				dataNode.Header.HashMod = s.hashMod
-			}
-
-			s.redistributeNode(pInfo)
-			s.set(pInfo, item)
-
-			return
-		default:
-			pointerNodeData, pointerNode := s.pointerNodeAllocator.Get(*pInfo.Item)
-			if pointerNode.Header.Version < s.version {
-				newNodeIndex, newNodeData, newNode := s.pointerNodeAllocator.Allocate()
-				copy(newNodeData, pointerNodeData)
-				pointerNode = newNode
-				pointerNode.Header.Version = s.version
-				*pInfo.Item = newNodeIndex
-			}
-			if pointerNode.Header.HashMod > 0 {
-				item.Hash = hashKey(item.Key, pointerNode.Header.HashMod)
-			}
-
-			index := s.pointerNodeAllocator.Index(item.Hash)
-			item.Hash = s.pointerNodeAllocator.Shift(item.Hash)
-
-			pInfo = parentInfo{
-				State: &pointerNode.States[index],
-				Item:  &pointerNode.Items[index],
-			}
-		}
-	}
-}
-
-func (s *Snapshot[K, V]) redistributeNode(pInfo parentInfo) {
-	_, dataNode := s.dataNodeAllocator.Get(*pInfo.Item)
-
-	pointerNodeIndex, _, pointerNode := s.pointerNodeAllocator.Allocate()
-	*pointerNode.Header = NodeHeader{
-		Version: s.version,
-		HashMod: dataNode.Header.HashMod,
+// Space retrieves information about space.
+func (s Snapshot) Space(spaceID uint64) SpaceInfo {
+	spaceRootInfo, exists := s.spaces.Get(spaceID)
+	if !exists {
+		return SpaceInfo{}
 	}
 
-	*pInfo.State = statePointer
-	*pInfo.Item = pointerNodeIndex
+	return spaceRootInfo
+}
 
-	for i, state := range dataNode.States {
-		if state == stateFree {
+// Commit commits current snapshot and returns next one.
+func (s Snapshot) Commit() (Snapshot, error) {
+	spaces := make([]uint64, 0, len(s.spacesToCommit))
+	for spaceID := range s.spacesToCommit {
+		spaces = append(spaces, spaceID)
+	}
+	sort.Slice(spaces, func(i, j int) bool { return spaces[i] < spaces[j] })
+
+	for _, spaceID := range spaces {
+		spaceToCommit := s.spacesToCommit[spaceID]
+		if *spaceToCommit.PInfo.State == stateFree || *spaceToCommit.PInfo.Item == spaceToCommit.OriginalItem {
 			continue
 		}
-
-		s.set(pInfo, dataNode.Items[i])
+		s.spaces.Set(spaceID, SpaceInfo{
+			HashMod: *spaceToCommit.HashMod,
+			State:   *spaceToCommit.PInfo.State,
+			Node:    *spaceToCommit.PInfo.Item,
+		})
 	}
+
+	clear(s.spacesToCommit)
+
+	snapshotInfo := SnapshotInfo{
+		SnapshotID: s.config.SnapshotID,
+		SnapshotRoot: SpaceInfo{
+			HashMod: *s.snapshots.config.HashMod,
+			State:   *s.snapshots.config.SpaceRoot.State,
+			Node:    *s.snapshots.config.SpaceRoot.Item,
+		},
+		SpaceRoot: SpaceInfo{
+			HashMod: *s.spaces.config.HashMod,
+			State:   *s.spaces.config.SpaceRoot.State,
+			Node:    *s.spaces.config.SpaceRoot.Item,
+		},
+	}
+
+	// FIXME (wojciech): Chicken and egg issue
+	s.snapshots.Set(s.config.SnapshotID, snapshotInfo)
+	snapshotInfo.SnapshotRoot = SpaceInfo{
+		HashMod: *s.snapshots.config.HashMod,
+		State:   *s.snapshots.config.SpaceRoot.State,
+		Node:    *s.snapshots.config.SpaceRoot.Item,
+	}
+	s.snapshots.Set(s.config.SnapshotID, snapshotInfo)
+
+	*photon.FromBytes[SnapshotInfo](s.config.Allocator.Node(0)) = snapshotInfo
+
+	config := s.config
+	config.SnapshotID = s.config.SnapshotID + 1
+
+	return NewSnapshot(config)
 }
 
-func hashKey[K comparable](key K, hashMod uint64) uint64 {
-	var hash uint64
-	p := photon.NewFromValue[K](&key)
-	if hashMod == 0 {
-		hash = xxhash.Sum64(p.B)
-	} else {
-		// FIXME (wojciech): Remove heap allocation
-		b := make([]byte, uint64Length+len(p.B))
-		copy(b, photon.NewFromValue(&hashMod).B)
-		copy(b[uint64Length:], photon.NewFromValue[K](&key).B)
-		hash = xxhash.Sum64(b)
+// GetSpace retrieves space from snapshot.
+func GetSpace[K, V comparable](spaceID uint64, snapshot Snapshot) (*Space[K, V], error) {
+	space, exists := snapshot.spacesToCommit[spaceID]
+	if !exists {
+		spaceInfo := snapshot.Space(spaceID)
+		space = spaceToCommit{
+			HashMod: &spaceInfo.HashMod,
+			PInfo: ParentInfo{
+				State: &spaceInfo.State,
+				Item:  &spaceInfo.Node,
+			},
+			OriginalItem: spaceInfo.Node,
+		}
+		snapshot.spacesToCommit[spaceID] = space
 	}
 
-	if isTesting {
-		hash = testHash(hash)
-	}
-
-	return hash
-}
-
-func testHash(hash uint64) uint64 {
-	return hash & 0x7fffffff
+	return NewSpace[K, V](SpaceConfig{
+		SnapshotID: snapshot.config.SnapshotID,
+		HashMod:    space.HashMod,
+		Allocator:  snapshot.config.Allocator,
+		SpaceRoot:  space.PInfo,
+	})
 }

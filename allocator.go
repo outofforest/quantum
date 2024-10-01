@@ -4,6 +4,8 @@ import (
 	"unsafe"
 
 	"github.com/pkg/errors"
+
+	"github.com/outofforest/photon"
 )
 
 // AllocatorConfig stores configuration of allocator.
@@ -27,16 +29,18 @@ type Allocator struct {
 	nextNodeToAllocate uint64
 }
 
-func (a *Allocator) node(n uint64) []byte {
+// Node returns node bytes.
+func (a *Allocator) Node(n uint64) []byte {
 	return a.data[n*a.config.NodeSize : (n+1)*a.config.NodeSize]
 }
 
-func (a *Allocator) allocateNode() uint64 {
+// Allocate allocates new node.
+func (a *Allocator) Allocate() (uint64, []byte) {
 	// FIXME (wojciech): Copy 0x00 bytes to allocated node.
 
 	n := a.nextNodeToAllocate
 	a.nextNodeToAllocate++
-	return n
+	return n, a.Node(n)
 }
 
 // NewNodeAllocator creates new node allocator.
@@ -69,7 +73,7 @@ func NewNodeAllocator[T comparable](allocator *Allocator) (NodeAllocator[T], err
 
 	return NodeAllocator[T]{
 		allocator:   allocator,
-		numOfItems:  numOfItems,
+		numOfItems:  int(numOfItems),
 		stateOffset: stateOffset,
 		itemOffset:  allocator.config.NodeSize - spaceLeft,
 		indexMask:   numOfItems - 1,
@@ -81,7 +85,7 @@ func NewNodeAllocator[T comparable](allocator *Allocator) (NodeAllocator[T], err
 type NodeAllocator[T comparable] struct {
 	allocator *Allocator
 
-	numOfItems  uint64
+	numOfItems  int
 	stateOffset uint64
 	itemOffset  uint64
 	indexMask   uint64
@@ -90,14 +94,13 @@ type NodeAllocator[T comparable] struct {
 
 // Get returns object for node.
 func (na NodeAllocator[T]) Get(n uint64) ([]byte, Node[T]) {
-	node := na.allocator.node(n)
+	node := na.allocator.Node(n)
 	return node, na.project(node)
 }
 
 // Allocate allocates new object.
 func (na NodeAllocator[T]) Allocate() (uint64, []byte, Node[T]) {
-	n := na.allocator.allocateNode()
-	node := na.allocator.node(n)
+	n, node := na.allocator.Allocate()
 	return n, node, na.project(node)
 }
 
@@ -113,9 +116,9 @@ func (na NodeAllocator[T]) Shift(hash uint64) uint64 {
 
 func (na NodeAllocator[T]) project(node []byte) Node[T] {
 	return Node[T]{
-		Header: (*NodeHeader)(unsafe.Pointer(&node[0])),
-		States: unsafe.Slice((*State)(unsafe.Pointer(&node[na.stateOffset])), na.numOfItems),
-		Items:  unsafe.Slice((*T)(unsafe.Pointer(&node[na.itemOffset])), na.numOfItems),
+		Header: photon.FromBytes[NodeHeader](node),
+		States: photon.SliceFromBytes[State](node[na.stateOffset:], na.numOfItems),
+		Items:  photon.SliceFromBytes[T](node[na.itemOffset:], na.numOfItems),
 	}
 }
 
