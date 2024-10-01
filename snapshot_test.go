@@ -23,9 +23,11 @@ var collisions = [][]int{
 	{32134280, 33645087, 37005304, 83416269},
 }
 
-var config = Config{
-	TotalSize: 10 * 1024 * 1024,
-	NodeSize:  512,
+var config = SnapshotConfig{
+	Allocator: NewAllocator(AllocatorConfig{
+		TotalSize: 10 * 1024 * 1024,
+		NodeSize:  512,
+	}),
 }
 
 func TestCollisions(t *testing.T) {
@@ -199,14 +201,14 @@ func collect(s Snapshot[int, int]) []int {
 
 		switch t {
 		case stateData:
-			node := s.dataNodeDescriptor.ToNode(s.node(n))
+			_, node := s.dataNodeAllocator.Get(n)
 			for i := range len(node.Items) {
 				if node.States[i] == stateData {
 					values = append(values, node.Items[i].Value)
 				}
 			}
 		default:
-			node := s.pointerNodeDescriptor.ToNode(s.node(n))
+			_, node := s.pointerNodeAllocator.Get(n)
 			for i := range len(node.Items) {
 				if node.States[i] != stateFree {
 					typeStack = append(typeStack, node.States[i])
