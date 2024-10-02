@@ -9,20 +9,6 @@ import (
 	"github.com/outofforest/photon"
 )
 
-// SpaceInfo stores information required to retrieve space.
-type SpaceInfo struct {
-	State   State
-	Node    uint64
-	HashMod uint64
-}
-
-// SnapshotInfo stores information required to retrieve snapshot.
-type SnapshotInfo struct {
-	SnapshotID   uint64
-	SnapshotRoot SpaceInfo
-	SpaceRoot    SpaceInfo
-}
-
 type spaceToCommit struct {
 	HashMod      *uint64
 	PInfo        ParentInfo
@@ -48,15 +34,26 @@ func NewSnapshot(config SnapshotConfig) (Snapshot, error) {
 		return Snapshot{}, errors.Errorf("snapshot %d does not exist", config.SnapshotID)
 	}
 
+	pointerNodeAllocator, err := NewNodeAllocator[uint64](config.Allocator)
+	if err != nil {
+		return Snapshot{}, err
+	}
+
+	snapshotInfoNodeAllocator, err := NewNodeAllocator[DataItem[uint64, SnapshotInfo]](config.Allocator)
+	if err != nil {
+		return Snapshot{}, err
+	}
+
 	if snapshotInfo.SnapshotID > config.SnapshotID {
-		snapshots, err := NewSpace[uint64, SnapshotInfo](SpaceConfig{
+		snapshots, err := NewSpace[uint64, SnapshotInfo](SpaceConfig[uint64, SnapshotInfo]{
 			SnapshotID: config.SnapshotID,
 			HashMod:    &snapshotInfo.SnapshotRoot.HashMod,
-			Allocator:  config.Allocator,
 			SpaceRoot: ParentInfo{
 				State: lo.ToPtr(snapshotInfo.SnapshotRoot.State),
 				Item:  lo.ToPtr[uint64](snapshotInfo.SnapshotRoot.Node),
 			},
+			PointerNodeAllocator: pointerNodeAllocator,
+			DataNodeAllocator:    snapshotInfoNodeAllocator,
 		})
 
 		if err != nil {
@@ -70,28 +67,35 @@ func NewSnapshot(config SnapshotConfig) (Snapshot, error) {
 		}
 	}
 
-	snapshots, err := NewSpace[uint64, SnapshotInfo](SpaceConfig{
+	snapshots, err := NewSpace[uint64, SnapshotInfo](SpaceConfig[uint64, SnapshotInfo]{
 		SnapshotID: config.SnapshotID,
 		HashMod:    &snapshotInfo.SnapshotRoot.HashMod,
-		Allocator:  config.Allocator,
 		SpaceRoot: ParentInfo{
 			State: lo.ToPtr(snapshotInfo.SnapshotRoot.State),
 			Item:  lo.ToPtr(snapshotInfo.SnapshotRoot.Node),
 		},
+		PointerNodeAllocator: pointerNodeAllocator,
+		DataNodeAllocator:    snapshotInfoNodeAllocator,
 	})
 
 	if err != nil {
 		return Snapshot{}, err
 	}
 
-	spaces, err := NewSpace[uint64, SpaceInfo](SpaceConfig{
+	spaceInfoNodeAllocator, err := NewNodeAllocator[DataItem[uint64, SpaceInfo]](config.Allocator)
+	if err != nil {
+		return Snapshot{}, err
+	}
+
+	spaces, err := NewSpace[uint64, SpaceInfo](SpaceConfig[uint64, SpaceInfo]{
 		SnapshotID: config.SnapshotID,
 		HashMod:    &snapshotInfo.SpaceRoot.HashMod,
-		Allocator:  config.Allocator,
 		SpaceRoot: ParentInfo{
 			State: lo.ToPtr(snapshotInfo.SpaceRoot.State),
 			Item:  lo.ToPtr(snapshotInfo.SpaceRoot.Node),
 		},
+		PointerNodeAllocator: pointerNodeAllocator,
+		DataNodeAllocator:    spaceInfoNodeAllocator,
 	})
 
 	if err != nil {
@@ -195,10 +199,21 @@ func GetSpace[K, V comparable](spaceID uint64, snapshot Snapshot) (*Space[K, V],
 		snapshot.spacesToCommit[spaceID] = space
 	}
 
-	return NewSpace[K, V](SpaceConfig{
-		SnapshotID: snapshot.config.SnapshotID,
-		HashMod:    space.HashMod,
-		Allocator:  snapshot.config.Allocator,
-		SpaceRoot:  space.PInfo,
+	pointerNodeAllocator, err := NewNodeAllocator[uint64](snapshot.config.Allocator)
+	if err != nil {
+		return nil, err
+	}
+
+	dataNodeAllocator, err := NewNodeAllocator[DataItem[K, V]](snapshot.config.Allocator)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewSpace[K, V](SpaceConfig[K, V]{
+		SnapshotID:           snapshot.config.SnapshotID,
+		HashMod:              space.HashMod,
+		SpaceRoot:            space.PInfo,
+		PointerNodeAllocator: pointerNodeAllocator,
+		DataNodeAllocator:    dataNodeAllocator,
 	})
 }

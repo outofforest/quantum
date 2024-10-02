@@ -6,77 +6,26 @@ import (
 	"github.com/outofforest/photon"
 )
 
-const uint64Length = 8
-
-// State enumerates possible slot states.
-type State byte
-
-const (
-	stateFree State = iota
-	stateData
-	statePointer
-)
-
 // SpaceConfig stores space configuration.
-type SpaceConfig struct {
-	SnapshotID uint64
-	HashMod    *uint64
-	Allocator  *Allocator
-	SpaceRoot  ParentInfo
-}
-
-// NodeHeader is the header common to all node types.
-type NodeHeader struct {
-	SnapshotID uint64
-	HashMod    uint64
-}
-
-// Node represents data stored inside node.
-type Node[T comparable] struct {
-	Header *NodeHeader
-	States []State
-	Items  []T
-}
-
-// DataItem stores single key-value pair.
-type DataItem[K, V comparable] struct {
-	Hash  uint64
-	Key   K
-	Value V
-}
-
-// ParentInfo stores state and item of the slot used to retrieve node from parent pointer.
-type ParentInfo struct {
-	State *State
-	Item  *uint64
+type SpaceConfig[K, V comparable] struct {
+	SnapshotID           uint64
+	HashMod              *uint64
+	SpaceRoot            ParentInfo
+	PointerNodeAllocator NodeAllocator[uint64]
+	DataNodeAllocator    NodeAllocator[DataItem[K, V]]
 }
 
 // NewSpace creates new space.
-func NewSpace[K, V comparable](config SpaceConfig) (*Space[K, V], error) {
-	pointerNodeAllocator, err := NewNodeAllocator[uint64](config.Allocator)
-	if err != nil {
-		return nil, err
-	}
-
-	dataNodeAllocator, err := NewNodeAllocator[DataItem[K, V]](config.Allocator)
-	if err != nil {
-		return nil, err
-	}
-
+func NewSpace[K, V comparable](config SpaceConfig[K, V]) (*Space[K, V], error) {
 	return &Space[K, V]{
-		config:               config,
-		pointerNodeAllocator: pointerNodeAllocator,
-		dataNodeAllocator:    dataNodeAllocator,
-		defaultValue:         *new(V),
+		config:       config,
+		defaultValue: *new(V),
 	}, nil
 }
 
 // Space represents the substate where values V are stored by key K.
 type Space[K, V comparable] struct {
-	config               SpaceConfig
-	pointerNodeAllocator NodeAllocator[uint64]
-	dataNodeAllocator    NodeAllocator[DataItem[K, V]]
-
+	config       SpaceConfig[K, V]
 	defaultValue V
 }
 
@@ -90,12 +39,12 @@ func (s *Space[K, V]) Get(key K) (value V, exists bool) {
 		case stateFree:
 			return s.defaultValue, false
 		case stateData:
-			_, dataNode := s.dataNodeAllocator.Get(*pInfo.Item)
+			_, dataNode := s.config.DataNodeAllocator.Get(*pInfo.Item)
 			if dataNode.Header.HashMod > 0 {
 				h = hashKey(key, dataNode.Header.HashMod)
 			}
 
-			index := s.dataNodeAllocator.Index(h)
+			index := s.config.DataNodeAllocator.Index(h)
 
 			if dataNode.States[index] == stateFree {
 				return s.defaultValue, false
@@ -106,13 +55,13 @@ func (s *Space[K, V]) Get(key K) (value V, exists bool) {
 			}
 			return s.defaultValue, false
 		default:
-			_, pointerNode := s.pointerNodeAllocator.Get(*pInfo.Item)
+			_, pointerNode := s.config.PointerNodeAllocator.Get(*pInfo.Item)
 			if pointerNode.Header.HashMod > 0 {
 				h = hashKey(key, pointerNode.Header.HashMod)
 			}
 
-			index := s.pointerNodeAllocator.Index(h)
-			h = s.pointerNodeAllocator.Shift(h)
+			index := s.config.PointerNodeAllocator.Index(h)
+			h = s.config.PointerNodeAllocator.Shift(h)
 
 			pInfo = ParentInfo{
 				State: &pointerNode.States[index],
@@ -135,22 +84,21 @@ func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) {
 	for {
 		switch *pInfo.State {
 		case stateFree:
-			dataNodeIndex, _, dataNode := s.dataNodeAllocator.Allocate()
+			dataNodeIndex, dataNode := s.config.DataNodeAllocator.Allocate()
 			dataNode.Header.SnapshotID = s.config.SnapshotID
 
 			*pInfo.State = stateData
 			*pInfo.Item = dataNodeIndex
 
-			index := s.dataNodeAllocator.Index(item.Hash)
+			index := s.config.DataNodeAllocator.Index(item.Hash)
 			dataNode.States[index] = stateData
 			dataNode.Items[index] = item
 
 			return
 		case stateData:
-			dataNodeData, dataNode := s.dataNodeAllocator.Get(*pInfo.Item)
+			dataNodeData, dataNode := s.config.DataNodeAllocator.Get(*pInfo.Item)
 			if dataNode.Header.SnapshotID < s.config.SnapshotID {
-				newNodeIndex, newNodeData, newNode := s.dataNodeAllocator.Allocate()
-				copy(newNodeData, dataNodeData)
+				newNodeIndex, newNode := s.config.DataNodeAllocator.Copy(dataNodeData)
 				dataNode = newNode
 				dataNode.Header.SnapshotID = s.config.SnapshotID
 				*pInfo.Item = newNodeIndex
@@ -159,7 +107,7 @@ func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) {
 				item.Hash = hashKey(item.Key, dataNode.Header.HashMod)
 			}
 
-			index := s.dataNodeAllocator.Index(item.Hash)
+			index := s.config.DataNodeAllocator.Index(item.Hash)
 			if dataNode.States[index] == stateFree {
 				dataNode.States[index] = stateData
 				dataNode.Items[index] = item
@@ -184,10 +132,9 @@ func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) {
 
 			return
 		default:
-			pointerNodeData, pointerNode := s.pointerNodeAllocator.Get(*pInfo.Item)
+			pointerNodeData, pointerNode := s.config.PointerNodeAllocator.Get(*pInfo.Item)
 			if pointerNode.Header.SnapshotID < s.config.SnapshotID {
-				newNodeIndex, newNodeData, newNode := s.pointerNodeAllocator.Allocate()
-				copy(newNodeData, pointerNodeData)
+				newNodeIndex, newNode := s.config.PointerNodeAllocator.Copy(pointerNodeData)
 				pointerNode = newNode
 				pointerNode.Header.SnapshotID = s.config.SnapshotID
 				*pInfo.Item = newNodeIndex
@@ -196,8 +143,8 @@ func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) {
 				item.Hash = hashKey(item.Key, pointerNode.Header.HashMod)
 			}
 
-			index := s.pointerNodeAllocator.Index(item.Hash)
-			item.Hash = s.pointerNodeAllocator.Shift(item.Hash)
+			index := s.config.PointerNodeAllocator.Index(item.Hash)
+			item.Hash = s.config.PointerNodeAllocator.Shift(item.Hash)
 
 			pInfo = ParentInfo{
 				State: &pointerNode.States[index],
@@ -208,9 +155,9 @@ func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) {
 }
 
 func (s *Space[K, V]) redistributeNode(pInfo ParentInfo) {
-	_, dataNode := s.dataNodeAllocator.Get(*pInfo.Item)
+	_, dataNode := s.config.DataNodeAllocator.Get(*pInfo.Item)
 
-	pointerNodeIndex, _, pointerNode := s.pointerNodeAllocator.Allocate()
+	pointerNodeIndex, pointerNode := s.config.PointerNodeAllocator.Allocate()
 	*pointerNode.Header = NodeHeader{
 		SnapshotID: s.config.SnapshotID,
 		HashMod:    dataNode.Header.HashMod,
