@@ -24,13 +24,11 @@ type SnapshotConfig struct {
 // NewSnapshot creates new snapshot.
 func NewSnapshot(config SnapshotConfig) (Snapshot, error) {
 	if config.SnapshotID == 0 {
-		_, node := config.Allocator.Allocate()
-		snapshotInfo := photon.FromBytes[SnapshotInfo](node)
-		*snapshotInfo = SnapshotInfo{}
+		config.Allocator.Allocate()
 	}
 
-	snapshotInfo := *photon.FromBytes[SnapshotInfo](config.Allocator.Node(0))
-	if config.SnapshotID > 0 && snapshotInfo.SnapshotID < config.SnapshotID-1 {
+	singularityNode := *photon.FromBytes[SingularityNode](config.Allocator.Node(0))
+	if config.SnapshotID > 0 && singularityNode.SnapshotID < config.SnapshotID-1 {
 		return Snapshot{}, errors.Errorf("snapshot %d does not exist", config.SnapshotID)
 	}
 
@@ -44,13 +42,14 @@ func NewSnapshot(config SnapshotConfig) (Snapshot, error) {
 		return Snapshot{}, err
 	}
 
-	if snapshotInfo.SnapshotID > config.SnapshotID {
+	var snapshotInfo SnapshotInfo
+	if singularityNode.SnapshotRoot.State != stateFree {
 		snapshots, err := NewSpace[uint64, SnapshotInfo](SpaceConfig[uint64, SnapshotInfo]{
 			SnapshotID: config.SnapshotID,
-			HashMod:    &snapshotInfo.SnapshotRoot.HashMod,
+			HashMod:    &singularityNode.SnapshotRoot.HashMod,
 			SpaceRoot: ParentInfo{
-				State: lo.ToPtr(snapshotInfo.SnapshotRoot.State),
-				Item:  lo.ToPtr[uint64](snapshotInfo.SnapshotRoot.Node),
+				State: lo.ToPtr(singularityNode.SnapshotRoot.State),
+				Item:  lo.ToPtr[uint64](singularityNode.SnapshotRoot.Node),
 			},
 			PointerNodeAllocator: pointerNodeAllocator,
 			DataNodeAllocator:    snapshotInfoNodeAllocator,
@@ -60,8 +59,14 @@ func NewSnapshot(config SnapshotConfig) (Snapshot, error) {
 			return Snapshot{}, err
 		}
 
+		snapshotID := config.SnapshotID
+		if singularityNode.SnapshotID == snapshotID-1 {
+			// FIXME (wojciech): In other cases snapshot should be read-only.
+			snapshotID = singularityNode.SnapshotID
+		}
+
 		var exists bool
-		snapshotInfo, exists = snapshots.Get(config.SnapshotID)
+		snapshotInfo, exists = snapshots.Get(snapshotID)
 		if !exists {
 			return Snapshot{}, errors.Errorf("snapshot %d does not exist", config.SnapshotID)
 		}
@@ -175,7 +180,10 @@ func (s Snapshot) Commit() (Snapshot, error) {
 	}
 	s.snapshots.Set(s.config.SnapshotID, snapshotInfo)
 
-	*photon.FromBytes[SnapshotInfo](s.config.Allocator.Node(0)) = snapshotInfo
+	*photon.FromBytes[SingularityNode](s.config.Allocator.Node(0)) = SingularityNode{
+		SnapshotID:   snapshotInfo.SnapshotID,
+		SnapshotRoot: snapshotInfo.SnapshotRoot,
+	}
 
 	config := s.config
 	config.SnapshotID = s.config.SnapshotID + 1
