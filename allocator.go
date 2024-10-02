@@ -17,8 +17,9 @@ type AllocatorConfig struct {
 // NewAllocator creates allocator.
 func NewAllocator(config AllocatorConfig) *Allocator {
 	return &Allocator{
-		config: config,
-		data:   make([]byte, config.TotalSize),
+		config:   config,
+		data:     make([]byte, config.TotalSize),
+		zeroNode: make([]byte, config.NodeSize),
 	}
 }
 
@@ -26,6 +27,7 @@ func NewAllocator(config AllocatorConfig) *Allocator {
 type Allocator struct {
 	config             AllocatorConfig
 	data               []byte
+	zeroNode           []byte
 	nextNodeToAllocate uint64
 }
 
@@ -36,11 +38,20 @@ func (a *Allocator) Node(n uint64) []byte {
 
 // Allocate allocates new node.
 func (a *Allocator) Allocate() (uint64, []byte) {
-	// FIXME (wojciech): Copy 0x00 bytes to allocated node.
+	return a.allocate(a.zeroNode)
+}
 
+// Copy allocates new node and copies content from existing one.
+func (a *Allocator) Copy(data []byte) (uint64, []byte) {
+	return a.allocate(data)
+}
+
+func (a *Allocator) allocate(copyFrom []byte) (uint64, []byte) {
 	n := a.nextNodeToAllocate
 	a.nextNodeToAllocate++
-	return n, a.Node(n)
+	node := a.Node(n)
+	copy(node, copyFrom)
+	return n, node
 }
 
 // NewNodeAllocator creates new node allocator.
@@ -99,9 +110,15 @@ func (na NodeAllocator[T]) Get(n uint64) ([]byte, Node[T]) {
 }
 
 // Allocate allocates new object.
-func (na NodeAllocator[T]) Allocate() (uint64, []byte, Node[T]) {
+func (na NodeAllocator[T]) Allocate() (uint64, Node[T]) {
 	n, node := na.allocator.Allocate()
-	return n, node, na.project(node)
+	return n, na.project(node)
+}
+
+// Copy allocates copy of existing object.
+func (na NodeAllocator[T]) Copy(data []byte) (uint64, Node[T]) {
+	n, node := na.allocator.Copy(data)
+	return n, na.project(node)
 }
 
 // Index returns element index based on hash.

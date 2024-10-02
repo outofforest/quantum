@@ -233,14 +233,14 @@ func collect(space *Space[int, int]) []int {
 
 		switch t {
 		case stateData:
-			_, node := space.dataNodeAllocator.Get(n)
+			_, node := space.config.DataNodeAllocator.Get(n)
 			for i := range len(node.Items) {
 				if node.States[i] == stateData {
 					values = append(values, node.Items[i].Value)
 				}
 			}
 		default:
-			_, node := space.pointerNodeAllocator.Get(n)
+			_, node := space.config.PointerNodeAllocator.Get(n)
 			for i := range len(node.Items) {
 				if node.States[i] != stateFree {
 					typeStack = append(typeStack, node.States[i])
