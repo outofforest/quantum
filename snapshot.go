@@ -28,7 +28,8 @@ func NewSnapshot(config SnapshotConfig) (Snapshot, error) {
 	}
 
 	singularityNode := *photon.FromBytes[SingularityNode](config.Allocator.Node(0))
-	if config.SnapshotID > 0 && singularityNode.SnapshotID < config.SnapshotID-1 {
+	if config.SnapshotID > 0 &&
+		(singularityNode.SnapshotRoot.State == stateFree || singularityNode.SnapshotID < config.SnapshotID-1) {
 		return Snapshot{}, errors.Errorf("snapshot %d does not exist", config.SnapshotID)
 	}
 
@@ -42,26 +43,25 @@ func NewSnapshot(config SnapshotConfig) (Snapshot, error) {
 		return Snapshot{}, err
 	}
 
+	snapshots, err := NewSpace[uint64, SnapshotInfo](SpaceConfig[uint64, SnapshotInfo]{
+		SnapshotID: config.SnapshotID,
+		HashMod:    &singularityNode.SnapshotRoot.HashMod,
+		SpaceRoot: ParentInfo{
+			State: lo.ToPtr(singularityNode.SnapshotRoot.State),
+			Item:  lo.ToPtr[uint64](singularityNode.SnapshotRoot.Node),
+		},
+		PointerNodeAllocator: pointerNodeAllocator,
+		DataNodeAllocator:    snapshotInfoNodeAllocator,
+	})
+
+	if err != nil {
+		return Snapshot{}, err
+	}
+
 	var snapshotInfo SnapshotInfo
 	if singularityNode.SnapshotRoot.State != stateFree {
-		snapshots, err := NewSpace[uint64, SnapshotInfo](SpaceConfig[uint64, SnapshotInfo]{
-			SnapshotID: config.SnapshotID,
-			HashMod:    &singularityNode.SnapshotRoot.HashMod,
-			SpaceRoot: ParentInfo{
-				State: lo.ToPtr(singularityNode.SnapshotRoot.State),
-				Item:  lo.ToPtr[uint64](singularityNode.SnapshotRoot.Node),
-			},
-			PointerNodeAllocator: pointerNodeAllocator,
-			DataNodeAllocator:    snapshotInfoNodeAllocator,
-		})
-
-		if err != nil {
-			return Snapshot{}, err
-		}
-
 		snapshotID := config.SnapshotID
 		if singularityNode.SnapshotID == snapshotID-1 {
-			// FIXME (wojciech): In other cases snapshot should be read-only.
 			snapshotID = singularityNode.SnapshotID
 		}
 
@@ -70,21 +70,6 @@ func NewSnapshot(config SnapshotConfig) (Snapshot, error) {
 		if !exists {
 			return Snapshot{}, errors.Errorf("snapshot %d does not exist", config.SnapshotID)
 		}
-	}
-
-	snapshots, err := NewSpace[uint64, SnapshotInfo](SpaceConfig[uint64, SnapshotInfo]{
-		SnapshotID: config.SnapshotID,
-		HashMod:    &snapshotInfo.SnapshotRoot.HashMod,
-		SpaceRoot: ParentInfo{
-			State: lo.ToPtr(snapshotInfo.SnapshotRoot.State),
-			Item:  lo.ToPtr(snapshotInfo.SnapshotRoot.Node),
-		},
-		PointerNodeAllocator: pointerNodeAllocator,
-		DataNodeAllocator:    snapshotInfoNodeAllocator,
-	})
-
-	if err != nil {
-		return Snapshot{}, err
 	}
 
 	spaceInfoNodeAllocator, err := NewNodeAllocator[DataItem[uint64, SpaceInfo]](config.Allocator)
@@ -157,32 +142,22 @@ func (s Snapshot) Commit() (Snapshot, error) {
 
 	clear(s.spacesToCommit)
 
-	snapshotInfo := SnapshotInfo{
+	s.snapshots.Set(s.config.SnapshotID, SnapshotInfo{
+		SnapshotID: s.config.SnapshotID,
+		SpaceRoot: SpaceInfo{
+			HashMod: *s.spaces.config.HashMod,
+			State:   *s.spaces.config.SpaceRoot.State,
+			Node:    *s.spaces.config.SpaceRoot.Item,
+		},
+	})
+
+	*photon.FromBytes[SingularityNode](s.config.Allocator.Node(0)) = SingularityNode{
 		SnapshotID: s.config.SnapshotID,
 		SnapshotRoot: SpaceInfo{
 			HashMod: *s.snapshots.config.HashMod,
 			State:   *s.snapshots.config.SpaceRoot.State,
 			Node:    *s.snapshots.config.SpaceRoot.Item,
 		},
-		SpaceRoot: SpaceInfo{
-			HashMod: *s.spaces.config.HashMod,
-			State:   *s.spaces.config.SpaceRoot.State,
-			Node:    *s.spaces.config.SpaceRoot.Item,
-		},
-	}
-
-	// FIXME (wojciech): Chicken and egg issue
-	s.snapshots.Set(s.config.SnapshotID, snapshotInfo)
-	snapshotInfo.SnapshotRoot = SpaceInfo{
-		HashMod: *s.snapshots.config.HashMod,
-		State:   *s.snapshots.config.SpaceRoot.State,
-		Node:    *s.snapshots.config.SpaceRoot.Item,
-	}
-	s.snapshots.Set(s.config.SnapshotID, snapshotInfo)
-
-	*photon.FromBytes[SingularityNode](s.config.Allocator.Node(0)) = SingularityNode{
-		SnapshotID:   snapshotInfo.SnapshotID,
-		SnapshotRoot: snapshotInfo.SnapshotRoot,
 	}
 
 	config := s.config
