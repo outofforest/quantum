@@ -50,3 +50,9 @@ type SnapshotInfo struct {
 	SnapshotRoot SpaceInfo
 	SpaceRoot    SpaceInfo
 }
+
+// SingularityNode is the root of the store.
+type SingularityNode struct {
+	SnapshotID   uint64
+	SnapshotRoot SpaceInfo
+}
