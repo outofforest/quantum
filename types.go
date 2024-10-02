@@ -46,9 +46,8 @@ type SpaceInfo struct {
 
 // SnapshotInfo stores information required to retrieve snapshot.
 type SnapshotInfo struct {
-	SnapshotID   uint64
-	SnapshotRoot SpaceInfo
-	SpaceRoot    SpaceInfo
+	SnapshotID uint64
+	SpaceRoot  SpaceInfo
 }
 
 // SingularityNode is the root of the store.
