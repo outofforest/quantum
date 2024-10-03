@@ -76,6 +76,11 @@ type Deallocator struct {
 
 // Deallocate adds node to the deallocation list.
 func (d Deallocator) Deallocate(nodeAddress NodeAddress, srcSnapshotID SnapshotID) {
+	if srcSnapshotID == d.snapshotID {
+		// FIXME (wojciech): Deallocate immediately
+		return
+	}
+
 	listNodeAddress, _ := d.deallocationLists.Get(srcSnapshotID)
 	list := NewList(ListConfig{
 		SnapshotID:    d.snapshotID,

@@ -97,6 +97,8 @@ func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) {
 
 			return
 		case stateData:
+			// FIXME (wojciech): Don't copy the node if split is required.
+
 			dataNodeData, dataNode := s.config.DataNodeAllocator.Get(*pInfo.Item)
 			if dataNode.Header.SnapshotID < s.config.SnapshotID {
 				newNodeAddress, newNode := s.config.DataNodeAllocator.Copy(dataNodeData)
@@ -160,7 +162,8 @@ func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) {
 }
 
 func (s *Space[K, V]) redistributeNode(pInfo ParentInfo) {
-	_, dataNode := s.config.DataNodeAllocator.Get(*pInfo.Item)
+	dataNodeAddress := *pInfo.Item
+	_, dataNode := s.config.DataNodeAllocator.Get(dataNodeAddress)
 
 	pointerNodeAddress, pointerNode := s.config.PointerNodeAllocator.Allocate()
 	*pointerNode.Header = SpaceNodeHeader{
@@ -178,6 +181,8 @@ func (s *Space[K, V]) redistributeNode(pInfo ParentInfo) {
 
 		s.set(pInfo, dataNode.Items[i])
 	}
+
+	s.config.Deallocator.Deallocate(dataNodeAddress, dataNode.Header.SnapshotID)
 }
 
 func hashKey[K comparable](key K, hashMod uint64) Hash {
