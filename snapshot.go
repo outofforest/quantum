@@ -23,6 +23,8 @@ type SnapshotConfig struct {
 
 // NewSnapshot creates new snapshot.
 func NewSnapshot(config SnapshotConfig) (Snapshot, error) {
+	// FIXME (wojciech): If it's the already-committed snapshot, mark it as read-only.
+
 	if config.SnapshotID == 0 {
 		config.Allocator.Allocate()
 	}
