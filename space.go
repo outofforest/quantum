@@ -31,7 +31,7 @@ type Space[K, V comparable] struct {
 }
 
 // Get gets the value of the key.
-func (s *Space[K, V]) Get(key K) (value V, exists bool) {
+func (s *Space[K, V]) Get(key K) (V, bool) {
 	h := hashKey(key, 0)
 	pInfo := s.config.SpaceRoot
 
@@ -79,6 +79,62 @@ func (s *Space[K, V]) Set(key K, value V) {
 		Key:   key,
 		Value: value,
 	})
+}
+
+// Delete deletes the key from space.
+func (s *Space[K, V]) Delete(key K) {
+	h := hashKey(key, 0)
+	pInfo := s.config.SpaceRoot
+
+	for {
+		switch *pInfo.State {
+		case stateFree:
+			return
+		case stateData:
+			// FIXME (wojciech): Don't copy the node if split is required.
+
+			dataNodeData, dataNode := s.config.DataNodeAllocator.Get(*pInfo.Item)
+			if dataNode.Header.SnapshotID < s.config.SnapshotID {
+				newNodeAddress, newNode := s.config.DataNodeAllocator.Copy(dataNodeData)
+				newNode.Header.SnapshotID = s.config.SnapshotID
+				oldNodeAddress := *pInfo.Item
+				*pInfo.Item = newNodeAddress
+				s.config.Deallocator.Deallocate(oldNodeAddress, dataNode.Header.SnapshotID)
+				dataNode = newNode
+			}
+			if dataNode.Header.HashMod > 0 {
+				h = hashKey(key, dataNode.Header.HashMod)
+			}
+
+			index := s.config.DataNodeAllocator.Index(h)
+			if dataNode.States[index] == stateData && h == dataNode.Items[index].Hash && key == dataNode.Items[index].Key {
+				dataNode.States[index] = stateFree
+			}
+
+			return
+		default:
+			pointerNodeData, pointerNode := s.config.PointerNodeAllocator.Get(*pInfo.Item)
+			if pointerNode.Header.SnapshotID < s.config.SnapshotID {
+				newNodeAddress, newNode := s.config.PointerNodeAllocator.Copy(pointerNodeData)
+				newNode.Header.SnapshotID = s.config.SnapshotID
+				oldNodeAddress := *pInfo.Item
+				*pInfo.Item = newNodeAddress
+				s.config.Deallocator.Deallocate(oldNodeAddress, pointerNode.Header.SnapshotID)
+				pointerNode = newNode
+			}
+			if pointerNode.Header.HashMod > 0 {
+				h = hashKey(key, pointerNode.Header.HashMod)
+			}
+
+			index := s.config.PointerNodeAllocator.Index(h)
+			h = s.config.PointerNodeAllocator.Shift(h)
+
+			pInfo = ParentInfo{
+				State: &pointerNode.States[index],
+				Item:  &pointerNode.Items[index],
+			}
+		}
+	}
 }
 
 func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) {

@@ -5,6 +5,7 @@ type ListConfig struct {
 	SnapshotID    SnapshotID
 	Item          NodeAddress
 	NodeAllocator ListNodeAllocator
+	Allocator     *Allocator
 	Deallocator   Deallocator
 }
 
@@ -38,7 +39,7 @@ func (l *List) Add(nodeAddress NodeAddress) {
 			newNode.Header.SnapshotID = l.config.SnapshotID
 			oldNodeAddress := l.config.Item
 			l.config.Item = newNodeAddress
-			l.config.Deallocator.Deallocate(oldNodeAddress, listNode.Header.SnapshotID)
+			l.config.Allocator.Deallocate(oldNodeAddress)
 			listNode = newNode
 		}
 
@@ -70,7 +71,7 @@ func (l *List) Attach(nodeAddress NodeAddress) {
 			newNode.Header.SnapshotID = l.config.SnapshotID
 			oldNodeAddress := l.config.Item
 			l.config.Item = newNodeAddress
-			l.config.Deallocator.Deallocate(oldNodeAddress, listNode.Header.SnapshotID)
+			l.config.Allocator.Deallocate(oldNodeAddress)
 			listNode = newNode
 		}
 
@@ -88,31 +89,28 @@ func (l *List) Attach(nodeAddress NodeAddress) {
 	l.config.Item = newNodeAddress
 }
 
-// Iterator returns iterator iterating over elements in the list.
-func (l *List) Iterator() func(func(NodeAddress) bool) {
-	return func(yield func(NodeAddress) bool) {
-		if l.config.Item == 0 {
+// Deallocate deallocates nodes referenced by the list.
+func (l *List) Deallocate(allocator *Allocator) {
+	if l.config.Item == 0 {
+		return
+	}
+
+	// FIXME (wojciech): Optimize heap allocations.
+	stack := []NodeAddress{l.config.Item}
+	for {
+		if len(stack) == 0 {
 			return
 		}
 
-		// FIXME (wojciech): Optimize heap allocations.
-		stack := []NodeAddress{l.config.Item}
-		for {
-			if len(stack) == 0 {
-				return
-			}
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
 
-			n := stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
-
-			_, listNode := l.config.NodeAllocator.Get(n)
-			for i := range listNode.Header.NumOfItems {
-				if !yield(listNode.Items[i]) {
-					return
-				}
-			}
-
-			stack = append(stack, listNode.Items[uint64(len(listNode.Items))-listNode.Header.NumOfSideLists:]...)
+		_, listNode := l.config.NodeAllocator.Get(n)
+		for i := range listNode.Header.NumOfItems {
+			allocator.Deallocate(listNode.Items[i])
 		}
+
+		stack = append(stack, listNode.Items[uint64(len(listNode.Items))-listNode.Header.NumOfSideLists:]...)
+		allocator.Deallocate(n)
 	}
 }
