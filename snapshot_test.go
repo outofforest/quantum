@@ -37,7 +37,7 @@ const spaceID = 0x00
 
 func TestCollisions(t *testing.T) {
 	for _, set := range collisions {
-		m := map[uint64]struct{}{}
+		m := map[Hash]struct{}{}
 		for _, i := range set {
 			m[hashKey(i, 0)] = struct{}{}
 		}
@@ -203,7 +203,7 @@ func TestFindCollisions(t *testing.T) {
 
 	fmt.Println("started")
 
-	m := map[uint64][]int{}
+	m := map[Hash][]int{}
 	for i := range math.MaxInt {
 		h := hashKey(i, 0)
 		if h2 := m[h]; len(h2) == 4 {
@@ -218,7 +218,7 @@ func TestFindCollisions(t *testing.T) {
 func collect(space *Space[int, int]) []int {
 	values := []int{}
 	typeStack := []State{*space.config.SpaceRoot.State}
-	nodeStack := []uint64{*space.config.SpaceRoot.Item}
+	nodeStack := []NodeAddress{*space.config.SpaceRoot.Item}
 
 	for {
 		if len(nodeStack) == 0 {

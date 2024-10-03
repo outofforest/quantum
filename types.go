@@ -11,22 +11,49 @@ const (
 	statePointer
 )
 
-// NodeHeader is the header common to all node types.
-type NodeHeader struct {
+type (
+	// SnapshotID is the type for snapshot ID.
 	SnapshotID uint64
+
+	// NodeAddress is the type for node address.
+	NodeAddress uint64
+
+	// Hash is the type for key hash.
+	Hash uint64
+
+	// SpaceID is the type for space ID.
+	SpaceID uint64
+)
+
+// SpaceNodeHeader is the header common to all space node types.
+type SpaceNodeHeader struct {
+	SnapshotID SnapshotID
 	HashMod    uint64
 }
 
-// Node represents data stored inside node.
-type Node[T comparable] struct {
-	Header *NodeHeader
+// SpaceNode represents data stored inside space node.
+type SpaceNode[T comparable] struct {
+	Header *SpaceNodeHeader
 	States []State
 	Items  []T
 }
 
+// ListNodeHeader is the header of the list node.
+type ListNodeHeader struct {
+	SnapshotID     SnapshotID
+	NumOfItems     uint64
+	NumOfSideLists uint64
+}
+
+// ListNode represents data stored inside list node.
+type ListNode struct {
+	Header *ListNodeHeader
+	Items  []NodeAddress
+}
+
 // DataItem stores single key-value pair.
 type DataItem[K, V comparable] struct {
-	Hash  uint64
+	Hash  Hash
 	Key   K
 	Value V
 }
@@ -34,24 +61,25 @@ type DataItem[K, V comparable] struct {
 // ParentInfo stores state and item of the slot used to retrieve node from parent pointer.
 type ParentInfo struct {
 	State *State
-	Item  *uint64
+	Item  *NodeAddress
 }
 
 // SpaceInfo stores information required to retrieve space.
 type SpaceInfo struct {
 	State   State
-	Node    uint64
+	Node    NodeAddress
 	HashMod uint64
 }
 
 // SnapshotInfo stores information required to retrieve snapshot.
 type SnapshotInfo struct {
-	SnapshotID uint64
-	SpaceRoot  SpaceInfo
+	SnapshotID       SnapshotID
+	DeallocationRoot SpaceInfo
+	SpaceRoot        SpaceInfo
 }
 
 // SingularityNode is the root of the store.
 type SingularityNode struct {
-	SnapshotID   uint64
+	SnapshotID   SnapshotID
 	SnapshotRoot SpaceInfo
 }

@@ -28,25 +28,25 @@ type Allocator struct {
 	config             AllocatorConfig
 	data               []byte
 	zeroNode           []byte
-	nextNodeToAllocate uint64
+	nextNodeToAllocate NodeAddress
 }
 
 // Node returns node bytes.
-func (a *Allocator) Node(n uint64) []byte {
-	return a.data[n*a.config.NodeSize : (n+1)*a.config.NodeSize]
+func (a *Allocator) Node(nodeAddress NodeAddress) []byte {
+	return a.data[uint64(nodeAddress)*a.config.NodeSize : uint64(nodeAddress+1)*a.config.NodeSize]
 }
 
 // Allocate allocates new node.
-func (a *Allocator) Allocate() (uint64, []byte) {
+func (a *Allocator) Allocate() (NodeAddress, []byte) {
 	return a.allocate(a.zeroNode)
 }
 
 // Copy allocates new node and copies content from existing one.
-func (a *Allocator) Copy(data []byte) (uint64, []byte) {
+func (a *Allocator) Copy(data []byte) (NodeAddress, []byte) {
 	return a.allocate(data)
 }
 
-func (a *Allocator) allocate(copyFrom []byte) (uint64, []byte) {
+func (a *Allocator) allocate(copyFrom []byte) (NodeAddress, []byte) {
 	n := a.nextNodeToAllocate
 	a.nextNodeToAllocate++
 	node := a.Node(n)
@@ -54,11 +54,46 @@ func (a *Allocator) allocate(copyFrom []byte) (uint64, []byte) {
 	return n, node
 }
 
-// NewNodeAllocator creates new node allocator.
-func NewNodeAllocator[T comparable](allocator *Allocator) (NodeAllocator[T], error) {
-	headerSize := uint64(unsafe.Sizeof(NodeHeader{}))
+// NewDeallocator returns new deallocator.
+func NewDeallocator(
+	snapshotID SnapshotID,
+	deallocationLists *Space[SnapshotID, NodeAddress],
+	listNodeAllocator ListNodeAllocator,
+) Deallocator {
+	return Deallocator{
+		snapshotID:        snapshotID,
+		deallocationLists: deallocationLists,
+		listNodeAllocator: listNodeAllocator,
+	}
+}
+
+// Deallocator tracks nodes to deallocate.
+type Deallocator struct {
+	snapshotID        SnapshotID
+	deallocationLists *Space[SnapshotID, NodeAddress]
+	listNodeAllocator ListNodeAllocator
+}
+
+// Deallocate adds node to the deallocation list.
+func (d Deallocator) Deallocate(nodeAddress NodeAddress, srcSnapshotID SnapshotID) {
+	listNodeAddress, _ := d.deallocationLists.Get(srcSnapshotID)
+	list := NewList(ListConfig{
+		SnapshotID:    d.snapshotID,
+		Item:          listNodeAddress,
+		NodeAllocator: d.listNodeAllocator,
+		Deallocator:   d,
+	})
+	list.Add(nodeAddress)
+	if list.config.Item != listNodeAddress {
+		d.deallocationLists.Set(srcSnapshotID, list.config.Item)
+	}
+}
+
+// NewSpaceNodeAllocator creates new space node allocator.
+func NewSpaceNodeAllocator[T comparable](allocator *Allocator) (SpaceNodeAllocator[T], error) {
+	headerSize := uint64(unsafe.Sizeof(SpaceNodeHeader{}))
 	if headerSize >= allocator.config.NodeSize {
-		return NodeAllocator[T]{}, errors.New("node size is too small")
+		return SpaceNodeAllocator[T]{}, errors.New("node size is too small")
 	}
 
 	stateOffset := headerSize + headerSize%uint64Length
@@ -70,7 +105,7 @@ func NewNodeAllocator[T comparable](allocator *Allocator) (NodeAllocator[T], err
 
 	numOfItems := spaceLeft / (itemSize + 1) // 1 is for slot state
 	if numOfItems == 0 {
-		return NodeAllocator[T]{}, errors.New("node size is too small")
+		return SpaceNodeAllocator[T]{}, errors.New("node size is too small")
 	}
 	numOfItems, _ = highestPowerOfTwo(numOfItems)
 	spaceLeft -= numOfItems
@@ -79,10 +114,10 @@ func NewNodeAllocator[T comparable](allocator *Allocator) (NodeAllocator[T], err
 	numOfItems = spaceLeft / itemSize
 	numOfItems, bitsPerHop := highestPowerOfTwo(numOfItems)
 	if numOfItems == 0 {
-		return NodeAllocator[T]{}, errors.New("node size is too small")
+		return SpaceNodeAllocator[T]{}, errors.New("node size is too small")
 	}
 
-	return NodeAllocator[T]{
+	return SpaceNodeAllocator[T]{
 		allocator:   allocator,
 		numOfItems:  int(numOfItems),
 		stateOffset: stateOffset,
@@ -92,8 +127,8 @@ func NewNodeAllocator[T comparable](allocator *Allocator) (NodeAllocator[T], err
 	}, nil
 }
 
-// NodeAllocator converts nodes from bytes to objects.
-type NodeAllocator[T comparable] struct {
+// SpaceNodeAllocator converts nodes from bytes to space objects.
+type SpaceNodeAllocator[T comparable] struct {
 	allocator *Allocator
 
 	numOfItems  int
@@ -104,38 +139,93 @@ type NodeAllocator[T comparable] struct {
 }
 
 // Get returns object for node.
-func (na NodeAllocator[T]) Get(n uint64) ([]byte, Node[T]) {
-	node := na.allocator.Node(n)
+func (na SpaceNodeAllocator[T]) Get(nodeAddress NodeAddress) ([]byte, SpaceNode[T]) {
+	node := na.allocator.Node(nodeAddress)
 	return node, na.project(node)
 }
 
 // Allocate allocates new object.
-func (na NodeAllocator[T]) Allocate() (uint64, Node[T]) {
+func (na SpaceNodeAllocator[T]) Allocate() (NodeAddress, SpaceNode[T]) {
 	n, node := na.allocator.Allocate()
 	return n, na.project(node)
 }
 
 // Copy allocates copy of existing object.
-func (na NodeAllocator[T]) Copy(data []byte) (uint64, Node[T]) {
+func (na SpaceNodeAllocator[T]) Copy(data []byte) (NodeAddress, SpaceNode[T]) {
 	n, node := na.allocator.Copy(data)
 	return n, na.project(node)
 }
 
 // Index returns element index based on hash.
-func (na NodeAllocator[T]) Index(hash uint64) uint64 {
-	return hash & na.indexMask
+func (na SpaceNodeAllocator[T]) Index(hash Hash) uint64 {
+	return uint64(hash) & na.indexMask
 }
 
 // Shift shifts bits in hash.
-func (na NodeAllocator[T]) Shift(hash uint64) uint64 {
+func (na SpaceNodeAllocator[T]) Shift(hash Hash) Hash {
 	return hash >> na.bitsPerHop
 }
 
-func (na NodeAllocator[T]) project(node []byte) Node[T] {
-	return Node[T]{
-		Header: photon.FromBytes[NodeHeader](node),
+func (na SpaceNodeAllocator[T]) project(node []byte) SpaceNode[T] {
+	return SpaceNode[T]{
+		Header: photon.FromBytes[SpaceNodeHeader](node),
 		States: photon.SliceFromBytes[State](node[na.stateOffset:], na.numOfItems),
 		Items:  photon.SliceFromBytes[T](node[na.itemOffset:], na.numOfItems),
+	}
+}
+
+// NewListNodeAllocator creates new list node allocator.
+func NewListNodeAllocator(allocator *Allocator) (ListNodeAllocator, error) {
+	headerSize := uint64(unsafe.Sizeof(ListNodeHeader{}))
+	if headerSize >= allocator.config.NodeSize {
+		return ListNodeAllocator{}, errors.New("node size is too small")
+	}
+
+	stateOffset := headerSize + headerSize%uint64Length
+	spaceLeft := allocator.config.NodeSize - stateOffset
+
+	numOfItems := spaceLeft / uint64Length
+	if numOfItems < 2 {
+		return ListNodeAllocator{}, errors.New("node size is too small")
+	}
+
+	return ListNodeAllocator{
+		allocator:  allocator,
+		numOfItems: int(numOfItems),
+		itemOffset: allocator.config.NodeSize - spaceLeft,
+	}, nil
+}
+
+// ListNodeAllocator converts nodes from bytes to list objects.
+type ListNodeAllocator struct {
+	allocator *Allocator
+
+	numOfItems int
+	itemOffset uint64
+}
+
+// Get returns object for node.
+func (na ListNodeAllocator) Get(nodeAddress NodeAddress) ([]byte, ListNode) {
+	node := na.allocator.Node(nodeAddress)
+	return node, na.project(node)
+}
+
+// Allocate allocates new object.
+func (na ListNodeAllocator) Allocate() (NodeAddress, ListNode) {
+	n, node := na.allocator.Allocate()
+	return n, na.project(node)
+}
+
+// Copy allocates copy of existing object.
+func (na ListNodeAllocator) Copy(data []byte) (NodeAddress, ListNode) {
+	n, node := na.allocator.Copy(data)
+	return n, na.project(node)
+}
+
+func (na ListNodeAllocator) project(node []byte) ListNode {
+	return ListNode{
+		Header: photon.FromBytes[ListNodeHeader](node),
+		Items:  photon.SliceFromBytes[NodeAddress](node[na.itemOffset:], na.numOfItems),
 	}
 }
 
