@@ -27,6 +27,7 @@ type (
 
 // SpaceNodeHeader is the header common to all space node types.
 type SpaceNodeHeader struct {
+	Version    uint64
 	SnapshotID SnapshotID
 	HashMod    uint64
 }
@@ -40,6 +41,7 @@ type SpaceNode[T comparable] struct {
 
 // ListNodeHeader is the header of the list node.
 type ListNodeHeader struct {
+	Version        uint64
 	SnapshotID     SnapshotID
 	NumOfItems     uint64
 	NumOfSideLists uint64
@@ -80,6 +82,7 @@ type SnapshotInfo struct {
 
 // SingularityNode is the root of the store.
 type SingularityNode struct {
+	Version      uint64
 	SnapshotID   SnapshotID
 	SnapshotRoot SpaceInfo
 }
