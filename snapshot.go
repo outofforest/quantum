@@ -157,6 +157,8 @@ func (s Snapshot) DeleteSnapshot(snapshotID SnapshotID) error {
 	if !exists {
 		return errors.Errorf("snapshot %d does not exist", snapshotID)
 	}
+
+	//nolint:nestif
 	if snapshotInfo.NextSnapshotID <= s.singularityNode.LastSnapshotID {
 		nextSnapshotInfo, exists := s.snapshots.Get(snapshotInfo.NextSnapshotID)
 		if !exists {
