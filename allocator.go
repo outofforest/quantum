@@ -41,6 +41,11 @@ func (a *Allocator) Allocate() (NodeAddress, []byte) {
 	return a.allocate(a.zeroNode)
 }
 
+// Deallocate deallocates node.
+func (a *Allocator) Deallocate(nodeAddress NodeAddress) {
+
+}
+
 // Copy allocates new node and copies content from existing one.
 func (a *Allocator) Copy(data []byte) (NodeAddress, []byte) {
 	return a.allocate(data)

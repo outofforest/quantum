@@ -31,7 +31,7 @@ func NewSnapshot(config SnapshotConfig) (Snapshot, error) {
 
 	singularityNode := *photon.FromBytes[SingularityNode](config.Allocator.Node(0))
 	if config.SnapshotID > 0 &&
-		(singularityNode.SnapshotRoot.State == stateFree || singularityNode.SnapshotID < config.SnapshotID-1) {
+		(singularityNode.SnapshotRoot.State == stateFree || singularityNode.LastSnapshotID < config.SnapshotID-1) {
 		return Snapshot{}, errors.Errorf("snapshot %d does not exist", config.SnapshotID)
 	}
 
@@ -74,8 +74,8 @@ func NewSnapshot(config SnapshotConfig) (Snapshot, error) {
 	var snapshotInfo SnapshotInfo
 	if singularityNode.SnapshotRoot.State != stateFree {
 		snapshotID := config.SnapshotID
-		if singularityNode.SnapshotID == snapshotID-1 {
-			snapshotID = singularityNode.SnapshotID
+		if singularityNode.LastSnapshotID == snapshotID-1 {
+			snapshotID = singularityNode.LastSnapshotID
 		}
 
 		var exists bool
@@ -115,23 +115,27 @@ func NewSnapshot(config SnapshotConfig) (Snapshot, error) {
 	})
 
 	s := Snapshot{
-		config:               config,
-		snapshots:            snapshots,
-		spaces:               spaces,
-		deallocator:          deallocator,
-		pointerNodeAllocator: pointerNodeAllocator,
-		spacesToCommit:       map[SpaceID]spaceToCommit{},
+		config:                      config,
+		snapshots:                   snapshots,
+		spaces:                      spaces,
+		deallocator:                 deallocator,
+		pointerNodeAllocator:        pointerNodeAllocator,
+		snapshotToNodeNodeAllocator: snapshotToNodeNodeAllocator,
+		singularityNode:             singularityNode,
+		spacesToCommit:              map[SpaceID]spaceToCommit{},
 	}
 	return s, nil
 }
 
 // Snapshot represents the state at particular point in time.
 type Snapshot struct {
-	config               SnapshotConfig
-	snapshots            *Space[SnapshotID, SnapshotInfo]
-	spaces               *Space[SpaceID, SpaceInfo]
-	deallocator          Deallocator
-	pointerNodeAllocator SpaceNodeAllocator[NodeAddress]
+	config                      SnapshotConfig
+	singularityNode             SingularityNode
+	snapshots                   *Space[SnapshotID, SnapshotInfo]
+	spaces                      *Space[SpaceID, SpaceInfo]
+	deallocator                 Deallocator
+	pointerNodeAllocator        SpaceNodeAllocator[NodeAddress]
+	snapshotToNodeNodeAllocator SpaceNodeAllocator[DataItem[SnapshotID, NodeAddress]]
 
 	spacesToCommit map[SpaceID]spaceToCommit
 }
@@ -144,6 +148,102 @@ func (s Snapshot) Space(spaceID SpaceID) SpaceInfo {
 	}
 
 	return spaceRootInfo
+}
+
+func (s Snapshot) DeleteSnapshot(snapshotID SnapshotID) error {
+	// FIXME (wojciech): Deallocation of last snapshot
+
+	snapshotInfo, exists := s.snapshots.Get(snapshotID)
+	if !exists {
+		return errors.Errorf("snapshot %d does not exist", snapshotID)
+	}
+	if snapshotInfo.NextSnapshotID <= s.singularityNode.LastSnapshotID {
+		nextSnapshotInfo, exists := s.snapshots.Get(snapshotInfo.NextSnapshotID)
+		if !exists {
+			return errors.Errorf("snapshot %d does not exist", snapshotID)
+		}
+
+		deallocationLists := NewSpace[SnapshotID, NodeAddress](SpaceConfig[SnapshotID, NodeAddress]{
+			SpaceRoot: ParentInfo{
+				State: lo.ToPtr(snapshotInfo.DeallocationRoot.State),
+				Item:  lo.ToPtr(snapshotInfo.DeallocationRoot.Node),
+			},
+		})
+
+		nextDeallocationLists := NewSpace[SnapshotID, NodeAddress](SpaceConfig[SnapshotID, NodeAddress]{
+			SnapshotID: snapshotInfo.NextSnapshotID,
+			HashMod:    &nextSnapshotInfo.DeallocationRoot.HashMod,
+			SpaceRoot: ParentInfo{
+				State: lo.ToPtr(nextSnapshotInfo.DeallocationRoot.State),
+				Item:  lo.ToPtr(nextSnapshotInfo.DeallocationRoot.Node),
+			},
+			PointerNodeAllocator: s.pointerNodeAllocator,
+			DataNodeAllocator:    s.snapshotToNodeNodeAllocator,
+			Deallocator:          s.deallocator,
+		})
+
+		var startSnapshotID SnapshotID
+		if snapshotID == s.singularityNode.FirstSnapshotID {
+			startSnapshotID = snapshotID
+		} else {
+			startSnapshotID = snapshotInfo.PreviousSnapshotID + 1
+		}
+
+		for sID := startSnapshotID; sID <= snapshotID; sID++ {
+			listNodeAddress, exists := nextDeallocationLists.Get(sID)
+			if !exists {
+				continue
+			}
+
+			list := NewList(ListConfig{
+				Item: listNodeAddress,
+			})
+			list.Deallocate(s.config.Allocator)
+			nextDeallocationLists.Delete(sID)
+		}
+
+		// FIXME (wojciech): Iterate over space instead
+		for sID := s.singularityNode.FirstSnapshotID; sID < snapshotID; sID++ {
+			listNodeAddress, exists := deallocationLists.Get(sID)
+			if !exists {
+				continue
+			}
+
+			nextListNodeAddress, _ := nextDeallocationLists.Get(sID)
+			nextList := NewList(ListConfig{
+				Item: nextListNodeAddress,
+			})
+			nextList.Attach(listNodeAddress)
+			if nextList.config.Item != nextListNodeAddress {
+				nextDeallocationLists.Set(sID, nextList.config.Item)
+			}
+		}
+
+		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
+		nextSnapshotInfo.DeallocationRoot = SpaceInfo{
+			State:   *nextDeallocationLists.config.SpaceRoot.State,
+			Node:    *nextDeallocationLists.config.SpaceRoot.Item,
+			HashMod: *nextDeallocationLists.config.HashMod,
+		}
+		s.snapshots.Set(snapshotInfo.NextSnapshotID, nextSnapshotInfo)
+	}
+
+	if snapshotInfo.PreviousSnapshotID > s.singularityNode.FirstSnapshotID {
+		previousSnapshotInfo, exists := s.snapshots.Get(snapshotInfo.PreviousSnapshotID)
+		if !exists {
+			return errors.Errorf("snapshot %d does not exist", snapshotID)
+		}
+		previousSnapshotInfo.NextSnapshotID = snapshotInfo.NextSnapshotID
+		s.snapshots.Set(snapshotInfo.PreviousSnapshotID, previousSnapshotInfo)
+	}
+
+	if snapshotID == s.singularityNode.FirstSnapshotID {
+		s.singularityNode.FirstSnapshotID = snapshotInfo.NextSnapshotID
+	}
+
+	// FIXME (wojciech): Deallocate nodes used by deleted snapshot (DeallocationRoot).
+
+	return nil
 }
 
 // Commit commits current snapshot and returns next one.
@@ -169,7 +269,8 @@ func (s Snapshot) Commit() (Snapshot, error) {
 	clear(s.spacesToCommit)
 
 	s.snapshots.Set(s.config.SnapshotID, SnapshotInfo{
-		SnapshotID: s.config.SnapshotID,
+		PreviousSnapshotID: s.singularityNode.LastSnapshotID,
+		NextSnapshotID:     s.config.SnapshotID + 1,
 		DeallocationRoot: SpaceInfo{
 			HashMod: *s.deallocator.deallocationLists.config.HashMod,
 			State:   *s.deallocator.deallocationLists.config.SpaceRoot.State,
@@ -183,7 +284,8 @@ func (s Snapshot) Commit() (Snapshot, error) {
 	})
 
 	*photon.FromBytes[SingularityNode](s.config.Allocator.Node(0)) = SingularityNode{
-		SnapshotID: s.config.SnapshotID,
+		FirstSnapshotID: s.singularityNode.FirstSnapshotID,
+		LastSnapshotID:  s.config.SnapshotID,
 		SnapshotRoot: SpaceInfo{
 			HashMod: *s.snapshots.config.HashMod,
 			State:   *s.snapshots.config.SpaceRoot.State,
