@@ -150,6 +150,7 @@ func (s Snapshot) Space(spaceID SpaceID) SpaceInfo {
 	return spaceRootInfo
 }
 
+// DeleteSnapshot deletes snapshot.
 func (s Snapshot) DeleteSnapshot(snapshotID SnapshotID) error {
 	// FIXME (wojciech): Deallocation of last snapshot
 
