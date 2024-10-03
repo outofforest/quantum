@@ -115,21 +115,23 @@ func NewSnapshot(config SnapshotConfig) (Snapshot, error) {
 	})
 
 	s := Snapshot{
-		config:         config,
-		snapshots:      snapshots,
-		spaces:         spaces,
-		deallocator:    deallocator,
-		spacesToCommit: map[SpaceID]spaceToCommit{},
+		config:               config,
+		snapshots:            snapshots,
+		spaces:               spaces,
+		deallocator:          deallocator,
+		pointerNodeAllocator: pointerNodeAllocator,
+		spacesToCommit:       map[SpaceID]spaceToCommit{},
 	}
 	return s, nil
 }
 
 // Snapshot represents the state at particular point in time.
 type Snapshot struct {
-	config      SnapshotConfig
-	snapshots   *Space[SnapshotID, SnapshotInfo]
-	spaces      *Space[SpaceID, SpaceInfo]
-	deallocator Deallocator
+	config               SnapshotConfig
+	snapshots            *Space[SnapshotID, SnapshotInfo]
+	spaces               *Space[SpaceID, SpaceInfo]
+	deallocator          Deallocator
+	pointerNodeAllocator SpaceNodeAllocator[NodeAddress]
 
 	spacesToCommit map[SpaceID]spaceToCommit
 }
@@ -211,11 +213,6 @@ func GetSpace[K, V comparable](spaceID SpaceID, snapshot Snapshot) (*Space[K, V]
 		snapshot.spacesToCommit[spaceID] = space
 	}
 
-	pointerNodeAllocator, err := NewSpaceNodeAllocator[NodeAddress](snapshot.config.Allocator)
-	if err != nil {
-		return nil, err
-	}
-
 	dataNodeAllocator, err := NewSpaceNodeAllocator[DataItem[K, V]](snapshot.config.Allocator)
 	if err != nil {
 		return nil, err
@@ -225,7 +222,7 @@ func GetSpace[K, V comparable](spaceID SpaceID, snapshot Snapshot) (*Space[K, V]
 		SnapshotID:           snapshot.config.SnapshotID,
 		HashMod:              space.HashMod,
 		SpaceRoot:            space.PInfo,
-		PointerNodeAllocator: pointerNodeAllocator,
+		PointerNodeAllocator: snapshot.pointerNodeAllocator,
 		DataNodeAllocator:    dataNodeAllocator,
 		Deallocator:          snapshot.deallocator,
 	}), nil
