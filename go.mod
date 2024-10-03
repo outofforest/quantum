@@ -1,6 +1,6 @@
 module github.com/outofforest/quantum
 
-go 1.22
+go 1.23
 
 require (
 	github.com/cespare/xxhash v1.1.0

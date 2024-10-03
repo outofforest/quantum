@@ -8,19 +8,20 @@ import (
 
 // SpaceConfig stores space configuration.
 type SpaceConfig[K, V comparable] struct {
-	SnapshotID           uint64
+	SnapshotID           SnapshotID
 	HashMod              *uint64
 	SpaceRoot            ParentInfo
-	PointerNodeAllocator NodeAllocator[uint64]
-	DataNodeAllocator    NodeAllocator[DataItem[K, V]]
+	PointerNodeAllocator SpaceNodeAllocator[NodeAddress]
+	DataNodeAllocator    SpaceNodeAllocator[DataItem[K, V]]
+	Deallocator          Deallocator
 }
 
 // NewSpace creates new space.
-func NewSpace[K, V comparable](config SpaceConfig[K, V]) (*Space[K, V], error) {
+func NewSpace[K, V comparable](config SpaceConfig[K, V]) *Space[K, V] {
 	return &Space[K, V]{
 		config:       config,
 		defaultValue: *new(V),
-	}, nil
+	}
 }
 
 // Space represents the substate where values V are stored by key K.
@@ -84,11 +85,11 @@ func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) {
 	for {
 		switch *pInfo.State {
 		case stateFree:
-			dataNodeIndex, dataNode := s.config.DataNodeAllocator.Allocate()
+			dataNodeAddress, dataNode := s.config.DataNodeAllocator.Allocate()
 			dataNode.Header.SnapshotID = s.config.SnapshotID
 
 			*pInfo.State = stateData
-			*pInfo.Item = dataNodeIndex
+			*pInfo.Item = dataNodeAddress
 
 			index := s.config.DataNodeAllocator.Index(item.Hash)
 			dataNode.States[index] = stateData
@@ -98,10 +99,12 @@ func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) {
 		case stateData:
 			dataNodeData, dataNode := s.config.DataNodeAllocator.Get(*pInfo.Item)
 			if dataNode.Header.SnapshotID < s.config.SnapshotID {
-				newNodeIndex, newNode := s.config.DataNodeAllocator.Copy(dataNodeData)
+				newNodeAddress, newNode := s.config.DataNodeAllocator.Copy(dataNodeData)
+				newNode.Header.SnapshotID = s.config.SnapshotID
+				oldNodeAddress := *pInfo.Item
+				*pInfo.Item = newNodeAddress
+				s.config.Deallocator.Deallocate(oldNodeAddress, dataNode.Header.SnapshotID)
 				dataNode = newNode
-				dataNode.Header.SnapshotID = s.config.SnapshotID
-				*pInfo.Item = newNodeIndex
 			}
 			if dataNode.Header.HashMod > 0 {
 				item.Hash = hashKey(item.Key, dataNode.Header.HashMod)
@@ -134,10 +137,12 @@ func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) {
 		default:
 			pointerNodeData, pointerNode := s.config.PointerNodeAllocator.Get(*pInfo.Item)
 			if pointerNode.Header.SnapshotID < s.config.SnapshotID {
-				newNodeIndex, newNode := s.config.PointerNodeAllocator.Copy(pointerNodeData)
+				newNodeAddress, newNode := s.config.PointerNodeAllocator.Copy(pointerNodeData)
+				newNode.Header.SnapshotID = s.config.SnapshotID
+				oldNodeAddress := *pInfo.Item
+				*pInfo.Item = newNodeAddress
+				s.config.Deallocator.Deallocate(oldNodeAddress, pointerNode.Header.SnapshotID)
 				pointerNode = newNode
-				pointerNode.Header.SnapshotID = s.config.SnapshotID
-				*pInfo.Item = newNodeIndex
 			}
 			if pointerNode.Header.HashMod > 0 {
 				item.Hash = hashKey(item.Key, pointerNode.Header.HashMod)
@@ -157,14 +162,14 @@ func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) {
 func (s *Space[K, V]) redistributeNode(pInfo ParentInfo) {
 	_, dataNode := s.config.DataNodeAllocator.Get(*pInfo.Item)
 
-	pointerNodeIndex, pointerNode := s.config.PointerNodeAllocator.Allocate()
-	*pointerNode.Header = NodeHeader{
+	pointerNodeAddress, pointerNode := s.config.PointerNodeAllocator.Allocate()
+	*pointerNode.Header = SpaceNodeHeader{
 		SnapshotID: s.config.SnapshotID,
 		HashMod:    dataNode.Header.HashMod,
 	}
 
 	*pInfo.State = statePointer
-	*pInfo.Item = pointerNodeIndex
+	*pInfo.Item = pointerNodeAddress
 
 	for i, state := range dataNode.States {
 		if state == stateFree {
@@ -175,17 +180,17 @@ func (s *Space[K, V]) redistributeNode(pInfo ParentInfo) {
 	}
 }
 
-func hashKey[K comparable](key K, hashMod uint64) uint64 {
-	var hash uint64
+func hashKey[K comparable](key K, hashMod uint64) Hash {
+	var hash Hash
 	p := photon.NewFromValue[K](&key)
 	if hashMod == 0 {
-		hash = xxhash.Sum64(p.B)
+		hash = Hash(xxhash.Sum64(p.B))
 	} else {
 		// FIXME (wojciech): Remove heap allocation
 		b := make([]byte, uint64Length+len(p.B))
 		copy(b, photon.NewFromValue(&hashMod).B)
 		copy(b[uint64Length:], photon.NewFromValue[K](&key).B)
-		hash = xxhash.Sum64(b)
+		hash = Hash(xxhash.Sum64(b))
 	}
 
 	if isTesting {
@@ -195,6 +200,6 @@ func hashKey[K comparable](key K, hashMod uint64) uint64 {
 	return hash
 }
 
-func testHash(hash uint64) uint64 {
+func testHash(hash Hash) Hash {
 	return hash & 0x7fffffff
 }
