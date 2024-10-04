@@ -1,14 +1,20 @@
-package quantum
+package types
 
-const uint64Length = 8
+// UInt64Length is the number of bytes taken by uint64.
+const UInt64Length = 8
 
 // State enumerates possible slot states.
 type State byte
 
 const (
-	stateFree State = iota
-	stateData
-	statePointer
+	// StateFree means slot is free.
+	StateFree State = iota
+
+	// StateData means slot contains data.
+	StateData
+
+	// StatePointer means slot contains pointer.
+	StatePointer
 )
 
 type (
@@ -24,6 +30,22 @@ type (
 	// SpaceID is the type for space ID.
 	SpaceID uint64
 )
+
+// Allocator manages memory.
+type Allocator interface {
+	Node(nodeAddress NodeAddress) []byte
+	Allocate(copyFrom []byte) (NodeAddress, []byte, error)
+	Deallocate(nodeAddress NodeAddress)
+	NodeSize() uint64
+}
+
+// SnapshotAllocator manages memory on snapshot level.
+type SnapshotAllocator interface {
+	Allocate() (NodeAddress, []byte, error)
+	Copy(data []byte) (NodeAddress, []byte, error)
+	Deallocate(nodeAddress NodeAddress, srcSnapshotID SnapshotID) error
+	DeallocateImmediately(nodeAddress NodeAddress)
+}
 
 // SpaceNodeHeader is the header common to all space node types.
 type SpaceNodeHeader struct {
