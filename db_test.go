@@ -24,13 +24,15 @@ var collisions = [][]int{
 }
 
 func newDB(t *testing.T) *DB {
+	requireT := require.New(t)
+
 	db, err := New(Config{
 		Allocator: NewAllocator(AllocatorConfig{
 			TotalSize: 10 * 1024 * 1024,
 			NodeSize:  512,
 		}),
 	})
-	require.NoError(t, err)
+	requireT.NoError(err)
 	return db
 }
 
@@ -47,43 +49,49 @@ func TestCollisions(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
+	requireT := require.New(t)
+
 	db := newDB(t)
 
 	space, err := GetSpace[int, int](spaceID, db)
-	require.NoError(t, err)
+	requireT.NoError(err)
 
 	for i := range 10 {
-		space.Set(i, i)
+		requireT.NoError(space.Set(i, i))
 	}
 
-	require.Equal(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, collect(space))
+	requireT.Equal([]int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, collect(space))
 }
 
 func TestSetCollisions(t *testing.T) {
+	requireT := require.New(t)
+
 	db := newDB(t)
 
 	space, err := GetSpace[int, int](spaceID, db)
-	require.NoError(t, err)
+	requireT.NoError(err)
 
 	allValues := make([]int, 0, len(collisions)*len(collisions[0]))
 
 	for _, set := range collisions {
 		for _, i := range set {
 			allValues = append(allValues, i)
-			space.Set(i, i)
+			requireT.NoError(space.Set(i, i))
 		}
 	}
 
 	sort.Ints(allValues)
 
-	require.Equal(t, allValues, collect(space))
+	requireT.Equal(allValues, collect(space))
 }
 
 func TestGetCollisions(t *testing.T) {
+	requireT := require.New(t)
+
 	db := newDB(t)
 
 	space, err := GetSpace[int, int](spaceID, db)
-	require.NoError(t, err)
+	requireT.NoError(err)
 
 	inserted := make([]int, 0, len(collisions)*len(collisions[0]))
 	read := make([]int, 0, len(collisions)*len(collisions[0]))
@@ -91,7 +99,7 @@ func TestGetCollisions(t *testing.T) {
 	for _, set := range collisions {
 		for _, i := range set {
 			inserted = append(inserted, i)
-			space.Set(i, i)
+			requireT.NoError(space.Set(i, i))
 		}
 	}
 
@@ -106,7 +114,7 @@ func TestGetCollisions(t *testing.T) {
 	sort.Ints(inserted)
 	sort.Ints(read)
 
-	require.Equal(t, inserted, read)
+	requireT.Equal(inserted, read)
 }
 
 func TestSetOnNext(t *testing.T) {
@@ -118,7 +126,7 @@ func TestSetOnNext(t *testing.T) {
 	requireT.NoError(err)
 
 	for i := range 10 {
-		space1.Set(i, i)
+		requireT.NoError(space1.Set(i, i))
 	}
 
 	requireT.NoError(db.Commit())
@@ -127,7 +135,7 @@ func TestSetOnNext(t *testing.T) {
 	requireT.NoError(err)
 
 	for i := range 5 {
-		space2.Set(i, i+10)
+		requireT.NoError(space2.Set(i, i+10))
 	}
 
 	requireT.Equal([]int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, collect(space1))
@@ -143,7 +151,7 @@ func TestGet(t *testing.T) {
 	requireT.NoError(err)
 
 	for i := range 10 {
-		space.Set(i, i)
+		requireT.NoError(space.Set(i, i))
 	}
 	for i := range 10 {
 		v, exists := space.Get(i)
@@ -161,7 +169,7 @@ func TestReplace(t *testing.T) {
 	requireT.NoError(err)
 
 	for i := range 10 {
-		space1.Set(i, i)
+		requireT.NoError(space1.Set(i, i))
 	}
 
 	requireT.NoError(db.Commit())
@@ -170,7 +178,7 @@ func TestReplace(t *testing.T) {
 	requireT.NoError(err)
 
 	for i, j := 0, 10; i < 5; i, j = i+1, j+1 {
-		space2.Set(i, j)
+		requireT.NoError(space2.Set(i, j))
 	}
 
 	for i := range 10 {
