@@ -1,23 +1,24 @@
-package quantum
+package space
 
 import (
 	"github.com/cespare/xxhash"
 
 	"github.com/outofforest/photon"
+	"github.com/outofforest/quantum/types"
 )
 
-// SpaceConfig stores space configuration.
-type SpaceConfig[K, V comparable] struct {
-	SnapshotID           SnapshotID
+// Config stores space configuration.
+type Config[K, V comparable] struct {
+	SnapshotID           types.SnapshotID
 	HashMod              *uint64
-	SpaceRoot            ParentInfo
-	PointerNodeAllocator SpaceNodeAllocator[NodeAddress]
-	DataNodeAllocator    SpaceNodeAllocator[DataItem[K, V]]
-	Allocator            SnapshotAllocator
+	SpaceRoot            types.ParentInfo
+	PointerNodeAllocator NodeAllocator[types.NodeAddress]
+	DataNodeAllocator    NodeAllocator[types.DataItem[K, V]]
+	Allocator            types.SnapshotAllocator
 }
 
-// NewSpace creates new space.
-func NewSpace[K, V comparable](config SpaceConfig[K, V]) *Space[K, V] {
+// New creates new space.
+func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 	return &Space[K, V]{
 		config:       config,
 		defaultValue: *new(V),
@@ -26,7 +27,7 @@ func NewSpace[K, V comparable](config SpaceConfig[K, V]) *Space[K, V] {
 
 // Space represents the substate where values V are stored by key K.
 type Space[K, V comparable] struct {
-	config       SpaceConfig[K, V]
+	config       Config[K, V]
 	defaultValue V
 }
 
@@ -37,9 +38,9 @@ func (s *Space[K, V]) Get(key K) (V, bool) {
 
 	for {
 		switch *pInfo.State {
-		case stateFree:
+		case types.StateFree:
 			return s.defaultValue, false
-		case stateData:
+		case types.StateData:
 			_, dataNode := s.config.DataNodeAllocator.Get(*pInfo.Item)
 			if dataNode.Header.HashMod > 0 {
 				h = hashKey(key, dataNode.Header.HashMod)
@@ -47,7 +48,7 @@ func (s *Space[K, V]) Get(key K) (V, bool) {
 
 			index := s.config.DataNodeAllocator.Index(h)
 
-			if dataNode.States[index] == stateFree {
+			if dataNode.States[index] == types.StateFree {
 				return s.defaultValue, false
 			}
 			item := dataNode.Items[index]
@@ -64,7 +65,7 @@ func (s *Space[K, V]) Get(key K) (V, bool) {
 			index := s.config.PointerNodeAllocator.Index(h)
 			h = s.config.PointerNodeAllocator.Shift(h)
 
-			pInfo = ParentInfo{
+			pInfo = types.ParentInfo{
 				State: &pointerNode.States[index],
 				Item:  &pointerNode.Items[index],
 			}
@@ -74,7 +75,7 @@ func (s *Space[K, V]) Get(key K) (V, bool) {
 
 // Set sets the value for the key.
 func (s *Space[K, V]) Set(key K, value V) error {
-	return s.set(s.config.SpaceRoot, DataItem[K, V]{
+	return s.set(s.config.SpaceRoot, types.DataItem[K, V]{
 		Hash:  hashKey(key, 0),
 		Key:   key,
 		Value: value,
@@ -88,9 +89,9 @@ func (s *Space[K, V]) Delete(key K) error {
 
 	for {
 		switch *pInfo.State {
-		case stateFree:
+		case types.StateFree:
 			return nil
-		case stateData:
+		case types.StateData:
 			// FIXME (wojciech): Don't copy the node if split is required.
 
 			dataNodeData, dataNode := s.config.DataNodeAllocator.Get(*pInfo.Item)
@@ -112,8 +113,9 @@ func (s *Space[K, V]) Delete(key K) error {
 			}
 
 			index := s.config.DataNodeAllocator.Index(h)
-			if dataNode.States[index] == stateData && h == dataNode.Items[index].Hash && key == dataNode.Items[index].Key {
-				dataNode.States[index] = stateFree
+			if dataNode.States[index] == types.StateData && h == dataNode.Items[index].Hash &&
+				key == dataNode.Items[index].Key {
+				dataNode.States[index] = types.StateFree
 			}
 
 			return nil
@@ -139,7 +141,7 @@ func (s *Space[K, V]) Delete(key K) error {
 			index := s.config.PointerNodeAllocator.Index(h)
 			h = s.config.PointerNodeAllocator.Shift(h)
 
-			pInfo = ParentInfo{
+			pInfo = types.ParentInfo{
 				State: &pointerNode.States[index],
 				Item:  &pointerNode.Items[index],
 			}
@@ -147,25 +149,67 @@ func (s *Space[K, V]) Delete(key K) error {
 	}
 }
 
-func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) error {
+// Iterator returns iterator iterating over items in space.
+func (s *Space[K, V]) Iterator() func(func(types.DataItem[K, V]) bool) {
+	return func(yield func(item types.DataItem[K, V]) bool) {
+		// FIXME (wojciech): avoid heap allocations
+		stack := []types.ParentInfo{s.config.SpaceRoot}
+
+		for {
+			if len(stack) == 0 {
+				return
+			}
+
+			pInfo := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+
+			switch *pInfo.State {
+			case types.StateFree:
+			case types.StateData:
+				_, dataNode := s.config.DataNodeAllocator.Get(*pInfo.Item)
+				for i, state := range dataNode.States {
+					if state == types.StateFree {
+						continue
+					}
+					if !yield(dataNode.Items[i]) {
+						return
+					}
+				}
+			default:
+				_, pointerNode := s.config.PointerNodeAllocator.Get(*pInfo.Item)
+				for i, state := range pointerNode.States {
+					if state == types.StateFree {
+						continue
+					}
+					stack = append(stack, types.ParentInfo{
+						State: &pointerNode.States[i],
+						Item:  &pointerNode.Items[i],
+					})
+				}
+			}
+		}
+	}
+}
+
+func (s *Space[K, V]) set(pInfo types.ParentInfo, item types.DataItem[K, V]) error {
 	for {
 		switch *pInfo.State {
-		case stateFree:
+		case types.StateFree:
 			dataNodeAddress, dataNode, err := s.config.DataNodeAllocator.Allocate(s.config.Allocator)
 			if err != nil {
 				return err
 			}
 			dataNode.Header.SnapshotID = s.config.SnapshotID
 
-			*pInfo.State = stateData
+			*pInfo.State = types.StateData
 			*pInfo.Item = dataNodeAddress
 
 			index := s.config.DataNodeAllocator.Index(item.Hash)
-			dataNode.States[index] = stateData
+			dataNode.States[index] = types.StateData
 			dataNode.Items[index] = item
 
 			return nil
-		case stateData:
+		case types.StateData:
 			// FIXME (wojciech): Don't copy the node if split is required.
 
 			dataNodeData, dataNode := s.config.DataNodeAllocator.Get(*pInfo.Item)
@@ -187,8 +231,8 @@ func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) error {
 			}
 
 			index := s.config.DataNodeAllocator.Index(item.Hash)
-			if dataNode.States[index] == stateFree {
-				dataNode.States[index] = stateData
+			if dataNode.States[index] == types.StateFree {
+				dataNode.States[index] = types.StateData
 				dataNode.Items[index] = item
 
 				return nil
@@ -232,7 +276,7 @@ func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) error {
 			index := s.config.PointerNodeAllocator.Index(item.Hash)
 			item.Hash = s.config.PointerNodeAllocator.Shift(item.Hash)
 
-			pInfo = ParentInfo{
+			pInfo = types.ParentInfo{
 				State: &pointerNode.States[index],
 				Item:  &pointerNode.Items[index],
 			}
@@ -240,7 +284,7 @@ func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) error {
 	}
 }
 
-func (s *Space[K, V]) redistributeNode(pInfo ParentInfo) error {
+func (s *Space[K, V]) redistributeNode(pInfo types.ParentInfo) error {
 	dataNodeAddress := *pInfo.Item
 	_, dataNode := s.config.DataNodeAllocator.Get(dataNodeAddress)
 
@@ -248,16 +292,16 @@ func (s *Space[K, V]) redistributeNode(pInfo ParentInfo) error {
 	if err != nil {
 		return err
 	}
-	*pointerNode.Header = SpaceNodeHeader{
+	*pointerNode.Header = types.SpaceNodeHeader{
 		SnapshotID: s.config.SnapshotID,
 		HashMod:    dataNode.Header.HashMod,
 	}
 
-	*pInfo.State = statePointer
+	*pInfo.State = types.StatePointer
 	*pInfo.Item = pointerNodeAddress
 
 	for i, state := range dataNode.States {
-		if state == stateFree {
+		if state == types.StateFree {
 			continue
 		}
 
@@ -269,26 +313,26 @@ func (s *Space[K, V]) redistributeNode(pInfo ParentInfo) error {
 	return s.config.Allocator.Deallocate(dataNodeAddress, dataNode.Header.SnapshotID)
 }
 
-func hashKey[K comparable](key K, hashMod uint64) Hash {
-	var hash Hash
+func hashKey[K comparable](key K, hashMod uint64) types.Hash {
+	var hash types.Hash
 	p := photon.NewFromValue[K](&key)
 	if hashMod == 0 {
-		hash = Hash(xxhash.Sum64(p.B))
+		hash = types.Hash(xxhash.Sum64(p.B))
 	} else {
 		// FIXME (wojciech): Remove heap allocation
-		b := make([]byte, uint64Length+len(p.B))
+		b := make([]byte, types.UInt64Length+len(p.B))
 		copy(b, photon.NewFromValue(&hashMod).B)
-		copy(b[uint64Length:], photon.NewFromValue[K](&key).B)
-		hash = Hash(xxhash.Sum64(b))
+		copy(b[types.UInt64Length:], photon.NewFromValue[K](&key).B)
+		hash = types.Hash(xxhash.Sum64(b))
 	}
 
-	if isTesting {
+	if types.IsTesting {
 		hash = testHash(hash)
 	}
 
 	return hash
 }
 
-func testHash(hash Hash) Hash {
+func testHash(hash types.Hash) types.Hash {
 	return hash & 0x7fffffff
 }

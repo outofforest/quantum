@@ -1,13 +1,13 @@
 package quantum
 
 import (
-	"fmt"
-	"math"
 	"sort"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/outofforest/quantum/alloc"
+	"github.com/outofforest/quantum/space"
 )
 
 var collisions = [][]int{
@@ -27,7 +27,7 @@ func newDB(t *testing.T) *DB {
 	requireT := require.New(t)
 
 	db, err := New(Config{
-		Allocator: NewAllocator(AllocatorConfig{
+		Allocator: alloc.NewAllocator(alloc.Config{
 			TotalSize: 10 * 1024 * 1024,
 			NodeSize:  512,
 		}),
@@ -37,16 +37,6 @@ func newDB(t *testing.T) *DB {
 }
 
 const spaceID = 0x00
-
-func TestCollisions(t *testing.T) {
-	for _, set := range collisions {
-		m := map[Hash]struct{}{}
-		for _, i := range set {
-			m[hashKey(i, 0)] = struct{}{}
-		}
-		assert.Len(t, m, 1)
-	}
-}
 
 func TestSet(t *testing.T) {
 	requireT := require.New(t)
@@ -200,60 +190,12 @@ func TestReplace(t *testing.T) {
 	}
 }
 
-// go test -run=TestFindCollisions -v -tags=testing .
-
-func TestFindCollisions(t *testing.T) {
-	// Remove SkipNow and use command
-	// go test -run=TestFindCollisions -v -tags=testing .
-	// to generate integers with colliding hashes.
-	t.SkipNow()
-
-	fmt.Println("started")
-
-	m := map[Hash][]int{}
-	for i := range math.MaxInt {
-		h := hashKey(i, 0)
-		if h2 := m[h]; len(h2) == 4 {
-			sort.Ints(h2)
-			fmt.Printf("%#v\n", h2)
-		} else {
-			m[h] = append(m[h], i)
-		}
-	}
-}
-
-func collect(space *Space[int, int]) []int {
+func collect(space *space.Space[int, int]) []int {
 	values := []int{}
-	typeStack := []State{*space.config.SpaceRoot.State}
-	nodeStack := []NodeAddress{*space.config.SpaceRoot.Item}
-
-	for {
-		if len(nodeStack) == 0 {
-			sort.Ints(values)
-			return values
-		}
-
-		t := typeStack[len(typeStack)-1]
-		n := nodeStack[len(nodeStack)-1]
-		typeStack = typeStack[:len(typeStack)-1]
-		nodeStack = nodeStack[:len(nodeStack)-1]
-
-		switch t {
-		case stateData:
-			_, node := space.config.DataNodeAllocator.Get(n)
-			for i := range len(node.Items) {
-				if node.States[i] == stateData {
-					values = append(values, node.Items[i].Value)
-				}
-			}
-		default:
-			_, node := space.config.PointerNodeAllocator.Get(n)
-			for i := range len(node.Items) {
-				if node.States[i] != stateFree {
-					typeStack = append(typeStack, node.States[i])
-					nodeStack = append(nodeStack, node.Items[i])
-				}
-			}
-		}
+	for item := range space.Iterator() {
+		values = append(values, item.Value)
 	}
+
+	sort.Ints(values)
+	return values
 }
