@@ -140,7 +140,9 @@ func (db *DB) DeleteSnapshot(snapshotID SnapshotID) error {
 				NodeAllocator: db.listNodeAllocator,
 			})
 			list.Deallocate(db.config.Allocator)
-			nextDeallocationLists.Delete(sID)
+			if err := nextDeallocationLists.Delete(sID); err != nil {
+				return err
+			}
 		}
 
 		// FIXME (wojciech): Iterate over space instead
@@ -154,14 +156,20 @@ func (db *DB) DeleteSnapshot(snapshotID SnapshotID) error {
 			nextList := NewList(ListConfig{
 				Item: nextListNodeAddress,
 			})
-			nextList.Attach(listNodeAddress)
+			if err := nextList.Attach(listNodeAddress); err != nil {
+				return err
+			}
 			if nextList.config.Item != nextListNodeAddress {
-				nextDeallocationLists.Set(sID, nextList.config.Item)
+				if err := nextDeallocationLists.Set(sID, nextList.config.Item); err != nil {
+					return err
+				}
 			}
 		}
 
 		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
-		db.nextSnapshot.Snapshots.Set(snapshotInfo.NextSnapshotID, nextSnapshotInfo)
+		if err := db.nextSnapshot.Snapshots.Set(snapshotInfo.NextSnapshotID, nextSnapshotInfo); err != nil {
+			return err
+		}
 	}
 
 	if snapshotInfo.PreviousSnapshotID > db.nextSnapshot.SingularityNode.FirstSnapshotID {
@@ -170,7 +178,9 @@ func (db *DB) DeleteSnapshot(snapshotID SnapshotID) error {
 			return errors.Errorf("snapshot %d does not exist", snapshotID)
 		}
 		previousSnapshotInfo.NextSnapshotID = snapshotInfo.NextSnapshotID
-		db.nextSnapshot.Snapshots.Set(snapshotInfo.PreviousSnapshotID, previousSnapshotInfo)
+		if err := db.nextSnapshot.Snapshots.Set(snapshotInfo.PreviousSnapshotID, previousSnapshotInfo); err != nil {
+			return err
+		}
 	}
 
 	if snapshotID == db.nextSnapshot.SingularityNode.FirstSnapshotID {
@@ -195,14 +205,18 @@ func (db *DB) Commit() error {
 		if *spaceToCommit.PInfo.State == stateFree || *spaceToCommit.PInfo.Item == spaceToCommit.OriginalItem {
 			continue
 		}
-		db.nextSnapshot.Spaces.Set(spaceID, SpaceInfo{
+		if err := db.nextSnapshot.Spaces.Set(spaceID, SpaceInfo{
 			HashMod: *spaceToCommit.HashMod,
 			State:   *spaceToCommit.PInfo.State,
 			Node:    *spaceToCommit.PInfo.Item,
-		})
+		}); err != nil {
+			return err
+		}
 	}
 
-	db.nextSnapshot.Snapshots.Set(db.nextSnapshot.SnapshotID, *db.nextSnapshot.SnapshotInfo)
+	if err := db.nextSnapshot.Snapshots.Set(db.nextSnapshot.SnapshotID, *db.nextSnapshot.SnapshotInfo); err != nil {
+		return err
+	}
 
 	*photon.FromBytes[SingularityNode](db.config.Allocator.Node(0)) = *db.nextSnapshot.SingularityNode
 

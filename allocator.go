@@ -37,11 +37,14 @@ func (a *Allocator) Node(nodeAddress NodeAddress) []byte {
 }
 
 // Allocate allocates node and copies data into it.
-func (a *Allocator) Allocate(copyFrom []byte) (NodeAddress, []byte) {
+func (a *Allocator) Allocate(copyFrom []byte) (NodeAddress, []byte, error) {
 	a.lastAllocatedNode++
+	if a.lastAllocatedNode >= NodeAddress(len(a.data)) {
+		return 0, nil, errors.New("out of space")
+	}
 	node := a.Node(a.lastAllocatedNode)
 	copy(node, copyFrom)
-	return a.lastAllocatedNode, node
+	return a.lastAllocatedNode, node, nil
 }
 
 // Deallocate deallocates node.
@@ -76,24 +79,32 @@ type SnapshotAllocator struct {
 }
 
 // Allocate allocates new node.
-func (sa SnapshotAllocator) Allocate() (NodeAddress, []byte) {
-	nodeAddress, node := sa.allocator.Allocate(sa.allocator.zeroNode)
+func (sa SnapshotAllocator) Allocate() (NodeAddress, []byte, error) {
+	nodeAddress, node, err := sa.allocator.Allocate(sa.allocator.zeroNode)
+	if err != nil {
+		return 0, nil, err
+	}
+
 	sa.dirtyNodes[nodeAddress] = struct{}{}
-	return nodeAddress, node
+	return nodeAddress, node, nil
 }
 
 // Copy allocates new node and copies content from existing one.
-func (sa SnapshotAllocator) Copy(data []byte) (NodeAddress, []byte) {
-	nodeAddress, node := sa.allocator.Allocate(data)
+func (sa SnapshotAllocator) Copy(data []byte) (NodeAddress, []byte, error) {
+	nodeAddress, node, err := sa.allocator.Allocate(data)
+	if err != nil {
+		return 0, nil, err
+	}
+
 	sa.dirtyNodes[nodeAddress] = struct{}{}
-	return nodeAddress, node
+	return nodeAddress, node, nil
 }
 
 // Deallocate marks node for deallocation.
-func (sa SnapshotAllocator) Deallocate(nodeAddress NodeAddress, srcSnapshotID SnapshotID) {
+func (sa SnapshotAllocator) Deallocate(nodeAddress NodeAddress, srcSnapshotID SnapshotID) error {
 	if srcSnapshotID == sa.snapshotID {
 		sa.DeallocateImmediately(nodeAddress)
-		return
+		return nil
 	}
 
 	listNodeAddress, _ := sa.deallocationLists.Get(srcSnapshotID)
@@ -103,10 +114,16 @@ func (sa SnapshotAllocator) Deallocate(nodeAddress NodeAddress, srcSnapshotID Sn
 		NodeAllocator: sa.listNodeAllocator,
 		Allocator:     sa,
 	})
-	list.Add(nodeAddress)
-	if list.config.Item != listNodeAddress {
-		sa.deallocationLists.Set(srcSnapshotID, list.config.Item)
+	if err := list.Add(nodeAddress); err != nil {
+		return err
 	}
+	if list.config.Item != listNodeAddress {
+		if err := sa.deallocationLists.Set(srcSnapshotID, list.config.Item); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // DeallocateImmediately dealocates node immediately.
@@ -171,15 +188,21 @@ func (na SpaceNodeAllocator[T]) Get(nodeAddress NodeAddress) ([]byte, SpaceNode[
 }
 
 // Allocate allocates new object.
-func (na SpaceNodeAllocator[T]) Allocate(allocator SnapshotAllocator) (NodeAddress, SpaceNode[T]) {
-	n, node := allocator.Allocate()
-	return n, na.project(node)
+func (na SpaceNodeAllocator[T]) Allocate(allocator SnapshotAllocator) (NodeAddress, SpaceNode[T], error) {
+	n, node, err := allocator.Allocate()
+	if err != nil {
+		return 0, SpaceNode[T]{}, err
+	}
+	return n, na.project(node), nil
 }
 
 // Copy allocates copy of existing object.
-func (na SpaceNodeAllocator[T]) Copy(allocator SnapshotAllocator, data []byte) (NodeAddress, SpaceNode[T]) {
-	n, node := allocator.Copy(data)
-	return n, na.project(node)
+func (na SpaceNodeAllocator[T]) Copy(allocator SnapshotAllocator, data []byte) (NodeAddress, SpaceNode[T], error) {
+	n, node, err := allocator.Copy(data)
+	if err != nil {
+		return 0, SpaceNode[T]{}, err
+	}
+	return n, na.project(node), nil
 }
 
 // Index returns element index based on hash.
@@ -237,15 +260,21 @@ func (na ListNodeAllocator) Get(nodeAddress NodeAddress) ([]byte, ListNode) {
 }
 
 // Allocate allocates new object.
-func (na ListNodeAllocator) Allocate(allocator SnapshotAllocator) (NodeAddress, ListNode) {
-	n, node := allocator.Allocate()
-	return n, na.project(node)
+func (na ListNodeAllocator) Allocate(allocator SnapshotAllocator) (NodeAddress, ListNode, error) {
+	n, node, err := allocator.Allocate()
+	if err != nil {
+		return 0, ListNode{}, err
+	}
+	return n, na.project(node), nil
 }
 
 // Copy allocates copy of existing object.
-func (na ListNodeAllocator) Copy(allocator SnapshotAllocator, data []byte) (NodeAddress, ListNode) {
-	n, node := allocator.Copy(data)
-	return n, na.project(node)
+func (na ListNodeAllocator) Copy(allocator SnapshotAllocator, data []byte) (NodeAddress, ListNode, error) {
+	n, node, err := allocator.Copy(data)
+	if err != nil {
+		return 0, ListNode{}, err
+	}
+	return n, na.project(node), nil
 }
 
 func (na ListNodeAllocator) project(node []byte) ListNode {
