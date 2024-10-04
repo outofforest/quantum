@@ -5,8 +5,7 @@ type ListConfig struct {
 	SnapshotID    SnapshotID
 	Item          NodeAddress
 	NodeAllocator ListNodeAllocator
-	Allocator     *Allocator
-	Deallocator   Deallocator
+	Allocator     SnapshotAllocator
 }
 
 // NewList creates new list.
@@ -24,7 +23,7 @@ type List struct {
 // Add adds address to the list.
 func (l *List) Add(nodeAddress NodeAddress) {
 	if l.config.Item == 0 {
-		newNodeAddress, newNode := l.config.NodeAllocator.Allocate()
+		newNodeAddress, newNode := l.config.NodeAllocator.Allocate(l.config.Allocator)
 		newNode.Items[0] = nodeAddress
 		newNode.Header.SnapshotID = l.config.SnapshotID
 		newNode.Header.NumOfItems = 1
@@ -35,11 +34,11 @@ func (l *List) Add(nodeAddress NodeAddress) {
 	listNodeData, listNode := l.config.NodeAllocator.Get(l.config.Item)
 	if listNode.Header.NumOfItems+listNode.Header.NumOfSideLists < uint64(len(listNode.Items)) {
 		if listNode.Header.SnapshotID < l.config.SnapshotID {
-			newNodeAddress, newNode := l.config.NodeAllocator.Copy(listNodeData)
+			newNodeAddress, newNode := l.config.NodeAllocator.Copy(l.config.Allocator, listNodeData)
 			newNode.Header.SnapshotID = l.config.SnapshotID
 			oldNodeAddress := l.config.Item
 			l.config.Item = newNodeAddress
-			l.config.Allocator.Deallocate(oldNodeAddress)
+			l.config.Allocator.DeallocateImmediately(oldNodeAddress)
 			listNode = newNode
 		}
 
@@ -49,7 +48,7 @@ func (l *List) Add(nodeAddress NodeAddress) {
 		return
 	}
 
-	newNodeAddress, newNode := l.config.NodeAllocator.Allocate()
+	newNodeAddress, newNode := l.config.NodeAllocator.Allocate(l.config.Allocator)
 	newNode.Items[0] = nodeAddress
 	newNode.Items[len(newNode.Items)-1] = l.config.Item
 	newNode.Header.SnapshotID = l.config.SnapshotID
@@ -67,11 +66,11 @@ func (l *List) Attach(nodeAddress NodeAddress) {
 	listNodeData, listNode := l.config.NodeAllocator.Get(l.config.Item)
 	if listNode.Header.NumOfItems+listNode.Header.NumOfSideLists < uint64(len(listNode.Items)) {
 		if listNode.Header.SnapshotID < l.config.SnapshotID {
-			newNodeAddress, newNode := l.config.NodeAllocator.Copy(listNodeData)
+			newNodeAddress, newNode := l.config.NodeAllocator.Copy(l.config.Allocator, listNodeData)
 			newNode.Header.SnapshotID = l.config.SnapshotID
 			oldNodeAddress := l.config.Item
 			l.config.Item = newNodeAddress
-			l.config.Allocator.Deallocate(oldNodeAddress)
+			l.config.Allocator.DeallocateImmediately(oldNodeAddress)
 			listNode = newNode
 		}
 
@@ -81,7 +80,7 @@ func (l *List) Attach(nodeAddress NodeAddress) {
 		return
 	}
 
-	newNodeAddress, newNode := l.config.NodeAllocator.Allocate()
+	newNodeAddress, newNode := l.config.NodeAllocator.Allocate(l.config.Allocator)
 	newNode.Items[uint64(len(listNode.Items))-1] = l.config.Item
 	newNode.Items[uint64(len(listNode.Items))-2] = nodeAddress
 	newNode.Header.SnapshotID = l.config.SnapshotID
