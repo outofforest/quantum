@@ -10,7 +10,6 @@ import (
 func NewTestAllocator(parentAllocator types.Allocator) *TestAllocator {
 	return &TestAllocator{
 		parentAllocator:  parentAllocator,
-		nodesAccessed:    map[types.NodeAddress]struct{}{},
 		nodesAllocated:   map[types.NodeAddress]struct{}{},
 		nodesDeallocated: map[types.NodeAddress]struct{}{},
 	}
@@ -20,14 +19,12 @@ func NewTestAllocator(parentAllocator types.Allocator) *TestAllocator {
 type TestAllocator struct {
 	parentAllocator types.Allocator
 
-	nodesAccessed    map[types.NodeAddress]struct{}
 	nodesAllocated   map[types.NodeAddress]struct{}
 	nodesDeallocated map[types.NodeAddress]struct{}
 }
 
 // Node returns node bytes.
 func (a *TestAllocator) Node(nodeAddress types.NodeAddress) []byte {
-	a.nodesAccessed[nodeAddress] = struct{}{}
 	return a.parentAllocator.Node(nodeAddress)
 }
 
@@ -54,11 +51,10 @@ func (a *TestAllocator) NodeSize() uint64 {
 
 // Nodes returns touched nodes.
 func (a *TestAllocator) Nodes() (
-	accessed []types.NodeAddress,
 	allocated []types.NodeAddress,
 	deallocated []types.NodeAddress,
 ) {
-	return mapToSlice(a.nodesAccessed), mapToSlice(a.nodesAllocated), mapToSlice(a.nodesDeallocated)
+	return mapToSlice(a.nodesAllocated), mapToSlice(a.nodesDeallocated)
 }
 
 func mapToSlice(m map[types.NodeAddress]struct{}) []types.NodeAddress {
