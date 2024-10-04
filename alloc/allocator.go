@@ -39,7 +39,7 @@ func (a *Allocator) Node(nodeAddress types.NodeAddress) []byte {
 // Allocate allocates node and copies data into it.
 func (a *Allocator) Allocate(copyFrom []byte) (types.NodeAddress, []byte, error) {
 	a.lastAllocatedNode++
-	if a.lastAllocatedNode >= types.NodeAddress(len(a.data)) {
+	if uint64(a.lastAllocatedNode+1)*a.config.NodeSize > uint64(len(a.data)) {
 		return 0, nil, errors.New("out of space")
 	}
 	node := a.Node(a.lastAllocatedNode)
