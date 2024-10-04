@@ -36,6 +36,7 @@ func (a *Allocator) Node(nodeAddress NodeAddress) []byte {
 	return a.data[uint64(nodeAddress)*a.config.NodeSize : uint64(nodeAddress+1)*a.config.NodeSize]
 }
 
+// Allocate allocates node and copies data into it.
 func (a *Allocator) Allocate(copyFrom []byte) (NodeAddress, []byte) {
 	a.lastAllocatedNode++
 	node := a.Node(a.lastAllocatedNode)
@@ -48,6 +49,7 @@ func (a *Allocator) Deallocate(nodeAddress NodeAddress) {
 
 }
 
+// NewSnapshotAllocator returns snapshot-level allocator.
 func NewSnapshotAllocator(
 	snapshotID SnapshotID,
 	allocator *Allocator,
@@ -63,6 +65,7 @@ func NewSnapshotAllocator(
 	}
 }
 
+// SnapshotAllocator allocates memory on behalf of snapshot.
 type SnapshotAllocator struct {
 	snapshotID        SnapshotID
 	allocator         *Allocator
@@ -86,7 +89,7 @@ func (sa SnapshotAllocator) Copy(data []byte) (NodeAddress, []byte) {
 	return nodeAddress, node
 }
 
-// Deallocate deallocates node.
+// Deallocate marks node for deallocation.
 func (sa SnapshotAllocator) Deallocate(nodeAddress NodeAddress, srcSnapshotID SnapshotID) {
 	if srcSnapshotID == sa.snapshotID {
 		sa.DeallocateImmediately(nodeAddress)
@@ -106,6 +109,7 @@ func (sa SnapshotAllocator) Deallocate(nodeAddress NodeAddress, srcSnapshotID Sn
 	}
 }
 
+// DeallocateImmediately dealocates node immediately.
 func (sa SnapshotAllocator) DeallocateImmediately(nodeAddress NodeAddress) {
 	delete(sa.dirtyNodes, nodeAddress)
 	sa.allocator.Deallocate(nodeAddress)
