@@ -25,10 +25,10 @@ func NewAllocator(config AllocatorConfig) *Allocator {
 
 // Allocator in-memory node allocations.
 type Allocator struct {
-	config             AllocatorConfig
-	data               []byte
-	zeroNode           []byte
-	nextNodeToAllocate NodeAddress
+	config            AllocatorConfig
+	data              []byte
+	zeroNode          []byte
+	lastAllocatedNode NodeAddress
 }
 
 // Node returns node bytes.
@@ -52,11 +52,10 @@ func (a *Allocator) Copy(data []byte) (NodeAddress, []byte) {
 }
 
 func (a *Allocator) allocate(copyFrom []byte) (NodeAddress, []byte) {
-	n := a.nextNodeToAllocate
-	a.nextNodeToAllocate++
-	node := a.Node(n)
+	a.lastAllocatedNode++
+	node := a.Node(a.lastAllocatedNode)
 	copy(node, copyFrom)
-	return n, node
+	return a.lastAllocatedNode, node
 }
 
 // NewDeallocator returns new deallocator.

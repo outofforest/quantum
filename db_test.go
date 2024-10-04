@@ -23,14 +23,15 @@ var collisions = [][]int{
 	{32134280, 33645087, 37005304, 83416269},
 }
 
-func config() SnapshotConfig {
-	return SnapshotConfig{
-		SnapshotID: 0,
+func newDB(t *testing.T) *DB {
+	db, err := New(Config{
 		Allocator: NewAllocator(AllocatorConfig{
 			TotalSize: 10 * 1024 * 1024,
 			NodeSize:  512,
 		}),
-	}
+	})
+	require.NoError(t, err)
+	return db
 }
 
 const spaceID = 0x00
@@ -46,10 +47,9 @@ func TestCollisions(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
-	s, err := NewSnapshot(config())
-	require.NoError(t, err)
+	db := newDB(t)
 
-	space, err := GetSpace[int, int](spaceID, s)
+	space, err := GetSpace[int, int](spaceID, db)
 	require.NoError(t, err)
 
 	for i := range 10 {
@@ -60,10 +60,9 @@ func TestSet(t *testing.T) {
 }
 
 func TestSetCollisions(t *testing.T) {
-	s, err := NewSnapshot(config())
-	require.NoError(t, err)
+	db := newDB(t)
 
-	space, err := GetSpace[int, int](spaceID, s)
+	space, err := GetSpace[int, int](spaceID, db)
 	require.NoError(t, err)
 
 	allValues := make([]int, 0, len(collisions)*len(collisions[0]))
@@ -81,10 +80,9 @@ func TestSetCollisions(t *testing.T) {
 }
 
 func TestGetCollisions(t *testing.T) {
-	s, err := NewSnapshot(config())
-	require.NoError(t, err)
+	db := newDB(t)
 
-	space, err := GetSpace[int, int](spaceID, s)
+	space, err := GetSpace[int, int](spaceID, db)
 	require.NoError(t, err)
 
 	inserted := make([]int, 0, len(collisions)*len(collisions[0]))
@@ -112,63 +110,64 @@ func TestGetCollisions(t *testing.T) {
 }
 
 func TestSetOnNext(t *testing.T) {
-	s1, err := NewSnapshot(config())
-	require.NoError(t, err)
+	requireT := require.New(t)
 
-	space1, err := GetSpace[int, int](spaceID, s1)
-	require.NoError(t, err)
+	db := newDB(t)
+
+	space1, err := GetSpace[int, int](spaceID, db)
+	requireT.NoError(err)
 
 	for i := range 10 {
 		space1.Set(i, i)
 	}
 
-	s2, err := s1.Commit()
-	require.NoError(t, err)
+	requireT.NoError(db.Commit())
 
-	space2, err := GetSpace[int, int](spaceID, s2)
-	require.NoError(t, err)
+	space2, err := GetSpace[int, int](spaceID, db)
+	requireT.NoError(err)
 
 	for i := range 5 {
 		space2.Set(i, i+10)
 	}
 
-	require.Equal(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, collect(space1))
-	require.Equal(t, []int{5, 6, 7, 8, 9, 10, 11, 12, 13, 14}, collect(space2))
+	requireT.Equal([]int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, collect(space1))
+	requireT.Equal([]int{5, 6, 7, 8, 9, 10, 11, 12, 13, 14}, collect(space2))
 }
 
 func TestGet(t *testing.T) {
-	s, err := NewSnapshot(config())
-	require.NoError(t, err)
+	requireT := require.New(t)
 
-	space, err := GetSpace[int, int](spaceID, s)
-	require.NoError(t, err)
+	db := newDB(t)
+
+	space, err := GetSpace[int, int](spaceID, db)
+	requireT.NoError(err)
 
 	for i := range 10 {
 		space.Set(i, i)
 	}
 	for i := range 10 {
 		v, exists := space.Get(i)
-		require.True(t, exists)
-		require.Equal(t, i, v)
+		requireT.True(exists)
+		requireT.Equal(i, v)
 	}
 }
 
 func TestReplace(t *testing.T) {
-	s1, err := NewSnapshot(config())
-	require.NoError(t, err)
+	requireT := require.New(t)
 
-	space1, err := GetSpace[int, int](spaceID, s1)
-	require.NoError(t, err)
+	db := newDB(t)
+
+	space1, err := GetSpace[int, int](spaceID, db)
+	requireT.NoError(err)
 
 	for i := range 10 {
 		space1.Set(i, i)
 	}
 
-	s2, err := s1.Commit()
-	require.NoError(t, err)
+	requireT.NoError(db.Commit())
 
-	space2, err := GetSpace[int, int](spaceID, s2)
-	require.NoError(t, err)
+	space2, err := GetSpace[int, int](spaceID, db)
+	requireT.NoError(err)
 
 	for i, j := 0, 10; i < 5; i, j = i+1, j+1 {
 		space2.Set(i, j)
@@ -176,20 +175,20 @@ func TestReplace(t *testing.T) {
 
 	for i := range 10 {
 		v, exists := space1.Get(i)
-		require.True(t, exists)
-		require.Equal(t, i, v)
+		requireT.True(exists)
+		requireT.Equal(i, v)
 	}
 
 	for i := range 5 {
 		v, exists := space2.Get(i)
-		require.True(t, exists)
-		require.Equal(t, i+10, v)
+		requireT.True(exists)
+		requireT.Equal(i+10, v)
 	}
 
 	for i := 5; i < 10; i++ {
 		v, exists := space2.Get(i)
-		require.True(t, exists)
-		require.Equal(t, i, v)
+		requireT.True(exists)
+		requireT.Equal(i, v)
 	}
 }
 
