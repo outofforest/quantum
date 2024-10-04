@@ -13,7 +13,7 @@ type SpaceConfig[K, V comparable] struct {
 	SpaceRoot            ParentInfo
 	PointerNodeAllocator SpaceNodeAllocator[NodeAddress]
 	DataNodeAllocator    SpaceNodeAllocator[DataItem[K, V]]
-	Deallocator          Deallocator
+	Allocator            SnapshotAllocator
 }
 
 // NewSpace creates new space.
@@ -95,11 +95,11 @@ func (s *Space[K, V]) Delete(key K) {
 
 			dataNodeData, dataNode := s.config.DataNodeAllocator.Get(*pInfo.Item)
 			if dataNode.Header.SnapshotID < s.config.SnapshotID {
-				newNodeAddress, newNode := s.config.DataNodeAllocator.Copy(dataNodeData)
+				newNodeAddress, newNode := s.config.DataNodeAllocator.Copy(s.config.Allocator, dataNodeData)
 				newNode.Header.SnapshotID = s.config.SnapshotID
 				oldNodeAddress := *pInfo.Item
 				*pInfo.Item = newNodeAddress
-				s.config.Deallocator.Deallocate(oldNodeAddress, dataNode.Header.SnapshotID)
+				s.config.Allocator.Deallocate(oldNodeAddress, dataNode.Header.SnapshotID)
 				dataNode = newNode
 			}
 			if dataNode.Header.HashMod > 0 {
@@ -115,11 +115,11 @@ func (s *Space[K, V]) Delete(key K) {
 		default:
 			pointerNodeData, pointerNode := s.config.PointerNodeAllocator.Get(*pInfo.Item)
 			if pointerNode.Header.SnapshotID < s.config.SnapshotID {
-				newNodeAddress, newNode := s.config.PointerNodeAllocator.Copy(pointerNodeData)
+				newNodeAddress, newNode := s.config.PointerNodeAllocator.Copy(s.config.Allocator, pointerNodeData)
 				newNode.Header.SnapshotID = s.config.SnapshotID
 				oldNodeAddress := *pInfo.Item
 				*pInfo.Item = newNodeAddress
-				s.config.Deallocator.Deallocate(oldNodeAddress, pointerNode.Header.SnapshotID)
+				s.config.Allocator.Deallocate(oldNodeAddress, pointerNode.Header.SnapshotID)
 				pointerNode = newNode
 			}
 			if pointerNode.Header.HashMod > 0 {
@@ -141,7 +141,7 @@ func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) {
 	for {
 		switch *pInfo.State {
 		case stateFree:
-			dataNodeAddress, dataNode := s.config.DataNodeAllocator.Allocate()
+			dataNodeAddress, dataNode := s.config.DataNodeAllocator.Allocate(s.config.Allocator)
 			dataNode.Header.SnapshotID = s.config.SnapshotID
 
 			*pInfo.State = stateData
@@ -157,11 +157,11 @@ func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) {
 
 			dataNodeData, dataNode := s.config.DataNodeAllocator.Get(*pInfo.Item)
 			if dataNode.Header.SnapshotID < s.config.SnapshotID {
-				newNodeAddress, newNode := s.config.DataNodeAllocator.Copy(dataNodeData)
+				newNodeAddress, newNode := s.config.DataNodeAllocator.Copy(s.config.Allocator, dataNodeData)
 				newNode.Header.SnapshotID = s.config.SnapshotID
 				oldNodeAddress := *pInfo.Item
 				*pInfo.Item = newNodeAddress
-				s.config.Deallocator.Deallocate(oldNodeAddress, dataNode.Header.SnapshotID)
+				s.config.Allocator.Deallocate(oldNodeAddress, dataNode.Header.SnapshotID)
 				dataNode = newNode
 			}
 			if dataNode.Header.HashMod > 0 {
@@ -195,11 +195,11 @@ func (s *Space[K, V]) set(pInfo ParentInfo, item DataItem[K, V]) {
 		default:
 			pointerNodeData, pointerNode := s.config.PointerNodeAllocator.Get(*pInfo.Item)
 			if pointerNode.Header.SnapshotID < s.config.SnapshotID {
-				newNodeAddress, newNode := s.config.PointerNodeAllocator.Copy(pointerNodeData)
+				newNodeAddress, newNode := s.config.PointerNodeAllocator.Copy(s.config.Allocator, pointerNodeData)
 				newNode.Header.SnapshotID = s.config.SnapshotID
 				oldNodeAddress := *pInfo.Item
 				*pInfo.Item = newNodeAddress
-				s.config.Deallocator.Deallocate(oldNodeAddress, pointerNode.Header.SnapshotID)
+				s.config.Allocator.Deallocate(oldNodeAddress, pointerNode.Header.SnapshotID)
 				pointerNode = newNode
 			}
 			if pointerNode.Header.HashMod > 0 {
@@ -221,7 +221,7 @@ func (s *Space[K, V]) redistributeNode(pInfo ParentInfo) {
 	dataNodeAddress := *pInfo.Item
 	_, dataNode := s.config.DataNodeAllocator.Get(dataNodeAddress)
 
-	pointerNodeAddress, pointerNode := s.config.PointerNodeAllocator.Allocate()
+	pointerNodeAddress, pointerNode := s.config.PointerNodeAllocator.Allocate(s.config.Allocator)
 	*pointerNode.Header = SpaceNodeHeader{
 		SnapshotID: s.config.SnapshotID,
 		HashMod:    dataNode.Header.HashMod,
@@ -238,7 +238,7 @@ func (s *Space[K, V]) redistributeNode(pInfo ParentInfo) {
 		s.set(pInfo, dataNode.Items[i])
 	}
 
-	s.config.Deallocator.Deallocate(dataNodeAddress, dataNode.Header.SnapshotID)
+	s.config.Allocator.Deallocate(dataNodeAddress, dataNode.Header.SnapshotID)
 }
 
 func hashKey[K comparable](key K, hashMod uint64) Hash {

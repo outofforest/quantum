@@ -29,7 +29,7 @@ type Snapshot struct {
 	Snapshots       *Space[SnapshotID, SnapshotInfo]
 	Spaces          *Space[SpaceID, SpaceInfo]
 	SpacesToCommit  map[SpaceID]SpaceToCommit
-	Deallocator     Deallocator
+	Allocator       SnapshotAllocator
 }
 
 // New creates new database.
@@ -106,18 +106,20 @@ func (db *DB) DeleteSnapshot(snapshotID SnapshotID) error {
 				State: lo.ToPtr(snapshotInfo.DeallocationRoot.State),
 				Item:  lo.ToPtr(snapshotInfo.DeallocationRoot.Node),
 			},
+			PointerNodeAllocator: db.pointerNodeAllocator,
+			DataNodeAllocator:    db.snapshotToNodeNodeAllocator,
 		})
 
 		nextDeallocationLists := NewSpace[SnapshotID, NodeAddress](SpaceConfig[SnapshotID, NodeAddress]{
 			SnapshotID: snapshotInfo.NextSnapshotID,
 			HashMod:    &nextSnapshotInfo.DeallocationRoot.HashMod,
 			SpaceRoot: ParentInfo{
-				State: lo.ToPtr(nextSnapshotInfo.DeallocationRoot.State),
-				Item:  lo.ToPtr(nextSnapshotInfo.DeallocationRoot.Node),
+				State: &nextSnapshotInfo.DeallocationRoot.State,
+				Item:  &nextSnapshotInfo.DeallocationRoot.Node,
 			},
 			PointerNodeAllocator: db.pointerNodeAllocator,
 			DataNodeAllocator:    db.snapshotToNodeNodeAllocator,
-			Deallocator:          db.nextSnapshot.Deallocator,
+			Allocator:            db.nextSnapshot.Allocator,
 		})
 
 		var startSnapshotID SnapshotID
@@ -159,11 +161,6 @@ func (db *DB) DeleteSnapshot(snapshotID SnapshotID) error {
 		}
 
 		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
-		nextSnapshotInfo.DeallocationRoot = SpaceInfo{
-			State:   *nextDeallocationLists.config.SpaceRoot.State,
-			Node:    *nextDeallocationLists.config.SpaceRoot.Item,
-			HashMod: *nextDeallocationLists.config.HashMod,
-		}
 		db.nextSnapshot.Snapshots.Set(snapshotInfo.NextSnapshotID, nextSnapshotInfo)
 	}
 
@@ -223,8 +220,9 @@ func (db *DB) prepareNextSnapshot(singularityNode SingularityNode) error {
 		NextSnapshotID:     snapshotID + 1,
 	}
 
-	deallocator := NewDeallocator(
+	allocator := NewSnapshotAllocator(
 		snapshotID,
+		db.config.Allocator,
 		NewSpace[SnapshotID, NodeAddress](SpaceConfig[SnapshotID, NodeAddress]{
 			SnapshotID: snapshotID,
 			HashMod:    &snapshotInfo.DeallocationRoot.HashMod,
@@ -237,7 +235,7 @@ func (db *DB) prepareNextSnapshot(singularityNode SingularityNode) error {
 		}),
 		db.listNodeAllocator,
 	)
-	deallocator.deallocationLists.config.Deallocator = deallocator
+	allocator.deallocationLists.config.Allocator = allocator
 
 	snapshots := NewSpace[SnapshotID, SnapshotInfo](SpaceConfig[SnapshotID, SnapshotInfo]{
 		SnapshotID: snapshotID,
@@ -248,7 +246,7 @@ func (db *DB) prepareNextSnapshot(singularityNode SingularityNode) error {
 		},
 		PointerNodeAllocator: db.pointerNodeAllocator,
 		DataNodeAllocator:    db.snapshotInfoNodeAllocator,
-		Deallocator:          deallocator,
+		Allocator:            allocator,
 	})
 
 	if singularityNode.SnapshotRoot.State != stateFree {
@@ -276,10 +274,10 @@ func (db *DB) prepareNextSnapshot(singularityNode SingularityNode) error {
 			},
 			PointerNodeAllocator: db.pointerNodeAllocator,
 			DataNodeAllocator:    db.spaceInfoNodeAllocator,
-			Deallocator:          deallocator,
+			Allocator:            allocator,
 		}),
 		SpacesToCommit: map[SpaceID]SpaceToCommit{},
-		Deallocator:    deallocator,
+		Allocator:      allocator,
 	}
 
 	return nil
@@ -312,6 +310,6 @@ func GetSpace[K, V comparable](spaceID SpaceID, db *DB) (*Space[K, V], error) {
 		SpaceRoot:            space.PInfo,
 		PointerNodeAllocator: db.pointerNodeAllocator,
 		DataNodeAllocator:    dataNodeAllocator,
-		Deallocator:          db.nextSnapshot.Deallocator,
+		Allocator:            db.nextSnapshot.Allocator,
 	}), nil
 }
