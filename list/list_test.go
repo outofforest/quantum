@@ -10,6 +10,7 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
+//nolint:unused
 func newEnv(requireT *require.Assertions) *env {
 	allocator := alloc.NewTestAllocator(alloc.NewAllocator(alloc.Config{
 		TotalSize: 1024 * 1024,
@@ -26,6 +27,7 @@ func newEnv(requireT *require.Assertions) *env {
 	}
 }
 
+//nolint:unused
 type env struct {
 	Allocator *alloc.TestAllocator
 	Item      *types.NodeAddress
@@ -34,6 +36,7 @@ type env struct {
 	nodeAllocator list.NodeAllocator
 }
 
+//nolint:unused
 func (e *env) NextSnapshot() *list.List {
 	snapshotID := e.snapshotID
 	e.snapshotID++

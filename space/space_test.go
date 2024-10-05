@@ -6,7 +6,6 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
-
 	"golang.org/x/exp/constraints"
 
 	"github.com/outofforest/quantum/alloc"
@@ -548,14 +547,16 @@ func (e *env) NextSnapshot() *space.Space[int, int] {
 		e.DeallocationLists,
 		e.listNodeAllocator,
 	)
-	*e.DeallocationLists = *space.New[types.SnapshotID, types.NodeAddress](space.Config[types.SnapshotID, types.NodeAddress]{
-		SnapshotID:           snapshotID,
-		HashMod:              lo.ToPtr[uint64](0),
-		SpaceRoot:            e.deallocationRoot,
-		PointerNodeAllocator: e.pointerNodeAllocator,
-		DataNodeAllocator:    e.snapshotToNodeNodeAllocator,
-		Allocator:            e.snapshotAllocator,
-	})
+	*e.DeallocationLists = *space.New[types.SnapshotID, types.NodeAddress](
+		space.Config[types.SnapshotID, types.NodeAddress]{
+			SnapshotID:           snapshotID,
+			HashMod:              lo.ToPtr[uint64](0),
+			SpaceRoot:            e.deallocationRoot,
+			PointerNodeAllocator: e.pointerNodeAllocator,
+			DataNodeAllocator:    e.snapshotToNodeNodeAllocator,
+			Allocator:            e.snapshotAllocator,
+		},
+	)
 
 	return space.New[int, int](space.Config[int, int]{
 		SnapshotID:           snapshotID,
