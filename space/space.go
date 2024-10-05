@@ -1,6 +1,8 @@
 package space
 
 import (
+	"sort"
+
 	"github.com/cespare/xxhash"
 
 	"github.com/outofforest/photon"
@@ -186,6 +188,45 @@ func (s *Space[K, V]) Iterator() func(func(types.DataItem[K, V]) bool) {
 						Item:  &pointerNode.Items[i],
 					})
 				}
+			}
+		}
+	}
+}
+
+// Nodes returns list of nodes used by the space.
+func (s *Space[K, V]) Nodes() []types.NodeAddress {
+	switch *s.config.SpaceRoot.State {
+	case types.StateFree:
+		return nil
+	case types.StateData:
+		return []types.NodeAddress{*s.config.SpaceRoot.Item}
+	case types.StatePointer:
+	}
+
+	nodes := []types.NodeAddress{}
+	stack := []types.NodeAddress{*s.config.SpaceRoot.Item}
+
+	for {
+		if len(stack) == 0 {
+			sort.Slice(nodes, func(i, j int) bool {
+				return nodes[i] < nodes[j]
+			})
+
+			return nodes
+		}
+
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		nodes = append(nodes, n)
+
+		_, pointerNode := s.config.PointerNodeAllocator.Get(n)
+		for i, state := range pointerNode.States {
+			switch state {
+			case types.StateFree:
+			case types.StateData:
+				nodes = append(nodes, pointerNode.Items[i])
+			case types.StatePointer:
+				stack = append(stack, pointerNode.Items[i])
 			}
 		}
 	}

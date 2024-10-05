@@ -155,23 +155,17 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 			}
 		}
 
-		// FIXME (wojciech): Iterate over space instead
-		for sID := db.nextSnapshot.SingularityNode.FirstSnapshotID; sID < snapshotID; sID++ {
-			listNodeAddress, exists := deallocationLists.Get(sID)
-			if !exists {
-				continue
-			}
-
-			nextListNodeAddress, _ := nextDeallocationLists.Get(sID)
+		for snapshotItem := range deallocationLists.Iterator() {
+			nextListNodeAddress, _ := nextDeallocationLists.Get(snapshotItem.Key)
 			newNextListNodeAddress := nextListNodeAddress
 			nextList := list.New(list.Config{
 				Item: &newNextListNodeAddress,
 			})
-			if err := nextList.Attach(listNodeAddress); err != nil {
+			if err := nextList.Attach(snapshotItem.Value); err != nil {
 				return err
 			}
 			if newNextListNodeAddress != nextListNodeAddress {
-				if err := nextDeallocationLists.Set(sID, newNextListNodeAddress); err != nil {
+				if err := nextDeallocationLists.Set(snapshotItem.Key, newNextListNodeAddress); err != nil {
 					return err
 				}
 			}

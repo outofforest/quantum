@@ -1,6 +1,10 @@
 package list
 
-import "github.com/outofforest/quantum/types"
+import (
+	"sort"
+
+	"github.com/outofforest/quantum/types"
+)
 
 // Config stores list configuration.
 type Config struct {
@@ -132,5 +136,60 @@ func (l *List) Deallocate(allocator types.Allocator) {
 
 		stack = append(stack, listNode.Items[uint64(len(listNode.Items))-listNode.Header.NumOfSideLists:]...)
 		allocator.Deallocate(n)
+	}
+}
+
+// Iterator iterates over items in the list.
+func (l *List) Iterator() func(func(types.NodeAddress) bool) {
+	return func(yield func(types.NodeAddress) bool) {
+		if *l.config.Item == 0 {
+			return
+		}
+
+		stack := []types.NodeAddress{*l.config.Item}
+		for {
+			if len(stack) == 0 {
+				return
+			}
+
+			n := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+
+			_, listNode := l.config.NodeAllocator.Get(n)
+			for i := range listNode.Header.NumOfItems {
+				if !yield(listNode.Items[i]) {
+					return
+				}
+			}
+
+			stack = append(stack, listNode.Items[uint64(len(listNode.Items))-listNode.Header.NumOfSideLists:]...)
+		}
+	}
+}
+
+// Nodes returns list of nodes used by the list.
+func (l *List) Nodes() []types.NodeAddress {
+	if *l.config.Item == 0 {
+		return nil
+	}
+
+	nodes := []types.NodeAddress{}
+	stack := []types.NodeAddress{*l.config.Item}
+
+	for {
+		if len(stack) == 0 {
+			sort.Slice(nodes, func(i, j int) bool {
+				return nodes[i] < nodes[j]
+			})
+
+			return nodes
+		}
+
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		nodes = append(nodes, n)
+
+		_, listNode := l.config.NodeAllocator.Get(n)
+		stack = append(stack, listNode.Items[uint64(len(listNode.Items))-listNode.Header.NumOfSideLists:]...)
 	}
 }
