@@ -21,8 +21,9 @@ func TestSetOneItem(t *testing.T) {
 	s := e.NextSnapshot()
 	requireT.NoError(s.Set(0, 0))
 
-	nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
 
+	requireT.Equal([]types.NodeAddress{0x01}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x01}, nodesAllocated)
 	requireT.Empty(nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x01}, s.Nodes())
@@ -39,8 +40,9 @@ func TestSetTwoItems(t *testing.T) {
 	requireT.NoError(s.Set(0, 0))
 	requireT.NoError(s.Set(1, 1))
 
-	nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
 
+	requireT.Equal([]types.NodeAddress{0x01}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x01}, nodesAllocated)
 	requireT.Empty(nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x01}, s.Nodes())
@@ -57,8 +59,9 @@ func TestSetWithPointerNode(t *testing.T) {
 	// Insert 0
 
 	requireT.NoError(s.Set(0, 0))
-	nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
 
+	requireT.Equal([]types.NodeAddress{0x01}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x01}, nodesAllocated)
 	requireT.Empty(nodesDeallocated)
 	requireT.Empty(e.DeallocationLists.Nodes())
@@ -68,8 +71,9 @@ func TestSetWithPointerNode(t *testing.T) {
 	// Insert 1
 
 	requireT.NoError(s.Set(1, 1))
-	nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
 
+	requireT.Equal([]types.NodeAddress{0x01}, nodesUsed)
 	requireT.Empty(nodesAllocated)
 	requireT.Empty(nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x01}, s.Nodes())
@@ -80,8 +84,9 @@ func TestSetWithPointerNode(t *testing.T) {
 	// Insert 2
 
 	requireT.NoError(s.Set(2, 2))
-	nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
 
+	requireT.Equal([]types.NodeAddress{0x01}, nodesUsed)
 	requireT.Empty(nodesAllocated)
 	requireT.Empty(nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x01}, s.Nodes())
@@ -92,8 +97,9 @@ func TestSetWithPointerNode(t *testing.T) {
 	// Insert 3
 
 	requireT.NoError(s.Set(3, 3))
-	nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
 
+	requireT.Equal([]types.NodeAddress{0x01}, nodesUsed)
 	requireT.Empty(nodesAllocated)
 	requireT.Empty(nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x01}, s.Nodes())
@@ -104,8 +110,9 @@ func TestSetWithPointerNode(t *testing.T) {
 	// Insert 4
 
 	requireT.NoError(s.Set(4, 4))
-	nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
 
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, nodesAllocated)
 	requireT.Equal([]types.NodeAddress{0x01}, nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, s.Nodes())
@@ -245,7 +252,8 @@ func TestCopyOnSet(t *testing.T) {
 		requireT.NoError(s0.Set(i, i))
 	}
 
-	nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, nodesAllocated)
 	requireT.Equal([]types.NodeAddress{0x01}, nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())
@@ -257,7 +265,9 @@ func TestCopyOnSet(t *testing.T) {
 		requireT.NoError(s1.Set(i, i+10))
 	}
 
-	nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+		0x0f}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}, nodesAllocated)
 	requireT.Empty(nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())
@@ -276,7 +286,9 @@ func TestCopyOnSet(t *testing.T) {
 		requireT.NoError(s2.Set(i, i+20))
 	}
 
-	nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+		0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17}, nodesAllocated)
 	requireT.Empty(nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())
@@ -298,7 +310,9 @@ func TestCopyOnSet(t *testing.T) {
 		requireT.NoError(s3.Set(i, i+30))
 	}
 
-	nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+		0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x18, 0x19, 0x1a, 0x1b, 0x1c}, nodesAllocated)
 	requireT.Empty(nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())
@@ -321,7 +335,10 @@ func TestCopyOnSet(t *testing.T) {
 		requireT.NoError(s4.Set(i, i+40))
 	}
 
-	nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+		0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
+		0x21, 0x22, 0x23, 0x24, 0x25}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25}, nodesAllocated)
 	requireT.Empty(nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())
@@ -360,7 +377,8 @@ func TestCopyOnDelete(t *testing.T) {
 		requireT.NoError(s0.Set(i, i))
 	}
 
-	nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, nodesAllocated)
 	requireT.Equal([]types.NodeAddress{0x01}, nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())
@@ -370,7 +388,8 @@ func TestCopyOnDelete(t *testing.T) {
 
 	requireT.NoError(s1.Delete(2))
 
-	nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x08, 0x09, 0x0a, 0x0b}, nodesAllocated)
 	requireT.Empty(nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())
@@ -391,7 +410,9 @@ func TestCopyOnDelete(t *testing.T) {
 	s2 := e.NextSnapshot()
 	requireT.NoError(s2.Delete(4))
 
-	nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+		0x0f, 0x10}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x0c, 0x0d, 0x0e, 0x0f, 0x10}, nodesAllocated)
 	requireT.Empty(nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())

@@ -10,6 +10,7 @@ import (
 func NewTestAllocator(parentAllocator types.Allocator) *TestAllocator {
 	return &TestAllocator{
 		parentAllocator:  parentAllocator,
+		nodesUsed:        map[types.NodeAddress]struct{}{},
 		nodesAllocated:   map[types.NodeAddress]struct{}{},
 		nodesDeallocated: map[types.NodeAddress]struct{}{},
 	}
@@ -19,6 +20,7 @@ func NewTestAllocator(parentAllocator types.Allocator) *TestAllocator {
 type TestAllocator struct {
 	parentAllocator types.Allocator
 
+	nodesUsed        map[types.NodeAddress]struct{}
 	nodesAllocated   map[types.NodeAddress]struct{}
 	nodesDeallocated map[types.NodeAddress]struct{}
 }
@@ -35,12 +37,14 @@ func (a *TestAllocator) Allocate(copyFrom []byte) (types.NodeAddress, []byte, er
 		return 0, nil, err
 	}
 	a.nodesAllocated[nodeAddress] = struct{}{}
+	a.nodesUsed[nodeAddress] = struct{}{}
 	return nodeAddress, node, nil
 }
 
 // Deallocate deallocates node.
 func (a *TestAllocator) Deallocate(nodeAddress types.NodeAddress) {
 	a.nodesDeallocated[nodeAddress] = struct{}{}
+	delete(a.nodesUsed, nodeAddress)
 	a.parentAllocator.Deallocate(nodeAddress)
 }
 
@@ -51,19 +55,24 @@ func (a *TestAllocator) NodeSize() uint64 {
 
 // Nodes returns touched nodes.
 func (a *TestAllocator) Nodes() (
+	used []types.NodeAddress,
 	allocated []types.NodeAddress,
 	deallocated []types.NodeAddress,
 ) {
-	return mapToSlice(a.nodesAllocated), mapToSlice(a.nodesDeallocated)
+	return mapToSlice(a.nodesUsed, false),
+		mapToSlice(a.nodesAllocated, true),
+		mapToSlice(a.nodesDeallocated, true)
 }
 
-func mapToSlice(m map[types.NodeAddress]struct{}) []types.NodeAddress {
+func mapToSlice(m map[types.NodeAddress]struct{}, empty bool) []types.NodeAddress {
 	s := make([]types.NodeAddress, 0, len(m))
 	for k := range m {
 		s = append(s, k)
 	}
 
-	clear(m)
+	if empty {
+		clear(m)
+	}
 
 	sort.Slice(s, func(i, j int) bool {
 		return s[i] < s[j]
