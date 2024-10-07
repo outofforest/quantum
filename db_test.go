@@ -43,7 +43,8 @@ func TestCommitNewSnapshots(t *testing.T) {
 	snapshot = db.nextSnapshot
 	requireT.NoError(db.Commit())
 
-	nodesAllocated, nodesDeallocated := allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated := allocator.Nodes()
+	requireT.Equal([]types.NodeAddress{0x01}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x01}, nodesAllocated)
 	requireT.Empty(nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x01}, snapshot.Snapshots.Nodes())
@@ -86,7 +87,8 @@ func TestCommitNewSnapshots(t *testing.T) {
 	snapshot = db.nextSnapshot
 	requireT.NoError(db.Commit())
 
-	nodesAllocated, nodesDeallocated = allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated = allocator.Nodes()
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04}, nodesAllocated)
 	requireT.Equal([]types.NodeAddress{0x01}, nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x04}, snapshot.Snapshots.Nodes())
@@ -158,7 +160,8 @@ func TestCommitNewSnapshots(t *testing.T) {
 	snapshot = db.nextSnapshot
 	requireT.NoError(db.Commit())
 
-	nodesAllocated, nodesDeallocated = allocator.Nodes()
+	nodesUsed, nodesAllocated, nodesDeallocated = allocator.Nodes()
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x05, 0x06, 0x07, 0x08, 0x09}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x05, 0x06, 0x07, 0x08, 0x09}, nodesAllocated)
 	requireT.Equal([]types.NodeAddress{0x04}, nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x09}, snapshot.Snapshots.Nodes())
