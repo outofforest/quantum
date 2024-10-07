@@ -219,7 +219,7 @@ type env struct {
 	Item      *types.NodeAddress
 
 	snapshotID        types.SnapshotID
-	snapshotAllocator alloc.SnapshotAllocator
+	snapshotAllocator types.SnapshotAllocator
 	nodeAllocator     list.NodeAllocator
 }
 
@@ -230,12 +230,12 @@ func (e *env) NextSnapshot() *list.List {
 	itemCopy := *e.Item
 	e.Item = &itemCopy
 
-	e.snapshotAllocator = alloc.NewSnapshotAllocator(
+	e.snapshotAllocator = alloc.NewImmediateSnapshotAllocator(snapshotID, alloc.NewSnapshotAllocator(
 		snapshotID,
 		e.Allocator,
 		&space.Space[types.SnapshotID, types.NodeAddress]{},
 		e.nodeAllocator,
-	)
+	))
 
 	return list.New(list.Config{
 		SnapshotID:    snapshotID,

@@ -27,13 +27,14 @@ type SpaceToCommit struct {
 
 // Snapshot represents snapshot.
 type Snapshot struct {
-	SnapshotID      types.SnapshotID
-	SingularityNode *types.SingularityNode
-	SnapshotInfo    *types.SnapshotInfo
-	Snapshots       *space.Space[types.SnapshotID, types.SnapshotInfo]
-	Spaces          *space.Space[types.SpaceID, types.SpaceInfo]
-	SpacesToCommit  map[types.SpaceID]SpaceToCommit
-	Allocator       types.SnapshotAllocator
+	SnapshotID        types.SnapshotID
+	SingularityNode   *types.SingularityNode
+	SnapshotInfo      *types.SnapshotInfo
+	Snapshots         *space.Space[types.SnapshotID, types.SnapshotInfo]
+	Spaces            *space.Space[types.SpaceID, types.SpaceInfo]
+	DeallocationLists *space.Space[types.SnapshotID, types.NodeAddress]
+	SpacesToCommit    map[types.SpaceID]SpaceToCommit
+	Allocator         types.SnapshotAllocator
 }
 
 // New creates new database.
@@ -246,6 +247,7 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 		deallocationLists,
 		db.listNodeAllocator,
 	)
+	immediateAllocator := alloc.NewImmediateSnapshotAllocator(snapshotID, allocator)
 	*deallocationLists = *space.New[types.SnapshotID, types.NodeAddress](space.Config[types.SnapshotID, types.NodeAddress]{
 		SnapshotID: snapshotID,
 		HashMod:    &snapshotInfo.DeallocationRoot.HashMod,
@@ -255,7 +257,7 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 		},
 		PointerNodeAllocator: db.pointerNodeAllocator,
 		DataNodeAllocator:    db.snapshotToNodeNodeAllocator,
-		Allocator:            allocator,
+		Allocator:            immediateAllocator,
 	})
 
 	snapshots := space.New[types.SnapshotID, types.SnapshotInfo](space.Config[types.SnapshotID, types.SnapshotInfo]{
@@ -267,7 +269,7 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 		},
 		PointerNodeAllocator: db.pointerNodeAllocator,
 		DataNodeAllocator:    db.snapshotInfoNodeAllocator,
-		Allocator:            allocator,
+		Allocator:            immediateAllocator,
 	})
 
 	if singularityNode.SnapshotRoot.State != types.StateFree {
@@ -297,8 +299,9 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 			DataNodeAllocator:    db.spaceInfoNodeAllocator,
 			Allocator:            allocator,
 		}),
-		SpacesToCommit: map[types.SpaceID]SpaceToCommit{},
-		Allocator:      allocator,
+		DeallocationLists: deallocationLists,
+		SpacesToCommit:    map[types.SpaceID]SpaceToCommit{},
+		Allocator:         allocator,
 	}
 
 	return nil
