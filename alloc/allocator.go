@@ -113,7 +113,8 @@ func (sa SnapshotAllocator) Copy(data []byte) (types.NodeAddress, []byte, error)
 // Deallocate marks node for deallocation.
 func (sa SnapshotAllocator) Deallocate(nodeAddress types.NodeAddress, srcSnapshotID types.SnapshotID) error {
 	if srcSnapshotID == sa.snapshotID {
-		sa.DeallocateImmediately(nodeAddress)
+		delete(sa.dirtyNodes, nodeAddress)
+		sa.allocator.Deallocate(nodeAddress)
 		return nil
 	}
 
@@ -137,8 +138,35 @@ func (sa SnapshotAllocator) Deallocate(nodeAddress types.NodeAddress, srcSnapsho
 	return nil
 }
 
-// DeallocateImmediately dealocates node immediately.
-func (sa SnapshotAllocator) DeallocateImmediately(nodeAddress types.NodeAddress) {
-	delete(sa.dirtyNodes, nodeAddress)
-	sa.allocator.Deallocate(nodeAddress)
+// NewImmediateSnapshotAllocator creates new immediate snapshot deallocator.
+func NewImmediateSnapshotAllocator(
+	snapshotID types.SnapshotID,
+	parentSnapshotAllocator types.SnapshotAllocator,
+) ImmediateSnapshotAllocator {
+	return ImmediateSnapshotAllocator{
+		snapshotID:              snapshotID,
+		parentSnapshotAllocator: parentSnapshotAllocator,
+	}
+}
+
+// ImmediateSnapshotAllocator deallocates nodes immediately instead of adding them to deallocation list.
+type ImmediateSnapshotAllocator struct {
+	snapshotID              types.SnapshotID
+	parentSnapshotAllocator types.SnapshotAllocator
+}
+
+// Allocate allocates new node.
+func (sa ImmediateSnapshotAllocator) Allocate() (types.NodeAddress, []byte, error) {
+	return sa.parentSnapshotAllocator.Allocate()
+}
+
+// Copy allocates new node and copies content from existing one.
+func (sa ImmediateSnapshotAllocator) Copy(data []byte) (types.NodeAddress, []byte, error) {
+	return sa.parentSnapshotAllocator.Copy(data)
+}
+
+// Deallocate marks node for deallocation.
+func (sa ImmediateSnapshotAllocator) Deallocate(nodeAddress types.NodeAddress, _ types.SnapshotID) error {
+	// using sa.snapshotID instead of the snapshotID argument causes immediate deallocation.
+	return sa.parentSnapshotAllocator.Deallocate(nodeAddress, sa.snapshotID)
 }

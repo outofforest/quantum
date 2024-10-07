@@ -44,7 +44,6 @@ type SnapshotAllocator interface {
 	Allocate() (NodeAddress, []byte, error)
 	Copy(data []byte) (NodeAddress, []byte, error)
 	Deallocate(nodeAddress NodeAddress, srcSnapshotID SnapshotID) error
-	DeallocateImmediately(nodeAddress NodeAddress)
 }
 
 // SpaceNodeHeader is the header common to all space node types.
