@@ -193,6 +193,47 @@ func (s *Space[K, V]) Iterator() func(func(types.DataItem[K, V]) bool) {
 	}
 }
 
+// DeallocateAll deallocate all deallocates all nodes used by the space.
+func (s *Space[K, V]) DeallocateAll() error {
+	switch *s.config.SpaceRoot.State {
+	case types.StateFree:
+		return nil
+	case types.StateData:
+		_, dataNode := s.config.DataNodeAllocator.Get(*s.config.SpaceRoot.Item)
+		return s.config.Allocator.Deallocate(*s.config.SpaceRoot.Item, dataNode.Header.SnapshotID)
+	case types.StatePointer:
+	}
+
+	// FIXME (wojciech): Optimize heap allocations
+	stack := []types.NodeAddress{*s.config.SpaceRoot.Item}
+
+	for {
+		if len(stack) == 0 {
+			return nil
+		}
+
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		_, pointerNode := s.config.PointerNodeAllocator.Get(n)
+		if err := s.config.Allocator.Deallocate(n, pointerNode.Header.SnapshotID); err != nil {
+			return err
+		}
+		for i, state := range pointerNode.States {
+			switch state {
+			case types.StateFree:
+			case types.StateData:
+				_, dataNode := s.config.DataNodeAllocator.Get(pointerNode.Items[i])
+				if err := s.config.Allocator.Deallocate(pointerNode.Items[i], dataNode.Header.SnapshotID); err != nil {
+					return err
+				}
+			case types.StatePointer:
+				stack = append(stack, pointerNode.Items[i])
+			}
+		}
+	}
+}
+
 // Nodes returns list of nodes used by the space.
 func (s *Space[K, V]) Nodes() []types.NodeAddress {
 	switch *s.config.SpaceRoot.State {

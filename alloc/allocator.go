@@ -124,7 +124,7 @@ func (sa SnapshotAllocator) Deallocate(nodeAddress types.NodeAddress, srcSnapsho
 		SnapshotID:    sa.snapshotID,
 		Item:          &newListNodeAddress,
 		NodeAllocator: sa.listNodeAllocator,
-		Allocator:     sa,
+		Allocator:     NewImmediateSnapshotAllocator(sa.snapshotID, sa),
 	})
 	if err := l.Add(nodeAddress); err != nil {
 		return err

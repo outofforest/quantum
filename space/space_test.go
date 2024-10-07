@@ -16,7 +16,7 @@ import (
 
 func TestSetOneItem(t *testing.T) {
 	requireT := require.New(t)
-	e := newEnv(requireT)
+	e := newEnv(requireT, false)
 
 	s := e.NextSnapshot()
 	requireT.NoError(s.Set(0, 0))
@@ -34,7 +34,7 @@ func TestSetOneItem(t *testing.T) {
 
 func TestSetTwoItems(t *testing.T) {
 	requireT := require.New(t)
-	e := newEnv(requireT)
+	e := newEnv(requireT, false)
 
 	s := e.NextSnapshot()
 	requireT.NoError(s.Set(0, 0))
@@ -53,7 +53,7 @@ func TestSetTwoItems(t *testing.T) {
 
 func TestSetWithPointerNode(t *testing.T) {
 	requireT := require.New(t)
-	e := newEnv(requireT)
+	e := newEnv(requireT, false)
 	s := e.NextSnapshot()
 
 	// Insert 0
@@ -123,7 +123,7 @@ func TestSetWithPointerNode(t *testing.T) {
 
 func TestSet(t *testing.T) {
 	requireT := require.New(t)
-	e := newEnv(requireT)
+	e := newEnv(requireT, false)
 	s := e.NextSnapshot()
 
 	items := make([]int, 0, 1000)
@@ -137,7 +137,7 @@ func TestSet(t *testing.T) {
 
 func TestGet(t *testing.T) {
 	requireT := require.New(t)
-	e := newEnv(requireT)
+	e := newEnv(requireT, false)
 	s := e.NextSnapshot()
 
 	for i := range 1000 {
@@ -156,7 +156,7 @@ func TestGet(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	requireT := require.New(t)
-	e := newEnv(requireT)
+	e := newEnv(requireT, false)
 	s := e.NextSnapshot()
 
 	for i := range 1000 {
@@ -189,7 +189,7 @@ func TestDelete(t *testing.T) {
 
 func TestSetOnNext(t *testing.T) {
 	requireT := require.New(t)
-	e := newEnv(requireT)
+	e := newEnv(requireT, false)
 
 	s1 := e.NextSnapshot()
 
@@ -209,7 +209,7 @@ func TestSetOnNext(t *testing.T) {
 
 func TestReplace(t *testing.T) {
 	requireT := require.New(t)
-	e := newEnv(requireT)
+	e := newEnv(requireT, false)
 
 	s1 := e.NextSnapshot()
 
@@ -244,7 +244,7 @@ func TestReplace(t *testing.T) {
 
 func TestCopyOnSet(t *testing.T) {
 	requireT := require.New(t)
-	e := newEnv(requireT)
+	e := newEnv(requireT, false)
 
 	s0 := e.NextSnapshot()
 
@@ -369,7 +369,7 @@ func TestCopyOnSet(t *testing.T) {
 
 func TestCopyOnDelete(t *testing.T) {
 	requireT := require.New(t)
-	e := newEnv(requireT)
+	e := newEnv(requireT, false)
 
 	s0 := e.NextSnapshot()
 
@@ -445,7 +445,7 @@ func TestCopyOnDelete(t *testing.T) {
 
 func TestSetCollisions(t *testing.T) {
 	requireT := require.New(t)
-	e := newEnv(requireT)
+	e := newEnv(requireT, false)
 	s := e.NextSnapshot()
 
 	allValues := make([]int, 0, len(collisions)*len(collisions[0]))
@@ -464,7 +464,7 @@ func TestSetCollisions(t *testing.T) {
 
 func TestGetCollisions(t *testing.T) {
 	requireT := require.New(t)
-	e := newEnv(requireT)
+	e := newEnv(requireT, false)
 	s := e.NextSnapshot()
 
 	inserted := make([]int, 0, len(collisions)*len(collisions[0]))
@@ -491,7 +491,32 @@ func TestGetCollisions(t *testing.T) {
 	requireT.Equal(inserted, read)
 }
 
-func newEnv(requireT *require.Assertions) *env {
+func TestDeallocateAll(t *testing.T) {
+	requireT := require.New(t)
+	e := newEnv(requireT, true)
+	s0 := e.NextSnapshot()
+
+	for i := range 5 {
+		requireT.NoError(s0.Set(i, i))
+	}
+
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())
+
+	s1 := e.NextSnapshot()
+	requireT.NoError(s1.Set(0, 10))
+	s1Nodes := s1.Nodes()
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x07, 0x08, 0x09}, s1Nodes)
+
+	s2 := e.NextSnapshot()
+	requireT.Equal(s1Nodes, s2.Nodes())
+	e.Allocator.Nodes() // to clean collected data
+
+	requireT.NoError(s2.DeallocateAll())
+	_, _, deallocatedNodes := e.Allocator.Nodes()
+	requireT.Equal(s1Nodes, deallocatedNodes)
+}
+
+func newEnv(requireT *require.Assertions, immediateAallocator bool) *env {
 	allocator := alloc.NewTestAllocator(alloc.NewAllocator(alloc.Config{
 		TotalSize: 1024 * 1024,
 		NodeSize:  512,
@@ -512,7 +537,8 @@ func newEnv(requireT *require.Assertions) *env {
 	requireT.NoError(err)
 
 	return &env{
-		Allocator: allocator,
+		Allocator:           allocator,
+		immediateAallocator: immediateAallocator,
 		spaceRoot: types.ParentInfo{
 			State: lo.ToPtr(types.StateFree),
 			Item:  lo.ToPtr[types.NodeAddress](0),
@@ -533,8 +559,9 @@ type env struct {
 	Allocator         *alloc.TestAllocator
 	DeallocationLists *space.Space[types.SnapshotID, types.NodeAddress]
 
+	immediateAallocator         bool
 	snapshotID                  types.SnapshotID
-	snapshotAllocator           alloc.SnapshotAllocator
+	snapshotAllocator           types.SnapshotAllocator
 	spaceRoot                   types.ParentInfo
 	deallocationRoot            types.ParentInfo
 	spaceHashMod                *uint64
@@ -568,6 +595,9 @@ func (e *env) NextSnapshot() *space.Space[int, int] {
 		e.DeallocationLists,
 		e.listNodeAllocator,
 	)
+	if e.immediateAallocator {
+		e.snapshotAllocator = alloc.NewImmediateSnapshotAllocator(snapshotID, e.snapshotAllocator)
+	}
 	*e.DeallocationLists = *space.New[types.SnapshotID, types.NodeAddress](
 		space.Config[types.SnapshotID, types.NodeAddress]{
 			SnapshotID:           snapshotID,
