@@ -13,7 +13,11 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-const spaceID0 types.SpaceID = 0x00
+const (
+	space0 types.SpaceID = 0x00
+	space1 types.SpaceID = 0x01
+	space2 types.SpaceID = 0x02
+)
 
 func TestCommitNewSnapshots(t *testing.T) {
 	requireT := require.New(t)
@@ -74,7 +78,7 @@ func TestCommitNewSnapshots(t *testing.T) {
 
 	// Snapshot 1
 
-	s, err := GetSpace[int, int](spaceID0, db)
+	s, err := GetSpace[int, int](space0, db)
 	requireT.NoError(err)
 	requireT.NoError(s.Set(0, 0))
 	requireT.NoError(s.Set(1, 1))
@@ -100,7 +104,7 @@ func TestCommitNewSnapshots(t *testing.T) {
 		},
 	}, *snapshot.SingularityNode)
 	requireT.Equal([]types.SnapshotID{0x00, 0x01}, collectSpaceKeys(snapshot.Snapshots))
-	requireT.Equal([]types.SpaceID{spaceID0}, collectSpaceKeys(snapshot.Spaces))
+	requireT.Equal([]types.SpaceID{space0}, collectSpaceKeys(snapshot.Spaces))
 
 	snapshotInfo, exists = snapshot.Snapshots.Get(0x00)
 	requireT.True(exists)
@@ -136,7 +140,7 @@ func TestCommitNewSnapshots(t *testing.T) {
 		},
 	}, snapshotInfo)
 
-	spaceInfo, exists := snapshot.Spaces.Get(spaceID0)
+	spaceInfo, exists := snapshot.Spaces.Get(space0)
 	requireT.True(exists)
 	requireT.Equal(types.SpaceInfo{
 		State:   types.StateData,
@@ -146,7 +150,7 @@ func TestCommitNewSnapshots(t *testing.T) {
 
 	// Snapshot 2
 
-	s, err = GetSpace[int, int](spaceID0, db)
+	s, err = GetSpace[int, int](space0, db)
 	requireT.NoError(err)
 	requireT.NoError(s.Set(0, 10))
 	requireT.NoError(s.Set(1, 11))
@@ -172,7 +176,7 @@ func TestCommitNewSnapshots(t *testing.T) {
 		},
 	}, *snapshot.SingularityNode)
 	requireT.Equal([]types.SnapshotID{0x00, 0x01, 0x02}, collectSpaceKeys(snapshot.Snapshots))
-	requireT.Equal([]types.SpaceID{spaceID0}, collectSpaceKeys(snapshot.Spaces))
+	requireT.Equal([]types.SpaceID{space0}, collectSpaceKeys(snapshot.Spaces))
 
 	snapshotInfo, exists = snapshot.Snapshots.Get(0x00)
 	requireT.True(exists)
@@ -225,7 +229,7 @@ func TestCommitNewSnapshots(t *testing.T) {
 		},
 	}, snapshotInfo)
 
-	spaceInfo, exists = snapshot.Spaces.Get(spaceID0)
+	spaceInfo, exists = snapshot.Spaces.Get(space0)
 	requireT.True(exists)
 	requireT.Equal(types.SpaceInfo{
 		State:   types.StateData,
@@ -241,6 +245,163 @@ func TestCommitNewSnapshots(t *testing.T) {
 
 	dList1 := newList(dList1Address, db)
 	requireT.Equal([]types.NodeAddress{0x02, 0x03}, collectListItems(dList1))
+}
+
+func TestSpaces(t *testing.T) {
+	requireT := require.New(t)
+	db, _ := newDB(requireT)
+
+	// Snapshot 0
+
+	s00, err := GetSpace[int, int](space0, db)
+	requireT.NoError(err)
+
+	requireT.NoError(s00.Set(0, 0x000))
+	requireT.NoError(s00.Set(1, 0x001))
+
+	v0, exists := s00.Get(0)
+	requireT.True(exists)
+	requireT.Equal(0x000, v0)
+
+	v1, exists := s00.Get(1)
+	requireT.True(exists)
+	requireT.Equal(0x001, v1)
+
+	requireT.NoError(db.Commit())
+
+	// Snapshot 1
+
+	s10, err := GetSpace[int, int](space0, db)
+	requireT.NoError(err)
+
+	s11, err := GetSpace[int, int](space1, db)
+	requireT.NoError(err)
+
+	v0, exists = s10.Get(0)
+	requireT.True(exists)
+	requireT.Equal(0x000, v0)
+
+	v1, exists = s10.Get(1)
+	requireT.True(exists)
+	requireT.Equal(0x001, v1)
+
+	requireT.NoError(s10.Set(0, 0x100))
+	requireT.NoError(s10.Set(1, 0x101))
+
+	requireT.NoError(s11.Set(0, 0x110))
+	requireT.NoError(s11.Set(1, 0x111))
+
+	v0, exists = s00.Get(0)
+	requireT.True(exists)
+	requireT.Equal(0x000, v0)
+
+	v1, exists = s00.Get(1)
+	requireT.True(exists)
+	requireT.Equal(0x001, v1)
+
+	v0, exists = s10.Get(0)
+	requireT.True(exists)
+	requireT.Equal(0x100, v0)
+
+	v1, exists = s10.Get(1)
+	requireT.True(exists)
+	requireT.Equal(0x101, v1)
+
+	v0, exists = s11.Get(0)
+	requireT.True(exists)
+	requireT.Equal(0x110, v0)
+
+	v1, exists = s11.Get(1)
+	requireT.True(exists)
+	requireT.Equal(0x111, v1)
+
+	requireT.NoError(db.Commit())
+
+	// Snapshot 2
+
+	s20, err := GetSpace[int, int](space0, db)
+	requireT.NoError(err)
+
+	s21, err := GetSpace[int, int](space1, db)
+	requireT.NoError(err)
+
+	s22, err := GetSpace[int, int](space2, db)
+	requireT.NoError(err)
+
+	v0, exists = s20.Get(0)
+	requireT.True(exists)
+	requireT.Equal(0x100, v0)
+
+	v1, exists = s20.Get(1)
+	requireT.True(exists)
+	requireT.Equal(0x101, v1)
+
+	v0, exists = s21.Get(0)
+	requireT.True(exists)
+	requireT.Equal(0x110, v0)
+
+	v1, exists = s21.Get(1)
+	requireT.True(exists)
+	requireT.Equal(0x111, v1)
+
+	requireT.NoError(s20.Set(0, 0x200))
+	requireT.NoError(s20.Set(1, 0x201))
+
+	requireT.NoError(s21.Set(0, 0x210))
+	requireT.NoError(s21.Set(1, 0x211))
+
+	requireT.NoError(s22.Set(0, 0x220))
+	requireT.NoError(s22.Set(1, 0x221))
+
+	v0, exists = s00.Get(0)
+	requireT.True(exists)
+	requireT.Equal(0x000, v0)
+
+	v1, exists = s00.Get(1)
+	requireT.True(exists)
+	requireT.Equal(0x001, v1)
+
+	v0, exists = s10.Get(0)
+	requireT.True(exists)
+	requireT.Equal(0x100, v0)
+
+	v1, exists = s10.Get(1)
+	requireT.True(exists)
+	requireT.Equal(0x101, v1)
+
+	v0, exists = s11.Get(0)
+	requireT.True(exists)
+	requireT.Equal(0x110, v0)
+
+	v1, exists = s11.Get(1)
+	requireT.True(exists)
+	requireT.Equal(0x111, v1)
+
+	v0, exists = s20.Get(0)
+	requireT.True(exists)
+	requireT.Equal(0x200, v0)
+
+	v1, exists = s20.Get(1)
+	requireT.True(exists)
+	requireT.Equal(0x201, v1)
+
+	v0, exists = s21.Get(0)
+	requireT.True(exists)
+	requireT.Equal(0x210, v0)
+
+	v1, exists = s21.Get(1)
+	requireT.True(exists)
+	requireT.Equal(0x211, v1)
+
+	v0, exists = s22.Get(0)
+	requireT.True(exists)
+	requireT.Equal(0x220, v0)
+
+	v1, exists = s22.Get(1)
+	requireT.True(exists)
+	requireT.Equal(0x221, v1)
+
+	requireT.NoError(db.Commit())
 }
 
 func newDB(requireT *require.Assertions) (*DB, *alloc.TestAllocator) {
