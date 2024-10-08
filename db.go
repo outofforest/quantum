@@ -103,6 +103,9 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 		return errors.Errorf("snapshot %d does not exist", snapshotID)
 	}
 
+	allocator := alloc.NewImmediateSnapshotAllocator(db.nextSnapshot.SnapshotID,
+		db.nextSnapshot.Allocator)
+
 	//nolint:nestif
 	if snapshotInfo.NextSnapshotID <= db.nextSnapshot.SingularityNode.LastSnapshotID {
 		nextSnapshotInfo, exists := db.nextSnapshot.Snapshots.Get(snapshotInfo.NextSnapshotID)
@@ -111,17 +114,20 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 		}
 
 		deallocationLists := space.New[types.SnapshotID, types.NodeAddress](space.Config[types.SnapshotID, types.NodeAddress]{
+			SnapshotID: db.nextSnapshot.SnapshotID,
+			HashMod:    lo.ToPtr(snapshotInfo.DeallocationRoot.HashMod),
 			SpaceRoot: types.ParentInfo{
 				State: lo.ToPtr(snapshotInfo.DeallocationRoot.State),
 				Item:  lo.ToPtr(snapshotInfo.DeallocationRoot.Node),
 			},
 			PointerNodeAllocator: db.pointerNodeAllocator,
 			DataNodeAllocator:    db.snapshotToNodeNodeAllocator,
+			Allocator:            allocator,
 		})
 
 		nextDeallocationLists := space.New[types.SnapshotID, types.NodeAddress](
 			space.Config[types.SnapshotID, types.NodeAddress]{
-				SnapshotID: snapshotInfo.NextSnapshotID,
+				SnapshotID: db.nextSnapshot.SnapshotID,
 				HashMod:    &nextSnapshotInfo.DeallocationRoot.HashMod,
 				SpaceRoot: types.ParentInfo{
 					State: &nextSnapshotInfo.DeallocationRoot.State,
@@ -129,7 +135,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 				},
 				PointerNodeAllocator: db.pointerNodeAllocator,
 				DataNodeAllocator:    db.snapshotToNodeNodeAllocator,
-				Allocator:            db.nextSnapshot.Allocator,
+				Allocator:            allocator,
 			},
 		)
 
@@ -160,7 +166,10 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 			nextListNodeAddress, _ := nextDeallocationLists.Get(snapshotItem.Key)
 			newNextListNodeAddress := nextListNodeAddress
 			nextList := list.New(list.Config{
-				Item: &newNextListNodeAddress,
+				SnapshotID:    db.nextSnapshot.SnapshotID,
+				Item:          &newNextListNodeAddress,
+				NodeAllocator: db.listNodeAllocator,
+				Allocator:     allocator,
 			})
 			if err := nextList.Attach(snapshotItem.Value); err != nil {
 				return err
@@ -172,18 +181,23 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 			}
 		}
 
+		if err := deallocationLists.DeallocateAll(); err != nil {
+			return err
+		}
+
 		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
 		if err := db.nextSnapshot.Snapshots.Set(snapshotInfo.NextSnapshotID, nextSnapshotInfo); err != nil {
 			return err
 		}
 	}
 
-	if snapshotInfo.PreviousSnapshotID > db.nextSnapshot.SingularityNode.FirstSnapshotID {
+	if snapshotID > db.nextSnapshot.SingularityNode.FirstSnapshotID {
 		previousSnapshotInfo, exists := db.nextSnapshot.Snapshots.Get(snapshotInfo.PreviousSnapshotID)
 		if !exists {
 			return errors.Errorf("snapshot %d does not exist", snapshotID)
 		}
 		previousSnapshotInfo.NextSnapshotID = snapshotInfo.NextSnapshotID
+
 		if err := db.nextSnapshot.Snapshots.Set(snapshotInfo.PreviousSnapshotID, previousSnapshotInfo); err != nil {
 			return err
 		}
@@ -193,9 +207,9 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 		db.nextSnapshot.SingularityNode.FirstSnapshotID = snapshotInfo.NextSnapshotID
 	}
 
-	// FIXME (wojciech): Deallocate nodes used by deleted snapshot (DeallocationRoot).
+	return db.nextSnapshot.Snapshots.Delete(snapshotID)
 
-	return nil
+	// FIXME (wojciech): Deallocate nodes used by deleted snapshot (DeallocationRoot).
 }
 
 // Commit commits current snapshot and returns next one.
@@ -278,7 +292,6 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 			return errors.Errorf("snapshot %d does not exist", singularityNode.LastSnapshotID)
 		}
 		snapshotInfo.SpaceRoot = lastSnapshotInfo.SpaceRoot
-		snapshotInfo.DeallocationRoot = lastSnapshotInfo.DeallocationRoot
 	}
 
 	singularityNode.LastSnapshotID = snapshotID

@@ -49,7 +49,7 @@ type SnapshotAllocator interface {
 // SpaceNodeHeader is the header common to all space node types.
 type SpaceNodeHeader struct {
 	Version    uint64
-	SnapshotID SnapshotID
+	SnapshotID SnapshotID // FIXME (wojciech): Move this to the parent pointer to support faster deallocation.
 	HashMod    uint64
 }
 
