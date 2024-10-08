@@ -596,6 +596,93 @@ func TestDoubledSpace(t *testing.T) {
 	requireT.Equal(12, v)
 }
 
+func TestDeleteTheOnlySnapshot(t *testing.T) {
+	requireT := require.New(t)
+	db, allocator := newDB(requireT)
+
+	// Prepare snapshots
+
+	// Snapshot 0
+
+	s, err := GetSpace[int, int](space0, db)
+	requireT.NoError(err)
+
+	requireT.NoError(s.Set(0, 0))
+	requireT.NoError(s.Set(1, 1))
+	requireT.NoError(s.Set(2, 2))
+	requireT.NoError(s.Set(3, 3))
+	requireT.NoError(s.Set(4, 4))
+	requireT.NoError(db.Commit())
+
+	snapshot0 := newSnapshot(requireT, 0x00, db)
+
+	requireT.Equal([]int{0, 1, 2, 3, 4}, collectSpaceValues(s))
+
+	nodesUsed, _, _ := allocator.Nodes()
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09}, nodesUsed)
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, s.Nodes())
+	requireT.Equal([]types.NodeAddress{0x08}, snapshot0.Spaces.Nodes())
+	requireT.Equal([]types.NodeAddress{0x09}, db.nextSnapshot.Snapshots.Nodes())
+	requireT.Equal([]types.SnapshotID{0x00}, collectSpaceKeys(db.nextSnapshot.Snapshots))
+	requireT.Empty(snapshot0.DeallocationLists.Nodes())
+
+	// Delete snapshot 0
+
+	requireT.NoError(db.DeleteSnapshot(0x00))
+	requireT.NoError(db.Commit())
+
+	snapshot1 := newSnapshot(requireT, 0x01, db)
+
+	// Verify the current state.
+
+	requireT.Equal(types.SnapshotID(0x01), snapshot1.SnapshotInfo.PreviousSnapshotID)
+	requireT.Equal(types.SnapshotID(0x02), snapshot1.SnapshotInfo.NextSnapshotID)
+	requireT.Equal(types.SnapshotID(0x01), db.nextSnapshot.SingularityNode.FirstSnapshotID)
+	requireT.Equal(types.SnapshotID(0x02), db.nextSnapshot.SingularityNode.LastSnapshotID)
+
+	s, err = GetSpace[int, int](space0, db)
+	requireT.NoError(err)
+
+	nodesUsed, nodesAllocated, nodesDeallocated := allocator.Nodes()
+
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x0a}, nodesUsed)
+	requireT.Equal([]types.NodeAddress{0x0a}, nodesAllocated)
+	requireT.Equal([]types.NodeAddress{0x09}, nodesDeallocated)
+	requireT.Equal([]types.NodeAddress{0x0a}, db.nextSnapshot.Snapshots.Nodes())
+	requireT.Equal([]types.NodeAddress{0x08}, snapshot1.Spaces.Nodes())
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, s.Nodes())
+	requireT.Empty(snapshot1.DeallocationLists.Nodes())
+	requireT.Equal([]types.SnapshotID{0x01}, collectSpaceKeys(db.nextSnapshot.Snapshots))
+
+	// Delete the only existing snapshot 1 to verify that procedure works with non-zero snapshot.
+
+	requireT.NoError(db.DeleteSnapshot(0x01))
+	requireT.NoError(db.Commit())
+
+	snapshot2 := newSnapshot(requireT, 0x02, db)
+
+	// Verify the current state.
+
+	requireT.Equal(types.SnapshotID(0x02), snapshot2.SnapshotInfo.PreviousSnapshotID)
+	requireT.Equal(types.SnapshotID(0x03), snapshot2.SnapshotInfo.NextSnapshotID)
+	requireT.Equal(types.SnapshotID(0x02), db.nextSnapshot.SingularityNode.FirstSnapshotID)
+	requireT.Equal(types.SnapshotID(0x03), db.nextSnapshot.SingularityNode.LastSnapshotID)
+
+	s, err = GetSpace[int, int](space0, db)
+	requireT.NoError(err)
+
+	nodesUsed, nodesAllocated, nodesDeallocated = allocator.Nodes()
+
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x0b}, nodesUsed)
+	requireT.Equal([]types.NodeAddress{0x0b}, nodesAllocated)
+	requireT.Equal([]types.NodeAddress{0x0a}, nodesDeallocated)
+	requireT.Equal([]types.NodeAddress{0x0b}, db.nextSnapshot.Snapshots.Nodes())
+	requireT.Equal([]types.NodeAddress{0x08}, snapshot2.Spaces.Nodes())
+	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, s.Nodes())
+	requireT.Empty(snapshot2.DeallocationLists.Nodes())
+	requireT.Equal([]types.SnapshotID{0x02}, collectSpaceKeys(db.nextSnapshot.Snapshots))
+}
+
 func TestDeleteSnapshot(t *testing.T) {
 	requireT := require.New(t)
 	db, allocator := newDB(requireT)
