@@ -41,7 +41,7 @@ func TestAttach(t *testing.T) {
 	items := make([]types.NodeAddress, 0, 1000)
 	var item types.NodeAddress
 	for range 100 {
-		l2Address, l2 := e.NewList(requireT)
+		l2Address, l2 := e.NewList()
 		for range 100 {
 			items = append(items, item)
 			requireT.NoError(l2.Add(item))
@@ -80,7 +80,7 @@ func TestAddAttach(t *testing.T) {
 	items := make([]types.NodeAddress, 0, 10000)
 	var item types.NodeAddress
 	for range 1000 {
-		l2Address, l2 := e.NewList(requireT)
+		l2Address, l2 := e.NewList()
 		for range 5 {
 			items = append(items, item)
 			requireT.NoError(l.Add(item))
@@ -104,9 +104,9 @@ func TestAttachTwoLevels(t *testing.T) {
 	items := make([]types.NodeAddress, 0, 10000)
 	var item types.NodeAddress
 	for range 100 {
-		l2Address, l2 := e.NewList(requireT)
+		l2Address, l2 := e.NewList()
 		for range 10 {
-			l3Address, l3 := e.NewList(requireT)
+			l3Address, l3 := e.NewList()
 
 			items = append(items, item)
 			requireT.NoError(l3.Add(item))
@@ -175,12 +175,12 @@ func TestDeallocate(t *testing.T) {
 	requireT.NoError(l.Add(nodeAddress))
 
 	for range 10 {
-		l2Address, l2 := e.NewList(requireT)
+		l2Address, l2 := e.NewList()
 		nodeAddress, _, err := e.Allocator.Allocate(nil)
 		requireT.NoError(err)
 		requireT.NoError(l2.Add(nodeAddress))
 		for range 10 {
-			l3Address, l3 := e.NewList(requireT)
+			l3Address, l3 := e.NewList()
 			nodeAddress, _, err := e.Allocator.Allocate(nil)
 			requireT.NoError(err)
 
@@ -239,6 +239,7 @@ func (e *env) NextSnapshot() *list.List {
 	e.snapshotAllocator = alloc.NewImmediateSnapshotAllocator(snapshotID, alloc.NewSnapshotAllocator(
 		snapshotID,
 		e.Allocator,
+		&space.Space[types.SnapshotID, types.SnapshotInfo]{},
 		&space.Space[types.SnapshotID, types.NodeAddress]{},
 		e.nodeAllocator,
 	))
@@ -251,7 +252,7 @@ func (e *env) NextSnapshot() *list.List {
 	})
 }
 
-func (e *env) NewList(requireT *require.Assertions) (*types.NodeAddress, *list.List) {
+func (e *env) NewList() (*types.NodeAddress, *list.List) {
 	nodeAddress := lo.ToPtr[types.NodeAddress](0)
 	snapshotID := e.snapshotID - 1
 	return nodeAddress, list.New(list.Config{
