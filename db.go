@@ -107,7 +107,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 		db.nextSnapshot.Allocator)
 
 	//nolint:nestif
-	if snapshotInfo.NextSnapshotID <= db.nextSnapshot.SingularityNode.LastSnapshotID {
+	if snapshotInfo.NextSnapshotID < db.nextSnapshot.SingularityNode.LastSnapshotID {
 		nextSnapshotInfo, exists := db.nextSnapshot.Snapshots.Get(snapshotInfo.NextSnapshotID)
 		if !exists {
 			return errors.Errorf("snapshot %d does not exist", snapshotID)
@@ -185,7 +185,11 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 			return err
 		}
 
-		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
+		if snapshotID == db.nextSnapshot.SingularityNode.FirstSnapshotID {
+			nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.NextSnapshotID
+		} else {
+			nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
+		}
 		if err := db.nextSnapshot.Snapshots.Set(snapshotInfo.NextSnapshotID, nextSnapshotInfo); err != nil {
 			return err
 		}
@@ -205,6 +209,9 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 
 	if snapshotID == db.nextSnapshot.SingularityNode.FirstSnapshotID {
 		db.nextSnapshot.SingularityNode.FirstSnapshotID = snapshotInfo.NextSnapshotID
+	}
+	if snapshotID == db.nextSnapshot.SnapshotInfo.PreviousSnapshotID {
+		db.nextSnapshot.SnapshotInfo.PreviousSnapshotID = db.nextSnapshot.SnapshotID
 	}
 
 	return db.nextSnapshot.Snapshots.Delete(snapshotID)
