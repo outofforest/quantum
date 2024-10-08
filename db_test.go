@@ -626,9 +626,17 @@ func TestDeleteTheOnlySnapshot(t *testing.T) {
 	requireT.Equal([]types.SnapshotID{0x00}, collectSpaceKeys(db.nextSnapshot.Snapshots))
 	requireT.Empty(snapshot0.DeallocationLists.Nodes())
 
+	// Cause some deallocations.
+
+	s, err = GetSpace[int, int](space0, db)
+	requireT.NoError(err)
+	requireT.NoError(s.Set(0, 10))
+	requireT.Equal([]types.SnapshotID{0x00}, collectSpaceKeys(db.nextSnapshot.DeallocationLists))
+
 	// Delete snapshot 0
 
 	requireT.NoError(db.DeleteSnapshot(0x00))
+	requireT.Empty(collectSpaceKeys(db.nextSnapshot.DeallocationLists))
 	requireT.NoError(db.Commit())
 
 	snapshot1 := newSnapshot(requireT, 0x01, db)
@@ -645,14 +653,22 @@ func TestDeleteTheOnlySnapshot(t *testing.T) {
 
 	nodesUsed, nodesAllocated, nodesDeallocated := allocator.Nodes()
 
-	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x0a}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x0a}, nodesAllocated)
-	requireT.Equal([]types.NodeAddress{0x09}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x0a}, db.nextSnapshot.Snapshots.Nodes())
-	requireT.Equal([]types.NodeAddress{0x08}, snapshot1.Spaces.Nodes())
-	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, s.Nodes())
-	requireT.Empty(snapshot1.DeallocationLists.Nodes())
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x07, 0x0a, 0x0c, 0x0d, 0x0e, 0x0f}, nodesUsed)
+	requireT.Equal([]types.NodeAddress{0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}, nodesAllocated)
+	requireT.Equal([]types.NodeAddress{0x02, 0x06, 0x08, 0x09, 0x0b}, nodesDeallocated)
+	requireT.Equal([]types.NodeAddress{0x0e}, db.nextSnapshot.Snapshots.Nodes())
+	requireT.Equal([]types.NodeAddress{0x0f}, snapshot1.Spaces.Nodes())
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x07, 0x0a, 0x0d}, s.Nodes())
+	requireT.Equal([]types.NodeAddress{0x0c}, snapshot1.DeallocationLists.Nodes())
+	requireT.Empty(collectSpaceKeys(snapshot1.DeallocationLists))
 	requireT.Equal([]types.SnapshotID{0x01}, collectSpaceKeys(db.nextSnapshot.Snapshots))
+
+	// Cause some deallocations.
+
+	s, err = GetSpace[int, int](space0, db)
+	requireT.NoError(err)
+	requireT.NoError(s.Set(0, 20))
+	requireT.Equal([]types.SnapshotID{0x01}, collectSpaceKeys(db.nextSnapshot.DeallocationLists))
 
 	// Delete the only existing snapshot 1 to verify that procedure works with non-zero snapshot.
 
@@ -673,13 +689,14 @@ func TestDeleteTheOnlySnapshot(t *testing.T) {
 
 	nodesUsed, nodesAllocated, nodesDeallocated = allocator.Nodes()
 
-	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x0b}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x0b}, nodesAllocated)
-	requireT.Equal([]types.NodeAddress{0x0a}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x0b}, db.nextSnapshot.Snapshots.Nodes())
-	requireT.Equal([]types.NodeAddress{0x08}, snapshot2.Spaces.Nodes())
-	requireT.Equal([]types.NodeAddress{0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, s.Nodes())
-	requireT.Empty(snapshot2.DeallocationLists.Nodes())
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x07, 0x10, 0x12, 0x13, 0x14, 0x15}, nodesUsed)
+	requireT.Equal([]types.NodeAddress{0x10, 0x11, 0x12, 0x13, 0x14, 0x15}, nodesAllocated)
+	requireT.Equal([]types.NodeAddress{0x0a, 0x0c, 0x0d, 0x0e, 0x0f, 0x11}, nodesDeallocated)
+	requireT.Equal([]types.NodeAddress{0x14}, db.nextSnapshot.Snapshots.Nodes())
+	requireT.Equal([]types.NodeAddress{0x15}, snapshot2.Spaces.Nodes())
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x07, 0x10, 0x13}, s.Nodes())
+	requireT.Equal([]types.NodeAddress{0x12}, snapshot2.DeallocationLists.Nodes())
+	requireT.Empty(collectSpaceKeys(snapshot2.DeallocationLists))
 	requireT.Equal([]types.SnapshotID{0x02}, collectSpaceKeys(db.nextSnapshot.Snapshots))
 }
 

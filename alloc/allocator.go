@@ -66,12 +66,14 @@ func (a *Allocator) NodeSize() uint64 {
 func NewSnapshotAllocator(
 	snapshotID types.SnapshotID,
 	allocator types.Allocator,
+	snapshots *space.Space[types.SnapshotID, types.SnapshotInfo],
 	deallocationLists *space.Space[types.SnapshotID, types.NodeAddress],
 	listNodeAllocator list.NodeAllocator,
 ) SnapshotAllocator {
 	return SnapshotAllocator{
 		snapshotID:        snapshotID,
 		allocator:         allocator,
+		snapshots:         snapshots,
 		deallocationLists: deallocationLists,
 		listNodeAllocator: listNodeAllocator,
 		dirtyNodes:        map[types.NodeAddress]struct{}{},
@@ -82,6 +84,7 @@ func NewSnapshotAllocator(
 type SnapshotAllocator struct {
 	snapshotID        types.SnapshotID
 	allocator         types.Allocator
+	snapshots         *space.Space[types.SnapshotID, types.SnapshotInfo]
 	deallocationLists *space.Space[types.SnapshotID, types.NodeAddress]
 	listNodeAllocator list.NodeAllocator
 
@@ -113,6 +116,12 @@ func (sa SnapshotAllocator) Copy(data []byte) (types.NodeAddress, []byte, error)
 // Deallocate marks node for deallocation.
 func (sa SnapshotAllocator) Deallocate(nodeAddress types.NodeAddress, srcSnapshotID types.SnapshotID) error {
 	if srcSnapshotID == sa.snapshotID {
+		delete(sa.dirtyNodes, nodeAddress)
+		sa.allocator.Deallocate(nodeAddress)
+		return nil
+	}
+
+	if _, exists := sa.snapshots.Get(srcSnapshotID); !exists {
 		delete(sa.dirtyNodes, nodeAddress)
 		sa.allocator.Deallocate(nodeAddress)
 		return nil
