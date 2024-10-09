@@ -117,10 +117,10 @@ func TestSetWithPointerNode(t *testing.T) {
 	requireT.NoError(s.Set(4, 4))
 	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
 
-	requireT.Equal([]types.NodeAddress{0x01, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, nodesAllocated)
+	requireT.Equal([]types.NodeAddress{0x01, 0x03, 0x04, 0x05, 0x06, 0x07}, nodesUsed)
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07}, nodesAllocated)
 	requireT.Equal([]types.NodeAddress{0x02}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, s.Nodes())
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07}, s.Nodes())
 	requireT.Equal([]types.NodeAddress{0x01}, e.Snapshots.Nodes())
 	requireT.Empty(e.DeallocationLists.Nodes())
 
@@ -259,10 +259,10 @@ func TestCopyOnSet(t *testing.T) {
 	}
 
 	nodesUsed, nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
-	requireT.Equal([]types.NodeAddress{0x01, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, nodesAllocated)
+	requireT.Equal([]types.NodeAddress{0x01, 0x03, 0x04, 0x05, 0x06, 0x07}, nodesUsed)
+	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, nodesAllocated)
 	requireT.Equal([]types.NodeAddress{0x02}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, s0.Nodes())
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())
 	requireT.Equal([]types.NodeAddress{0x01}, e.Snapshots.Nodes())
 	requireT.Empty(e.DeallocationLists.Nodes())
 
@@ -273,20 +273,20 @@ func TestCopyOnSet(t *testing.T) {
 	}
 
 	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
-		0x0f, 0x10, 0x11}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11}, nodesAllocated)
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f},
+		nodesUsed)
+	requireT.Equal([]types.NodeAddress{0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}, nodesAllocated)
 	requireT.Equal([]types.NodeAddress{0x01}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, s0.Nodes())
-	requireT.Equal([]types.NodeAddress{0x0a, 0x0d, 0x0e, 0x0f, 0x10, 0x11}, s1.Nodes())
-	requireT.Equal([]types.NodeAddress{0x09}, e.Snapshots.Nodes())
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())
+	requireT.Equal([]types.NodeAddress{0x09, 0x0c, 0x0d, 0x0e, 0x0f}, s1.Nodes())
+	requireT.Equal([]types.NodeAddress{0x08}, e.Snapshots.Nodes())
 
 	requireT.Equal([]types.SnapshotID{0x00}, collectSpaceKeys(e.DeallocationLists))
-	requireT.Equal([]types.NodeAddress{0x0c}, e.DeallocationLists.Nodes())
+	requireT.Equal([]types.NodeAddress{0x0b}, e.DeallocationLists.Nodes())
 
 	dList0 := e.DeallocationList(0x00)
-	requireT.Equal([]types.NodeAddress{0x0b}, dList0.Nodes())
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, collectListItems(dList0))
+	requireT.Equal([]types.NodeAddress{0x0a}, dList0.Nodes())
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07}, collectListItems(dList0))
 
 	s2 := e.NextSnapshot(requireT)
 
@@ -295,21 +295,23 @@ func TestCopyOnSet(t *testing.T) {
 	}
 
 	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
-		0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a}, nodesAllocated)
-	requireT.Equal([]types.NodeAddress{0x09}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, s0.Nodes())
-	requireT.Equal([]types.NodeAddress{0x0a, 0x0d, 0x0e, 0x0f, 0x10, 0x11}, s1.Nodes())
-	requireT.Equal([]types.NodeAddress{0x13, 0x16, 0x17, 0x18, 0x19, 0x1a}, s2.Nodes())
-	requireT.Equal([]types.NodeAddress{0x12}, e.Snapshots.Nodes())
+	requireT.Equal([]types.NodeAddress{
+		0x03, 0x04, 0x05, 0x06, 0x07, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15,
+		0x16, 0x17,
+	}, nodesUsed)
+	requireT.Equal([]types.NodeAddress{0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17}, nodesAllocated)
+	requireT.Equal([]types.NodeAddress{0x08}, nodesDeallocated)
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())
+	requireT.Equal([]types.NodeAddress{0x09, 0x0c, 0x0d, 0x0e, 0x0f}, s1.Nodes())
+	requireT.Equal([]types.NodeAddress{0x11, 0x14, 0x15, 0x16, 0x17}, s2.Nodes())
+	requireT.Equal([]types.NodeAddress{0x10}, e.Snapshots.Nodes())
 
 	requireT.Equal([]types.SnapshotID{0x01}, collectSpaceKeys(e.DeallocationLists))
-	requireT.Equal([]types.NodeAddress{0x15}, e.DeallocationLists.Nodes())
+	requireT.Equal([]types.NodeAddress{0x13}, e.DeallocationLists.Nodes())
 
 	dList1 := e.DeallocationList(0x01)
-	requireT.Equal([]types.NodeAddress{0x14}, dList1.Nodes())
-	requireT.Equal([]types.NodeAddress{0x0a, 0x0d, 0x0e, 0x0f, 0x10, 0x11}, collectListItems(dList1))
+	requireT.Equal([]types.NodeAddress{0x12}, dList1.Nodes())
+	requireT.Equal([]types.NodeAddress{0x09, 0x0c, 0x0d, 0x0e, 0x0f}, collectListItems(dList1))
 
 	// Partial copy
 
@@ -320,24 +322,25 @@ func TestCopyOnSet(t *testing.T) {
 	}
 
 	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
-		0x0f, 0x10, 0x11, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22,
-		0x23, 0x24, 0x25}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25},
+	requireT.Equal([]types.NodeAddress{
+		0x03, 0x04, 0x05, 0x06, 0x07, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16,
+		0x17, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22,
+	}, nodesUsed)
+	requireT.Equal([]types.NodeAddress{0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22},
 		nodesAllocated)
-	requireT.Equal([]types.NodeAddress{0x12, 0x1b}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, s0.Nodes())
-	requireT.Equal([]types.NodeAddress{0x0a, 0x0d, 0x0e, 0x0f, 0x10, 0x11}, s1.Nodes())
-	requireT.Equal([]types.NodeAddress{0x13, 0x16, 0x17, 0x18, 0x19, 0x1a}, s2.Nodes())
-	requireT.Equal([]types.NodeAddress{0x18, 0x19, 0x1a, 0x21, 0x24, 0x25}, s3.Nodes())
-	requireT.Equal([]types.NodeAddress{0x1c, 0x1d, 0x1e, 0x1f, 0x20}, e.Snapshots.Nodes())
+	requireT.Equal([]types.NodeAddress{0x10, 0x18}, nodesDeallocated)
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())
+	requireT.Equal([]types.NodeAddress{0x09, 0x0c, 0x0d, 0x0e, 0x0f}, s1.Nodes())
+	requireT.Equal([]types.NodeAddress{0x11, 0x14, 0x15, 0x16, 0x17}, s2.Nodes())
+	requireT.Equal([]types.NodeAddress{0x16, 0x17, 0x1e, 0x21, 0x22}, s3.Nodes())
+	requireT.Equal([]types.NodeAddress{0x19, 0x1a, 0x1b, 0x1c, 0x1d}, e.Snapshots.Nodes())
 
 	requireT.Equal([]types.SnapshotID{0x02}, collectSpaceKeys(e.DeallocationLists))
-	requireT.Equal([]types.NodeAddress{0x23}, e.DeallocationLists.Nodes())
+	requireT.Equal([]types.NodeAddress{0x20}, e.DeallocationLists.Nodes())
 
 	dList2 := e.DeallocationList(0x02)
-	requireT.Equal([]types.NodeAddress{0x22}, dList2.Nodes())
-	requireT.Equal([]types.NodeAddress{0x13, 0x16, 0x17}, collectListItems(dList2))
+	requireT.Equal([]types.NodeAddress{0x1f}, dList2.Nodes())
+	requireT.Equal([]types.NodeAddress{0x11, 0x14, 0x15}, collectListItems(dList2))
 
 	// Overwrite everything to create two deallocation lists.
 
@@ -348,29 +351,30 @@ func TestCopyOnSet(t *testing.T) {
 	}
 
 	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
-	requireT.Equal([]types.NodeAddress{0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0x10, 0x11, 0x13,
-		0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
-		0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30},
-		nodesAllocated)
-	requireT.Equal([]types.NodeAddress{0x1c}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, s0.Nodes())
-	requireT.Equal([]types.NodeAddress{0x0a, 0x0d, 0x0e, 0x0f, 0x10, 0x11}, s1.Nodes())
-	requireT.Equal([]types.NodeAddress{0x13, 0x16, 0x17, 0x18, 0x19, 0x1a}, s2.Nodes())
-	requireT.Equal([]types.NodeAddress{0x18, 0x19, 0x1a, 0x21, 0x24, 0x25}, s3.Nodes())
-	requireT.Equal([]types.NodeAddress{0x28, 0x2b, 0x2c, 0x2d, 0x2f, 0x30}, s4.Nodes())
-	requireT.Equal([]types.NodeAddress{0x1d, 0x1e, 0x1f, 0x20, 0x26, 0x27}, e.Snapshots.Nodes())
+	requireT.Equal([]types.NodeAddress{
+		0x03, 0x04, 0x05, 0x06, 0x07, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16,
+		0x17, 0x1a, 0x1b, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b,
+		0x2c,
+	}, nodesUsed)
+	requireT.Equal([]types.NodeAddress{0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c}, nodesAllocated)
+	requireT.Equal([]types.NodeAddress{0x19, 0x1c}, nodesDeallocated)
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())
+	requireT.Equal([]types.NodeAddress{0x09, 0x0c, 0x0d, 0x0e, 0x0f}, s1.Nodes())
+	requireT.Equal([]types.NodeAddress{0x11, 0x14, 0x15, 0x16, 0x17}, s2.Nodes())
+	requireT.Equal([]types.NodeAddress{0x16, 0x17, 0x1e, 0x21, 0x22}, s3.Nodes())
+	requireT.Equal([]types.NodeAddress{0x25, 0x28, 0x29, 0x2a, 0x2c}, s4.Nodes())
+	requireT.Equal([]types.NodeAddress{0x1a, 0x1b, 0x1d, 0x23, 0x24}, e.Snapshots.Nodes())
 
 	requireT.Equal([]types.SnapshotID{0x02, 0x03}, collectSpaceKeys(e.DeallocationLists))
-	requireT.Equal([]types.NodeAddress{0x2a}, e.DeallocationLists.Nodes())
+	requireT.Equal([]types.NodeAddress{0x27}, e.DeallocationLists.Nodes())
 
 	dList2 = e.DeallocationList(0x02)
-	requireT.Equal([]types.NodeAddress{0x2e}, dList2.Nodes())
-	requireT.Equal([]types.NodeAddress{0x18, 0x19, 0x1a}, collectListItems(dList2))
+	requireT.Equal([]types.NodeAddress{0x2b}, dList2.Nodes())
+	requireT.Equal([]types.NodeAddress{0x16, 0x17}, collectListItems(dList2))
 
 	dList3 := e.DeallocationList(0x03)
-	requireT.Equal([]types.NodeAddress{0x29}, dList3.Nodes())
-	requireT.Equal([]types.NodeAddress{0x21, 0x24, 0x25}, collectListItems(dList3))
+	requireT.Equal([]types.NodeAddress{0x26}, dList3.Nodes())
+	requireT.Equal([]types.NodeAddress{0x1e, 0x21, 0x22}, collectListItems(dList3))
 
 	// Check all the values again
 
@@ -392,10 +396,10 @@ func TestCopyOnDelete(t *testing.T) {
 	}
 
 	nodesUsed, nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
-	requireT.Equal([]types.NodeAddress{0x01, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, nodesAllocated)
+	requireT.Equal([]types.NodeAddress{0x01, 0x03, 0x04, 0x05, 0x06, 0x07}, nodesUsed)
+	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, nodesAllocated)
 	requireT.Equal([]types.NodeAddress{0x02}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, s0.Nodes())
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())
 	requireT.Equal([]types.NodeAddress{0x01}, e.Snapshots.Nodes())
 	requireT.Empty(e.DeallocationLists.Nodes())
 
@@ -404,18 +408,18 @@ func TestCopyOnDelete(t *testing.T) {
 	requireT.NoError(s1.Delete(2))
 
 	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x09, 0x0a, 0x0b, 0x0c, 0x0d}, nodesAllocated)
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c}, nodesUsed)
+	requireT.Equal([]types.NodeAddress{0x08, 0x09, 0x0a, 0x0b, 0x0c}, nodesAllocated)
 	requireT.Equal([]types.NodeAddress{0x01}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, s0.Nodes())
-	requireT.Equal([]types.NodeAddress{0x05, 0x06, 0x07, 0x08, 0x0a, 0x0d}, s1.Nodes())
-	requireT.Equal([]types.NodeAddress{0x09}, e.Snapshots.Nodes())
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())
+	requireT.Equal([]types.NodeAddress{0x05, 0x06, 0x07, 0x09, 0x0c}, s1.Nodes())
+	requireT.Equal([]types.NodeAddress{0x08}, e.Snapshots.Nodes())
 
 	requireT.Equal([]types.SnapshotID{0x00}, collectSpaceKeys(e.DeallocationLists))
-	requireT.Equal([]types.NodeAddress{0x0c}, e.DeallocationLists.Nodes())
+	requireT.Equal([]types.NodeAddress{0x0b}, e.DeallocationLists.Nodes())
 
 	dList0 := e.DeallocationList(0x00)
-	requireT.Equal([]types.NodeAddress{0x0b}, dList0.Nodes())
+	requireT.Equal([]types.NodeAddress{0x0a}, dList0.Nodes())
 	requireT.Equal([]types.NodeAddress{0x03, 0x04}, collectListItems(dList0))
 
 	v, exists := s1.Get(2)
@@ -427,25 +431,26 @@ func TestCopyOnDelete(t *testing.T) {
 	requireT.NoError(s2.Delete(4))
 
 	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
-		0x11, 0x12, 0x13}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13}, nodesAllocated)
-	requireT.Equal([]types.NodeAddress{0x09}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, s0.Nodes())
-	requireT.Equal([]types.NodeAddress{0x05, 0x06, 0x07, 0x08, 0x0a, 0x0d}, s1.Nodes())
-	requireT.Equal([]types.NodeAddress{0x05, 0x06, 0x07, 0x0d, 0x0f, 0x12}, s2.Nodes())
-	requireT.Equal([]types.NodeAddress{0x0e}, e.Snapshots.Nodes())
+	requireT.Equal([]types.NodeAddress{
+		0x03, 0x04, 0x05, 0x06, 0x07, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12,
+	}, nodesUsed)
+	requireT.Equal([]types.NodeAddress{0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12}, nodesAllocated)
+	requireT.Equal([]types.NodeAddress{0x08}, nodesDeallocated)
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())
+	requireT.Equal([]types.NodeAddress{0x05, 0x06, 0x07, 0x09, 0x0c}, s1.Nodes())
+	requireT.Equal([]types.NodeAddress{0x05, 0x06, 0x0c, 0x0e, 0x11}, s2.Nodes())
+	requireT.Equal([]types.NodeAddress{0x0d}, e.Snapshots.Nodes())
 
 	requireT.Equal([]types.SnapshotID{0x00, 0x01}, collectSpaceKeys(e.DeallocationLists))
-	requireT.Equal([]types.NodeAddress{0x11}, e.DeallocationLists.Nodes())
+	requireT.Equal([]types.NodeAddress{0x10}, e.DeallocationLists.Nodes())
 
 	dList0 = e.DeallocationList(0x00)
-	requireT.Equal([]types.NodeAddress{0x13}, dList0.Nodes())
-	requireT.Equal([]types.NodeAddress{0x08}, collectListItems(dList0))
+	requireT.Equal([]types.NodeAddress{0x12}, dList0.Nodes())
+	requireT.Equal([]types.NodeAddress{0x07}, collectListItems(dList0))
 
 	dList1 := e.DeallocationList(0x01)
-	requireT.Equal([]types.NodeAddress{0x10}, dList1.Nodes())
-	requireT.Equal([]types.NodeAddress{0x0a}, collectListItems(dList1))
+	requireT.Equal([]types.NodeAddress{0x0f}, dList1.Nodes())
+	requireT.Equal([]types.NodeAddress{0x09}, collectListItems(dList1))
 
 	v, exists = s2.Get(2)
 	requireT.False(exists)
@@ -543,12 +548,12 @@ func TestDeallocateAll(t *testing.T) {
 		requireT.NoError(s0.Set(i, i))
 	}
 
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, s0.Nodes())
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07}, s0.Nodes())
 
 	s1 := e.NextSnapshot(requireT)
 	requireT.NoError(s1.Set(0, 10))
 	s1Nodes := s1.Nodes()
-	requireT.Equal([]types.NodeAddress{0x04, 0x05, 0x06, 0x08, 0x0a, 0x0b}, s1Nodes)
+	requireT.Equal([]types.NodeAddress{0x04, 0x05, 0x06, 0x09, 0x0a}, s1Nodes)
 
 	s2 := e.NextSnapshot(requireT)
 	requireT.Equal(s1Nodes, s2.Nodes())
@@ -565,7 +570,7 @@ func newEnv(requireT *require.Assertions, immediateAallocator bool) *env {
 		NodeSize:  512,
 	}))
 
-	pointerNodeAllocator, err := space.NewNodeAllocator[types.NodeAddress](allocator)
+	pointerNodeAllocator, err := space.NewNodeAllocator[types.Pointer](allocator)
 	requireT.NoError(err)
 
 	dataNodeAllocator, err := space.NewNodeAllocator[types.DataItem[int, int]](allocator)
@@ -588,16 +593,16 @@ func newEnv(requireT *require.Assertions, immediateAallocator bool) *env {
 		Allocator:           allocator,
 		immediateAallocator: immediateAallocator,
 		snapshotRoot: types.ParentInfo{
-			State: lo.ToPtr(types.StateFree),
-			Item:  lo.ToPtr[types.NodeAddress](0),
+			State:   lo.ToPtr(types.StateFree),
+			Pointer: &types.Pointer{},
 		},
 		spaceRoot: types.ParentInfo{
-			State: lo.ToPtr(types.StateFree),
-			Item:  lo.ToPtr[types.NodeAddress](0),
+			State:   lo.ToPtr(types.StateFree),
+			Pointer: &types.Pointer{},
 		},
 		deallocationRoot: types.ParentInfo{
-			State: lo.ToPtr(types.StateFree),
-			Item:  lo.ToPtr[types.NodeAddress](0),
+			State:   lo.ToPtr(types.StateFree),
+			Pointer: &types.Pointer{},
 		},
 		snapshotHashMod:             lo.ToPtr[uint64](0),
 		spaceHashMod:                lo.ToPtr[uint64](0),
@@ -622,7 +627,7 @@ type env struct {
 	deallocationRoot            types.ParentInfo
 	snapshotHashMod             *uint64
 	spaceHashMod                *uint64
-	pointerNodeAllocator        space.NodeAllocator[types.NodeAddress]
+	pointerNodeAllocator        space.NodeAllocator[types.Pointer]
 	dataNodeAllocator           space.NodeAllocator[types.DataItem[int, int]]
 	snapshotInfoNodeAllocator   space.NodeAllocator[types.DataItem[types.SnapshotID, types.SnapshotInfo]]
 	snapshotToNodeNodeAllocator space.NodeAllocator[types.DataItem[types.SnapshotID, types.NodeAddress]]
@@ -634,16 +639,16 @@ func (e *env) NextSnapshot(requireT *require.Assertions) *space.Space[int, int] 
 	e.snapshotID++
 
 	stateCopy := *e.spaceRoot.State
-	itemCopy := *e.spaceRoot.Item
+	pointerCopy := *e.spaceRoot.Pointer
 
 	e.spaceRoot = types.ParentInfo{
-		State: &stateCopy,
-		Item:  &itemCopy,
+		State:   &stateCopy,
+		Pointer: &pointerCopy,
 	}
 
 	e.deallocationRoot = types.ParentInfo{
-		State: lo.ToPtr(types.StateFree),
-		Item:  lo.ToPtr[types.NodeAddress](0),
+		State:   lo.ToPtr(types.StateFree),
+		Pointer: &types.Pointer{},
 	}
 
 	e.Snapshots = &space.Space[types.SnapshotID, types.SnapshotInfo]{}

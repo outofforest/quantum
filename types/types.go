@@ -48,9 +48,7 @@ type SnapshotAllocator interface {
 
 // SpaceNodeHeader is the header common to all space node types.
 type SpaceNodeHeader struct {
-	Version    uint64
-	SnapshotID SnapshotID // FIXME (wojciech): Move this to the parent pointer to support faster deallocation.
-	HashMod    uint64
+	HashMod uint64
 }
 
 // SpaceNode represents data stored inside space node.
@@ -74,6 +72,13 @@ type ListNode struct {
 	Items  []NodeAddress
 }
 
+// Pointer is the pointer to another block.
+type Pointer struct {
+	Version    uint64
+	SnapshotID SnapshotID
+	Address    NodeAddress
+}
+
 // DataItem stores single key-value pair.
 type DataItem[K, V comparable] struct {
 	Hash  Hash
@@ -83,14 +88,14 @@ type DataItem[K, V comparable] struct {
 
 // ParentInfo stores state and item of the slot used to retrieve node from parent pointer.
 type ParentInfo struct {
-	State *State
-	Item  *NodeAddress
+	State   *State
+	Pointer *Pointer
 }
 
 // SpaceInfo stores information required to retrieve space.
 type SpaceInfo struct {
 	State   State
-	Node    NodeAddress
+	Pointer Pointer
 	HashMod uint64
 }
 
