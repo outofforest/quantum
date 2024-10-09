@@ -33,7 +33,6 @@ type Snapshot struct {
 	Snapshots         *space.Space[types.SnapshotID, types.SnapshotInfo]
 	Spaces            *space.Space[types.SpaceID, types.SpaceInfo]
 	DeallocationLists *space.Space[types.SnapshotID, types.NodeAddress]
-	SpacesToCommit    map[types.SpaceID]SpaceToCommit
 	Allocator         types.SnapshotAllocator
 }
 
@@ -75,6 +74,7 @@ func New(config Config) (*DB, error) {
 		spaceInfoNodeAllocator:      spaceInfoNodeAllocator,
 		snapshotToNodeNodeAllocator: snapshotToNodeNodeAllocator,
 		listNodeAllocator:           listNodeAllocator,
+		spacesToCommit:              map[types.SpaceID]SpaceToCommit{},
 	}
 	if err := s.prepareNextSnapshot(*photon.FromBytes[types.SingularityNode](config.Allocator.Node(0))); err != nil {
 		return nil, err
@@ -92,6 +92,8 @@ type DB struct {
 	spaceInfoNodeAllocator      space.NodeAllocator[types.DataItem[types.SpaceID, types.SpaceInfo]]
 	snapshotToNodeNodeAllocator space.NodeAllocator[types.DataItem[types.SnapshotID, types.NodeAddress]]
 	listNodeAllocator           list.NodeAllocator
+
+	spacesToCommit map[types.SpaceID]SpaceToCommit
 }
 
 // DeleteSnapshot deletes snapshot.
@@ -220,14 +222,14 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 
 // Commit commits current snapshot and returns next one.
 func (db *DB) Commit() error {
-	spaces := make([]types.SpaceID, 0, len(db.nextSnapshot.SpacesToCommit))
-	for spaceID := range db.nextSnapshot.SpacesToCommit {
+	spaces := make([]types.SpaceID, 0, len(db.spacesToCommit))
+	for spaceID := range db.spacesToCommit {
 		spaces = append(spaces, spaceID)
 	}
 	sort.Slice(spaces, func(i, j int) bool { return spaces[i] < spaces[j] })
 
 	for _, spaceID := range spaces {
-		spaceToCommit := db.nextSnapshot.SpacesToCommit[spaceID]
+		spaceToCommit := db.spacesToCommit[spaceID]
 		if *spaceToCommit.PInfo.State == types.StateFree ||
 			spaceToCommit.PInfo.Pointer.Address == spaceToCommit.OriginalAddress {
 			continue
@@ -305,6 +307,7 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 
 	singularityNode.LastSnapshotID = snapshotID
 
+	clear(db.spacesToCommit)
 	db.nextSnapshot = Snapshot{
 		SnapshotID:      snapshotID,
 		SingularityNode: &singularityNode,
@@ -322,7 +325,6 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 			Allocator:            allocator,
 		}),
 		DeallocationLists: deallocationLists,
-		SpacesToCommit:    map[types.SpaceID]SpaceToCommit{},
 		Allocator:         allocator,
 	}
 
@@ -331,7 +333,7 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 
 // GetSpace retrieves space from snapshot.
 func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V], error) {
-	s, exists := db.nextSnapshot.SpacesToCommit[spaceID]
+	s, exists := db.spacesToCommit[spaceID]
 	if !exists {
 		spaceInfo, _ := db.nextSnapshot.Spaces.Get(spaceID)
 		s = SpaceToCommit{
@@ -342,7 +344,7 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 			},
 			OriginalAddress: spaceInfo.Pointer.Address,
 		}
-		db.nextSnapshot.SpacesToCommit[spaceID] = s
+		db.spacesToCommit[spaceID] = s
 	}
 
 	dataNodeAllocator, err := space.NewNodeAllocator[types.DataItem[K, V]](db.config.Allocator)
