@@ -94,8 +94,6 @@ func (s *Space[K, V]) Delete(key K) error {
 		case types.StateFree:
 			return nil
 		case types.StateData:
-			// FIXME (wojciech): Don't copy the node if split is required.
-
 			dataNodeData, dataNode := s.config.DataNodeAllocator.Get(pInfo.Pointer.Address)
 			if pInfo.Pointer.SnapshotID < s.config.SnapshotID {
 				newNodeAddress, newNode, err := s.config.DataNodeAllocator.Copy(s.config.Allocator, dataNodeData)
@@ -284,10 +282,15 @@ func (s *Space[K, V]) set(pInfo types.ParentInfo, item types.DataItem[K, V]) err
 
 			return nil
 		case types.StateData:
-			// FIXME (wojciech): Don't copy the node if split is required.
-
 			dataNodeData, dataNode := s.config.DataNodeAllocator.Get(pInfo.Pointer.Address)
-			if pInfo.Pointer.SnapshotID < s.config.SnapshotID {
+			if dataNode.Header.HashMod > 0 {
+				item.Hash = hashKey(item.Key, dataNode.Header.HashMod)
+			}
+			index := s.config.DataNodeAllocator.Index(item.Hash)
+			hashMatches := item.Hash == dataNode.Items[index].Hash
+			keyMatches := hashMatches && item.Key == dataNode.Items[index].Key
+			if pInfo.Pointer.SnapshotID < s.config.SnapshotID &&
+				(dataNode.States[index] == types.StateFree || keyMatches) {
 				newNodeAddress, newNode, err := s.config.DataNodeAllocator.Copy(s.config.Allocator, dataNodeData)
 				if err != nil {
 					return err
@@ -299,11 +302,6 @@ func (s *Space[K, V]) set(pInfo types.ParentInfo, item types.DataItem[K, V]) err
 				pInfo.Pointer.Address = newNodeAddress
 				dataNode = newNode
 			}
-			if dataNode.Header.HashMod > 0 {
-				item.Hash = hashKey(item.Key, dataNode.Header.HashMod)
-			}
-
-			index := s.config.DataNodeAllocator.Index(item.Hash)
 			if dataNode.States[index] == types.StateFree {
 				dataNode.States[index] = types.StateData
 				dataNode.Items[index] = item
@@ -311,19 +309,19 @@ func (s *Space[K, V]) set(pInfo types.ParentInfo, item types.DataItem[K, V]) err
 				return nil
 			}
 
-			if item.Hash == dataNode.Items[index].Hash {
-				if item.Key == dataNode.Items[index].Key {
-					dataNode.Items[index] = item
-
-					return nil
-				}
-
-				// hash conflict
-				*s.config.HashMod++
-				dataNode.Header.HashMod = *s.config.HashMod
+			if keyMatches {
+				dataNode.Items[index] = item
+				return nil
 			}
 
-			if err := s.redistributeNode(pInfo); err != nil {
+			hashMod := dataNode.Header.HashMod
+			if hashMatches {
+				// hash conflict
+				*s.config.HashMod++
+				hashMod = *s.config.HashMod
+			}
+
+			if err := s.redistributeNode(pInfo, hashMod); err != nil {
 				return err
 			}
 			return s.set(pInfo, item)
@@ -356,7 +354,7 @@ func (s *Space[K, V]) set(pInfo types.ParentInfo, item types.DataItem[K, V]) err
 	}
 }
 
-func (s *Space[K, V]) redistributeNode(pInfo types.ParentInfo) error {
+func (s *Space[K, V]) redistributeNode(pInfo types.ParentInfo, hashMod uint64) error {
 	dataNodePointer := *pInfo.Pointer
 	_, dataNode := s.config.DataNodeAllocator.Get(dataNodePointer.Address)
 
@@ -365,7 +363,7 @@ func (s *Space[K, V]) redistributeNode(pInfo types.ParentInfo) error {
 		return err
 	}
 	*pointerNode.Header = types.SpaceNodeHeader{
-		HashMod: dataNode.Header.HashMod,
+		HashMod: hashMod,
 	}
 
 	*pInfo.State = types.StatePointer
