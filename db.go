@@ -96,8 +96,6 @@ type DB struct {
 
 // DeleteSnapshot deletes snapshot.
 func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
-	// FIXME (wojciech): Deallocation of last snapshot
-
 	snapshotInfo, exists := db.nextSnapshot.Snapshots.Get(snapshotID)
 	if !exists {
 		return errors.Errorf("snapshot %d does not exist", snapshotID)
@@ -218,8 +216,6 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 	}
 
 	return db.nextSnapshot.Snapshots.Delete(snapshotID)
-
-	// FIXME (wojciech): Deallocate nodes used by deleted snapshot (DeallocationRoot).
 }
 
 // Commit commits current snapshot and returns next one.
