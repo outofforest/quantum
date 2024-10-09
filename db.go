@@ -145,24 +145,20 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 	})
 
 	var startSnapshotID types.SnapshotID
-	if snapshotID == db.nextSnapshot.SingularityNode.FirstSnapshotID {
-		startSnapshotID = snapshotID
-	} else {
+	if snapshotID != db.nextSnapshot.SingularityNode.FirstSnapshotID {
 		startSnapshotID = snapshotInfo.PreviousSnapshotID + 1
 	}
-
-	for sID := startSnapshotID; sID <= snapshotID; sID++ {
-		listNodeAddress, exists := nextDeallocationLists.Get(sID)
-		if !exists {
+	for snapshotItem := range nextDeallocationLists.Iterator() {
+		if snapshotItem.Key < startSnapshotID || snapshotItem.Key > snapshotID {
 			continue
 		}
 
-		list := list.New(list.Config{
-			Item:          &listNodeAddress,
+		l := list.New(list.Config{
+			Item:          &snapshotItem.Value,
 			NodeAllocator: db.listNodeAllocator,
 		})
-		list.Deallocate(db.config.Allocator)
-		if err := nextDeallocationLists.Delete(sID); err != nil {
+		l.Deallocate(db.config.Allocator)
+		if err := nextDeallocationLists.Delete(snapshotItem.Key); err != nil {
 			return err
 		}
 	}
