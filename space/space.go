@@ -94,8 +94,6 @@ func (s *Space[K, V]) Delete(key K) error {
 		case types.StateFree:
 			return nil
 		case types.StateData:
-			// FIXME (wojciech): Don't copy the node if split is required.
-
 			dataNodeData, dataNode := s.config.DataNodeAllocator.Get(pInfo.Pointer.Address)
 			if pInfo.Pointer.SnapshotID < s.config.SnapshotID {
 				newNodeAddress, newNode, err := s.config.DataNodeAllocator.Copy(s.config.Allocator, dataNodeData)
