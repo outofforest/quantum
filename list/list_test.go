@@ -1,7 +1,6 @@
 package list_test
 
 import (
-	"sort"
 	"testing"
 
 	"github.com/samber/lo"
@@ -10,6 +9,7 @@ import (
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/list"
 	"github.com/outofforest/quantum/space"
+	"github.com/outofforest/quantum/test"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -24,7 +24,7 @@ func TestAdd(t *testing.T) {
 		requireT.NoError(l.Add(i))
 	}
 
-	requireT.Equal(items, collectListItems(l))
+	requireT.Equal(items, test.CollectListItems(l))
 
 	nodesUsed, nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
 	requireT.Equal([]types.NodeAddress{0x01, 0x02}, nodesUsed)
@@ -50,7 +50,7 @@ func TestAttach(t *testing.T) {
 		requireT.NoError(l.Attach(*l2Address))
 	}
 
-	requireT.Equal(items, collectListItems(l))
+	requireT.Equal(items, test.CollectListItems(l))
 
 	nodesUsed, nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
 	requireT.Equal([]types.NodeAddress{
@@ -93,7 +93,7 @@ func TestAddAttach(t *testing.T) {
 		requireT.NoError(l.Attach(*l2Address))
 	}
 
-	requireT.Equal(items, collectListItems(l))
+	requireT.Equal(items, test.CollectListItems(l))
 }
 
 func TestAttachTwoLevels(t *testing.T) {
@@ -117,7 +117,7 @@ func TestAttachTwoLevels(t *testing.T) {
 		requireT.NoError(l.Attach(*l2Address))
 	}
 
-	requireT.Equal(items, collectListItems(l))
+	requireT.Equal(items, test.CollectListItems(l))
 }
 
 func TestTwoSnapshots(t *testing.T) {
@@ -134,7 +134,7 @@ func TestTwoSnapshots(t *testing.T) {
 		requireT.NoError(l0.Add(i))
 	}
 
-	requireT.Equal(items0, collectListItems(l0))
+	requireT.Equal(items0, test.CollectListItems(l0))
 
 	nodesUsed, nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
 	requireT.Equal([]types.NodeAddress{0x01, 0x02}, nodesUsed)
@@ -161,8 +161,8 @@ func TestTwoSnapshots(t *testing.T) {
 	requireT.Equal([]types.NodeAddress{0x01, 0x02}, l0.Nodes())
 	requireT.Equal([]types.NodeAddress{0x01, 0x03, 0x04, 0x05}, l1.Nodes())
 
-	requireT.Equal(items0, collectListItems(l0))
-	requireT.Equal(items1, collectListItems(l1))
+	requireT.Equal(items0, test.CollectListItems(l0))
+	requireT.Equal(items1, test.CollectListItems(l1))
 }
 
 func TestDeallocate(t *testing.T) {
@@ -205,10 +205,10 @@ func TestDeallocate(t *testing.T) {
 }
 
 func newEnv(requireT *require.Assertions) *env {
-	allocator := alloc.NewTestAllocator(alloc.NewAllocator(alloc.Config{
+	allocator := test.NewAllocator(test.AllocatorConfig{
 		TotalSize: 1024 * 1024,
 		NodeSize:  512,
-	}))
+	})
 
 	nodeAllocator, err := list.NewNodeAllocator(allocator)
 	requireT.NoError(err)
@@ -221,7 +221,7 @@ func newEnv(requireT *require.Assertions) *env {
 }
 
 type env struct {
-	Allocator *alloc.TestAllocator
+	Allocator *test.Allocator
 	Item      *types.NodeAddress
 
 	snapshotID        types.SnapshotID
@@ -261,16 +261,4 @@ func (e *env) NewList() (*types.NodeAddress, *list.List) {
 		NodeAllocator: e.nodeAllocator,
 		Allocator:     e.snapshotAllocator,
 	})
-}
-
-func collectListItems(l *list.List) []types.NodeAddress {
-	items := []types.NodeAddress{}
-	for item := range l.Iterator() {
-		items = append(items, item)
-	}
-
-	sort.Slice(items, func(i, j int) bool {
-		return items[i] < items[j]
-	})
-	return items
 }

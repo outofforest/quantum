@@ -1,66 +1,10 @@
 package alloc
 
 import (
-	"github.com/pkg/errors"
-
 	"github.com/outofforest/quantum/list"
 	"github.com/outofforest/quantum/space"
 	"github.com/outofforest/quantum/types"
 )
-
-// Config stores configuration of allocator.
-type Config struct {
-	TotalSize uint64
-	NodeSize  uint64
-}
-
-// NewAllocator creates memory allocator.
-func NewAllocator(config Config) *Allocator {
-	return &Allocator{
-		config:   config,
-		data:     make([]byte, config.TotalSize),
-		zeroNode: make([]byte, config.NodeSize),
-	}
-}
-
-// Allocator allocates memory.
-type Allocator struct {
-	config            Config
-	data              []byte
-	zeroNode          []byte
-	lastAllocatedNode types.NodeAddress
-}
-
-// Node returns node bytes.
-func (a *Allocator) Node(nodeAddress types.NodeAddress) []byte {
-	return a.data[uint64(nodeAddress)*a.config.NodeSize : uint64(nodeAddress+1)*a.config.NodeSize]
-}
-
-// Allocate allocates node and copies data into it.
-func (a *Allocator) Allocate(copyFrom []byte) (types.NodeAddress, []byte, error) {
-	a.lastAllocatedNode++
-	if uint64(a.lastAllocatedNode+1)*a.config.NodeSize > uint64(len(a.data)) {
-		return 0, nil, errors.New("out of space")
-	}
-	node := a.Node(a.lastAllocatedNode)
-
-	if copyFrom == nil {
-		copyFrom = a.zeroNode
-	}
-
-	copy(node, copyFrom)
-	return a.lastAllocatedNode, node, nil
-}
-
-// Deallocate deallocates node.
-func (a *Allocator) Deallocate(nodeAddress types.NodeAddress) {
-
-}
-
-// NodeSize returns size of node.
-func (a *Allocator) NodeSize() uint64 {
-	return a.config.NodeSize
-}
 
 // NewSnapshotAllocator returns snapshot-level allocator.
 func NewSnapshotAllocator(
