@@ -664,7 +664,6 @@ func (e *env) NextSnapshot(requireT *require.Assertions) *space.Space[int, int] 
 		e.Snapshots,
 		e.DeallocationLists,
 		e.listNodeAllocator,
-		map[types.NodeAddress]struct{}{},
 	)
 	if e.immediateAallocator {
 		e.snapshotAllocator = alloc.NewImmediateSnapshotAllocator(snapshotID, e.snapshotAllocator)

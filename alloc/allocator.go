@@ -81,7 +81,6 @@ func NewSnapshotAllocator(
 	snapshots *space.Space[types.SnapshotID, types.SnapshotInfo],
 	deallocationLists *space.Space[types.SnapshotID, types.NodeAddress],
 	listNodeAllocator list.NodeAllocator,
-	dirtyNodes map[types.NodeAddress]struct{},
 ) SnapshotAllocator {
 	return SnapshotAllocator{
 		snapshotID:        snapshotID,
@@ -89,7 +88,6 @@ func NewSnapshotAllocator(
 		snapshots:         snapshots,
 		deallocationLists: deallocationLists,
 		listNodeAllocator: listNodeAllocator,
-		dirtyNodes:        dirtyNodes,
 	}
 }
 
@@ -100,7 +98,6 @@ type SnapshotAllocator struct {
 	snapshots         *space.Space[types.SnapshotID, types.SnapshotInfo]
 	deallocationLists *space.Space[types.SnapshotID, types.NodeAddress]
 	listNodeAllocator list.NodeAllocator
-	dirtyNodes        map[types.NodeAddress]struct{}
 }
 
 // Allocate allocates new node.
@@ -110,7 +107,6 @@ func (sa SnapshotAllocator) Allocate() (types.NodeAddress, []byte, error) {
 		return 0, nil, err
 	}
 
-	sa.dirtyNodes[nodeAddress] = struct{}{}
 	return nodeAddress, node, nil
 }
 
@@ -121,14 +117,12 @@ func (sa SnapshotAllocator) Copy(data []byte) (types.NodeAddress, []byte, error)
 		return 0, nil, err
 	}
 
-	sa.dirtyNodes[nodeAddress] = struct{}{}
 	return nodeAddress, node, nil
 }
 
 // Deallocate marks node for deallocation.
 func (sa SnapshotAllocator) Deallocate(nodeAddress types.NodeAddress, srcSnapshotID types.SnapshotID) error {
 	if srcSnapshotID == sa.snapshotID {
-		delete(sa.dirtyNodes, nodeAddress)
 		sa.allocator.Deallocate(nodeAddress)
 		return nil
 	}
