@@ -6,11 +6,11 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/constraints"
 
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/list"
 	"github.com/outofforest/quantum/space"
+	"github.com/outofforest/quantum/test"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -30,7 +30,7 @@ func TestSetOneItem(t *testing.T) {
 	requireT.Equal([]types.NodeAddress{0x01}, e.Snapshots.Nodes())
 	requireT.Empty(e.DeallocationLists.Nodes())
 
-	requireT.Equal([]int{0}, collectSpaceValues(s))
+	requireT.Equal([]int{0}, test.CollectSpaceValues(s))
 }
 
 func TestSetTwoItems(t *testing.T) {
@@ -50,7 +50,7 @@ func TestSetTwoItems(t *testing.T) {
 	requireT.Equal([]types.NodeAddress{0x01}, e.Snapshots.Nodes())
 	requireT.Empty(e.DeallocationLists.Nodes())
 
-	requireT.Equal([]int{0, 1}, collectSpaceValues(s))
+	requireT.Equal([]int{0, 1}, test.CollectSpaceValues(s))
 }
 
 func TestSetWithPointerNode(t *testing.T) {
@@ -68,7 +68,7 @@ func TestSetWithPointerNode(t *testing.T) {
 	requireT.Empty(nodesDeallocated)
 	requireT.Empty(e.DeallocationLists.Nodes())
 
-	requireT.Equal([]int{0}, collectSpaceValues(s))
+	requireT.Equal([]int{0}, test.CollectSpaceValues(s))
 
 	// Insert 1
 
@@ -82,7 +82,7 @@ func TestSetWithPointerNode(t *testing.T) {
 	requireT.Equal([]types.NodeAddress{0x01}, e.Snapshots.Nodes())
 	requireT.Empty(e.DeallocationLists.Nodes())
 
-	requireT.Equal([]int{0, 1}, collectSpaceValues(s))
+	requireT.Equal([]int{0, 1}, test.CollectSpaceValues(s))
 
 	// Insert 2
 
@@ -96,7 +96,7 @@ func TestSetWithPointerNode(t *testing.T) {
 	requireT.Equal([]types.NodeAddress{0x01}, e.Snapshots.Nodes())
 	requireT.Empty(e.DeallocationLists.Nodes())
 
-	requireT.Equal([]int{0, 1, 2}, collectSpaceValues(s))
+	requireT.Equal([]int{0, 1, 2}, test.CollectSpaceValues(s))
 
 	// Insert 3
 
@@ -110,7 +110,7 @@ func TestSetWithPointerNode(t *testing.T) {
 	requireT.Equal([]types.NodeAddress{0x01}, e.Snapshots.Nodes())
 	requireT.Empty(e.DeallocationLists.Nodes())
 
-	requireT.Equal([]int{0, 1, 2, 3}, collectSpaceValues(s))
+	requireT.Equal([]int{0, 1, 2, 3}, test.CollectSpaceValues(s))
 
 	// Insert 4
 
@@ -124,7 +124,7 @@ func TestSetWithPointerNode(t *testing.T) {
 	requireT.Equal([]types.NodeAddress{0x01}, e.Snapshots.Nodes())
 	requireT.Empty(e.DeallocationLists.Nodes())
 
-	requireT.Equal([]int{0, 1, 2, 3, 4}, collectSpaceValues(s))
+	requireT.Equal([]int{0, 1, 2, 3, 4}, test.CollectSpaceValues(s))
 }
 
 func TestSet(t *testing.T) {
@@ -138,7 +138,7 @@ func TestSet(t *testing.T) {
 		requireT.NoError(s.Set(i, i))
 	}
 
-	requireT.Equal(items, collectSpaceValues(s))
+	requireT.Equal(items, test.CollectSpaceValues(s))
 }
 
 func TestGet(t *testing.T) {
@@ -209,8 +209,8 @@ func TestSetOnNext(t *testing.T) {
 		requireT.NoError(s2.Set(i, i+10))
 	}
 
-	requireT.Equal([]int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, collectSpaceValues(s1))
-	requireT.Equal([]int{5, 6, 7, 8, 9, 10, 11, 12, 13, 14}, collectSpaceValues(s2))
+	requireT.Equal([]int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, test.CollectSpaceValues(s1))
+	requireT.Equal([]int{5, 6, 7, 8, 9, 10, 11, 12, 13, 14}, test.CollectSpaceValues(s2))
 }
 
 func TestReplace(t *testing.T) {
@@ -281,12 +281,12 @@ func TestCopyOnSet(t *testing.T) {
 	requireT.Equal([]types.NodeAddress{0x09, 0x0c, 0x0d, 0x0e, 0x0f}, s1.Nodes())
 	requireT.Equal([]types.NodeAddress{0x08}, e.Snapshots.Nodes())
 
-	requireT.Equal([]types.SnapshotID{0x00}, collectSpaceKeys(e.DeallocationLists))
+	requireT.Equal([]types.SnapshotID{0x00}, test.CollectSpaceKeys(e.DeallocationLists))
 	requireT.Equal([]types.NodeAddress{0x0b}, e.DeallocationLists.Nodes())
 
 	dList0 := e.DeallocationList(0x00)
 	requireT.Equal([]types.NodeAddress{0x0a}, dList0.Nodes())
-	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07}, collectListItems(dList0))
+	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05, 0x06, 0x07}, test.CollectListItems(dList0))
 
 	s2 := e.NextSnapshot(requireT)
 
@@ -306,12 +306,12 @@ func TestCopyOnSet(t *testing.T) {
 	requireT.Equal([]types.NodeAddress{0x11, 0x14, 0x15, 0x16, 0x17}, s2.Nodes())
 	requireT.Equal([]types.NodeAddress{0x10}, e.Snapshots.Nodes())
 
-	requireT.Equal([]types.SnapshotID{0x01}, collectSpaceKeys(e.DeallocationLists))
+	requireT.Equal([]types.SnapshotID{0x01}, test.CollectSpaceKeys(e.DeallocationLists))
 	requireT.Equal([]types.NodeAddress{0x13}, e.DeallocationLists.Nodes())
 
 	dList1 := e.DeallocationList(0x01)
 	requireT.Equal([]types.NodeAddress{0x12}, dList1.Nodes())
-	requireT.Equal([]types.NodeAddress{0x09, 0x0c, 0x0d, 0x0e, 0x0f}, collectListItems(dList1))
+	requireT.Equal([]types.NodeAddress{0x09, 0x0c, 0x0d, 0x0e, 0x0f}, test.CollectListItems(dList1))
 
 	// Partial copy
 
@@ -335,12 +335,12 @@ func TestCopyOnSet(t *testing.T) {
 	requireT.Equal([]types.NodeAddress{0x16, 0x17, 0x1d, 0x20, 0x21}, s3.Nodes())
 	requireT.Equal([]types.NodeAddress{0x18, 0x19, 0x1a, 0x1b, 0x1c}, e.Snapshots.Nodes())
 
-	requireT.Equal([]types.SnapshotID{0x02}, collectSpaceKeys(e.DeallocationLists))
+	requireT.Equal([]types.SnapshotID{0x02}, test.CollectSpaceKeys(e.DeallocationLists))
 	requireT.Equal([]types.NodeAddress{0x1f}, e.DeallocationLists.Nodes())
 
 	dList2 := e.DeallocationList(0x02)
 	requireT.Equal([]types.NodeAddress{0x1e}, dList2.Nodes())
-	requireT.Equal([]types.NodeAddress{0x11, 0x14, 0x15}, collectListItems(dList2))
+	requireT.Equal([]types.NodeAddress{0x11, 0x14, 0x15}, test.CollectListItems(dList2))
 
 	// Overwrite everything to create two deallocation lists.
 
@@ -365,24 +365,24 @@ func TestCopyOnSet(t *testing.T) {
 	requireT.Equal([]types.NodeAddress{0x24, 0x27, 0x28, 0x29, 0x2b}, s4.Nodes())
 	requireT.Equal([]types.NodeAddress{0x19, 0x1a, 0x1c, 0x22, 0x23}, e.Snapshots.Nodes())
 
-	requireT.Equal([]types.SnapshotID{0x02, 0x03}, collectSpaceKeys(e.DeallocationLists))
+	requireT.Equal([]types.SnapshotID{0x02, 0x03}, test.CollectSpaceKeys(e.DeallocationLists))
 	requireT.Equal([]types.NodeAddress{0x26}, e.DeallocationLists.Nodes())
 
 	dList2 = e.DeallocationList(0x02)
 	requireT.Equal([]types.NodeAddress{0x2a}, dList2.Nodes())
-	requireT.Equal([]types.NodeAddress{0x16, 0x17}, collectListItems(dList2))
+	requireT.Equal([]types.NodeAddress{0x16, 0x17}, test.CollectListItems(dList2))
 
 	dList3 := e.DeallocationList(0x03)
 	requireT.Equal([]types.NodeAddress{0x25}, dList3.Nodes())
-	requireT.Equal([]types.NodeAddress{0x1d, 0x20, 0x21}, collectListItems(dList3))
+	requireT.Equal([]types.NodeAddress{0x1d, 0x20, 0x21}, test.CollectListItems(dList3))
 
 	// Check all the values again
 
-	requireT.Equal([]int{0, 1, 2, 3, 4}, collectSpaceValues(s0))
-	requireT.Equal([]int{10, 11, 12, 13, 14}, collectSpaceValues(s1))
-	requireT.Equal([]int{20, 21, 22, 23, 24}, collectSpaceValues(s2))
-	requireT.Equal([]int{22, 23, 24, 30, 31}, collectSpaceValues(s3))
-	requireT.Equal([]int{40, 41, 42, 43, 44}, collectSpaceValues(s4))
+	requireT.Equal([]int{0, 1, 2, 3, 4}, test.CollectSpaceValues(s0))
+	requireT.Equal([]int{10, 11, 12, 13, 14}, test.CollectSpaceValues(s1))
+	requireT.Equal([]int{20, 21, 22, 23, 24}, test.CollectSpaceValues(s2))
+	requireT.Equal([]int{22, 23, 24, 30, 31}, test.CollectSpaceValues(s3))
+	requireT.Equal([]int{40, 41, 42, 43, 44}, test.CollectSpaceValues(s4))
 }
 
 func TestCopyOnDelete(t *testing.T) {
@@ -415,17 +415,17 @@ func TestCopyOnDelete(t *testing.T) {
 	requireT.Equal([]types.NodeAddress{0x05, 0x06, 0x07, 0x09, 0x0c}, s1.Nodes())
 	requireT.Equal([]types.NodeAddress{0x08}, e.Snapshots.Nodes())
 
-	requireT.Equal([]types.SnapshotID{0x00}, collectSpaceKeys(e.DeallocationLists))
+	requireT.Equal([]types.SnapshotID{0x00}, test.CollectSpaceKeys(e.DeallocationLists))
 	requireT.Equal([]types.NodeAddress{0x0b}, e.DeallocationLists.Nodes())
 
 	dList0 := e.DeallocationList(0x00)
 	requireT.Equal([]types.NodeAddress{0x0a}, dList0.Nodes())
-	requireT.Equal([]types.NodeAddress{0x03, 0x04}, collectListItems(dList0))
+	requireT.Equal([]types.NodeAddress{0x03, 0x04}, test.CollectListItems(dList0))
 
 	v, exists := s1.Get(2)
 	requireT.False(exists)
 	requireT.Equal(0, v)
-	requireT.Equal([]int{0, 1, 3, 4}, collectSpaceValues(s1))
+	requireT.Equal([]int{0, 1, 3, 4}, test.CollectSpaceValues(s1))
 
 	s2 := e.NextSnapshot(requireT)
 	requireT.NoError(s2.Delete(4))
@@ -441,16 +441,16 @@ func TestCopyOnDelete(t *testing.T) {
 	requireT.Equal([]types.NodeAddress{0x05, 0x06, 0x0c, 0x0e, 0x11}, s2.Nodes())
 	requireT.Equal([]types.NodeAddress{0x0d}, e.Snapshots.Nodes())
 
-	requireT.Equal([]types.SnapshotID{0x00, 0x01}, collectSpaceKeys(e.DeallocationLists))
+	requireT.Equal([]types.SnapshotID{0x00, 0x01}, test.CollectSpaceKeys(e.DeallocationLists))
 	requireT.Equal([]types.NodeAddress{0x10}, e.DeallocationLists.Nodes())
 
 	dList0 = e.DeallocationList(0x00)
 	requireT.Equal([]types.NodeAddress{0x12}, dList0.Nodes())
-	requireT.Equal([]types.NodeAddress{0x07}, collectListItems(dList0))
+	requireT.Equal([]types.NodeAddress{0x07}, test.CollectListItems(dList0))
 
 	dList1 := e.DeallocationList(0x01)
 	requireT.Equal([]types.NodeAddress{0x0f}, dList1.Nodes())
-	requireT.Equal([]types.NodeAddress{0x09}, collectListItems(dList1))
+	requireT.Equal([]types.NodeAddress{0x09}, test.CollectListItems(dList1))
 
 	v, exists = s2.Get(2)
 	requireT.False(exists)
@@ -460,9 +460,9 @@ func TestCopyOnDelete(t *testing.T) {
 	requireT.False(exists)
 	requireT.Equal(0, v)
 
-	requireT.Equal([]int{0, 1, 2, 3, 4}, collectSpaceValues(s0))
-	requireT.Equal([]int{0, 1, 3, 4}, collectSpaceValues(s1))
-	requireT.Equal([]int{0, 1, 3}, collectSpaceValues(s2))
+	requireT.Equal([]int{0, 1, 2, 3, 4}, test.CollectSpaceValues(s0))
+	requireT.Equal([]int{0, 1, 3, 4}, test.CollectSpaceValues(s1))
+	requireT.Equal([]int{0, 1, 3}, test.CollectSpaceValues(s2))
 }
 
 func TestDeallocateFromNonExistingSnapshot(t *testing.T) {
@@ -512,7 +512,7 @@ func TestSetCollisions(t *testing.T) {
 		0x01, 0x03, 0x05, 0x06, 0x07, 0x08, 0x09, 0xa, 0xc, 0xd, 0xe, 0xf, 0x11, 0x12, 0x13, 0x14, 0x15, 0x17, 0x18,
 		0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e,
 	}, nodesUsed)
-	requireT.Equal(allValues, collectSpaceValues(s))
+	requireT.Equal(allValues, test.CollectSpaceValues(s))
 }
 
 func TestGetCollisions(t *testing.T) {
@@ -570,10 +570,10 @@ func TestDeallocateAll(t *testing.T) {
 }
 
 func newEnv(requireT *require.Assertions, immediateAallocator bool) *env {
-	allocator := alloc.NewTestAllocator(alloc.NewAllocator(alloc.Config{
+	allocator := test.NewAllocator(test.AllocatorConfig{
 		TotalSize: 1024 * 1024,
 		NodeSize:  512,
-	}))
+	})
 
 	pointerNodeAllocator, err := space.NewNodeAllocator[types.Pointer](allocator)
 	requireT.NoError(err)
@@ -620,7 +620,7 @@ func newEnv(requireT *require.Assertions, immediateAallocator bool) *env {
 }
 
 type env struct {
-	Allocator         *alloc.TestAllocator
+	Allocator         *test.Allocator
 	Snapshots         *space.Space[types.SnapshotID, types.SnapshotInfo]
 	DeallocationLists *space.Space[types.SnapshotID, types.NodeAddress]
 
@@ -711,42 +711,6 @@ func (e *env) DeallocationList(snapshotID types.SnapshotID) *list.List {
 		NodeAllocator: e.listNodeAllocator,
 		Allocator:     e.snapshotAllocator,
 	})
-}
-
-func collectSpaceValues[K comparable, V constraints.Ordered](s *space.Space[K, V]) []V {
-	values := []V{}
-	for item := range s.Iterator() {
-		values = append(values, item.Value)
-	}
-
-	sort.Slice(values, func(i, j int) bool {
-		return values[i] < values[j]
-	})
-	return values
-}
-
-func collectSpaceKeys[K constraints.Ordered, V comparable](s *space.Space[K, V]) []K {
-	keys := []K{}
-	for item := range s.Iterator() {
-		keys = append(keys, item.Key)
-	}
-
-	sort.Slice(keys, func(i, j int) bool {
-		return keys[i] < keys[j]
-	})
-	return keys
-}
-
-func collectListItems(l *list.List) []types.NodeAddress {
-	items := []types.NodeAddress{}
-	for item := range l.Iterator() {
-		items = append(items, item)
-	}
-
-	sort.Slice(items, func(i, j int) bool {
-		return items[i] < items[j]
-	})
-	return items
 }
 
 var collisions = [][]int{
