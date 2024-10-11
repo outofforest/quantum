@@ -242,6 +242,7 @@ func (e *env) NextSnapshot() *list.List {
 		&space.Space[types.SnapshotID, types.SnapshotInfo]{},
 		&space.Space[types.SnapshotID, types.NodeAddress]{},
 		e.nodeAllocator,
+		map[types.NodeAddress]struct{}{},
 	))
 
 	return list.New(list.Config{
