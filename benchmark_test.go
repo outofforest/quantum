@@ -14,8 +14,8 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 10000
-		txsPerBlock    = 1000
+		numOfAddresses = 10_000_000
+		txsPerCommit   = 1000
 		balance        = 100_000
 	)
 
@@ -32,7 +32,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 	for bi := 0; bi < b.N; bi++ {
 		db, err := New(Config{
 			Allocator: alloc.NewAllocator(alloc.Config{
-				TotalSize: 40 * 1024 * 1024,
+				TotalSize: 20 * 1024 * 1024 * 1024,
 				NodeSize:  4 * 1024,
 			}),
 		})
@@ -73,7 +73,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			}
 
 			tx++
-			if tx%txsPerBlock == 0 {
+			if tx%txsPerCommit == 0 {
 				_ = db.Commit()
 				snapshotID++
 

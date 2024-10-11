@@ -10,6 +10,9 @@ const (
 	// StateFree means slot is free.
 	StateFree State = iota
 
+	// StateDeleted means slot is free but was occupied before.
+	StateDeleted
+
 	// StateData means slot contains data.
 	StateData
 
