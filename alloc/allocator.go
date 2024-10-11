@@ -81,6 +81,7 @@ func NewSnapshotAllocator(
 	snapshots *space.Space[types.SnapshotID, types.SnapshotInfo],
 	deallocationLists *space.Space[types.SnapshotID, types.NodeAddress],
 	listNodeAllocator list.NodeAllocator,
+	dirtyNodes map[types.NodeAddress]struct{},
 ) SnapshotAllocator {
 	return SnapshotAllocator{
 		snapshotID:        snapshotID,
@@ -88,7 +89,7 @@ func NewSnapshotAllocator(
 		snapshots:         snapshots,
 		deallocationLists: deallocationLists,
 		listNodeAllocator: listNodeAllocator,
-		dirtyNodes:        map[types.NodeAddress]struct{}{},
+		dirtyNodes:        dirtyNodes,
 	}
 }
 
@@ -99,8 +100,7 @@ type SnapshotAllocator struct {
 	snapshots         *space.Space[types.SnapshotID, types.SnapshotInfo]
 	deallocationLists *space.Space[types.SnapshotID, types.NodeAddress]
 	listNodeAllocator list.NodeAllocator
-
-	dirtyNodes map[types.NodeAddress]struct{}
+	dirtyNodes        map[types.NodeAddress]struct{}
 }
 
 // Allocate allocates new node.

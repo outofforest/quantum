@@ -75,6 +75,7 @@ func New(config Config) (*DB, error) {
 		snapshotToNodeNodeAllocator: snapshotToNodeNodeAllocator,
 		listNodeAllocator:           listNodeAllocator,
 		spacesToCommit:              map[types.SpaceID]SpaceToCommit{},
+		dirtyNodes:                  map[types.NodeAddress]struct{}{},
 	}
 	if err := s.prepareNextSnapshot(*photon.FromBytes[types.SingularityNode](config.Allocator.Node(0))); err != nil {
 		return nil, err
@@ -94,6 +95,7 @@ type DB struct {
 	listNodeAllocator           list.NodeAllocator
 
 	spacesToCommit map[types.SpaceID]SpaceToCommit
+	dirtyNodes     map[types.NodeAddress]struct{}
 }
 
 // DeleteSnapshot deletes snapshot.
@@ -253,6 +255,9 @@ func (db *DB) Commit() error {
 }
 
 func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
+	clear(db.spacesToCommit)
+	clear(db.dirtyNodes)
+
 	var snapshotID types.SnapshotID
 	if singularityNode.SnapshotRoot.State != types.StateFree {
 		snapshotID = singularityNode.LastSnapshotID + 1
@@ -271,6 +276,7 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 		snapshots,
 		deallocationLists,
 		db.listNodeAllocator,
+		db.dirtyNodes,
 	)
 	immediateAllocator := alloc.NewImmediateSnapshotAllocator(snapshotID, allocator)
 	*deallocationLists = *space.New[types.SnapshotID, types.NodeAddress](space.Config[types.SnapshotID, types.NodeAddress]{
@@ -307,7 +313,6 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 
 	singularityNode.LastSnapshotID = snapshotID
 
-	clear(db.spacesToCommit)
 	db.nextSnapshot = Snapshot{
 		SnapshotID:      snapshotID,
 		SingularityNode: &singularityNode,
