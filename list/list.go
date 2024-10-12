@@ -40,11 +40,11 @@ func (l *List) Add(nodeAddress types.NodeAddress) error {
 
 		return nil
 	}
-	listNodeData, listNode := l.config.NodeAllocator.Get(*l.config.Item)
+	_, listNode := l.config.NodeAllocator.Get(*l.config.Item)
 	//nolint:nestif
 	if listNode.Header.NumOfItems+listNode.Header.NumOfSideLists < uint64(len(listNode.Items)) {
 		if listNode.Header.SnapshotID < l.config.SnapshotID {
-			newNodeAddress, newNode, err := l.config.NodeAllocator.Copy(l.config.Allocator, listNodeData)
+			newNodeAddress, newNode, err := l.config.NodeAllocator.Copy(l.config.Allocator, *l.config.Item)
 			if err != nil {
 				return err
 			}
@@ -83,11 +83,11 @@ func (l *List) Attach(nodeAddress types.NodeAddress) error {
 		*l.config.Item = nodeAddress
 		return nil
 	}
-	listNodeData, listNode := l.config.NodeAllocator.Get(*l.config.Item)
+	_, listNode := l.config.NodeAllocator.Get(*l.config.Item)
 	//nolint:nestif
 	if listNode.Header.NumOfItems+listNode.Header.NumOfSideLists < uint64(len(listNode.Items)) {
 		if listNode.Header.SnapshotID < l.config.SnapshotID {
-			newNodeAddress, newNode, err := l.config.NodeAllocator.Copy(l.config.Allocator, listNodeData)
+			newNodeAddress, newNode, err := l.config.NodeAllocator.Copy(l.config.Allocator, *l.config.Item)
 			if err != nil {
 				return err
 			}

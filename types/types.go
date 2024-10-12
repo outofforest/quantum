@@ -37,7 +37,8 @@ type (
 // Allocator manages memory.
 type Allocator interface {
 	Node(nodeAddress NodeAddress) []byte
-	Allocate(copyFrom []byte) (NodeAddress, []byte, error)
+	Allocate() (NodeAddress, []byte, error)
+	Copy(nodeAddress NodeAddress) (NodeAddress, []byte, error)
 	Deallocate(nodeAddress NodeAddress)
 	NodeSize() uint64
 }
@@ -45,7 +46,7 @@ type Allocator interface {
 // SnapshotAllocator manages memory on snapshot level.
 type SnapshotAllocator interface {
 	Allocate() (NodeAddress, []byte, error)
-	Copy(data []byte) (NodeAddress, []byte, error)
+	Copy(nodeAddress NodeAddress) (NodeAddress, []byte, error)
 	Deallocate(nodeAddress NodeAddress, srcSnapshotID SnapshotID) error
 }
 

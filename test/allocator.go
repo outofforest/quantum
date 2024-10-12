@@ -16,10 +16,20 @@ type AllocatorConfig struct {
 
 // NewAllocator creates memory allocator used in tests.
 func NewAllocator(config AllocatorConfig) *Allocator {
+	availableNodes := map[types.NodeAddress]struct{}{}
+	numOfNodes := config.TotalSize / config.NodeSize
+	data := make([]byte, config.NodeSize*numOfNodes)
+	nodes := make([][]byte, 0, numOfNodes)
+	for i := types.NodeAddress(0x00); i < types.NodeAddress(numOfNodes); i++ {
+		nodes = append(nodes, data[uint64(i)*config.NodeSize:uint64(i+1)*config.NodeSize])
+		if i > 0x00 {
+			availableNodes[i] = struct{}{}
+		}
+	}
+
 	return &Allocator{
-		config:   config,
-		data:     make([]byte, config.TotalSize),
-		zeroNode: make([]byte, config.NodeSize),
+		config: config,
+		nodes:  nodes,
 
 		nodesUsed:        map[types.NodeAddress]struct{}{},
 		nodesAllocated:   map[types.NodeAddress]struct{}{},
@@ -30,8 +40,7 @@ func NewAllocator(config AllocatorConfig) *Allocator {
 // Allocator is the allocator implementation used in tests.
 type Allocator struct {
 	config            AllocatorConfig
-	data              []byte
-	zeroNode          []byte
+	nodes             [][]byte
 	lastAllocatedNode types.NodeAddress
 
 	nodesUsed        map[types.NodeAddress]struct{}
@@ -41,27 +50,32 @@ type Allocator struct {
 
 // Node returns node bytes.
 func (a *Allocator) Node(nodeAddress types.NodeAddress) []byte {
-	return a.data[uint64(nodeAddress)*a.config.NodeSize : uint64(nodeAddress+1)*a.config.NodeSize]
+	return a.nodes[nodeAddress]
 }
 
 // Allocate allocates node and copies data into it.
-func (a *Allocator) Allocate(copyFrom []byte) (types.NodeAddress, []byte, error) {
+func (a *Allocator) Allocate() (types.NodeAddress, []byte, error) {
 	a.lastAllocatedNode++
-	if uint64(a.lastAllocatedNode+1)*a.config.NodeSize > uint64(len(a.data)) {
+	if uint64(a.lastAllocatedNode) >= uint64(len(a.nodes)) {
 		return 0, nil, errors.New("out of space")
 	}
-	node := a.Node(a.lastAllocatedNode)
-
-	if copyFrom == nil {
-		copyFrom = a.zeroNode
-	}
-
-	copy(node, copyFrom)
 
 	a.nodesAllocated[a.lastAllocatedNode] = struct{}{}
 	a.nodesUsed[a.lastAllocatedNode] = struct{}{}
 
-	return a.lastAllocatedNode, node, nil
+	return a.lastAllocatedNode, a.nodes[a.lastAllocatedNode], nil
+}
+
+// Copy allocates new node and moves existing one there.
+func (a *Allocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, []byte, error) {
+	newNodeAddress, newNodeData, err := a.Allocate()
+	if err != nil {
+		return 0, nil, err
+	}
+
+	a.nodes[nodeAddress], a.nodes[newNodeAddress] = newNodeData, a.nodes[nodeAddress]
+
+	return newNodeAddress, a.nodes[newNodeAddress], nil
 }
 
 // Deallocate deallocates node.
