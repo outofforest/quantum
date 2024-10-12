@@ -102,9 +102,9 @@ func (s *Space[K, V]) Delete(key K) error {
 		case types.StateFree:
 			return nil
 		case types.StateData:
-			dataNodeData, dataNode := s.config.DataNodeAllocator.Get(pInfo.Pointer.Address)
+			_, dataNode := s.config.DataNodeAllocator.Get(pInfo.Pointer.Address)
 			if pInfo.Pointer.SnapshotID < s.config.SnapshotID {
-				newNodeAddress, newNode, err := s.config.DataNodeAllocator.Copy(s.config.Allocator, dataNodeData)
+				newNodeAddress, newNode, err := s.config.DataNodeAllocator.Copy(s.config.Allocator, pInfo.Pointer.Address)
 				if err != nil {
 					return err
 				}
@@ -134,9 +134,9 @@ func (s *Space[K, V]) Delete(key K) error {
 			}
 			return nil
 		default:
-			pointerNodeData, pointerNode := s.config.PointerNodeAllocator.Get(pInfo.Pointer.Address)
+			_, pointerNode := s.config.PointerNodeAllocator.Get(pInfo.Pointer.Address)
 			if pInfo.Pointer.SnapshotID < s.config.SnapshotID {
-				newNodeAddress, newNode, err := s.config.PointerNodeAllocator.Copy(s.config.Allocator, pointerNodeData)
+				newNodeAddress, newNode, err := s.config.PointerNodeAllocator.Copy(s.config.Allocator, pInfo.Pointer.Address)
 				if err != nil {
 					return err
 				}
@@ -297,7 +297,7 @@ func (s *Space[K, V]) set(pInfo types.ParentInfo, item types.DataItem[K, V]) err
 
 			return nil
 		case types.StateData:
-			dataNodeData, dataNode := s.config.DataNodeAllocator.Get(pInfo.Pointer.Address)
+			_, dataNode := s.config.DataNodeAllocator.Get(pInfo.Pointer.Address)
 			if dataNode.Header.HashMod > 0 {
 				item.Hash = hashKey(item.Key, dataNode.Header.HashMod)
 			}
@@ -312,7 +312,7 @@ func (s *Space[K, V]) set(pInfo types.ParentInfo, item types.DataItem[K, V]) err
 				if dataNode.States[index] == types.StateFree || dataNode.States[index] == types.StateDeleted ||
 					keyMatches {
 					if pInfo.Pointer.SnapshotID < s.config.SnapshotID {
-						newNodeAddress, newNode, err := s.config.DataNodeAllocator.Copy(s.config.Allocator, dataNodeData)
+						newNodeAddress, newNode, err := s.config.DataNodeAllocator.Copy(s.config.Allocator, pInfo.Pointer.Address)
 						if err != nil {
 							return err
 						}
@@ -352,9 +352,9 @@ func (s *Space[K, V]) set(pInfo types.ParentInfo, item types.DataItem[K, V]) err
 			}
 			return s.set(pInfo, item)
 		default:
-			pointerNodeData, pointerNode := s.config.PointerNodeAllocator.Get(pInfo.Pointer.Address)
+			_, pointerNode := s.config.PointerNodeAllocator.Get(pInfo.Pointer.Address)
 			if pInfo.Pointer.SnapshotID < s.config.SnapshotID {
-				newNodeAddress, newNode, err := s.config.PointerNodeAllocator.Copy(s.config.Allocator, pointerNodeData)
+				newNodeAddress, newNode, err := s.config.PointerNodeAllocator.Copy(s.config.Allocator, pInfo.Pointer.Address)
 				if err != nil {
 					return err
 				}

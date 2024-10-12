@@ -16,16 +16,21 @@ type Config struct {
 
 // NewAllocator creates memory allocator.
 func NewAllocator(config Config) *Allocator {
+	availableNodes := map[types.NodeAddress]struct{}{}
 	numOfNodes := config.TotalSize / config.NodeSize
-	data := make([]byte, config.TotalSize)
-	availableNodes := map[types.NodeAddress][]byte{}
-	for i := types.NodeAddress(0x01); i < types.NodeAddress(numOfNodes); i++ {
-		availableNodes[i] = data[uint64(i)*config.NodeSize : uint64(i+1)*config.NodeSize]
+	data := make([]byte, config.NodeSize*numOfNodes)
+	nodes := make([][]byte, 0, numOfNodes)
+
+	for i := types.NodeAddress(0x00); i < types.NodeAddress(numOfNodes); i++ {
+		nodes = append(nodes, data[uint64(i)*config.NodeSize:uint64(i+1)*config.NodeSize])
+		if i > 0x00 {
+			availableNodes[i] = struct{}{}
+		}
 	}
 
 	return &Allocator{
 		config:         config,
-		data:           data,
+		nodes:          nodes,
 		availableNodes: availableNodes,
 	}
 }
@@ -33,40 +38,46 @@ func NewAllocator(config Config) *Allocator {
 // Allocator is the allocator implementation used in tests.
 type Allocator struct {
 	config         Config
-	data           []byte
-	availableNodes map[types.NodeAddress][]byte
+	nodes          [][]byte
+	availableNodes map[types.NodeAddress]struct{}
 }
 
 // Node returns node bytes.
 func (a *Allocator) Node(nodeAddress types.NodeAddress) []byte {
-	return a.data[uint64(nodeAddress)*a.config.NodeSize : uint64(nodeAddress+1)*a.config.NodeSize]
+	return a.nodes[nodeAddress]
 }
 
-// Allocate allocates node and copies data into it.
-func (a *Allocator) Allocate(copyFrom []byte) (types.NodeAddress, []byte, error) {
-	var nodeAddress types.NodeAddress
-	var nodeData []byte
-	for nodeAddress, nodeData = range a.availableNodes {
-		break
-	}
-	if nodeData == nil {
+// Allocate allocates node.
+func (a *Allocator) Allocate() (types.NodeAddress, []byte, error) {
+	if len(a.availableNodes) == 0 {
 		return 0, nil, errors.New("out of space")
+	}
+	var nodeAddress types.NodeAddress
+	for nodeAddress = range a.availableNodes {
+		break
 	}
 
 	delete(a.availableNodes, nodeAddress)
 
-	if copyFrom == nil {
-		clear(nodeData)
-	} else {
-		copy(nodeData, copyFrom)
+	return nodeAddress, a.nodes[nodeAddress], nil
+}
+
+// Copy allocates new node and moves existing one there.
+func (a *Allocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, []byte, error) {
+	newNodeAddress, newNodeData, err := a.Allocate()
+	if err != nil {
+		return 0, nil, err
 	}
 
-	return nodeAddress, nodeData, nil
+	a.nodes[nodeAddress], a.nodes[newNodeAddress] = newNodeData, a.nodes[nodeAddress]
+
+	return newNodeAddress, a.nodes[newNodeAddress], nil
 }
 
 // Deallocate deallocates node.
 func (a *Allocator) Deallocate(nodeAddress types.NodeAddress) {
-	a.availableNodes[nodeAddress] = a.data[uint64(nodeAddress)*a.config.NodeSize : uint64(nodeAddress+1)*a.config.NodeSize]
+	a.availableNodes[nodeAddress] = struct{}{}
+	clear(a.nodes[nodeAddress])
 }
 
 // NodeSize returns size of node.
@@ -102,7 +113,7 @@ type SnapshotAllocator struct {
 
 // Allocate allocates new node.
 func (sa SnapshotAllocator) Allocate() (types.NodeAddress, []byte, error) {
-	nodeAddress, node, err := sa.allocator.Allocate(nil)
+	nodeAddress, node, err := sa.allocator.Allocate()
 	if err != nil {
 		return 0, nil, err
 	}
@@ -111,13 +122,13 @@ func (sa SnapshotAllocator) Allocate() (types.NodeAddress, []byte, error) {
 }
 
 // Copy allocates new node and copies content from existing one.
-func (sa SnapshotAllocator) Copy(data []byte) (types.NodeAddress, []byte, error) {
-	nodeAddress, node, err := sa.allocator.Allocate(data)
+func (sa SnapshotAllocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, []byte, error) {
+	newNodeAddress, node, err := sa.allocator.Copy(nodeAddress)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	return nodeAddress, node, nil
+	return newNodeAddress, node, nil
 }
 
 // Deallocate marks node for deallocation.
@@ -175,8 +186,8 @@ func (sa ImmediateSnapshotAllocator) Allocate() (types.NodeAddress, []byte, erro
 }
 
 // Copy allocates new node and copies content from existing one.
-func (sa ImmediateSnapshotAllocator) Copy(data []byte) (types.NodeAddress, []byte, error) {
-	return sa.parentSnapshotAllocator.Copy(data)
+func (sa ImmediateSnapshotAllocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, []byte, error) {
+	return sa.parentSnapshotAllocator.Copy(nodeAddress)
 }
 
 // Deallocate marks node for deallocation.
