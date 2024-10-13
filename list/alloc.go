@@ -59,9 +59,9 @@ func (na NodeAllocator) Allocate(allocator types.SnapshotAllocator) (types.NodeA
 // Copy allocates copy of existing object.
 func (na NodeAllocator) Copy(
 	allocator types.SnapshotAllocator,
-	data []byte,
+	nodeAddress types.NodeAddress,
 ) (types.NodeAddress, types.ListNode, error) {
-	n, node, err := allocator.Copy(data)
+	n, node, err := allocator.Copy(nodeAddress)
 	if err != nil {
 		return 0, types.ListNode{}, err
 	}

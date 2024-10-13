@@ -158,10 +158,8 @@ func TestTwoSnapshots(t *testing.T) {
 	requireT.Equal([]types.NodeAddress{0x01, 0x03, 0x04, 0x05}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x03, 0x04, 0x05}, nodesAllocated)
 	requireT.Equal([]types.NodeAddress{0x02}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x01, 0x02}, l0.Nodes())
 	requireT.Equal([]types.NodeAddress{0x01, 0x03, 0x04, 0x05}, l1.Nodes())
 
-	requireT.Equal(items0, test.CollectListItems(l0))
 	requireT.Equal(items1, test.CollectListItems(l1))
 }
 
@@ -170,18 +168,18 @@ func TestDeallocate(t *testing.T) {
 	e := newEnv(requireT)
 	l := e.NextSnapshot()
 
-	nodeAddress, _, err := e.Allocator.Allocate(nil)
+	nodeAddress, _, err := e.Allocator.Allocate()
 	requireT.NoError(err)
 	requireT.NoError(l.Add(nodeAddress))
 
 	for range 10 {
 		l2Address, l2 := e.NewList()
-		nodeAddress, _, err := e.Allocator.Allocate(nil)
+		nodeAddress, _, err := e.Allocator.Allocate()
 		requireT.NoError(err)
 		requireT.NoError(l2.Add(nodeAddress))
 		for range 10 {
 			l3Address, l3 := e.NewList()
-			nodeAddress, _, err := e.Allocator.Allocate(nil)
+			nodeAddress, _, err := e.Allocator.Allocate()
 			requireT.NoError(err)
 
 			requireT.NoError(l3.Add(nodeAddress))

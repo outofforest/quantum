@@ -8,14 +8,14 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-// go test -benchtime=100x -bench=. -run=^$ -cpuprofile profile.out
+// go test -benchtime=1x -bench=. -run=^$ -cpuprofile profile.out
 // go tool pprof -http="localhost:8000" pprofbin ./profile.out
 
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
 		numOfAddresses = 10_000_000
-		txsPerCommit   = 1000
+		txsPerCommit   = 100_000
 		balance        = 100_000
 	)
 
