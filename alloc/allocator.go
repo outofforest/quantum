@@ -16,30 +16,32 @@ type Config struct {
 
 // NewAllocator creates memory allocator.
 func NewAllocator(config Config) *Allocator {
-	availableNodes := map[types.NodeAddress]struct{}{}
 	numOfNodes := config.TotalSize / config.NodeSize
 	data := make([]byte, config.NodeSize*numOfNodes)
 	nodes := make([][]byte, 0, numOfNodes)
 
+	availableNodesCh := make(chan types.NodeAddress, numOfNodes)
+
 	for i := types.NodeAddress(0x00); i < types.NodeAddress(numOfNodes); i++ {
 		nodes = append(nodes, data[uint64(i)*config.NodeSize:uint64(i+1)*config.NodeSize])
 		if i > 0x00 {
-			availableNodes[i] = struct{}{}
+			availableNodesCh <- i
 		}
 	}
 
 	return &Allocator{
-		config:         config,
-		nodes:          nodes,
-		availableNodes: availableNodes,
+		config:           config,
+		nodes:            nodes,
+		availableNodesCh: availableNodesCh,
 	}
 }
 
 // Allocator is the allocator implementation used in tests.
 type Allocator struct {
-	config         Config
-	nodes          [][]byte
-	availableNodes map[types.NodeAddress]struct{}
+	config             Config
+	nodes              [][]byte
+	availableNodesCh   chan types.NodeAddress
+	deallocatedNodesCh chan types.NodeAddress
 }
 
 // Node returns node bytes.
@@ -49,15 +51,10 @@ func (a *Allocator) Node(nodeAddress types.NodeAddress) []byte {
 
 // Allocate allocates node.
 func (a *Allocator) Allocate() (types.NodeAddress, []byte, error) {
-	if len(a.availableNodes) == 0 {
+	if len(a.availableNodesCh) == 0 {
 		return 0, nil, errors.New("out of space")
 	}
-	var nodeAddress types.NodeAddress
-	for nodeAddress = range a.availableNodes {
-		break
-	}
-
-	delete(a.availableNodes, nodeAddress)
+	nodeAddress := <-a.availableNodesCh
 
 	return nodeAddress, a.nodes[nodeAddress], nil
 }
@@ -76,8 +73,16 @@ func (a *Allocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, []by
 
 // Deallocate deallocates node.
 func (a *Allocator) Deallocate(nodeAddress types.NodeAddress) {
-	a.availableNodes[nodeAddress] = struct{}{}
-	clear(a.nodes[nodeAddress])
+	if a.deallocatedNodesCh == nil {
+		a.deallocatedNodesCh = make(chan types.NodeAddress, 100)
+		go func() {
+			for n := range a.deallocatedNodesCh {
+				clear(a.nodes[n])
+				a.availableNodesCh <- n
+			}
+		}()
+	}
+	a.deallocatedNodesCh <- nodeAddress
 }
 
 // NodeSize returns size of node.
