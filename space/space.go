@@ -177,7 +177,6 @@ func (s *Space[K, V]) Iterator() func(func(types.DataItem[K, V]) bool) {
 			stack = stack[:len(stack)-1]
 
 			switch *pInfo.State {
-			case types.StateFree:
 			case types.StateData:
 				_, dataNode := s.config.DataNodeAllocator.Get(pInfo.Pointer.Address)
 				for i, state := range dataNode.States {
@@ -188,7 +187,7 @@ func (s *Space[K, V]) Iterator() func(func(types.DataItem[K, V]) bool) {
 						return
 					}
 				}
-			default:
+			case types.StatePointer:
 				_, pointerNode := s.config.PointerNodeAllocator.Get(pInfo.Pointer.Address)
 				for i, state := range pointerNode.States {
 					if state == types.StateFree {
@@ -206,8 +205,11 @@ func (s *Space[K, V]) Iterator() func(func(types.DataItem[K, V]) bool) {
 
 // DeallocateAll deallocate all deallocates all nodes used by the space.
 func (s *Space[K, V]) DeallocateAll() error {
-	if *s.config.SpaceRoot.State == types.StateFree {
+	switch *s.config.SpaceRoot.State {
+	case types.StateFree:
 		return nil
+	case types.StateData:
+		return s.config.Allocator.Deallocate(s.config.SpaceRoot.Pointer.Address, s.config.SpaceRoot.Pointer.SnapshotID)
 	}
 
 	// FIXME (wojciech): Optimize heap allocations
@@ -224,7 +226,6 @@ func (s *Space[K, V]) DeallocateAll() error {
 		_, pointerNode := s.config.PointerNodeAllocator.Get(pointer.Address)
 		for i, p := range pointerNode.Items {
 			switch pointerNode.States[i] {
-			case types.StateFree:
 			case types.StateData:
 				if err := s.config.Allocator.Deallocate(p.Address, p.SnapshotID); err != nil {
 					return err
@@ -246,7 +247,6 @@ func (s *Space[K, V]) Nodes() []types.NodeAddress {
 		return nil
 	case types.StateData:
 		return []types.NodeAddress{s.config.SpaceRoot.Pointer.Address}
-	case types.StatePointer:
 	}
 
 	nodes := []types.NodeAddress{}
@@ -308,6 +308,7 @@ func (s *Space[K, V]) set(pInfo types.ParentInfo, item types.DataItem[K, V]) err
 				hashMatches := item.Hash == dataNode.Items[index].Hash
 				keyMatches = hashMatches && item.Key == dataNode.Items[index].Key
 				conflict = conflict || hashMatches
+				//nolint:nestif
 				if dataNode.States[index] == types.StateFree || dataNode.States[index] == types.StateDeleted ||
 					keyMatches {
 					if pInfo.Pointer.SnapshotID < s.config.SnapshotID {
@@ -318,6 +319,7 @@ func (s *Space[K, V]) set(pInfo types.ParentInfo, item types.DataItem[K, V]) err
 						if err := s.config.Allocator.Deallocate(pInfo.Pointer.Address, pInfo.Pointer.SnapshotID); err != nil {
 							return err
 						}
+
 						pInfo.Pointer.SnapshotID = s.config.SnapshotID
 						pInfo.Pointer.Address = newNodeAddress
 						dataNode = newNode
@@ -359,6 +361,7 @@ func (s *Space[K, V]) set(pInfo types.ParentInfo, item types.DataItem[K, V]) err
 				if err := s.config.Allocator.Deallocate(pInfo.Pointer.Address, pInfo.Pointer.SnapshotID); err != nil {
 					return err
 				}
+
 				pInfo.Pointer.SnapshotID = s.config.SnapshotID
 				pInfo.Pointer.Address = newNodeAddress
 				pointerNode = newNode
