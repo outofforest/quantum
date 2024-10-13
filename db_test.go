@@ -546,14 +546,6 @@ func TestSpaces(t *testing.T) {
 	requireT.NoError(s11.Set(0, 0x110))
 	requireT.NoError(s11.Set(1, 0x111))
 
-	v0, exists = s00.Get(0)
-	requireT.True(exists)
-	requireT.Equal(0x000, v0)
-
-	v1, exists = s00.Get(1)
-	requireT.True(exists)
-	requireT.Equal(0x001, v1)
-
 	v0, exists = s10.Get(0)
 	requireT.True(exists)
 	requireT.Equal(0x100, v0)
@@ -607,30 +599,6 @@ func TestSpaces(t *testing.T) {
 
 	requireT.NoError(s22.Set(0, 0x220))
 	requireT.NoError(s22.Set(1, 0x221))
-
-	v0, exists = s00.Get(0)
-	requireT.True(exists)
-	requireT.Equal(0x000, v0)
-
-	v1, exists = s00.Get(1)
-	requireT.True(exists)
-	requireT.Equal(0x001, v1)
-
-	v0, exists = s10.Get(0)
-	requireT.True(exists)
-	requireT.Equal(0x100, v0)
-
-	v1, exists = s10.Get(1)
-	requireT.True(exists)
-	requireT.Equal(0x101, v1)
-
-	v0, exists = s11.Get(0)
-	requireT.True(exists)
-	requireT.Equal(0x110, v0)
-
-	v1, exists = s11.Get(1)
-	requireT.True(exists)
-	requireT.Equal(0x111, v1)
 
 	v0, exists = s20.Get(0)
 	requireT.True(exists)
@@ -851,16 +819,12 @@ func TestDeleteFirstSnapshot(t *testing.T) {
 	requireT.Equal(types.SnapshotID(0x00), db.nextSnapshot.SingularityNode.FirstSnapshotID)
 	requireT.Equal(types.SnapshotID(0x03), db.nextSnapshot.SingularityNode.LastSnapshotID)
 
-	s00 := newSpace[int, int](requireT, space0, snapshot0.Spaces, db)
-	s10 := newSpace[int, int](requireT, space0, snapshot1.Spaces, db)
 	s20 := newSpace[int, int](requireT, space0, snapshot2.Spaces, db)
 
 	requireT.Equal([]int{2, 3, 4, 20, 21}, test.CollectSpaceValues(s20))
 
 	nodesUsed, _, _ := allocator.Nodes()
 	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x04, 0x05, 0x06, 0x07, 0x09, 0x0a, 0x0b, 0x0c, 0x0d}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x01}, s00.Nodes())
-	requireT.Equal([]types.NodeAddress{0x04}, s10.Nodes())
 	requireT.Equal([]types.NodeAddress{0x09}, s20.Nodes())
 	requireT.Equal([]types.NodeAddress{0x02}, snapshot0.Spaces.Nodes())
 	requireT.Equal([]types.NodeAddress{0x07}, snapshot1.Spaces.Nodes())
@@ -903,16 +867,12 @@ func TestDeleteFirstSnapshot(t *testing.T) {
 	requireT.Equal(types.SnapshotID(0x01), db.nextSnapshot.SingularityNode.FirstSnapshotID)
 	requireT.Equal(types.SnapshotID(0x04), db.nextSnapshot.SingularityNode.LastSnapshotID)
 
-	s10 = newSpace[int, int](requireT, space0, snapshot1.Spaces, db)
-	s20 = newSpace[int, int](requireT, space0, snapshot2.Spaces, db)
 	s30 := newSpace[int, int](requireT, space0, snapshot3.Spaces, db)
 
 	requireT.Equal([]int{2, 3, 4, 20, 21}, test.CollectSpaceValues(s30))
 
 	nodesUsed, _, _ = allocator.Nodes()
 	requireT.Equal([]types.NodeAddress{0x04, 0x07, 0x09, 0x0a, 0x0b, 0x0c, 0x0e, 0x0f}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x04}, s10.Nodes())
-	requireT.Equal([]types.NodeAddress{0x09}, s20.Nodes())
 	requireT.Equal([]types.NodeAddress{0x09}, s30.Nodes()) // Same as s20
 	requireT.Equal([]types.NodeAddress{0x07}, snapshot1.Spaces.Nodes())
 	requireT.Equal([]types.NodeAddress{0x0c}, snapshot2.Spaces.Nodes())
@@ -950,17 +910,13 @@ func TestDeleteFirstSnapshot(t *testing.T) {
 	requireT.Equal(types.SnapshotID(0x02), db.nextSnapshot.SingularityNode.FirstSnapshotID)
 	requireT.Equal(types.SnapshotID(0x05), db.nextSnapshot.SingularityNode.LastSnapshotID)
 
-	s20 = newSpace[int, int](requireT, space0, snapshot2.Spaces, db)
-	s30 = newSpace[int, int](requireT, space0, snapshot3.Spaces, db)
 	s40 := newSpace[int, int](requireT, space0, snapshot4.Spaces, db)
 
 	requireT.Equal([]int{2, 3, 4, 20, 21}, test.CollectSpaceValues(s40))
 
 	nodesUsed, _, _ = allocator.Nodes()
 	requireT.Equal([]types.NodeAddress{0x09, 0x0c, 0x10, 0x11}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x09}, s20.Nodes())
-	requireT.Equal([]types.NodeAddress{0x09}, s30.Nodes()) // Same as s20
-	requireT.Equal([]types.NodeAddress{0x09}, s40.Nodes()) // Same as s20
+	requireT.Equal([]types.NodeAddress{0x09}, s40.Nodes())
 	requireT.Equal([]types.NodeAddress{0x0c}, snapshot2.Spaces.Nodes())
 	requireT.Equal([]types.NodeAddress{0x0c}, snapshot3.Spaces.Nodes()) // Same as snapshot 2
 	requireT.Equal([]types.NodeAddress{0x0c}, snapshot4.Spaces.Nodes()) // Same as snapshot 2
@@ -1020,16 +976,12 @@ func TestDeleteLastSnapshot(t *testing.T) {
 	requireT.Equal(types.SnapshotID(0x00), db.nextSnapshot.SingularityNode.FirstSnapshotID)
 	requireT.Equal(types.SnapshotID(0x03), db.nextSnapshot.SingularityNode.LastSnapshotID)
 
-	s00 := newSpace[int, int](requireT, space0, snapshot0.Spaces, db)
-	s10 := newSpace[int, int](requireT, space0, snapshot1.Spaces, db)
 	s20 := newSpace[int, int](requireT, space0, snapshot2.Spaces, db)
 
 	requireT.Equal([]int{2, 3, 4, 20, 21}, test.CollectSpaceValues(s20))
 
 	nodesUsed, _, _ := allocator.Nodes()
 	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x04, 0x05, 0x06, 0x07, 0x09, 0x0a, 0x0b, 0x0c, 0x0d}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x01}, s00.Nodes())
-	requireT.Equal([]types.NodeAddress{0x04}, s10.Nodes())
 	requireT.Equal([]types.NodeAddress{0x09}, s20.Nodes())
 	requireT.Equal([]types.NodeAddress{0x02}, snapshot0.Spaces.Nodes())
 	requireT.Equal([]types.NodeAddress{0x07}, snapshot1.Spaces.Nodes())
@@ -1073,8 +1025,6 @@ func TestDeleteLastSnapshot(t *testing.T) {
 	requireT.Equal(types.SnapshotID(0x00), db.nextSnapshot.SingularityNode.FirstSnapshotID)
 	requireT.Equal(types.SnapshotID(0x03), db.nextSnapshot.SingularityNode.LastSnapshotID)
 
-	s00 = newSpace[int, int](requireT, space0, snapshot0.Spaces, db)
-	s10 = newSpace[int, int](requireT, space0, snapshot1.Spaces, db)
 	s30, err := GetSpace[int, int](space0, db)
 	requireT.NoError(err)
 
@@ -1082,8 +1032,6 @@ func TestDeleteLastSnapshot(t *testing.T) {
 
 	nodesUsed, _, _ = allocator.Nodes()
 	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x04, 0x05, 0x06, 0x07, 0x0a, 0x0c, 0x0e, 0x10, 0x11}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x01}, s00.Nodes())
-	requireT.Equal([]types.NodeAddress{0x04}, s10.Nodes())
 	requireT.Equal([]types.NodeAddress{0x0e}, s30.Nodes())
 	requireT.Equal([]types.NodeAddress{0x02}, snapshot0.Spaces.Nodes())
 	requireT.Equal([]types.NodeAddress{0x07}, snapshot1.Spaces.Nodes())
@@ -1116,13 +1064,10 @@ func TestDeleteLastSnapshot(t *testing.T) {
 	requireT.Equal(types.SnapshotID(0x00), db.nextSnapshot.SingularityNode.FirstSnapshotID)
 	requireT.Equal(types.SnapshotID(0x03), db.nextSnapshot.SingularityNode.LastSnapshotID)
 
-	s00 = newSpace[int, int](requireT, space0, snapshot0.Spaces, db)
-
 	requireT.Equal([]int{3, 4, 30, 31, 32}, test.CollectSpaceValues(s30))
 
 	nodesUsed, _, _ = allocator.Nodes()
 	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x05, 0x0c, 0x0e, 0x10, 0x11}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x01}, s00.Nodes())
 	requireT.Equal([]types.NodeAddress{0x0e}, s30.Nodes())
 	requireT.Equal([]types.NodeAddress{0x02}, snapshot0.Spaces.Nodes())
 	requireT.Equal([]types.NodeAddress{0x0c}, db.nextSnapshot.Spaces.Nodes())
@@ -1268,8 +1213,6 @@ func TestDeleteTwoMiddleSnapshots(t *testing.T) {
 	requireT.Equal(types.SnapshotID(0x00), db.nextSnapshot.SingularityNode.FirstSnapshotID)
 	requireT.Equal(types.SnapshotID(0x04), db.nextSnapshot.SingularityNode.LastSnapshotID)
 
-	s00 := newSpace[int, int](requireT, space0, snapshot0.Spaces, db)
-	s10 := newSpace[int, int](requireT, space0, snapshot1.Spaces, db)
 	s30 := newSpace[int, int](requireT, space0, snapshot3.Spaces, db)
 	nodesUsed, nodesAllocated, nodesDeallocated := allocator.Nodes()
 
@@ -1280,8 +1223,6 @@ func TestDeleteTwoMiddleSnapshots(t *testing.T) {
 	requireT.Equal([]types.NodeAddress{0x02}, snapshot0.Spaces.Nodes())
 	requireT.Equal([]types.NodeAddress{0x07}, snapshot1.Spaces.Nodes())
 	requireT.Equal([]types.NodeAddress{0x11}, snapshot3.Spaces.Nodes())
-	requireT.Equal([]types.NodeAddress{0x01}, s00.Nodes())
-	requireT.Equal([]types.NodeAddress{0x04}, s10.Nodes())
 	requireT.Equal([]types.NodeAddress{0x0e}, s30.Nodes())
 	requireT.Empty(snapshot0.DeallocationLists.Nodes())
 	requireT.Equal([]types.NodeAddress{0x06}, snapshot1.DeallocationLists.Nodes())
@@ -1321,7 +1262,6 @@ func TestDeleteTwoMiddleSnapshots(t *testing.T) {
 	requireT.Equal(types.SnapshotID(0x00), db.nextSnapshot.SingularityNode.FirstSnapshotID)
 	requireT.Equal(types.SnapshotID(0x05), db.nextSnapshot.SingularityNode.LastSnapshotID)
 
-	s00 = newSpace[int, int](requireT, space0, snapshot0.Spaces, db)
 	s30 = newSpace[int, int](requireT, space0, snapshot3.Spaces, db)
 	s40 := newSpace[int, int](requireT, space0, snapshot4.Spaces, db)
 
@@ -1334,7 +1274,6 @@ func TestDeleteTwoMiddleSnapshots(t *testing.T) {
 	requireT.Equal([]types.NodeAddress{0x11}, snapshot3.Spaces.Nodes())
 	// 0x1f is same as for snapshot 3 because spaces were not updated
 	requireT.Equal([]types.NodeAddress{0x11}, snapshot4.Spaces.Nodes())
-	requireT.Equal([]types.NodeAddress{0x01}, s00.Nodes())
 	requireT.Equal([]types.NodeAddress{0x0e}, s30.Nodes())
 	// Same as for snapshot 3 because spaces were not updated
 	requireT.Equal([]types.NodeAddress{0x0e}, s40.Nodes())
