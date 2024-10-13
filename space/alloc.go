@@ -61,9 +61,8 @@ type NodeAllocator[T comparable] struct {
 }
 
 // Get returns object for node.
-func (na NodeAllocator[T]) Get(nodeAddress types.NodeAddress) ([]byte, types.SpaceNode[T]) {
-	node := na.allocator.Node(nodeAddress)
-	return node, na.project(node)
+func (na NodeAllocator[T]) Get(nodeAddress types.NodeAddress) types.SpaceNode[T] {
+	return na.project(na.allocator.Node(nodeAddress))
 }
 
 // Allocate allocates new object.

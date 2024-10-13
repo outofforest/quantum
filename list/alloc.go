@@ -42,9 +42,8 @@ type NodeAllocator struct {
 }
 
 // Get returns object for node.
-func (na NodeAllocator) Get(nodeAddress types.NodeAddress) ([]byte, types.ListNode) {
-	node := na.allocator.Node(nodeAddress)
-	return node, na.project(node)
+func (na NodeAllocator) Get(nodeAddress types.NodeAddress) types.ListNode {
+	return na.project(na.allocator.Node(nodeAddress))
 }
 
 // Allocate allocates new object.

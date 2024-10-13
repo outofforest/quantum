@@ -2,6 +2,7 @@ package quantum
 
 import (
 	"crypto/rand"
+	"fmt"
 	"testing"
 
 	"github.com/outofforest/quantum/alloc"
@@ -14,8 +15,8 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 10_000_000
-		txsPerCommit   = 100_000
+		numOfAddresses = 100_000_000
+		txsPerCommit   = 2000
 		balance        = 100_000
 	)
 
@@ -32,7 +33,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 	for bi := 0; bi < b.N; bi++ {
 		db, err := New(Config{
 			Allocator: alloc.NewAllocator(alloc.Config{
-				TotalSize: 20 * 1024 * 1024 * 1024,
+				TotalSize: 80 * 1024 * 1024 * 1024,
 				NodeSize:  4 * 1024,
 			}),
 		})
@@ -46,51 +47,69 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 		}
 
 		for i := 0; i < numOfAddresses; i += 2 {
-			if err := s.Set(accounts[i], balance); err != nil {
+			v := s.Get(accounts[i])
+			_, err := v.Set(2 * balance)
+			if err != nil {
 				panic(err)
 			}
+
+			// v = s.Get(accounts[i])
+			// require.Equal(b, accountBalance(2*balance), v.Value())
 		}
+
+		fmt.Println(s.Stats())
+		fmt.Println("===========================")
 
 		tx := 0
 		var snapshotID types.SnapshotID
 
-		b.StartTimer()
-		for i := 0; i < numOfAddresses; i += 2 {
-			senderAddress := accounts[i]
-			recipientAddress := accounts[i+1]
+		_ = db.Commit()
+		snapshotID++
 
-			senderBalance, _ := s.Get(senderAddress)
-			recipientBalance, _ := s.Get(recipientAddress)
+		func() {
+			b.StartTimer()
+			for i := 0; i < numOfAddresses; i += 2 {
+				senderAddress := accounts[i]
+				recipientAddress := accounts[i+1]
 
-			senderBalance -= balance
-			recipientBalance += balance
+				senderBalance := s.Get(senderAddress)
+				recipientBalance := s.Get(recipientAddress)
 
-			if err := s.Set(senderAddress, senderBalance); err != nil {
-				panic(err)
-			}
-			if err := s.Set(recipientAddress, recipientBalance); err != nil {
-				panic(err)
-			}
+				if _, err := senderBalance.Set(senderBalance.Value() - balance); err != nil {
+					panic(err)
+				}
+				if _, err := recipientBalance.Set(recipientBalance.Value() + balance); err != nil {
+					panic(err)
+				}
 
-			tx++
-			if tx%txsPerCommit == 0 {
-				_ = db.Commit()
-				snapshotID++
+				// senderBalance = s.Get(senderAddress)
+				// recipientBalance = s.Get(recipientAddress)
 
-				if snapshotID > 1 {
-					if err := db.DeleteSnapshot(snapshotID - 2); err != nil {
+				// require.Equal(b, accountBalance(balance), senderBalance.Value())
+				// require.Equal(b, accountBalance(balance), recipientBalance.Value())
+
+				tx++
+				if tx%txsPerCommit == 0 {
+					_ = db.Commit()
+					snapshotID++
+
+					if snapshotID > 1 {
+						if err := db.DeleteSnapshot(snapshotID - 2); err != nil {
+							panic(err)
+						}
+					}
+
+					var err error
+					s, err = GetSpace[accountAddress, accountBalance](spaceID, db)
+					if err != nil {
 						panic(err)
 					}
 				}
-
-				var err error
-				s, err = GetSpace[accountAddress, accountBalance](spaceID, db)
-				if err != nil {
-					panic(err)
-				}
 			}
-		}
-		b.StopTimer()
+			b.StopTimer()
+
+			fmt.Println(s.Stats())
+		}()
 	}
 }
 
