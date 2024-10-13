@@ -8,7 +8,7 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-// go test -benchtime=100x -bench=. -run=^$ -cpuprofile profile.out
+// go test -benchtime=1x -bench=. -run=^$ -cpuprofile profile.out
 // go tool pprof -http="localhost:8000" pprofbin ./profile.out
 
 func BenchmarkBalanceTransfer(b *testing.B) {
