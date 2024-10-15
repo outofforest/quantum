@@ -8,7 +8,6 @@ import (
 
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/list"
-	"github.com/outofforest/quantum/space"
 	"github.com/outofforest/quantum/test"
 	"github.com/outofforest/quantum/types"
 )
@@ -231,14 +230,13 @@ func (e *env) NextSnapshot() *list.List {
 	snapshotID := e.snapshotID
 	e.snapshotID++
 
-	itemCopy := *e.Item
-	e.Item = &itemCopy
+	e.Item = lo.ToPtr(*e.Item)
 
 	e.snapshotAllocator = alloc.NewImmediateSnapshotAllocator(snapshotID, alloc.NewSnapshotAllocator(
 		snapshotID,
 		e.Allocator,
-		&space.Space[types.SnapshotID, types.SnapshotInfo]{},
-		&space.Space[types.SnapshotID, types.NodeAddress]{},
+		map[types.SnapshotID]alloc.ListToCommit{},
+		map[types.SnapshotID]struct{}{},
 		e.nodeAllocator,
 	))
 

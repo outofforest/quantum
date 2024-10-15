@@ -48,3 +48,8 @@ func CollectListItems(l *list.List) []types.NodeAddress {
 	})
 	return items
 }
+
+// Error returns an error from the result of function call.
+func Error(_ any, err error) error {
+	return err
+}

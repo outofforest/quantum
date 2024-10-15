@@ -23,6 +23,7 @@ type SpaceToCommit struct {
 	HashMod         *uint64
 	PInfo           types.ParentInfo
 	OriginalAddress types.NodeAddress
+	SpaceInfoValue  space.Entry[types.SpaceID, types.SpaceInfo]
 }
 
 // Snapshot represents snapshot.
@@ -75,6 +76,8 @@ func New(config Config) (*DB, error) {
 		snapshotToNodeNodeAllocator: snapshotToNodeNodeAllocator,
 		listNodeAllocator:           listNodeAllocator,
 		spacesToCommit:              map[types.SpaceID]SpaceToCommit{},
+		deallocationListsToCommit:   map[types.SnapshotID]alloc.ListToCommit{},
+		availableSnapshots:          map[types.SnapshotID]struct{}{},
 	}
 	if err := s.prepareNextSnapshot(*photon.FromBytes[types.SingularityNode](config.Allocator.Node(0))); err != nil {
 		return nil, err
@@ -93,15 +96,18 @@ type DB struct {
 	snapshotToNodeNodeAllocator space.NodeAllocator[types.DataItem[types.SnapshotID, types.NodeAddress]]
 	listNodeAllocator           list.NodeAllocator
 
-	spacesToCommit map[types.SpaceID]SpaceToCommit
+	spacesToCommit            map[types.SpaceID]SpaceToCommit
+	deallocationListsToCommit map[types.SnapshotID]alloc.ListToCommit
+	availableSnapshots        map[types.SnapshotID]struct{}
 }
 
 // DeleteSnapshot deletes snapshot.
 func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
-	snapshotInfo, exists := db.nextSnapshot.Snapshots.Get(snapshotID)
-	if !exists {
+	snapshotInfoValue := db.nextSnapshot.Snapshots.Get(snapshotID)
+	if !snapshotInfoValue.Exists() {
 		return errors.Errorf("snapshot %d does not exist", snapshotID)
 	}
+	snapshotInfo := snapshotInfoValue.Value()
 
 	allocator := alloc.NewImmediateSnapshotAllocator(db.nextSnapshot.SnapshotID,
 		db.nextSnapshot.Allocator)
@@ -109,10 +115,11 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 	var nextSnapshotInfo *types.SnapshotInfo
 	var nextDeallocationLists *space.Space[types.SnapshotID, types.NodeAddress]
 	if snapshotInfo.NextSnapshotID < db.nextSnapshot.SnapshotID {
-		tmpNextSnapshotInfo, exists := db.nextSnapshot.Snapshots.Get(snapshotInfo.NextSnapshotID)
-		if !exists {
+		nextSnapshotInfoValue := db.nextSnapshot.Snapshots.Get(snapshotInfo.NextSnapshotID)
+		if !nextSnapshotInfoValue.Exists() {
 			return errors.Errorf("snapshot %d does not exist", snapshotID)
 		}
+		tmpNextSnapshotInfo := nextSnapshotInfoValue.Value()
 		nextSnapshotInfo = &tmpNextSnapshotInfo
 		nextDeallocationLists = space.New[types.SnapshotID, types.NodeAddress](
 			space.Config[types.SnapshotID, types.NodeAddress]{
@@ -128,6 +135,10 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 			},
 		)
 	} else {
+		if err := db.commitDeallocationLists(); err != nil {
+			return err
+		}
+
 		nextSnapshotInfo = db.nextSnapshot.SnapshotInfo
 		nextDeallocationLists = db.nextSnapshot.DeallocationLists
 	}
@@ -158,13 +169,15 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 			NodeAllocator: db.listNodeAllocator,
 		})
 		l.Deallocate(db.config.Allocator)
-		if err := nextDeallocationLists.Delete(snapshotItem.Key); err != nil {
+		nextDeallocationListValue := nextDeallocationLists.Get(snapshotItem.Key)
+		if err := nextDeallocationListValue.Delete(); err != nil {
 			return err
 		}
 	}
 
 	for snapshotItem := range deallocationLists.Iterator() {
-		nextListNodeAddress, _ := nextDeallocationLists.Get(snapshotItem.Key)
+		nextDeallocationListValue := nextDeallocationLists.Get(snapshotItem.Key)
+		nextListNodeAddress := nextDeallocationListValue.Value()
 		newNextListNodeAddress := nextListNodeAddress
 		nextList := list.New(list.Config{
 			SnapshotID:    db.nextSnapshot.SnapshotID,
@@ -176,7 +189,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 			return err
 		}
 		if newNextListNodeAddress != nextListNodeAddress {
-			if err := nextDeallocationLists.Set(snapshotItem.Key, newNextListNodeAddress); err != nil {
+			if _, err := nextDeallocationListValue.Set(newNextListNodeAddress); err != nil {
 				return err
 			}
 		}
@@ -193,19 +206,22 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 	}
 
 	if snapshotInfo.NextSnapshotID < db.nextSnapshot.SnapshotID {
-		if err := db.nextSnapshot.Snapshots.Set(snapshotInfo.NextSnapshotID, *nextSnapshotInfo); err != nil {
+		nextSnapshotInfoValue := db.nextSnapshot.Snapshots.Get(snapshotInfo.NextSnapshotID)
+		if _, err := nextSnapshotInfoValue.Set(*nextSnapshotInfo); err != nil {
 			return err
 		}
 	}
 
 	if snapshotID > db.nextSnapshot.SingularityNode.FirstSnapshotID {
-		previousSnapshotInfo, exists := db.nextSnapshot.Snapshots.Get(snapshotInfo.PreviousSnapshotID)
-		if !exists {
+		previousSnapshotInfoValue := db.nextSnapshot.Snapshots.Get(snapshotInfo.PreviousSnapshotID)
+		if !previousSnapshotInfoValue.Exists() {
 			return errors.Errorf("snapshot %d does not exist", snapshotID)
 		}
+
+		previousSnapshotInfo := previousSnapshotInfoValue.Value()
 		previousSnapshotInfo.NextSnapshotID = snapshotInfo.NextSnapshotID
 
-		if err := db.nextSnapshot.Snapshots.Set(snapshotInfo.PreviousSnapshotID, previousSnapshotInfo); err != nil {
+		if _, err := previousSnapshotInfoValue.Set(previousSnapshotInfo); err != nil {
 			return err
 		}
 	}
@@ -217,44 +233,57 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 		db.nextSnapshot.SnapshotInfo.PreviousSnapshotID = db.nextSnapshot.SnapshotID
 	}
 
-	return db.nextSnapshot.Snapshots.Delete(snapshotID)
+	if err := snapshotInfoValue.Delete(); err != nil {
+		return err
+	}
+	delete(db.availableSnapshots, snapshotID)
+	return nil
 }
 
 // Commit commits current snapshot and returns next one.
 func (db *DB) Commit() error {
-	spaces := make([]types.SpaceID, 0, len(db.spacesToCommit))
-	for spaceID := range db.spacesToCommit {
-		spaces = append(spaces, spaceID)
-	}
-	sort.Slice(spaces, func(i, j int) bool { return spaces[i] < spaces[j] })
-
-	for _, spaceID := range spaces {
-		spaceToCommit := db.spacesToCommit[spaceID]
-		if *spaceToCommit.PInfo.State == types.StateFree ||
-			spaceToCommit.PInfo.Pointer.Address == spaceToCommit.OriginalAddress {
-			continue
+	if len(db.spacesToCommit) > 0 {
+		spaces := make([]types.SpaceID, 0, len(db.spacesToCommit))
+		for spaceID := range db.spacesToCommit {
+			spaces = append(spaces, spaceID)
 		}
-		if err := db.nextSnapshot.Spaces.Set(spaceID, types.SpaceInfo{
-			HashMod: *spaceToCommit.HashMod,
-			State:   *spaceToCommit.PInfo.State,
-			Pointer: *spaceToCommit.PInfo.Pointer,
-		}); err != nil {
-			return err
+		sort.Slice(spaces, func(i, j int) bool { return spaces[i] < spaces[j] })
+
+		for _, spaceID := range spaces {
+			spaceToCommit := db.spacesToCommit[spaceID]
+			if *spaceToCommit.PInfo.State == types.StateFree ||
+				spaceToCommit.PInfo.Pointer.Address == spaceToCommit.OriginalAddress {
+				continue
+			}
+			if _, err := spaceToCommit.SpaceInfoValue.Set(types.SpaceInfo{
+				HashMod: *spaceToCommit.HashMod,
+				State:   *spaceToCommit.PInfo.State,
+				Pointer: *spaceToCommit.PInfo.Pointer,
+			}); err != nil {
+				return err
+			}
 		}
+
+		clear(db.spacesToCommit)
 	}
 
-	if err := db.nextSnapshot.Snapshots.Set(db.nextSnapshot.SnapshotID, *db.nextSnapshot.SnapshotInfo); err != nil {
+	if err := db.commitDeallocationLists(); err != nil {
+		return err
+	}
+
+	nextSnapshotInfoValue := db.nextSnapshot.Snapshots.Get(db.nextSnapshot.SnapshotID)
+	if _, err := nextSnapshotInfoValue.Set(*db.nextSnapshot.SnapshotInfo); err != nil {
 		return err
 	}
 
 	*photon.FromBytes[types.SingularityNode](db.config.Allocator.Node(0)) = *db.nextSnapshot.SingularityNode
 
+	db.availableSnapshots[db.nextSnapshot.SnapshotID] = struct{}{}
+
 	return db.prepareNextSnapshot(*db.nextSnapshot.SingularityNode)
 }
 
 func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
-	clear(db.spacesToCommit)
-
 	var snapshotID types.SnapshotID
 	if singularityNode.SnapshotRoot.State != types.StateFree {
 		snapshotID = singularityNode.LastSnapshotID + 1
@@ -265,29 +294,15 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 		NextSnapshotID:     snapshotID + 1,
 	}
 
-	deallocationLists := &space.Space[types.SnapshotID, types.NodeAddress]{}
-	snapshots := &space.Space[types.SnapshotID, types.SnapshotInfo]{}
 	allocator := alloc.NewSnapshotAllocator(
 		snapshotID,
 		db.config.Allocator,
-		snapshots,
-		deallocationLists,
+		db.deallocationListsToCommit,
+		db.availableSnapshots,
 		db.listNodeAllocator,
 	)
 	immediateAllocator := alloc.NewImmediateSnapshotAllocator(snapshotID, allocator)
-	*deallocationLists = *space.New[types.SnapshotID, types.NodeAddress](space.Config[types.SnapshotID, types.NodeAddress]{
-		SnapshotID: snapshotID,
-		HashMod:    &snapshotInfo.DeallocationRoot.HashMod,
-		SpaceRoot: types.ParentInfo{
-			State:   &snapshotInfo.DeallocationRoot.State,
-			Pointer: &snapshotInfo.DeallocationRoot.Pointer,
-		},
-		PointerNodeAllocator: db.pointerNodeAllocator,
-		DataNodeAllocator:    db.snapshotToNodeNodeAllocator,
-		Allocator:            immediateAllocator,
-	})
-
-	*snapshots = *space.New[types.SnapshotID, types.SnapshotInfo](space.Config[types.SnapshotID, types.SnapshotInfo]{
+	snapshots := space.New[types.SnapshotID, types.SnapshotInfo](space.Config[types.SnapshotID, types.SnapshotInfo]{
 		SnapshotID: snapshotID,
 		HashMod:    &singularityNode.SnapshotRoot.HashMod,
 		SpaceRoot: types.ParentInfo{
@@ -300,11 +315,11 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 	})
 
 	if singularityNode.SnapshotRoot.State != types.StateFree {
-		lastSnapshotInfo, exists := snapshots.Get(singularityNode.LastSnapshotID)
-		if !exists {
+		lastSnapshotInfoValue := snapshots.Get(singularityNode.LastSnapshotID)
+		if !lastSnapshotInfoValue.Exists() {
 			return errors.Errorf("snapshot %d does not exist", singularityNode.LastSnapshotID)
 		}
-		snapshotInfo.SpaceRoot = lastSnapshotInfo.SpaceRoot
+		snapshotInfo.SpaceRoot = lastSnapshotInfoValue.Value().SpaceRoot
 	}
 
 	singularityNode.LastSnapshotID = snapshotID
@@ -325,8 +340,39 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 			DataNodeAllocator:    db.spaceInfoNodeAllocator,
 			Allocator:            allocator,
 		}),
-		DeallocationLists: deallocationLists,
-		Allocator:         allocator,
+		DeallocationLists: space.New[types.SnapshotID, types.NodeAddress](space.Config[types.SnapshotID, types.NodeAddress]{
+			SnapshotID: snapshotID,
+			HashMod:    &snapshotInfo.DeallocationRoot.HashMod,
+			SpaceRoot: types.ParentInfo{
+				State:   &snapshotInfo.DeallocationRoot.State,
+				Pointer: &snapshotInfo.DeallocationRoot.Pointer,
+			},
+			PointerNodeAllocator: db.pointerNodeAllocator,
+			DataNodeAllocator:    db.snapshotToNodeNodeAllocator,
+			Allocator:            immediateAllocator,
+		}),
+		Allocator: allocator,
+	}
+
+	return nil
+}
+
+func (db *DB) commitDeallocationLists() error {
+	if len(db.deallocationListsToCommit) > 0 {
+		lists := make([]types.SnapshotID, 0, len(db.deallocationListsToCommit))
+		for snapshotID := range db.deallocationListsToCommit {
+			lists = append(lists, snapshotID)
+		}
+		sort.Slice(lists, func(i, j int) bool { return lists[i] < lists[j] })
+
+		for _, snapshotID := range lists {
+			_, err := db.nextSnapshot.DeallocationLists.Get(snapshotID).Set(*db.deallocationListsToCommit[snapshotID].Item)
+			if err != nil {
+				return err
+			}
+		}
+
+		clear(db.deallocationListsToCommit)
 	}
 
 	return nil
@@ -336,7 +382,8 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V], error) {
 	s, exists := db.spacesToCommit[spaceID]
 	if !exists {
-		spaceInfo, _ := db.nextSnapshot.Spaces.Get(spaceID)
+		spaceInfoValue := db.nextSnapshot.Spaces.Get(spaceID)
+		spaceInfo := spaceInfoValue.Value()
 		s = SpaceToCommit{
 			HashMod: &spaceInfo.HashMod,
 			PInfo: types.ParentInfo{
@@ -344,6 +391,7 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 				Pointer: &spaceInfo.Pointer,
 			},
 			OriginalAddress: spaceInfo.Pointer.Address,
+			SpaceInfoValue:  spaceInfoValue,
 		}
 		db.spacesToCommit[spaceID] = s
 	}

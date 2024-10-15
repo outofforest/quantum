@@ -40,7 +40,7 @@ func (l *List) Add(nodeAddress types.NodeAddress) error {
 
 		return nil
 	}
-	_, listNode := l.config.NodeAllocator.Get(*l.config.Item)
+	listNode := l.config.NodeAllocator.Get(*l.config.Item)
 	//nolint:nestif
 	if listNode.Header.NumOfItems+listNode.Header.NumOfSideLists < uint64(len(listNode.Items)) {
 		if listNode.Header.SnapshotID < l.config.SnapshotID {
@@ -83,7 +83,7 @@ func (l *List) Attach(nodeAddress types.NodeAddress) error {
 		*l.config.Item = nodeAddress
 		return nil
 	}
-	_, listNode := l.config.NodeAllocator.Get(*l.config.Item)
+	listNode := l.config.NodeAllocator.Get(*l.config.Item)
 	//nolint:nestif
 	if listNode.Header.NumOfItems+listNode.Header.NumOfSideLists < uint64(len(listNode.Items)) {
 		if listNode.Header.SnapshotID < l.config.SnapshotID {
@@ -135,7 +135,7 @@ func (l *List) Deallocate(allocator types.Allocator) {
 		n := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 
-		_, listNode := l.config.NodeAllocator.Get(n)
+		listNode := l.config.NodeAllocator.Get(n)
 		for i := range listNode.Header.NumOfItems {
 			allocator.Deallocate(listNode.Items[i])
 		}
@@ -161,7 +161,7 @@ func (l *List) Iterator() func(func(types.NodeAddress) bool) {
 			n := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 
-			_, listNode := l.config.NodeAllocator.Get(n)
+			listNode := l.config.NodeAllocator.Get(n)
 			for i := range listNode.Header.NumOfItems {
 				if !yield(listNode.Items[i]) {
 					return
@@ -195,7 +195,7 @@ func (l *List) Nodes() []types.NodeAddress {
 		stack = stack[:len(stack)-1]
 		nodes = append(nodes, n)
 
-		_, listNode := l.config.NodeAllocator.Get(n)
+		listNode := l.config.NodeAllocator.Get(n)
 		stack = append(stack, listNode.Items[uint64(len(listNode.Items))-listNode.Header.NumOfSideLists:]...)
 	}
 }
