@@ -35,8 +35,18 @@ type Space[K, V comparable] struct {
 
 // Get gets the value of the key.
 func (s *Space[K, V]) Get(key K) Entry[K, V] {
+	v := Entry[K, V]{
+		space: s,
+		item: types.DataItem[K, V]{
+			Hash: hashKey(key, 0),
+			Key:  key,
+		},
+		// FIXME (wojciech): Optimize heap allocations
+		parentInfos: []types.ParentInfo{s.config.SpaceRoot},
+	}
+
 	// For get, err is always nil.
-	v, _ := s.find([]types.ParentInfo{s.config.SpaceRoot}, hashKey(key, 0), key)
+	v, _ = s.find(v)
 	return v
 }
 
@@ -203,7 +213,7 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64) {
 func (s *Space[K, V]) deleteValue(v Entry[K, V]) error {
 	pInfo := v.parentInfos[len(v.parentInfos)-1]
 	if *pInfo.State == types.StatePointer {
-		v, _ = s.find(v.parentInfos, v.item.Hash, v.item.Key)
+		v, _ = s.find(v)
 		pInfo = v.parentInfos[len(v.parentInfos)-1]
 	}
 
@@ -227,7 +237,7 @@ func (s *Space[K, V]) deleteValue(v Entry[K, V]) error {
 func (s *Space[K, V]) setValue(v Entry[K, V], value V) (Entry[K, V], error) {
 	pInfo := v.parentInfos[len(v.parentInfos)-1]
 	if *pInfo.State == types.StatePointer {
-		v, _ = s.find(v.parentInfos, v.item.Hash, v.item.Key)
+		v, _ = s.find(v)
 		pInfo = v.parentInfos[len(v.parentInfos)-1]
 	}
 
@@ -314,7 +324,7 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 				return v, nil
 			}
 
-			if err := s.redistributeNode(pInfo, conflict); err != nil {
+			if err := s.redistributeNode(pInfo, v.level, conflict); err != nil {
 				return Entry[K, V]{}, err
 			}
 			return s.set(v)
@@ -332,11 +342,12 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 				Pointer: &pointerNode.Items[index],
 			}
 			v.parentInfos = append(v.parentInfos, pInfo)
+			v.level++
 		}
 	}
 }
 
-func (s *Space[K, V]) redistributeNode(pInfo types.ParentInfo, conflict bool) error {
+func (s *Space[K, V]) redistributeNode(pInfo types.ParentInfo, level uint64, conflict bool) error {
 	dataNodePointer := *pInfo.Pointer
 	dataNode := s.config.DataNodeAllocator.Get(dataNodePointer.Address)
 
@@ -345,7 +356,9 @@ func (s *Space[K, V]) redistributeNode(pInfo types.ParentInfo, conflict bool) er
 		return err
 	}
 
-	if conflict {
+	level++
+
+	if conflict && level > 3 {
 		*s.config.HashMod++
 		*pointerNode.Header = types.SpaceNodeHeader{
 			HashMod: *s.config.HashMod,
@@ -364,7 +377,7 @@ func (s *Space[K, V]) redistributeNode(pInfo types.ParentInfo, conflict bool) er
 		}
 
 		item := dataNode.Items[i]
-		if pointerNode.Header.HashMod > 0 {
+		if conflict {
 			item.Hash = hashKey(item.Key, pointerNode.Header.HashMod)
 		}
 		index := s.config.PointerNodeAllocator.Index(item.Hash)
@@ -377,6 +390,7 @@ func (s *Space[K, V]) redistributeNode(pInfo types.ParentInfo, conflict bool) er
 				State:   &pointerNode.States[index],
 				Pointer: &pointerNode.Items[index],
 			}},
+			level: level,
 		}); err != nil {
 			return err
 		}
@@ -385,25 +399,15 @@ func (s *Space[K, V]) redistributeNode(pInfo types.ParentInfo, conflict bool) er
 	return s.config.Allocator.Deallocate(dataNodePointer.Address, dataNodePointer.SnapshotID)
 }
 
-func (s *Space[K, V]) find(pInfos []types.ParentInfo, hash types.Hash, key K) (Entry[K, V], error) {
-	v := Entry[K, V]{
-		space: s,
-		item: types.DataItem[K, V]{
-			Hash: hash,
-			Key:  key,
-		},
-		// FIXME (wojciech): Optimize heap allocations
-		parentInfos: pInfos,
-	}
-
-	pInfo := pInfos[len(pInfos)-1]
+func (s *Space[K, V]) find(v Entry[K, V]) (Entry[K, V], error) {
+	pInfo := v.parentInfos[len(v.parentInfos)-1]
 
 	for {
 		switch *pInfo.State {
 		case types.StatePointer:
 			pointerNode := s.config.PointerNodeAllocator.Get(pInfo.Pointer.Address)
 			if pointerNode.Header.HashMod != 0 {
-				v.item.Hash = hashKey(key, pointerNode.Header.HashMod)
+				v.item.Hash = hashKey(v.item.Key, pointerNode.Header.HashMod)
 			}
 
 			index := s.config.PointerNodeAllocator.Index(v.item.Hash)
@@ -414,6 +418,7 @@ func (s *Space[K, V]) find(pInfos []types.ParentInfo, hash types.Hash, key K) (E
 				Pointer: &pointerNode.Items[index],
 			}
 			v.parentInfos = append(v.parentInfos, pInfo)
+			v.level++
 		case types.StateData:
 			dataNode := s.config.DataNodeAllocator.Get(pInfo.Pointer.Address)
 			for i := types.Hash(0); i < trials; i++ {
@@ -435,7 +440,7 @@ func (s *Space[K, V]) find(pInfos []types.ParentInfo, hash types.Hash, key K) (E
 				}
 
 				item := dataNode.Items[index]
-				if item.Hash == v.item.Hash && item.Key == key {
+				if item.Hash == v.item.Hash && item.Key == v.item.Key {
 					v.exists = true
 					v.stateP = &dataNode.States[index]
 					v.itemP = &dataNode.Items[index]
@@ -486,6 +491,7 @@ type Entry[K, V comparable] struct {
 	itemP       *types.DataItem[K, V]
 	stateP      *types.State
 	exists      bool
+	level       uint64
 	parentInfos []types.ParentInfo
 }
 
