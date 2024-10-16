@@ -1,6 +1,8 @@
 package alloc
 
 import (
+	"unsafe"
+
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
@@ -21,14 +23,10 @@ func NewAllocator(config Config) *Allocator {
 	numOfGroups := config.TotalSize / config.NodeSize / nodesPerGroup
 	numOfNodes := numOfGroups*nodesPerGroup + 1
 	data := make([]byte, config.NodeSize*numOfNodes)
-	nodes := make([][]byte, 0, numOfNodes)
 
 	availableNodes := make([]types.NodeAddress, 0, numOfNodes-1)
-	for i := types.NodeAddress(0); i < types.NodeAddress(numOfNodes); i++ {
-		nodes = append(nodes, data[uint64(i)*config.NodeSize:uint64(i+1)*config.NodeSize])
-		if i > 0 {
-			availableNodes = append(availableNodes, i)
-		}
+	for i := types.NodeAddress(1); i < types.NodeAddress(numOfNodes); i++ {
+		availableNodes = append(availableNodes, i)
 	}
 
 	availableNodesCh := make(chan []types.NodeAddress, numOfGroups)
@@ -38,7 +36,8 @@ func NewAllocator(config Config) *Allocator {
 
 	return &Allocator{
 		config:                 config,
-		nodes:                  nodes,
+		data:                   data,
+		dataP:                  unsafe.Pointer(&data[0]),
 		availableNodesCh:       availableNodesCh,
 		nodesToAllocate:        <-availableNodesCh,
 		nodesToDeallocate:      make([]types.NodeAddress, 0, nodesPerGroup),
@@ -49,7 +48,8 @@ func NewAllocator(config Config) *Allocator {
 // Allocator is the allocator implementation used in tests.
 type Allocator struct {
 	config             Config
-	nodes              [][]byte
+	data               []byte
+	dataP              unsafe.Pointer
 	availableNodesCh   chan []types.NodeAddress
 	deallocatedNodesCh chan []types.NodeAddress
 
@@ -60,7 +60,7 @@ type Allocator struct {
 
 // Node returns node bytes.
 func (a *Allocator) Node(nodeAddress types.NodeAddress) []byte {
-	return a.nodes[nodeAddress]
+	return ([]byte)(unsafe.Slice((*byte)(unsafe.Add(a.dataP, uint64(nodeAddress)*a.config.NodeSize)), a.config.NodeSize))
 }
 
 // Allocate allocates node.
@@ -76,7 +76,7 @@ func (a *Allocator) Allocate() (types.NodeAddress, []byte, error) {
 		a.nodesToAllocate = <-a.availableNodesCh
 	}
 
-	return nodeAddress, a.nodes[nodeAddress], nil
+	return nodeAddress, a.Node(nodeAddress), nil
 }
 
 // Copy allocates new node and moves existing one there.
@@ -91,7 +91,7 @@ func (a *Allocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, []by
 
 	// return newNodeAddress, a.nodes[newNodeAddress], nil
 
-	return nodeAddress, a.nodes[nodeAddress], nil
+	return nodeAddress, a.Node(nodeAddress), nil
 }
 
 // Deallocate deallocates node.
@@ -102,7 +102,7 @@ func (a *Allocator) Deallocate(nodeAddress types.NodeAddress) {
 			go func() {
 				for nodes := range a.deallocatedNodesCh {
 					for _, n := range nodes {
-						clear(a.nodes[n])
+						clear(a.Node(n))
 					}
 					a.availableNodesCh <- nodes
 				}
