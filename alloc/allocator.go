@@ -1,6 +1,7 @@
 package alloc
 
 import (
+	"syscall"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -15,15 +16,24 @@ const nodesPerGroup = 1024
 
 // Config stores configuration of allocator.
 type Config struct {
-	TotalSize uint64
-	NodeSize  uint64
+	TotalSize    uint64
+	NodeSize     uint64
+	UseHugePages bool
 }
 
 // NewAllocator creates memory allocator.
-func NewAllocator(config Config) *Allocator {
+func NewAllocator(config Config) (*Allocator, func(), error) {
 	numOfGroups := config.TotalSize / config.NodeSize / nodesPerGroup
 	numOfNodes := numOfGroups * nodesPerGroup
-	data := make([]byte, config.NodeSize*(numOfNodes+1))
+	opts := syscall.MAP_SHARED | syscall.MAP_ANONYMOUS | syscall.MAP_NORESERVE | syscall.MAP_POPULATE
+	if config.UseHugePages {
+		opts |= syscall.MAP_HUGETLB
+	}
+	data, err := syscall.Mmap(-1, 0, int(config.NodeSize*(numOfNodes+1)),
+		syscall.PROT_READ|syscall.PROT_WRITE, opts)
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "memory allocation failed")
+	}
 
 	availableNodes := make([]types.NodeAddress, 0, numOfNodes)
 	for i := config.NodeSize; i < uint64(len(data)); i += config.NodeSize {
@@ -36,14 +46,16 @@ func NewAllocator(config Config) *Allocator {
 	}
 
 	return &Allocator{
-		config:                 config,
-		data:                   data,
-		dataP:                  unsafe.Pointer(&data[0]),
-		availableNodesCh:       availableNodesCh,
-		nodesToAllocate:        <-availableNodesCh,
-		nodesToDeallocate:      make([]types.NodeAddress, 0, nodesPerGroup),
-		nodesToDeallocateStack: make([][]types.NodeAddress, 0, 1),
-	}
+			config:                 config,
+			data:                   data,
+			dataP:                  unsafe.Pointer(&data[0]),
+			availableNodesCh:       availableNodesCh,
+			nodesToAllocate:        <-availableNodesCh,
+			nodesToDeallocate:      make([]types.NodeAddress, 0, nodesPerGroup),
+			nodesToDeallocateStack: make([][]types.NodeAddress, 0, 1),
+		}, func() {
+			_ = syscall.Munmap(data)
+		}, nil
 }
 
 // Allocator is the allocator implementation used in tests.
