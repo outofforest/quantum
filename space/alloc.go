@@ -29,12 +29,10 @@ func NewNodeAllocator[T comparable](allocator types.Allocator) (NodeAllocator[T]
 	if numOfItems == 0 {
 		return NodeAllocator[T]{}, errors.New("node size is too small")
 	}
-	numOfItems, _ = highestPowerOfTwo(numOfItems)
 	spaceLeft -= numOfItems
-	spaceLeft -= numOfItems % types.UInt64Length
+	spaceLeft -= numOfItems % types.UInt64Length // alignment of state slice
 
 	numOfItems = spaceLeft / itemSize
-	numOfItems, bitsPerHop := highestPowerOfTwo(numOfItems)
 	if numOfItems == 0 {
 		return NodeAllocator[T]{}, errors.New("node size is too small")
 	}
@@ -44,8 +42,6 @@ func NewNodeAllocator[T comparable](allocator types.Allocator) (NodeAllocator[T]
 		numOfItems:  int(numOfItems),
 		stateOffset: stateOffset,
 		itemOffset:  nodeSize - spaceLeft,
-		indexMask:   numOfItems - 1,
-		bitsPerHop:  bitsPerHop,
 	}, nil
 }
 
@@ -56,8 +52,6 @@ type NodeAllocator[T comparable] struct {
 	numOfItems  int
 	stateOffset uint64
 	itemOffset  uint64
-	indexMask   uint64
-	bitsPerHop  uint64
 }
 
 // Get returns object for node.
@@ -88,12 +82,12 @@ func (na NodeAllocator[T]) Copy(
 
 // Index returns element index based on hash.
 func (na NodeAllocator[T]) Index(hash types.Hash) uint64 {
-	return uint64(hash) & na.indexMask
+	return uint64(hash) % uint64(na.numOfItems)
 }
 
 // Shift shifts bits in hash.
 func (na NodeAllocator[T]) Shift(hash types.Hash) types.Hash {
-	return hash >> na.bitsPerHop
+	return hash / types.Hash(na.numOfItems)
 }
 
 func (na NodeAllocator[T]) project(node unsafe.Pointer) types.SpaceNode[T] {
