@@ -258,10 +258,10 @@ func TestCopyOnSet(t *testing.T) {
 	}
 
 	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
-	requireT.Equal([]types.NodeAddress{0x02}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x02}, nodesAllocated)
-	requireT.Equal([]types.NodeAddress{0x01}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x02}, s1.Nodes())
+	requireT.Equal([]types.NodeAddress{0x01}, nodesUsed)
+	requireT.Empty(nodesAllocated)
+	requireT.Empty(nodesDeallocated)
+	requireT.Equal([]types.NodeAddress{0x01}, s1.Nodes())
 
 	s2 := e.NextSnapshot()
 
@@ -270,10 +270,10 @@ func TestCopyOnSet(t *testing.T) {
 	}
 
 	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
-	requireT.Equal([]types.NodeAddress{0x03}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x03}, nodesAllocated)
-	requireT.Equal([]types.NodeAddress{0x02}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x03}, s2.Nodes())
+	requireT.Equal([]types.NodeAddress{0x01}, nodesUsed)
+	requireT.Empty(nodesAllocated)
+	requireT.Empty(nodesDeallocated)
+	requireT.Equal([]types.NodeAddress{0x01}, s2.Nodes())
 
 	// Partial copy
 
@@ -284,10 +284,10 @@ func TestCopyOnSet(t *testing.T) {
 	}
 
 	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
-	requireT.Equal([]types.NodeAddress{0x04}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x04}, nodesAllocated)
-	requireT.Equal([]types.NodeAddress{0x03}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x04}, s3.Nodes())
+	requireT.Equal([]types.NodeAddress{0x01}, nodesUsed)
+	requireT.Empty(nodesAllocated)
+	requireT.Empty(nodesDeallocated)
+	requireT.Equal([]types.NodeAddress{0x01}, s3.Nodes())
 
 	// Overwrite everything to create two deallocation lists.
 
@@ -298,10 +298,10 @@ func TestCopyOnSet(t *testing.T) {
 	}
 
 	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
-	requireT.Equal([]types.NodeAddress{0x05}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x05}, nodesAllocated)
-	requireT.Equal([]types.NodeAddress{0x04}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x05}, s4.Nodes())
+	requireT.Equal([]types.NodeAddress{0x01}, nodesUsed)
+	requireT.Empty(nodesAllocated)
+	requireT.Empty(nodesDeallocated)
+	requireT.Equal([]types.NodeAddress{0x01}, s4.Nodes())
 
 	// Check all the values again
 
@@ -329,10 +329,10 @@ func TestCopyOnDelete(t *testing.T) {
 	requireT.NoError(s1.Get(2).Delete())
 
 	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
-	requireT.Equal([]types.NodeAddress{0x02}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x02}, nodesAllocated)
-	requireT.Equal([]types.NodeAddress{0x01}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x02}, s1.Nodes())
+	requireT.Equal([]types.NodeAddress{0x01}, nodesUsed)
+	requireT.Empty(nodesAllocated)
+	requireT.Empty(nodesDeallocated)
+	requireT.Equal([]types.NodeAddress{0x01}, s1.Nodes())
 
 	v := s1.Get(2)
 	requireT.False(v.Exists())
@@ -343,10 +343,10 @@ func TestCopyOnDelete(t *testing.T) {
 	requireT.NoError(s2.Get(4).Delete())
 
 	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
-	requireT.Equal([]types.NodeAddress{0x03}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x03}, nodesAllocated)
-	requireT.Equal([]types.NodeAddress{0x02}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x03}, s2.Nodes())
+	requireT.Equal([]types.NodeAddress{0x01}, nodesUsed)
+	requireT.Empty(nodesAllocated)
+	requireT.Empty(nodesDeallocated)
+	requireT.Equal([]types.NodeAddress{0x01}, s2.Nodes())
 
 	v = s2.Get(2)
 	requireT.False(v.Exists())
@@ -423,7 +423,7 @@ func TestDeallocateAll(t *testing.T) {
 	s1 := e.NextSnapshot()
 	requireT.NoError(test.Error(s1.Get(0).Set(10)))
 	s1Nodes := s1.Nodes()
-	requireT.Equal([]types.NodeAddress{0x02}, s1Nodes)
+	requireT.Equal([]types.NodeAddress{0x01}, s1Nodes)
 
 	s2 := e.NextSnapshot()
 	requireT.Equal(s1Nodes, s2.Nodes())

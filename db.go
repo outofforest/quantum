@@ -20,10 +20,10 @@ type Config struct {
 
 // SpaceToCommit represents requested space which might require to be committed.
 type SpaceToCommit struct {
-	HashMod         *uint64
-	PInfo           types.ParentInfo
-	OriginalAddress types.NodeAddress
-	SpaceInfoValue  space.Entry[types.SpaceID, types.SpaceInfo]
+	HashMod            *uint64
+	PInfo              types.ParentInfo
+	OriginalSnapshotID types.SnapshotID
+	SpaceInfoValue     space.Entry[types.SpaceID, types.SpaceInfo]
 }
 
 // Snapshot represents snapshot.
@@ -79,7 +79,7 @@ func New(config Config) (*DB, error) {
 		deallocationListsToCommit:   map[types.SnapshotID]alloc.ListToCommit{},
 		availableSnapshots:          map[types.SnapshotID]struct{}{},
 	}
-	if err := s.prepareNextSnapshot(*photon.FromBytes[types.SingularityNode](config.Allocator.Node(0))); err != nil {
+	if err := s.prepareNextSnapshot(*photon.FromPointer[types.SingularityNode](config.Allocator.Node(0))); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -252,7 +252,7 @@ func (db *DB) Commit() error {
 		for _, spaceID := range spaces {
 			spaceToCommit := db.spacesToCommit[spaceID]
 			if *spaceToCommit.PInfo.State == types.StateFree ||
-				spaceToCommit.PInfo.Pointer.Address == spaceToCommit.OriginalAddress {
+				spaceToCommit.PInfo.Pointer.SnapshotID == spaceToCommit.OriginalSnapshotID {
 				continue
 			}
 			if _, err := spaceToCommit.SpaceInfoValue.Set(types.SpaceInfo{
@@ -276,7 +276,7 @@ func (db *DB) Commit() error {
 		return err
 	}
 
-	*photon.FromBytes[types.SingularityNode](db.config.Allocator.Node(0)) = *db.nextSnapshot.SingularityNode
+	*photon.FromPointer[types.SingularityNode](db.config.Allocator.Node(0)) = *db.nextSnapshot.SingularityNode
 
 	db.availableSnapshots[db.nextSnapshot.SnapshotID] = struct{}{}
 
@@ -390,8 +390,8 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 				State:   &spaceInfo.State,
 				Pointer: &spaceInfo.Pointer,
 			},
-			OriginalAddress: spaceInfo.Pointer.Address,
-			SpaceInfoValue:  spaceInfoValue,
+			OriginalSnapshotID: spaceInfo.Pointer.SnapshotID,
+			SpaceInfoValue:     spaceInfoValue,
 		}
 		db.spacesToCommit[spaceID] = s
 	}

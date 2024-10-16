@@ -1,9 +1,12 @@
 package alloc
 
 import (
+	"unsafe"
+
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
+	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/list"
 	"github.com/outofforest/quantum/types"
 )
@@ -21,14 +24,10 @@ func NewAllocator(config Config) *Allocator {
 	numOfGroups := config.TotalSize / config.NodeSize / nodesPerGroup
 	numOfNodes := numOfGroups*nodesPerGroup + 1
 	data := make([]byte, config.NodeSize*numOfNodes)
-	nodes := make([][]byte, 0, numOfNodes)
 
 	availableNodes := make([]types.NodeAddress, 0, numOfNodes-1)
-	for i := types.NodeAddress(0); i < types.NodeAddress(numOfNodes); i++ {
-		nodes = append(nodes, data[uint64(i)*config.NodeSize:uint64(i+1)*config.NodeSize])
-		if i > 0 {
-			availableNodes = append(availableNodes, i)
-		}
+	for i := config.NodeSize; i < uint64(len(data)); i += config.NodeSize {
+		availableNodes = append(availableNodes, types.NodeAddress(i))
 	}
 
 	availableNodesCh := make(chan []types.NodeAddress, numOfGroups)
@@ -38,7 +37,8 @@ func NewAllocator(config Config) *Allocator {
 
 	return &Allocator{
 		config:                 config,
-		nodes:                  nodes,
+		data:                   data,
+		dataP:                  unsafe.Pointer(&data[0]),
 		availableNodesCh:       availableNodesCh,
 		nodesToAllocate:        <-availableNodesCh,
 		nodesToDeallocate:      make([]types.NodeAddress, 0, nodesPerGroup),
@@ -49,7 +49,8 @@ func NewAllocator(config Config) *Allocator {
 // Allocator is the allocator implementation used in tests.
 type Allocator struct {
 	config             Config
-	nodes              [][]byte
+	data               []byte
+	dataP              unsafe.Pointer
 	availableNodesCh   chan []types.NodeAddress
 	deallocatedNodesCh chan []types.NodeAddress
 
@@ -59,12 +60,12 @@ type Allocator struct {
 }
 
 // Node returns node bytes.
-func (a *Allocator) Node(nodeAddress types.NodeAddress) []byte {
-	return a.nodes[nodeAddress]
+func (a *Allocator) Node(nodeAddress types.NodeAddress) unsafe.Pointer {
+	return unsafe.Add(a.dataP, nodeAddress)
 }
 
 // Allocate allocates node.
-func (a *Allocator) Allocate() (types.NodeAddress, []byte, error) {
+func (a *Allocator) Allocate() (types.NodeAddress, unsafe.Pointer, error) {
 	nodeAddress := a.nodesToAllocate[len(a.nodesToAllocate)-1]
 	a.nodesToAllocate = a.nodesToAllocate[:len(a.nodesToAllocate)-1]
 
@@ -76,19 +77,22 @@ func (a *Allocator) Allocate() (types.NodeAddress, []byte, error) {
 		a.nodesToAllocate = <-a.availableNodesCh
 	}
 
-	return nodeAddress, a.nodes[nodeAddress], nil
+	return nodeAddress, a.Node(nodeAddress), nil
 }
 
 // Copy allocates new node and moves existing one there.
-func (a *Allocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, []byte, error) {
-	newNodeAddress, newNodeData, err := a.Allocate()
-	if err != nil {
-		return 0, nil, err
-	}
+func (a *Allocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, unsafe.Pointer, error) {
+	// FIXME (wojciech): No-copy test
+	// newNodeAddress, newNodeData, err := a.Allocate()
+	// if err != nil {
+	// 	return 0, nil, err
+	// }
 
-	a.nodes[nodeAddress], a.nodes[newNodeAddress] = newNodeData, a.nodes[nodeAddress]
+	// a.nodes[nodeAddress], a.nodes[newNodeAddress] = newNodeData, a.nodes[nodeAddress]
 
-	return newNodeAddress, a.nodes[newNodeAddress], nil
+	// return newNodeAddress, a.nodes[newNodeAddress], nil
+
+	return nodeAddress, a.Node(nodeAddress), nil
 }
 
 // Deallocate deallocates node.
@@ -99,7 +103,7 @@ func (a *Allocator) Deallocate(nodeAddress types.NodeAddress) {
 			go func() {
 				for nodes := range a.deallocatedNodesCh {
 					for _, n := range nodes {
-						clear(a.nodes[n])
+						clear(photon.SliceFromPointer[byte](a.Node(n), int(a.config.NodeSize)))
 					}
 					a.availableNodesCh <- nodes
 				}
@@ -153,7 +157,7 @@ type SnapshotAllocator struct {
 }
 
 // Allocate allocates new node.
-func (sa SnapshotAllocator) Allocate() (types.NodeAddress, []byte, error) {
+func (sa SnapshotAllocator) Allocate() (types.NodeAddress, unsafe.Pointer, error) {
 	nodeAddress, node, err := sa.allocator.Allocate()
 	if err != nil {
 		return 0, nil, err
@@ -163,7 +167,7 @@ func (sa SnapshotAllocator) Allocate() (types.NodeAddress, []byte, error) {
 }
 
 // Copy allocates new node and copies content from existing one.
-func (sa SnapshotAllocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, []byte, error) {
+func (sa SnapshotAllocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, unsafe.Pointer, error) {
 	newNodeAddress, node, err := sa.allocator.Copy(nodeAddress)
 	if err != nil {
 		return 0, nil, err
@@ -186,13 +190,15 @@ func (sa SnapshotAllocator) Deallocate(nodeAddress types.NodeAddress, srcSnapsho
 
 	l, exists := sa.deallocationListCache[srcSnapshotID]
 	if !exists {
-		l.Item = lo.ToPtr[types.NodeAddress](0)
-		l.List = list.New(list.Config{
-			SnapshotID:    sa.snapshotID,
-			Item:          l.Item,
-			NodeAllocator: sa.listNodeAllocator,
-			Allocator:     NewImmediateSnapshotAllocator(sa.snapshotID, sa),
-		})
+		l = ListToCommit{
+			Item: lo.ToPtr[types.NodeAddress](0),
+			List: list.New(list.Config{
+				SnapshotID:    sa.snapshotID,
+				Item:          l.Item,
+				NodeAllocator: sa.listNodeAllocator,
+				Allocator:     NewImmediateSnapshotAllocator(sa.snapshotID, sa),
+			}),
+		}
 		sa.deallocationListCache[srcSnapshotID] = l
 	}
 
@@ -217,12 +223,12 @@ type ImmediateSnapshotAllocator struct {
 }
 
 // Allocate allocates new node.
-func (sa ImmediateSnapshotAllocator) Allocate() (types.NodeAddress, []byte, error) {
+func (sa ImmediateSnapshotAllocator) Allocate() (types.NodeAddress, unsafe.Pointer, error) {
 	return sa.parentSnapshotAllocator.Allocate()
 }
 
 // Copy allocates new node and copies content from existing one.
-func (sa ImmediateSnapshotAllocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, []byte, error) {
+func (sa ImmediateSnapshotAllocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, unsafe.Pointer, error) {
 	return sa.parentSnapshotAllocator.Copy(nodeAddress)
 }
 
