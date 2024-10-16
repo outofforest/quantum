@@ -4,7 +4,7 @@ go 1.23
 
 require (
 	github.com/cespare/xxhash v1.1.0
-	github.com/outofforest/photon v0.5.0
+	github.com/outofforest/photon v0.6.0
 	github.com/pkg/errors v0.9.1
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.9.0
