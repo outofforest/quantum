@@ -250,55 +250,42 @@ func (s *Space[K, V]) setValue(v Entry[K, V], value V) (Entry[K, V], error) {
 		}
 	}
 
-	var newPInfos []types.ParentInfo
-	var err error
-	v.itemP, v.stateP, newPInfos, err = s.set(pInfo, v.item)
-	if err != nil {
-		return Entry[K, V]{}, err
-	}
-
-	v.item.Hash = v.itemP.Hash
-	// FIXME (wojciech): Optimize heap allocations
-	v.parentInfos = append(v.parentInfos, newPInfos...)
-	v.exists = true
-
-	return v, nil
+	return s.set(v)
 }
 
-func (s *Space[K, V]) set(
-	pInfo types.ParentInfo,
-	item types.DataItem[K, V],
-) (*types.DataItem[K, V], *types.State, []types.ParentInfo, error) {
-	var pInfos []types.ParentInfo
+func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
+	pInfo := v.parentInfos[len(v.parentInfos)-1]
+
 	for {
 		switch *pInfo.State {
 		case types.StateFree:
 			dataNodeAddress, dataNode, err := s.config.DataNodeAllocator.Allocate(s.config.Allocator)
 			if err != nil {
-				return nil, nil, nil, err
+				return Entry[K, V]{}, err
 			}
 
 			*pInfo.State = types.StateData
 			pInfo.Pointer.SnapshotID = s.config.SnapshotID
 			pInfo.Pointer.Address = dataNodeAddress
 
-			index := s.config.DataNodeAllocator.Index(item.Hash + 1)
+			index := s.config.DataNodeAllocator.Index(v.item.Hash + 1)
 			dataNode.States[index] = types.StateData
-			dataNode.Items[index] = item
+			dataNode.Items[index] = v.item
 
-			return &dataNode.Items[index], &dataNode.States[index], pInfos, nil
+			v.stateP = &dataNode.States[index]
+			v.itemP = &dataNode.Items[index]
+			v.exists = true
+
+			return v, nil
 		case types.StateData:
 			dataNode := s.config.DataNodeAllocator.Get(pInfo.Pointer.Address)
-			// FIXME (wojciech): This is redundant for the first data node (before redistribution)
-			if dataNode.Header.HashMod > 0 {
-				item.Hash = hashKey(item.Key, dataNode.Header.HashMod)
-			}
+
 			var index uint64
 			var keyMatches, conflict bool
 			for i := types.Hash(0); i < trials; i++ {
-				index = s.config.DataNodeAllocator.Index(item.Hash + 1<<i + i)
-				hashMatches := item.Hash == dataNode.Items[index].Hash
-				keyMatches = hashMatches && item.Key == dataNode.Items[index].Key
+				index = s.config.DataNodeAllocator.Index(v.item.Hash + 1<<i + i)
+				hashMatches := v.item.Hash == dataNode.Items[index].Hash
+				keyMatches = hashMatches && v.item.Key == dataNode.Items[index].Key
 				conflict = conflict || hashMatches
 
 				if dataNode.States[index] == types.StateFree || dataNode.States[index] == types.StateDeleted ||
@@ -308,46 +295,48 @@ func (s *Space[K, V]) set(
 			}
 			if dataNode.States[index] == types.StateFree || dataNode.States[index] == types.StateDeleted {
 				dataNode.States[index] = types.StateData
-				dataNode.Items[index] = item
+				dataNode.Items[index] = v.item
 
-				return &dataNode.Items[index], &dataNode.States[index], pInfos, nil
+				v.stateP = &dataNode.States[index]
+				v.itemP = &dataNode.Items[index]
+				v.exists = true
+
+				return v, nil
 			}
 
 			if keyMatches {
-				dataNode.Items[index] = item
-				return &dataNode.Items[index], &dataNode.States[index], pInfos, nil
+				dataNode.Items[index] = v.item
+
+				v.stateP = &dataNode.States[index]
+				v.itemP = &dataNode.Items[index]
+				v.exists = true
+
+				return v, nil
 			}
 
-			hashMod := dataNode.Header.HashMod
-			if conflict {
-				// hash conflict
-				*s.config.HashMod++
-				hashMod = *s.config.HashMod
+			if err := s.redistributeNode(pInfo, conflict); err != nil {
+				return Entry[K, V]{}, err
 			}
-
-			if err := s.redistributeNode(pInfo, hashMod); err != nil {
-				return nil, nil, nil, err
-			}
-			return s.set(pInfo, item)
+			return s.set(v)
 		default:
 			pointerNode := s.config.PointerNodeAllocator.Get(pInfo.Pointer.Address)
 			if pointerNode.Header.HashMod > 0 {
-				item.Hash = hashKey(item.Key, pointerNode.Header.HashMod)
+				v.item.Hash = hashKey(v.item.Key, pointerNode.Header.HashMod)
 			}
 
-			index := s.config.PointerNodeAllocator.Index(item.Hash)
-			item.Hash = s.config.PointerNodeAllocator.Shift(item.Hash)
+			index := s.config.PointerNodeAllocator.Index(v.item.Hash)
+			v.item.Hash = s.config.PointerNodeAllocator.Shift(v.item.Hash)
 
 			pInfo = types.ParentInfo{
 				State:   &pointerNode.States[index],
 				Pointer: &pointerNode.Items[index],
 			}
-			pInfos = append(pInfos, pInfo)
+			v.parentInfos = append(v.parentInfos, pInfo)
 		}
 	}
 }
 
-func (s *Space[K, V]) redistributeNode(pInfo types.ParentInfo, hashMod uint64) error {
+func (s *Space[K, V]) redistributeNode(pInfo types.ParentInfo, conflict bool) error {
 	dataNodePointer := *pInfo.Pointer
 	dataNode := s.config.DataNodeAllocator.Get(dataNodePointer.Address)
 
@@ -356,8 +345,11 @@ func (s *Space[K, V]) redistributeNode(pInfo types.ParentInfo, hashMod uint64) e
 		return err
 	}
 
-	*pointerNode.Header = types.SpaceNodeHeader{
-		HashMod: hashMod,
+	if conflict {
+		*s.config.HashMod++
+		*pointerNode.Header = types.SpaceNodeHeader{
+			HashMod: *s.config.HashMod,
+		}
 	}
 
 	*pInfo.State = types.StatePointer
@@ -378,12 +370,14 @@ func (s *Space[K, V]) redistributeNode(pInfo types.ParentInfo, hashMod uint64) e
 		index := s.config.PointerNodeAllocator.Index(item.Hash)
 		item.Hash = s.config.PointerNodeAllocator.Shift(item.Hash)
 
-		newPInfo := types.ParentInfo{
-			State:   &pointerNode.States[index],
-			Pointer: &pointerNode.Items[index],
-		}
-
-		if _, _, _, err := s.set(newPInfo, item); err != nil {
+		if _, err := s.set(Entry[K, V]{
+			space: s,
+			item:  item,
+			parentInfos: []types.ParentInfo{{
+				State:   &pointerNode.States[index],
+				Pointer: &pointerNode.Items[index],
+			}},
+		}); err != nil {
 			return err
 		}
 	}
@@ -422,10 +416,6 @@ func (s *Space[K, V]) find(pInfos []types.ParentInfo, hash types.Hash, key K) (E
 			v.parentInfos = append(v.parentInfos, pInfo)
 		case types.StateData:
 			dataNode := s.config.DataNodeAllocator.Get(pInfo.Pointer.Address)
-			if dataNode.Header.HashMod != 0 {
-				v.item.Hash = hashKey(key, dataNode.Header.HashMod)
-			}
-
 			for i := types.Hash(0); i < trials; i++ {
 				index := s.config.DataNodeAllocator.Index(v.item.Hash + 1<<i + i)
 
