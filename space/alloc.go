@@ -97,13 +97,3 @@ func (na NodeAllocator[T]) project(node unsafe.Pointer) types.SpaceNode[T] {
 		Items:  photon.SliceFromPointer[T](unsafe.Add(node, na.itemOffset), na.numOfItems),
 	}
 }
-
-func highestPowerOfTwo(n uint64) (uint64, uint64) {
-	var m uint64 = 1
-	var p uint64
-	for m <= n {
-		m <<= 1 // Multiply m by 2 (left shift)
-		p++
-	}
-	return m >> 1, p - 1 // Divide by 2 (right shift) to get the highest power of 2 <= n
-}
