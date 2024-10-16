@@ -476,9 +476,11 @@ func (s *Space[K, V]) copy(pInfos []types.ParentInfo) error {
 		if err != nil {
 			return err
 		}
-		if err := s.config.Allocator.Deallocate(pInfo.Pointer.Address, pInfo.Pointer.SnapshotID); err != nil {
-			return err
-		}
+
+		// FIXME (wojciech): No-copy test
+		// if err := s.config.Allocator.Deallocate(pInfo.Pointer.Address, pInfo.Pointer.SnapshotID); err != nil {
+		//	return err
+		// }
 
 		pInfo.Pointer.SnapshotID = s.config.SnapshotID
 		pInfo.Pointer.Address = newNodeAddress

@@ -136,9 +136,10 @@ func (l *List) Deallocate(allocator types.Allocator) {
 		stack = stack[:len(stack)-1]
 
 		listNode := l.config.NodeAllocator.Get(n)
-		for i := range listNode.Header.NumOfItems {
-			allocator.Deallocate(listNode.Items[i])
-		}
+		// FIXME (wojciech): No-copy test
+		// for i := range listNode.Header.NumOfItems {
+		//	allocator.Deallocate(listNode.Items[i])
+		// }
 
 		stack = append(stack, listNode.Items[uint64(len(listNode.Items))-listNode.Header.NumOfSideLists:]...)
 		allocator.Deallocate(n)

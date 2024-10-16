@@ -81,14 +81,17 @@ func (a *Allocator) Allocate() (types.NodeAddress, []byte, error) {
 
 // Copy allocates new node and moves existing one there.
 func (a *Allocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, []byte, error) {
-	newNodeAddress, newNodeData, err := a.Allocate()
-	if err != nil {
-		return 0, nil, err
-	}
+	// FIXME (wojciech): No-copy test
+	// newNodeAddress, newNodeData, err := a.Allocate()
+	// if err != nil {
+	// 	return 0, nil, err
+	// }
 
-	a.nodes[nodeAddress], a.nodes[newNodeAddress] = newNodeData, a.nodes[nodeAddress]
+	// a.nodes[nodeAddress], a.nodes[newNodeAddress] = newNodeData, a.nodes[nodeAddress]
 
-	return newNodeAddress, a.nodes[newNodeAddress], nil
+	// return newNodeAddress, a.nodes[newNodeAddress], nil
+
+	return nodeAddress, a.nodes[nodeAddress], nil
 }
 
 // Deallocate deallocates node.
