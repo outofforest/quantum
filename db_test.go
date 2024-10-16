@@ -491,9 +491,6 @@ func TestCommitNewSnapshots(t *testing.T) {
 }
 
 func TestSpaces(t *testing.T) {
-	// FIXME (wojciech): Skip test until deallocation s done separtely for on-disk nodes
-	t.Skip()
-
 	requireT := require.New(t)
 	db, _ := newDB(requireT)
 
@@ -681,10 +678,10 @@ func TestDeleteTheOnlySnapshot(t *testing.T) {
 	requireT.Equal([]int{0, 1, 2, 3, 4}, test.CollectSpaceValues(s))
 
 	nodesUsed, _, _ := allocator.Nodes()
-	requireT.Equal([]types.NodeAddress{0x01, 0x02}, nodesUsed)
+	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x03}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x01}, s.Nodes())
-	requireT.Empty(snapshot0.Spaces.Nodes())
-	requireT.Equal([]types.NodeAddress{0x02}, db.nextSnapshot.Snapshots.Nodes())
+	requireT.Equal([]types.NodeAddress{0x02}, snapshot0.Spaces.Nodes())
+	requireT.Equal([]types.NodeAddress{0x03}, db.nextSnapshot.Snapshots.Nodes())
 	requireT.Equal([]types.SnapshotID{0x00}, test.CollectSpaceKeys(db.nextSnapshot.Snapshots))
 	requireT.Empty(snapshot0.DeallocationLists.Nodes())
 
@@ -714,12 +711,12 @@ func TestDeleteTheOnlySnapshot(t *testing.T) {
 
 	nodesUsed, nodesAllocated, nodesDeallocated := allocator.Nodes()
 
-	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x03, 0x04}, nodesUsed)
-	requireT.Equal([]types.NodeAddress{0x03, 0x04}, nodesAllocated)
+	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x03}, nodesUsed)
+	requireT.Empty(nodesAllocated)
 	requireT.Empty(nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x02}, db.nextSnapshot.Snapshots.Nodes())
-	requireT.Equal([]types.NodeAddress{0x04}, snapshot1.Spaces.Nodes())
-	requireT.Equal([]types.NodeAddress{0x03}, s.Nodes())
+	requireT.Equal([]types.NodeAddress{0x03}, db.nextSnapshot.Snapshots.Nodes())
+	requireT.Equal([]types.NodeAddress{0x02}, snapshot1.Spaces.Nodes())
+	requireT.Equal([]types.NodeAddress{0x01}, s.Nodes())
 	requireT.Empty(snapshot1.DeallocationLists.Nodes())
 	requireT.Empty(test.CollectSpaceKeys(snapshot1.DeallocationLists))
 	requireT.Equal([]types.SnapshotID{0x01}, test.CollectSpaceKeys(db.nextSnapshot.Snapshots))
@@ -749,12 +746,12 @@ func TestDeleteTheOnlySnapshot(t *testing.T) {
 
 	nodesUsed, nodesAllocated, nodesDeallocated = allocator.Nodes()
 
-	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x03, 0x04}, nodesUsed)
+	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x03}, nodesUsed)
 	requireT.Empty(nodesAllocated)
 	requireT.Empty(nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x02}, db.nextSnapshot.Snapshots.Nodes())
-	requireT.Equal([]types.NodeAddress{0x04}, snapshot2.Spaces.Nodes())
-	requireT.Equal([]types.NodeAddress{0x03}, s.Nodes())
+	requireT.Equal([]types.NodeAddress{0x03}, db.nextSnapshot.Snapshots.Nodes())
+	requireT.Equal([]types.NodeAddress{0x02}, snapshot2.Spaces.Nodes())
+	requireT.Equal([]types.NodeAddress{0x01}, s.Nodes())
 	requireT.Empty(snapshot2.DeallocationLists.Nodes())
 	requireT.Empty(test.CollectSpaceKeys(snapshot2.DeallocationLists))
 	requireT.Equal([]types.SnapshotID{0x02}, test.CollectSpaceKeys(db.nextSnapshot.Snapshots))

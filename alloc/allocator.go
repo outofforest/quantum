@@ -22,10 +22,10 @@ type Config struct {
 // NewAllocator creates memory allocator.
 func NewAllocator(config Config) *Allocator {
 	numOfGroups := config.TotalSize / config.NodeSize / nodesPerGroup
-	numOfNodes := numOfGroups*nodesPerGroup + 1
-	data := make([]byte, config.NodeSize*numOfNodes)
+	numOfNodes := numOfGroups * nodesPerGroup
+	data := make([]byte, config.NodeSize*(numOfNodes+1))
 
-	availableNodes := make([]types.NodeAddress, 0, numOfNodes-1)
+	availableNodes := make([]types.NodeAddress, 0, numOfNodes)
 	for i := config.NodeSize; i < uint64(len(data)); i += config.NodeSize {
 		availableNodes = append(availableNodes, types.NodeAddress(i))
 	}

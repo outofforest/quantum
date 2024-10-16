@@ -20,10 +20,10 @@ type Config struct {
 
 // SpaceToCommit represents requested space which might require to be committed.
 type SpaceToCommit struct {
-	HashMod            *uint64
-	PInfo              types.ParentInfo
-	OriginalSnapshotID types.SnapshotID
-	SpaceInfoValue     space.Entry[types.SpaceID, types.SpaceInfo]
+	HashMod         *uint64
+	PInfo           types.ParentInfo
+	SpaceInfoValue  space.Entry[types.SpaceID, types.SpaceInfo]
+	OriginalPointer types.Pointer
 }
 
 // Snapshot represents snapshot.
@@ -251,8 +251,7 @@ func (db *DB) Commit() error {
 
 		for _, spaceID := range spaces {
 			spaceToCommit := db.spacesToCommit[spaceID]
-			if *spaceToCommit.PInfo.State == types.StateFree ||
-				spaceToCommit.PInfo.Pointer.SnapshotID == spaceToCommit.OriginalSnapshotID {
+			if *spaceToCommit.PInfo.Pointer == spaceToCommit.OriginalPointer {
 				continue
 			}
 			if _, err := spaceToCommit.SpaceInfoValue.Set(types.SpaceInfo{
@@ -294,8 +293,7 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 		NextSnapshotID:     snapshotID + 1,
 	}
 
-	allocator := alloc.NewSnapshotAllocator(
-		snapshotID,
+	allocator := alloc.NewSnapshotAllocator(-snapshotID,
 		db.config.Allocator,
 		db.deallocationListsToCommit,
 		db.availableSnapshots,
@@ -390,8 +388,8 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 				State:   &spaceInfo.State,
 				Pointer: &spaceInfo.Pointer,
 			},
-			OriginalSnapshotID: spaceInfo.Pointer.SnapshotID,
-			SpaceInfoValue:     spaceInfoValue,
+			OriginalPointer: spaceInfo.Pointer,
+			SpaceInfoValue:  spaceInfoValue,
 		}
 		db.spacesToCommit[spaceID] = s
 	}
