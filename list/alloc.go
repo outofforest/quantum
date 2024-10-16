@@ -67,9 +67,9 @@ func (na NodeAllocator) Copy(
 	return n, na.project(node), nil
 }
 
-func (na NodeAllocator) project(node []byte) types.ListNode {
+func (na NodeAllocator) project(node unsafe.Pointer) types.ListNode {
 	return types.ListNode{
-		Header: photon.FromBytes[types.ListNodeHeader](node),
-		Items:  photon.SliceFromBytes[types.NodeAddress](node[na.itemOffset:], na.numOfItems),
+		Header: photon.FromPointer[types.ListNodeHeader](node),
+		Items:  photon.SliceFromPointer[types.NodeAddress](unsafe.Add(node, na.itemOffset), na.numOfItems),
 	}
 }

@@ -1,5 +1,7 @@
 package types
 
+import "unsafe"
+
 // UInt64Length is the number of bytes taken by uint64.
 const UInt64Length = 8
 
@@ -36,17 +38,17 @@ type (
 
 // Allocator manages memory.
 type Allocator interface {
-	Node(nodeAddress NodeAddress) []byte
-	Allocate() (NodeAddress, []byte, error)
-	Copy(nodeAddress NodeAddress) (NodeAddress, []byte, error)
+	Node(nodeAddress NodeAddress) unsafe.Pointer
+	Allocate() (NodeAddress, unsafe.Pointer, error)
+	Copy(nodeAddress NodeAddress) (NodeAddress, unsafe.Pointer, error)
 	Deallocate(nodeAddress NodeAddress)
 	NodeSize() uint64
 }
 
 // SnapshotAllocator manages memory on snapshot level.
 type SnapshotAllocator interface {
-	Allocate() (NodeAddress, []byte, error)
-	Copy(nodeAddress NodeAddress) (NodeAddress, []byte, error)
+	Allocate() (NodeAddress, unsafe.Pointer, error)
+	Copy(nodeAddress NodeAddress) (NodeAddress, unsafe.Pointer, error)
 	Deallocate(nodeAddress NodeAddress, srcSnapshotID SnapshotID) error
 }
 

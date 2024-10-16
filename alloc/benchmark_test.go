@@ -1,3 +1,4 @@
+//nolint:ineffassign,staticcheck,wastedassign
 package alloc
 
 import (

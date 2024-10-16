@@ -96,11 +96,11 @@ func (na NodeAllocator[T]) Shift(hash types.Hash) types.Hash {
 	return hash >> na.bitsPerHop
 }
 
-func (na NodeAllocator[T]) project(node []byte) types.SpaceNode[T] {
+func (na NodeAllocator[T]) project(node unsafe.Pointer) types.SpaceNode[T] {
 	return types.SpaceNode[T]{
-		Header: photon.FromBytes[types.SpaceNodeHeader](node),
-		States: photon.SliceFromBytes[types.State](node[na.stateOffset:], na.numOfItems),
-		Items:  photon.SliceFromBytes[T](node[na.itemOffset:], na.numOfItems),
+		Header: photon.FromPointer[types.SpaceNodeHeader](node),
+		States: photon.SliceFromPointer[types.State](unsafe.Add(node, na.stateOffset), na.numOfItems),
+		Items:  photon.SliceFromPointer[T](unsafe.Add(node, na.itemOffset), na.numOfItems),
 	}
 }
 

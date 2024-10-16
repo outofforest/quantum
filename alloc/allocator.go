@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
+	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/list"
 	"github.com/outofforest/quantum/types"
 )
@@ -25,8 +26,8 @@ func NewAllocator(config Config) *Allocator {
 	data := make([]byte, config.NodeSize*numOfNodes)
 
 	availableNodes := make([]types.NodeAddress, 0, numOfNodes-1)
-	for i := types.NodeAddress(1); i < types.NodeAddress(numOfNodes); i++ {
-		availableNodes = append(availableNodes, i)
+	for i := config.NodeSize; i < uint64(len(data)); i += config.NodeSize {
+		availableNodes = append(availableNodes, types.NodeAddress(i))
 	}
 
 	availableNodesCh := make(chan []types.NodeAddress, numOfGroups)
@@ -59,12 +60,12 @@ type Allocator struct {
 }
 
 // Node returns node bytes.
-func (a *Allocator) Node(nodeAddress types.NodeAddress) []byte {
-	return ([]byte)(unsafe.Slice((*byte)(unsafe.Add(a.dataP, uint64(nodeAddress)*a.config.NodeSize)), a.config.NodeSize))
+func (a *Allocator) Node(nodeAddress types.NodeAddress) unsafe.Pointer {
+	return unsafe.Add(a.dataP, nodeAddress)
 }
 
 // Allocate allocates node.
-func (a *Allocator) Allocate() (types.NodeAddress, []byte, error) {
+func (a *Allocator) Allocate() (types.NodeAddress, unsafe.Pointer, error) {
 	nodeAddress := a.nodesToAllocate[len(a.nodesToAllocate)-1]
 	a.nodesToAllocate = a.nodesToAllocate[:len(a.nodesToAllocate)-1]
 
@@ -80,7 +81,7 @@ func (a *Allocator) Allocate() (types.NodeAddress, []byte, error) {
 }
 
 // Copy allocates new node and moves existing one there.
-func (a *Allocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, []byte, error) {
+func (a *Allocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, unsafe.Pointer, error) {
 	// FIXME (wojciech): No-copy test
 	// newNodeAddress, newNodeData, err := a.Allocate()
 	// if err != nil {
@@ -102,7 +103,7 @@ func (a *Allocator) Deallocate(nodeAddress types.NodeAddress) {
 			go func() {
 				for nodes := range a.deallocatedNodesCh {
 					for _, n := range nodes {
-						clear(a.Node(n))
+						clear(photon.SliceFromPointer[byte](a.Node(n), int(a.config.NodeSize)))
 					}
 					a.availableNodesCh <- nodes
 				}
@@ -156,7 +157,7 @@ type SnapshotAllocator struct {
 }
 
 // Allocate allocates new node.
-func (sa SnapshotAllocator) Allocate() (types.NodeAddress, []byte, error) {
+func (sa SnapshotAllocator) Allocate() (types.NodeAddress, unsafe.Pointer, error) {
 	nodeAddress, node, err := sa.allocator.Allocate()
 	if err != nil {
 		return 0, nil, err
@@ -166,7 +167,7 @@ func (sa SnapshotAllocator) Allocate() (types.NodeAddress, []byte, error) {
 }
 
 // Copy allocates new node and copies content from existing one.
-func (sa SnapshotAllocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, []byte, error) {
+func (sa SnapshotAllocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, unsafe.Pointer, error) {
 	newNodeAddress, node, err := sa.allocator.Copy(nodeAddress)
 	if err != nil {
 		return 0, nil, err
@@ -189,13 +190,15 @@ func (sa SnapshotAllocator) Deallocate(nodeAddress types.NodeAddress, srcSnapsho
 
 	l, exists := sa.deallocationListCache[srcSnapshotID]
 	if !exists {
-		l.Item = lo.ToPtr[types.NodeAddress](0)
-		l.List = list.New(list.Config{
-			SnapshotID:    sa.snapshotID,
-			Item:          l.Item,
-			NodeAllocator: sa.listNodeAllocator,
-			Allocator:     NewImmediateSnapshotAllocator(sa.snapshotID, sa),
-		})
+		l = ListToCommit{
+			Item: lo.ToPtr[types.NodeAddress](0),
+			List: list.New(list.Config{
+				SnapshotID:    sa.snapshotID,
+				Item:          l.Item,
+				NodeAllocator: sa.listNodeAllocator,
+				Allocator:     NewImmediateSnapshotAllocator(sa.snapshotID, sa),
+			}),
+		}
 		sa.deallocationListCache[srcSnapshotID] = l
 	}
 
@@ -220,12 +223,12 @@ type ImmediateSnapshotAllocator struct {
 }
 
 // Allocate allocates new node.
-func (sa ImmediateSnapshotAllocator) Allocate() (types.NodeAddress, []byte, error) {
+func (sa ImmediateSnapshotAllocator) Allocate() (types.NodeAddress, unsafe.Pointer, error) {
 	return sa.parentSnapshotAllocator.Allocate()
 }
 
 // Copy allocates new node and copies content from existing one.
-func (sa ImmediateSnapshotAllocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, []byte, error) {
+func (sa ImmediateSnapshotAllocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, unsafe.Pointer, error) {
 	return sa.parentSnapshotAllocator.Copy(nodeAddress)
 }
 
