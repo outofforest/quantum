@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/cespare/xxhash"
+	"github.com/pkg/errors"
 
 	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/types"
@@ -87,6 +88,51 @@ func (s *Space[K, V]) Iterator() func(func(types.DataItem[K, V]) bool) {
 						Pointer: &pointerNode.Items[i],
 					})
 				}
+			}
+		}
+	}
+}
+
+// AllocatePointers allocates specified levels of pointer nodes.
+func (s *Space[K, V]) AllocatePointers(levels uint64) error {
+	if *s.config.SpaceRoot.State != types.StateFree {
+		return errors.New("pointers can be preallocated only on empty space")
+	}
+	if levels == 0 {
+		return nil
+	}
+
+	stack := map[types.ParentInfo]uint64{
+		s.config.SpaceRoot: 1,
+	}
+
+	for {
+		if len(stack) == 0 {
+			return nil
+		}
+		for pInfo, level := range stack {
+			delete(stack, pInfo)
+
+			pointerNodeAddress, pointerNode, err := s.config.PointerNodeAllocator.Allocate(s.config.Allocator)
+			if err != nil {
+				return err
+			}
+			*pInfo.State = types.StatePointer
+			*pInfo.Pointer = types.Pointer{
+				SnapshotID: s.config.SnapshotID,
+				Address:    pointerNodeAddress,
+			}
+
+			if level == levels {
+				continue
+			}
+
+			level++
+			for i := range pointerNode.States {
+				stack[types.ParentInfo{
+					State:   &pointerNode.States[i],
+					Pointer: &pointerNode.Items[i],
+				}] = level
 			}
 		}
 	}
