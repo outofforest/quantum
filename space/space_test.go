@@ -7,6 +7,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 
+	"github.com/outofforest/mass"
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/list"
 	"github.com/outofforest/quantum/space"
@@ -457,6 +458,7 @@ func newEnv(requireT *require.Assertions) *env {
 		spaceHashMod:         lo.ToPtr[uint64](0),
 		pointerNodeAllocator: pointerNodeAllocator,
 		dataNodeAllocator:    dataNodeAllocator,
+		massPInfo:            mass.New[types.ParentInfo](100),
 	}
 }
 
@@ -468,6 +470,7 @@ type env struct {
 	spaceHashMod         *uint64
 	pointerNodeAllocator space.NodeAllocator[types.Pointer]
 	dataNodeAllocator    space.NodeAllocator[types.DataItem[int, int]]
+	massPInfo            *mass.Mass[types.ParentInfo]
 }
 
 func (e *env) NextSnapshot() *space.Space[int, int] {
@@ -487,6 +490,7 @@ func (e *env) NextSnapshot() *space.Space[int, int] {
 			map[types.SnapshotID]struct{}{},
 			list.NodeAllocator{},
 		)),
+		MassPInfo: e.massPInfo,
 	})
 }
 

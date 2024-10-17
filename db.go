@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
+	"github.com/outofforest/mass"
 	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/list"
@@ -78,6 +79,7 @@ func New(config Config) (*DB, error) {
 		spacesToCommit:              map[types.SpaceID]SpaceToCommit{},
 		deallocationListsToCommit:   map[types.SnapshotID]alloc.ListToCommit{},
 		availableSnapshots:          map[types.SnapshotID]struct{}{},
+		massPInfo:                   mass.New[types.ParentInfo](1000),
 	}
 	if err := s.prepareNextSnapshot(*photon.FromPointer[types.SingularityNode](config.Allocator.Node(0))); err != nil {
 		return nil, err
@@ -99,6 +101,8 @@ type DB struct {
 	spacesToCommit            map[types.SpaceID]SpaceToCommit
 	deallocationListsToCommit map[types.SnapshotID]alloc.ListToCommit
 	availableSnapshots        map[types.SnapshotID]struct{}
+
+	massPInfo *mass.Mass[types.ParentInfo]
 }
 
 // DeleteSnapshot deletes snapshot.
@@ -132,6 +136,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 				PointerNodeAllocator: db.pointerNodeAllocator,
 				DataNodeAllocator:    db.snapshotToNodeNodeAllocator,
 				Allocator:            allocator,
+				MassPInfo:            db.massPInfo,
 			},
 		)
 	} else {
@@ -153,6 +158,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 		PointerNodeAllocator: db.pointerNodeAllocator,
 		DataNodeAllocator:    db.snapshotToNodeNodeAllocator,
 		Allocator:            allocator,
+		MassPInfo:            db.massPInfo,
 	})
 
 	var startSnapshotID types.SnapshotID
@@ -310,6 +316,7 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 		PointerNodeAllocator: db.pointerNodeAllocator,
 		DataNodeAllocator:    db.snapshotInfoNodeAllocator,
 		Allocator:            immediateAllocator,
+		MassPInfo:            db.massPInfo,
 	})
 
 	if singularityNode.SnapshotRoot.State != types.StateFree {
@@ -337,6 +344,7 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 			PointerNodeAllocator: db.pointerNodeAllocator,
 			DataNodeAllocator:    db.spaceInfoNodeAllocator,
 			Allocator:            allocator,
+			MassPInfo:            db.massPInfo,
 		}),
 		DeallocationLists: space.New[types.SnapshotID, types.NodeAddress](space.Config[types.SnapshotID, types.NodeAddress]{
 			SnapshotID: snapshotID,
@@ -348,6 +356,7 @@ func (db *DB) prepareNextSnapshot(singularityNode types.SingularityNode) error {
 			PointerNodeAllocator: db.pointerNodeAllocator,
 			DataNodeAllocator:    db.snapshotToNodeNodeAllocator,
 			Allocator:            immediateAllocator,
+			MassPInfo:            db.massPInfo,
 		}),
 		Allocator: allocator,
 	}
@@ -406,5 +415,6 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 		PointerNodeAllocator: db.pointerNodeAllocator,
 		DataNodeAllocator:    dataNodeAllocator,
 		Allocator:            db.nextSnapshot.Allocator,
+		MassPInfo:            db.massPInfo,
 	}), nil
 }
