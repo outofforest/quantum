@@ -14,23 +14,23 @@ func NewNodeAllocator[T comparable](allocator types.Allocator) (NodeAllocator[T]
 	nodeSize := allocator.NodeSize()
 
 	headerSize := uint64(unsafe.Sizeof(types.SpaceNodeHeader{}))
+	headerSize = (headerSize + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length // memory alignment
 	if headerSize >= allocator.NodeSize() {
 		return NodeAllocator[T]{}, errors.New("node size is too small")
 	}
 
-	stateOffset := headerSize + headerSize%types.UInt64Length
-	spaceLeft := nodeSize - stateOffset
+	spaceLeft := nodeSize - headerSize
 
 	var t T
 	itemSize := uint64(unsafe.Sizeof(t))
-	itemSize += itemSize % types.UInt64Length
+	itemSize = (itemSize + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length
 
 	numOfItems := spaceLeft / (itemSize + 1) // 1 is for slot state
 	if numOfItems == 0 {
 		return NodeAllocator[T]{}, errors.New("node size is too small")
 	}
-	spaceLeft -= numOfItems
-	spaceLeft -= numOfItems % types.UInt64Length // alignment of state slice
+	stateSize := (numOfItems + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length
+	spaceLeft -= stateSize
 
 	numOfItems = spaceLeft / itemSize
 	if numOfItems == 0 {
@@ -39,9 +39,10 @@ func NewNodeAllocator[T comparable](allocator types.Allocator) (NodeAllocator[T]
 
 	return NodeAllocator[T]{
 		allocator:   allocator,
+		itemSize:    itemSize,
 		numOfItems:  int(numOfItems),
-		stateOffset: stateOffset,
-		itemOffset:  nodeSize - spaceLeft,
+		stateOffset: headerSize,
+		itemOffset:  headerSize + stateSize,
 	}, nil
 }
 
@@ -49,6 +50,7 @@ func NewNodeAllocator[T comparable](allocator types.Allocator) (NodeAllocator[T]
 type NodeAllocator[T comparable] struct {
 	allocator types.Allocator
 
+	itemSize    uint64
 	numOfItems  int
 	stateOffset uint64
 	itemOffset  uint64

@@ -14,14 +14,12 @@ func NewNodeAllocator(allocator types.Allocator) (NodeAllocator, error) {
 	nodeSize := allocator.NodeSize()
 
 	headerSize := uint64(unsafe.Sizeof(types.ListNodeHeader{}))
+	headerSize = (headerSize + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length // memory alignment
 	if headerSize >= nodeSize {
 		return NodeAllocator{}, errors.New("node size is too small")
 	}
 
-	stateOffset := headerSize + headerSize%types.UInt64Length
-	spaceLeft := nodeSize - stateOffset
-
-	numOfItems := spaceLeft / types.UInt64Length
+	numOfItems := (nodeSize - headerSize) / types.UInt64Length
 	if numOfItems < 2 {
 		return NodeAllocator{}, errors.New("node size is too small")
 	}
@@ -29,7 +27,7 @@ func NewNodeAllocator(allocator types.Allocator) (NodeAllocator, error) {
 	return NodeAllocator{
 		allocator:  allocator,
 		numOfItems: int(numOfItems),
-		itemOffset: nodeSize - spaceLeft,
+		itemOffset: headerSize,
 	}, nil
 }
 
