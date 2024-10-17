@@ -94,8 +94,10 @@ type DataItem[K, V comparable] struct {
 
 // ParentInfo stores state and item of the slot used to retrieve node from parent pointer.
 type ParentInfo struct {
-	State   *State
-	Pointer *Pointer
+	State               *State
+	Pointer             *Pointer
+	HashComplement      Hash
+	HashComplementPower Hash
 }
 
 // SpaceInfo stores information required to retrieve space.

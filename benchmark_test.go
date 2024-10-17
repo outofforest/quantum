@@ -100,12 +100,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 							panic(err)
 						}
 					}
-
-					var err error
-					s, err = GetSpace[accountAddress, accountBalance](spaceID, db)
-					if err != nil {
-						panic(err)
-					}
 				}
 			}
 			b.StopTimer()

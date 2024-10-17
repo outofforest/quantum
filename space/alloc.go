@@ -85,6 +85,10 @@ func (na NodeAllocator[T]) Index(hash types.Hash) uint64 {
 	return uint64(hash) % uint64(na.numOfItems)
 }
 
+func (na NodeAllocator[T]) NumOfItems() uint64 {
+	return uint64(na.numOfItems)
+}
+
 // Shift shifts bits in hash.
 func (na NodeAllocator[T]) Shift(hash types.Hash) types.Hash {
 	return hash / types.Hash(na.numOfItems)
