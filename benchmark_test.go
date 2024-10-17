@@ -50,6 +50,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 		if err != nil {
 			panic(err)
 		}
+		if err := s.AllocatePointers(3); err != nil {
+			panic(err)
+		}
 
 		for i := 0; i < numOfAddresses; i += 2 {
 			v := s.Get(accounts[i])
