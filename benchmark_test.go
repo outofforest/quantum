@@ -90,12 +90,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 					panic(err)
 				}
 
-				// senderBalance = s.Get(senderAddress)
-				// recipientBalance = s.Get(recipientAddress)
-
-				// require.Equal(b, accountBalance(balance), senderBalance.Value())
-				// require.Equal(b, accountBalance(balance), recipientBalance.Value())
-
 				tx++
 				if tx%txsPerCommit == 0 {
 					_ = db.Commit()
@@ -118,6 +112,10 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 			fmt.Println(s.Stats())
 		}()
+
+		// for _, addr := range accounts {
+		//	require.Equal(b, accountBalance(balance), s.Get(addr).Value())
+		// }
 
 		deallocFunc()
 	}

@@ -1326,6 +1326,7 @@ func newSnapshot(
 				},
 				PointerNodeAllocator: db.pointerNodeAllocator,
 				DataNodeAllocator:    dataNodeAllocator,
+				MassPInfo:            db.massPInfo,
 			},
 		),
 		DeallocationLists: space.New[types.SnapshotID, types.NodeAddress](
@@ -1338,6 +1339,7 @@ func newSnapshot(
 				},
 				PointerNodeAllocator: db.pointerNodeAllocator,
 				DataNodeAllocator:    db.snapshotToNodeNodeAllocator,
+				MassPInfo:            db.massPInfo,
 			},
 		),
 	}
@@ -1364,6 +1366,7 @@ func newSpace[K, V comparable](
 		},
 		PointerNodeAllocator: db.pointerNodeAllocator,
 		DataNodeAllocator:    dataNodeAllocator,
+		MassPInfo:            db.massPInfo,
 	})
 }
 
