@@ -11,7 +11,7 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-const trials = 100
+const trials = 50
 
 // Config stores space configuration.
 type Config[K, V comparable] struct {
@@ -485,21 +485,20 @@ func (s *Space[K, V]) find(v Entry[K, V]) (Entry[K, V], error) {
 						v.itemP = &dataNode.Items[index]
 					}
 					return v, nil
-				case types.StateDeleted:
+				case types.StateData:
+					item := dataNode.Items[index]
+					if item.Hash == v.item.Hash && item.Key == v.item.Key {
+						v.exists = true
+						v.stateP = &dataNode.States[index]
+						v.itemP = &dataNode.Items[index]
+						v.item.Value = item.Value
+						return v, nil
+					}
+				default:
 					if v.stateP == nil {
 						v.stateP = &dataNode.States[index]
 						v.itemP = &dataNode.Items[index]
 					}
-					continue
-				}
-
-				item := dataNode.Items[index]
-				if item.Hash == v.item.Hash && item.Key == v.item.Key {
-					v.exists = true
-					v.stateP = &dataNode.States[index]
-					v.itemP = &dataNode.Items[index]
-					v.item.Value = item.Value
-					return v, nil
 				}
 			}
 			return v, nil
