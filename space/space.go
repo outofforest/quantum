@@ -6,7 +6,6 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/pkg/errors"
 
-	"github.com/outofforest/mass"
 	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/types"
 )
@@ -21,7 +20,6 @@ type Config[K, V comparable] struct {
 	PointerNodeAllocator NodeAllocator[types.Pointer]
 	DataNodeAllocator    NodeAllocator[types.DataItem[K, V]]
 	Allocator            types.SnapshotAllocator
-	MassPInfo            *mass.Mass[types.ParentInfo]
 }
 
 // New creates new space.
@@ -38,16 +36,13 @@ type Space[K, V comparable] struct {
 
 // Get gets the value of the key.
 func (s *Space[K, V]) Get(key K) Entry[K, V] {
-	pInfoStack := newStack[types.ParentInfo](4, s.config.MassPInfo)
-	pInfoStack = pInfoStack.Push(s.config.SpaceRoot)
-
 	v := Entry[K, V]{
 		space: s,
 		item: types.DataItem[K, V]{
 			Hash: hashKey(key, 0),
 			Key:  key,
 		},
-		parentInfos: pInfoStack,
+		pInfo: s.config.SpaceRoot,
 	}
 
 	// For get, err is always nil.
@@ -261,13 +256,11 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64) {
 }
 
 func (s *Space[K, V]) deleteValue(v Entry[K, V]) error {
-	pInfo := v.parentInfos.Top()
-	if *pInfo.State == types.StatePointer {
+	if *v.pInfo.State == types.StatePointer {
 		v, _ = s.find(v)
-		pInfo = v.parentInfos.Top()
 	}
 
-	if *pInfo.State == types.StateFree {
+	if *v.pInfo.State == types.StateFree {
 		return nil
 	}
 
@@ -275,9 +268,6 @@ func (s *Space[K, V]) deleteValue(v Entry[K, V]) error {
 		return nil
 	}
 	if v.itemP.Hash == v.item.Hash && v.itemP.Key == v.item.Key {
-		if err := s.copy(v.parentInfos); err != nil {
-			return err
-		}
 		*v.stateP = types.StateDeleted
 		return nil
 	}
@@ -285,19 +275,13 @@ func (s *Space[K, V]) deleteValue(v Entry[K, V]) error {
 }
 
 func (s *Space[K, V]) setValue(v Entry[K, V], value V) (Entry[K, V], error) {
-	pInfo := v.parentInfos.Top()
-	if *pInfo.State == types.StatePointer {
+	if *v.pInfo.State == types.StatePointer {
 		v, _ = s.find(v)
-		pInfo = v.parentInfos.Top()
 	}
 
 	v.item.Value = value
 
-	if err := s.copy(v.parentInfos); err != nil {
-		return Entry[K, V]{}, err
-	}
-
-	if *pInfo.State == types.StateData && v.stateP != nil {
+	if *v.pInfo.State == types.StateData && v.stateP != nil {
 		if *v.stateP <= types.StateDeleted {
 			*v.itemP = v.item
 			*v.stateP = types.StateData
@@ -314,19 +298,17 @@ func (s *Space[K, V]) setValue(v Entry[K, V], value V) (Entry[K, V], error) {
 }
 
 func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
-	pInfo := v.parentInfos.Top()
-
 	for {
-		switch *pInfo.State {
+		switch *v.pInfo.State {
 		case types.StateFree:
 			dataNodeAddress, dataNode, err := s.config.DataNodeAllocator.Allocate(s.config.Allocator)
 			if err != nil {
 				return Entry[K, V]{}, err
 			}
 
-			*pInfo.State = types.StateData
-			pInfo.Pointer.SnapshotID = s.config.SnapshotID
-			pInfo.Pointer.Address = dataNodeAddress
+			*v.pInfo.State = types.StateData
+			v.pInfo.Pointer.SnapshotID = s.config.SnapshotID
+			v.pInfo.Pointer.Address = dataNodeAddress
 
 			index := s.config.DataNodeAllocator.Index(v.item.Hash + 1)
 			dataNode.States[index] = types.StateData
@@ -338,7 +320,7 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 
 			return v, nil
 		case types.StateData:
-			dataNode := s.config.DataNodeAllocator.Get(pInfo.Pointer.Address)
+			dataNode := s.config.DataNodeAllocator.Get(v.pInfo.Pointer.Address)
 
 			var index uint64
 			var keyMatches, conflict bool
@@ -374,13 +356,12 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 				return v, nil
 			}
 
-			if err := s.redistributeNode(v.parentInfos, v.level, conflict); err != nil {
+			if err := s.redistributeNode(v.pInfo, conflict); err != nil {
 				return Entry[K, V]{}, err
 			}
-			v.parentInfos = v.parentInfos.Copy()
 			return s.set(v)
 		default:
-			pointerNode := s.config.PointerNodeAllocator.Get(pInfo.Pointer.Address)
+			pointerNode := s.config.PointerNodeAllocator.Get(v.pInfo.Pointer.Address)
 			if pointerNode.Header.HashMod > 0 {
 				v.item.Hash = hashKey(v.item.Key, pointerNode.Header.HashMod)
 			}
@@ -388,18 +369,15 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 			index := s.config.PointerNodeAllocator.Index(v.item.Hash)
 			v.item.Hash = s.config.PointerNodeAllocator.Shift(v.item.Hash)
 
-			pInfo = types.ParentInfo{
+			v.pInfo = types.ParentInfo{
 				State:   &pointerNode.States[index],
 				Pointer: &pointerNode.Items[index],
 			}
-			v.parentInfos = v.parentInfos.Push(pInfo)
-			v.level++
 		}
 	}
 }
 
-func (s *Space[K, V]) redistributeNode(pInfos stack[types.ParentInfo], level uint64, conflict bool) error {
-	pInfo := pInfos.Top()
+func (s *Space[K, V]) redistributeNode(pInfo types.ParentInfo, conflict bool) error {
 	dataNodePointer := *pInfo.Pointer
 	dataNode := s.config.DataNodeAllocator.Get(dataNodePointer.Address)
 
@@ -408,9 +386,7 @@ func (s *Space[K, V]) redistributeNode(pInfos stack[types.ParentInfo], level uin
 		return err
 	}
 
-	level++
-
-	if conflict && level > 3 {
+	if conflict {
 		*s.config.HashMod++
 		*pointerNode.Header = types.SpaceNodeHeader{
 			HashMod: *s.config.HashMod,
@@ -435,16 +411,13 @@ func (s *Space[K, V]) redistributeNode(pInfos stack[types.ParentInfo], level uin
 		index := s.config.PointerNodeAllocator.Index(item.Hash)
 		item.Hash = s.config.PointerNodeAllocator.Shift(item.Hash)
 
-		pInfosCopy := pInfos.Copy()
-
 		if _, err := s.set(Entry[K, V]{
 			space: s,
 			item:  item,
-			parentInfos: pInfosCopy.Push(types.ParentInfo{
+			pInfo: types.ParentInfo{
 				State:   &pointerNode.States[index],
 				Pointer: &pointerNode.Items[index],
-			}),
-			level: level,
+			},
 		}); err != nil {
 			return err
 		}
@@ -454,12 +427,10 @@ func (s *Space[K, V]) redistributeNode(pInfos stack[types.ParentInfo], level uin
 }
 
 func (s *Space[K, V]) find(v Entry[K, V]) (Entry[K, V], error) {
-	pInfo := v.parentInfos.Top()
-
 	for {
-		switch *pInfo.State {
+		switch *v.pInfo.State {
 		case types.StatePointer:
-			pointerNode := s.config.PointerNodeAllocator.Get(pInfo.Pointer.Address)
+			pointerNode := s.config.PointerNodeAllocator.Get(v.pInfo.Pointer.Address)
 			if pointerNode.Header.HashMod != 0 {
 				v.item.Hash = hashKey(v.item.Key, pointerNode.Header.HashMod)
 			}
@@ -467,14 +438,12 @@ func (s *Space[K, V]) find(v Entry[K, V]) (Entry[K, V], error) {
 			index := s.config.PointerNodeAllocator.Index(v.item.Hash)
 			v.item.Hash = s.config.PointerNodeAllocator.Shift(v.item.Hash)
 
-			pInfo = types.ParentInfo{
+			v.pInfo = types.ParentInfo{
 				State:   &pointerNode.States[index],
 				Pointer: &pointerNode.Items[index],
 			}
-			v.parentInfos = v.parentInfos.Push(pInfo)
-			v.level++
 		case types.StateData:
-			dataNode := s.config.DataNodeAllocator.Get(pInfo.Pointer.Address)
+			dataNode := s.config.DataNodeAllocator.Get(v.pInfo.Pointer.Address)
 			for i := types.Hash(0); i < trials; i++ {
 				index := s.config.DataNodeAllocator.Index(v.item.Hash + 1<<i + i)
 
@@ -508,43 +477,14 @@ func (s *Space[K, V]) find(v Entry[K, V]) (Entry[K, V], error) {
 	}
 }
 
-func (s *Space[K, V]) copy(pInfos stack[types.ParentInfo]) error {
-	for pInfo := range pInfos.Iterate() {
-		if *pInfo.State == types.StateFree {
-			continue
-		}
-		if pInfo.Pointer.SnapshotID == s.config.SnapshotID {
-			break
-		}
-
-		// FIXME (wojciech): Don't copy data node if it requires redistribution
-
-		newNodeAddress, _, err := s.config.Allocator.Copy(pInfo.Pointer.Address)
-		if err != nil {
-			return err
-		}
-
-		// FIXME (wojciech): No-copy test
-		// if err := s.config.Allocator.Deallocate(pInfo.Pointer.Address, pInfo.Pointer.SnapshotID); err != nil {
-		//	return err
-		// }
-
-		pInfo.Pointer.SnapshotID = s.config.SnapshotID
-		pInfo.Pointer.Address = newNodeAddress
-	}
-
-	return nil
-}
-
 // Entry represents entry in the space.
 type Entry[K, V comparable] struct {
-	space       *Space[K, V]
-	item        types.DataItem[K, V]
-	itemP       *types.DataItem[K, V]
-	stateP      *types.State
-	exists      bool
-	level       uint64
-	parentInfos stack[types.ParentInfo]
+	space  *Space[K, V]
+	item   types.DataItem[K, V]
+	itemP  *types.DataItem[K, V]
+	stateP *types.State
+	exists bool
+	pInfo  types.ParentInfo
 }
 
 // Value returns the value from entry.
@@ -594,67 +534,4 @@ func hashKey[K comparable](key K, hashMod uint64) types.Hash {
 
 func testHash(hash types.Hash) types.Hash {
 	return hash & 0x7fffffff
-}
-
-func newStack[T any](chunkSize uint64, massT *mass.Mass[T]) stack[T] {
-	return stack[T]{
-		chunkSize: chunkSize,
-		massT:     massT,
-	}
-}
-
-type stack[T any] struct {
-	chunkSize uint64
-	massT     *mass.Mass[T]
-	ch        chunk[T]
-	copy      bool
-}
-
-func (s stack[T]) Push(v T) stack[T] {
-	if s.ch.data == nil || s.copy || uint64(len(s.ch.data)) == s.chunkSize {
-		data := s.massT.NewSlice(s.chunkSize)
-		var ch *chunk[T]
-		if s.ch.data != nil {
-			ch2 := s.ch
-			ch = &ch2
-		}
-		s.ch = chunk[T]{
-			data: data[:0],
-			next: ch,
-		}
-		s.copy = false
-	}
-	s.ch.data = append(s.ch.data, v)
-	return s
-}
-
-func (s stack[T]) Top() T {
-	if s.ch.data == nil {
-		var v T
-		return v
-	}
-
-	return s.ch.data[len(s.ch.data)-1]
-}
-
-func (s stack[T]) Iterate() func(func(T) bool) {
-	return func(yield func(T) bool) {
-		for ch := &s.ch; ch != nil; ch = ch.next {
-			for i := len(ch.data) - 1; i >= 0; i-- {
-				if !yield(ch.data[i]) {
-					return
-				}
-			}
-		}
-	}
-}
-
-func (s stack[T]) Copy() stack[T] {
-	s.copy = true
-	return s
-}
-
-type chunk[T any] struct {
-	data []T
-	next *chunk[T]
 }
