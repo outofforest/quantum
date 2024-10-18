@@ -16,8 +16,8 @@ const trials = 50
 type Config[K, V comparable] struct {
 	HashMod              *uint64
 	SpaceRoot            types.ParentInfo
-	PointerNodeAllocator NodeAllocator[types.Pointer]
-	DataNodeAllocator    NodeAllocator[types.DataItem[K, V]]
+	PointerNodeAllocator *NodeAllocator[types.Pointer]
+	DataNodeAllocator    *NodeAllocator[types.DataItem[K, V]]
 	Allocator            types.SnapshotAllocator
 }
 

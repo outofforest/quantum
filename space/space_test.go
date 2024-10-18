@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/outofforest/quantum/alloc"
-	"github.com/outofforest/quantum/list"
 	"github.com/outofforest/quantum/space"
 	"github.com/outofforest/quantum/test"
 	"github.com/outofforest/quantum/types"
@@ -454,7 +453,7 @@ func newEnv(requireT *require.Assertions) *env {
 			allocator,
 			map[types.SnapshotID]alloc.ListToCommit{},
 			map[types.SnapshotID]struct{}{},
-			list.NodeAllocator{},
+			nil,
 		)),
 		spaceRoot: types.ParentInfo{
 			State:   lo.ToPtr(types.StateFree),
@@ -484,8 +483,8 @@ type env struct {
 	snapshotID           types.SnapshotID
 	spaceRoot            types.ParentInfo
 	spaceHashMod         *uint64
-	pointerNodeAllocator space.NodeAllocator[types.Pointer]
-	dataNodeAllocator    space.NodeAllocator[types.DataItem[int, int]]
+	pointerNodeAllocator *space.NodeAllocator[types.Pointer]
+	dataNodeAllocator    *space.NodeAllocator[types.DataItem[int, int]]
 }
 
 func (e *env) NextSnapshot() {
