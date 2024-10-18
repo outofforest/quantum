@@ -11,6 +11,7 @@ type Config struct {
 	Item              *types.NodeAddress
 	Allocator         types.Allocator
 	SnapshotAllocator types.SnapshotAllocator
+	DirtyListNodesCh  chan<- types.DirtyListNode
 }
 
 // New creates new list.
@@ -44,27 +45,17 @@ func (l *List) Add(nodeAddress types.NodeAddress) error {
 		newNode.Header.NumOfItems = 1
 		*l.config.Item = newNodeAddress
 
+		l.config.DirtyListNodesCh <- types.DirtyListNode{}
+
 		return nil
 	}
-	listNode := l.nodeAllocator.Get(*l.config.Item)
-	//nolint:nestif
-	if listNode.Header.NumOfItems+listNode.Header.NumOfSideLists < uint64(len(listNode.Items)) {
-		if listNode.Header.SnapshotID < l.config.SnapshotAllocator.SnapshotID() {
-			newNodeAddress, newNode, err := l.nodeAllocator.Copy(l.config.SnapshotAllocator, *l.config.Item)
-			if err != nil {
-				return err
-			}
-			newNode.Header.SnapshotID = l.config.SnapshotAllocator.SnapshotID()
-			oldNodeAddress := *l.config.Item
-			*l.config.Item = newNodeAddress
-			if err := l.config.SnapshotAllocator.Deallocate(oldNodeAddress, listNode.Header.SnapshotID); err != nil {
-				return err
-			}
-			listNode = newNode
-		}
 
+	listNode := l.nodeAllocator.Get(*l.config.Item)
+	if listNode.Header.NumOfItems+listNode.Header.NumOfSideLists < uint64(len(listNode.Items)) {
 		listNode.Items[listNode.Header.NumOfItems] = nodeAddress
 		listNode.Header.NumOfItems++
+
+		l.config.DirtyListNodesCh <- types.DirtyListNode{}
 
 		return nil
 	}
@@ -80,6 +71,8 @@ func (l *List) Add(nodeAddress types.NodeAddress) error {
 	newNode.Header.NumOfSideLists = 1
 	*l.config.Item = newNodeAddress
 
+	l.config.DirtyListNodesCh <- types.DirtyListNode{}
+
 	return nil
 }
 
@@ -89,25 +82,13 @@ func (l *List) Attach(nodeAddress types.NodeAddress) error {
 		*l.config.Item = nodeAddress
 		return nil
 	}
-	listNode := l.nodeAllocator.Get(*l.config.Item)
-	//nolint:nestif
-	if listNode.Header.NumOfItems+listNode.Header.NumOfSideLists < uint64(len(listNode.Items)) {
-		if listNode.Header.SnapshotID < l.config.SnapshotAllocator.SnapshotID() {
-			newNodeAddress, newNode, err := l.nodeAllocator.Copy(l.config.SnapshotAllocator, *l.config.Item)
-			if err != nil {
-				return err
-			}
-			newNode.Header.SnapshotID = l.config.SnapshotAllocator.SnapshotID()
-			oldNodeAddress := *l.config.Item
-			*l.config.Item = newNodeAddress
-			if err := l.config.SnapshotAllocator.Deallocate(oldNodeAddress, listNode.Header.SnapshotID); err != nil {
-				return err
-			}
-			listNode = newNode
-		}
 
+	listNode := l.nodeAllocator.Get(*l.config.Item)
+	if listNode.Header.NumOfItems+listNode.Header.NumOfSideLists < uint64(len(listNode.Items)) {
 		listNode.Items[uint64(len(listNode.Items))-listNode.Header.NumOfSideLists-1] = nodeAddress
 		listNode.Header.NumOfSideLists++
+
+		l.config.DirtyListNodesCh <- types.DirtyListNode{}
 
 		return nil
 	}
@@ -121,6 +102,8 @@ func (l *List) Attach(nodeAddress types.NodeAddress) error {
 	newNode.Header.SnapshotID = l.config.SnapshotAllocator.SnapshotID()
 	newNode.Header.NumOfSideLists = 2
 	*l.config.Item = newNodeAddress
+
+	l.config.DirtyListNodesCh <- types.DirtyListNode{}
 
 	return nil
 }

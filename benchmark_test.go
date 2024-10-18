@@ -1,12 +1,15 @@
 package quantum
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/outofforest/logger"
+	"github.com/outofforest/parallel"
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/types"
 )
@@ -17,7 +20,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 50_000_000
+		numOfAddresses = 10_000_000
 		txsPerCommit   = 2000
 		balance        = 100_000
 	)
@@ -33,87 +36,99 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 	}
 
 	for bi := 0; bi < b.N; bi++ {
-		allocator, deallocFunc, err := alloc.NewAllocator(alloc.Config{
-			TotalSize:    20 * 1024 * 1024 * 1024,
-			NodeSize:     4 * 1024,
-			UseHugePages: true,
-		})
-		if err != nil {
-			panic(err)
-		}
-		db, err := New(Config{
-			Allocator: allocator,
-		})
-		if err != nil {
-			panic(err)
-		}
+		func() {
+			allocator, deallocFunc, err := alloc.NewAllocator(alloc.Config{
+				TotalSize:    20 * 1024 * 1024 * 1024,
+				NodeSize:     4 * 1024,
+				UseHugePages: true,
+			})
+			if err != nil {
+				panic(err)
+			}
+			defer deallocFunc()
 
-		s, err := GetSpace[accountAddress, accountBalance](spaceID, db)
-		if err != nil {
-			panic(err)
-		}
-		if err := s.AllocatePointers(3); err != nil {
-			panic(err)
-		}
-
-		for i := 0; i < numOfAddresses; i += 2 {
-			v := s.Get(accounts[i])
-			_, err := v.Set(2 * balance)
+			db, err := New(Config{
+				Allocator:            allocator,
+				DirtyDataNodeWorkers: 2,
+				DirtyListNodeWorkers: 2,
+			})
 			if err != nil {
 				panic(err)
 			}
 
-			// v = s.Get(accounts[i])
-			// require.Equal(b, accountBalance(2*balance), v.Value())
-		}
+			ctx, cancel := context.WithCancel(logger.WithLogger(context.Background(), logger.New(logger.DefaultConfig)))
+			b.Cleanup(cancel)
 
-		fmt.Println(s.Stats())
-		fmt.Println("===========================")
+			group := parallel.NewGroup(ctx)
+			group.Spawn("db", parallel.Continue, db.Run)
 
-		tx := 0
-		var snapshotID types.SnapshotID
+			defer db.Close()
 
-		_ = db.Commit()
-		snapshotID++
+			s, err := GetSpace[accountAddress, accountBalance](spaceID, db)
+			if err != nil {
+				panic(err)
+			}
+			if err := s.AllocatePointers(3); err != nil {
+				panic(err)
+			}
 
-		func() {
-			b.StartTimer()
 			for i := 0; i < numOfAddresses; i += 2 {
-				senderAddress := accounts[i]
-				recipientAddress := accounts[i+1]
-
-				senderBalance := s.Get(senderAddress)
-				recipientBalance := s.Get(recipientAddress)
-
-				if _, err := senderBalance.Set(senderBalance.Value() - balance); err != nil {
-					panic(err)
-				}
-				if _, err := recipientBalance.Set(recipientBalance.Value() + balance); err != nil {
+				v := s.Get(accounts[i])
+				_, err := v.Set(2 * balance)
+				if err != nil {
 					panic(err)
 				}
 
-				tx++
-				if tx%txsPerCommit == 0 {
-					_ = db.Commit()
-					snapshotID++
+				// v = s.Get(accounts[i])
+				// require.Equal(b, accountBalance(2*balance), v.Value())
+			}
 
-					if snapshotID > 1 {
-						if err := db.DeleteSnapshot(snapshotID - 2); err != nil {
-							panic(err)
+			fmt.Println(s.Stats())
+			fmt.Println("===========================")
+
+			tx := 0
+			var snapshotID types.SnapshotID
+
+			_ = db.Commit()
+			snapshotID++
+
+			func() {
+				b.StartTimer()
+				for i := 0; i < numOfAddresses; i += 2 {
+					senderAddress := accounts[i]
+					recipientAddress := accounts[i+1]
+
+					senderBalance := s.Get(senderAddress)
+					recipientBalance := s.Get(recipientAddress)
+
+					if _, err := senderBalance.Set(senderBalance.Value() - balance); err != nil {
+						panic(err)
+					}
+					if _, err := recipientBalance.Set(recipientBalance.Value() + balance); err != nil {
+						panic(err)
+					}
+
+					tx++
+					if tx%txsPerCommit == 0 {
+						_ = db.Commit()
+						snapshotID++
+
+						if snapshotID > 1 {
+							if err := db.DeleteSnapshot(snapshotID - 2); err != nil {
+								panic(err)
+							}
 						}
 					}
 				}
-			}
-			b.StopTimer()
+				b.StopTimer()
+			}()
 
 			fmt.Println(s.Stats())
+
+			for _, addr := range accounts {
+				require.Equal(b, accountBalance(balance), s.Get(addr).Value())
+			}
 		}()
-
-		for _, addr := range accounts {
-			require.Equal(b, accountBalance(balance), s.Get(addr).Value())
-		}
-
-		deallocFunc()
 	}
 }
 

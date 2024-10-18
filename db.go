@@ -1,11 +1,14 @@
 package quantum
 
 import (
+	"context"
+	"fmt"
 	"sort"
 
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
+	"github.com/outofforest/parallel"
 	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/list"
@@ -15,7 +18,9 @@ import (
 
 // Config stores snapshot configuration.
 type Config struct {
-	Allocator types.Allocator
+	Allocator            types.Allocator
+	DirtyDataNodeWorkers uint
+	DirtyListNodeWorkers uint
 }
 
 // SpaceToCommit represents requested space which might require to be committed.
@@ -34,12 +39,16 @@ func New(config Config) (*DB, error) {
 		spacesToCommit:            map[types.SpaceID]SpaceToCommit{},
 		deallocationListsToCommit: map[types.SnapshotID]alloc.ListToCommit{},
 		availableSnapshots:        map[types.SnapshotID]struct{}{},
+		dirtyDataNodesCh:          make(chan types.DirtyDataNode, 100),
+		dirtyListNodesCh:          make(chan types.DirtyListNode, 100),
+		doneCh:                    make(chan struct{}),
 	}
 
 	db.snapshotAllocator = alloc.NewSnapshotAllocator(
 		config.Allocator,
 		db.deallocationListsToCommit,
 		db.availableSnapshots,
+		db.dirtyListNodesCh,
 	)
 
 	db.immediateSnapshotAllocator = alloc.NewImmediateSnapshotAllocator(db.snapshotAllocator)
@@ -53,6 +62,7 @@ func New(config Config) (*DB, error) {
 		},
 		Allocator:         config.Allocator,
 		SnapshotAllocator: db.immediateSnapshotAllocator,
+		DirtyDataNodesCh:  db.dirtyDataNodesCh,
 	})
 	if err != nil {
 		return nil, err
@@ -66,6 +76,7 @@ func New(config Config) (*DB, error) {
 		},
 		Allocator:         config.Allocator,
 		SnapshotAllocator: db.snapshotAllocator,
+		DirtyDataNodesCh:  db.dirtyDataNodesCh,
 	})
 	if err != nil {
 		return nil, err
@@ -80,6 +91,7 @@ func New(config Config) (*DB, error) {
 			},
 			Allocator:         config.Allocator,
 			SnapshotAllocator: db.immediateSnapshotAllocator,
+			DirtyDataNodesCh:  db.dirtyDataNodesCh,
 		},
 	)
 
@@ -107,6 +119,10 @@ type DB struct {
 	spacesToCommit            map[types.SpaceID]SpaceToCommit
 	deallocationListsToCommit map[types.SnapshotID]alloc.ListToCommit
 	availableSnapshots        map[types.SnapshotID]struct{}
+
+	dirtyDataNodesCh chan types.DirtyDataNode
+	dirtyListNodesCh chan types.DirtyListNode
+	doneCh           chan struct{}
 }
 
 // DeleteSnapshot deletes snapshot.
@@ -136,6 +152,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 				},
 				Allocator:         db.config.Allocator,
 				SnapshotAllocator: db.immediateSnapshotAllocator,
+				DirtyDataNodesCh:  db.dirtyDataNodesCh,
 			},
 		)
 		if err != nil {
@@ -159,6 +176,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 			},
 			Allocator:         db.config.Allocator,
 			SnapshotAllocator: db.immediateSnapshotAllocator,
+			DirtyDataNodesCh:  db.dirtyDataNodesCh,
 		},
 	)
 	if err != nil {
@@ -197,6 +215,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 			Item:              &newNextListNodeAddress,
 			Allocator:         db.config.Allocator,
 			SnapshotAllocator: db.immediateSnapshotAllocator,
+			DirtyListNodesCh:  db.dirtyListNodesCh,
 		})
 		if err != nil {
 			return err
@@ -297,6 +316,46 @@ func (db *DB) Commit() error {
 	return db.prepareNextSnapshot()
 }
 
+// Close closed DB.
+func (db *DB) Close() {
+	close(db.dirtyDataNodesCh)
+	close(db.dirtyListNodesCh)
+
+	<-db.doneCh
+}
+
+// Run runs db goroutines.
+func (db *DB) Run(ctx context.Context) error {
+	defer close(db.doneCh)
+
+	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
+		for i := range db.config.DirtyDataNodeWorkers {
+			spawn(fmt.Sprintf("dirtyDataNodeWorker-%02d", i), parallel.Continue, func(ctx context.Context) error {
+				return db.processDirtyDataNodes(ctx, db.dirtyDataNodesCh)
+			})
+		}
+		for i := range db.config.DirtyListNodeWorkers {
+			spawn(fmt.Sprintf("dirtyListNodeWorker-%02d", i), parallel.Continue, func(ctx context.Context) error {
+				return db.processDirtyListNodes(ctx, db.dirtyListNodesCh)
+			})
+		}
+		return nil
+	})
+}
+
+func (db *DB) processDirtyDataNodes(ctx context.Context, dirtyDataNodesCh <-chan types.DirtyDataNode) error {
+	for range dirtyDataNodesCh {
+
+	}
+	return errors.WithStack(ctx.Err())
+}
+
+func (db *DB) processDirtyListNodes(ctx context.Context, dirtyListNodesCh <-chan types.DirtyListNode) error {
+	for range dirtyListNodesCh {
+	}
+	return errors.WithStack(ctx.Err())
+}
+
 func (db *DB) prepareNextSnapshot() error {
 	var snapshotID types.SnapshotID
 	if db.singularityNode.SnapshotRoot.State != types.StateFree {
@@ -360,5 +419,6 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 		SpaceRoot:         s.PInfo,
 		Allocator:         db.config.Allocator,
 		SnapshotAllocator: db.snapshotAllocator,
+		DirtyDataNodesCh:  db.dirtyDataNodesCh,
 	})
 }

@@ -18,6 +18,7 @@ type Config[K, V comparable] struct {
 	SpaceRoot         types.ParentInfo
 	Allocator         types.Allocator
 	SnapshotAllocator types.SnapshotAllocator
+	DirtyDataNodesCh  chan<- types.DirtyDataNode
 }
 
 // New creates new space.
@@ -282,6 +283,7 @@ func (s *Space[K, V]) deleteValue(v Entry[K, V]) error {
 	}
 	if v.itemP.Hash == v.item.Hash && v.itemP.Key == v.item.Key {
 		*v.stateP = types.StateDeleted
+		s.config.DirtyDataNodesCh <- types.DirtyDataNode{}
 		return nil
 	}
 	return nil
@@ -331,6 +333,8 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 			v.itemP = item
 			v.exists = true
 
+			s.config.DirtyDataNodesCh <- types.DirtyDataNode{}
+
 			return v, nil
 		case types.StateData:
 			dataNode := s.dataNodeAllocator.Get(v.pInfo.Pointer.Address)
@@ -357,6 +361,8 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 				v.itemP = item
 				v.exists = true
 
+				s.config.DirtyDataNodesCh <- types.DirtyDataNode{}
+
 				return v, nil
 			}
 
@@ -366,6 +372,8 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 				v.stateP = state
 				v.itemP = item
 				v.exists = true
+
+				s.config.DirtyDataNodesCh <- types.DirtyDataNode{}
 
 				return v, nil
 			}

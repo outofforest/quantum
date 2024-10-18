@@ -40,7 +40,6 @@ type (
 type Allocator interface {
 	Node(nodeAddress NodeAddress) unsafe.Pointer
 	Allocate() (NodeAddress, unsafe.Pointer, error)
-	Copy(nodeAddress NodeAddress) (NodeAddress, unsafe.Pointer, error)
 	Deallocate(nodeAddress NodeAddress)
 	NodeSize() uint64
 }
@@ -50,7 +49,6 @@ type SnapshotAllocator interface {
 	SnapshotID() SnapshotID
 	SetSnapshotID(snapshotID SnapshotID)
 	Allocate() (NodeAddress, unsafe.Pointer, error)
-	Copy(nodeAddress NodeAddress) (NodeAddress, unsafe.Pointer, error)
 	Deallocate(nodeAddress NodeAddress, srcSnapshotID SnapshotID) error
 }
 
@@ -109,4 +107,14 @@ type SingularityNode struct {
 	FirstSnapshotID SnapshotID
 	LastSnapshotID  SnapshotID
 	SnapshotRoot    SpaceInfo
+}
+
+// DirtyDataNode stores information about modified data node.
+type DirtyDataNode struct {
+	DataNodeAddress    NodeAddress
+	PointerNodeAddress NodeAddress
+}
+
+// DirtyListNode stores information about modified list node.
+type DirtyListNode struct {
 }

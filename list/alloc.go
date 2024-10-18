@@ -55,18 +55,6 @@ func (na *NodeAllocator) Allocate(allocator types.SnapshotAllocator) (types.Node
 	return n, na.project(node), nil
 }
 
-// Copy allocates copy of existing object.
-func (na *NodeAllocator) Copy(
-	allocator types.SnapshotAllocator,
-	nodeAddress types.NodeAddress,
-) (types.NodeAddress, *types.ListNode, error) {
-	n, node, err := allocator.Copy(nodeAddress)
-	if err != nil {
-		return 0, nil, err
-	}
-	return n, na.project(node), nil
-}
-
 func (na *NodeAllocator) project(node unsafe.Pointer) *types.ListNode {
 	na.listNode.Header = photon.FromPointer[types.ListNodeHeader](node)
 	na.listNode.Items = photon.SliceFromPointer[types.NodeAddress](unsafe.Add(node, na.itemOffset), int(na.numOfItems))

@@ -154,9 +154,9 @@ func TestTwoSnapshots(t *testing.T) {
 	}
 
 	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
-	requireT.Equal([]types.NodeAddress{0x01, 0x03, 0x04}, nodesUsed)
+	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x03, 0x04}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x03, 0x04}, nodesAllocated)
-	requireT.Equal([]types.NodeAddress{0x02}, nodesDeallocated)
+	requireT.Empty(nodesDeallocated)
 	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x03, 0x04}, e.List.Nodes())
 
 	requireT.Equal(items1, test.CollectListItems(e.List))
@@ -208,6 +208,7 @@ func newEnv(requireT *require.Assertions) *env {
 		TotalSize: 1024 * 1024,
 		NodeSize:  512,
 	})
+	dirtyListNodesCh := make(chan types.DirtyListNode, 100000)
 
 	e := &env{
 		Allocator: allocator,
@@ -216,7 +217,9 @@ func newEnv(requireT *require.Assertions) *env {
 			allocator,
 			map[types.SnapshotID]alloc.ListToCommit{},
 			map[types.SnapshotID]struct{}{},
+			dirtyListNodesCh,
 		)),
+		DirtyListNodesCh: dirtyListNodesCh,
 	}
 
 	var err error
@@ -224,6 +227,7 @@ func newEnv(requireT *require.Assertions) *env {
 		Item:              e.Item,
 		Allocator:         e.Allocator,
 		SnapshotAllocator: e.snapshotAllocator,
+		DirtyListNodesCh:  e.DirtyListNodesCh,
 	})
 	requireT.NoError(err)
 
@@ -231,9 +235,10 @@ func newEnv(requireT *require.Assertions) *env {
 }
 
 type env struct {
-	Allocator *test.Allocator
-	List      *list.List
-	Item      *types.NodeAddress
+	Allocator        *test.Allocator
+	List             *list.List
+	Item             *types.NodeAddress
+	DirtyListNodesCh chan types.DirtyListNode
 
 	snapshotID        types.SnapshotID
 	snapshotAllocator types.SnapshotAllocator
@@ -250,6 +255,7 @@ func (e *env) NewList(requireT *require.Assertions) (*types.NodeAddress, *list.L
 		Item:              nodeAddress,
 		Allocator:         e.Allocator,
 		SnapshotAllocator: e.snapshotAllocator,
+		DirtyListNodesCh:  e.DirtyListNodesCh,
 	})
 	requireT.NoError(err)
 	return nodeAddress, l
