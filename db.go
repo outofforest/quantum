@@ -100,16 +100,18 @@ func New(config Config) (*DB, error) {
 		Allocator:            db.snapshotAllocator,
 	})
 
-	db.deallocationLists = space.New[types.SnapshotID, types.NodeAddress](space.Config[types.SnapshotID, types.NodeAddress]{
-		HashMod: &db.snapshotInfo.DeallocationRoot.HashMod,
-		SpaceRoot: types.ParentInfo{
-			State:   &db.snapshotInfo.DeallocationRoot.State,
-			Pointer: &db.snapshotInfo.DeallocationRoot.Pointer,
+	db.deallocationLists = space.New[types.SnapshotID, types.NodeAddress](
+		space.Config[types.SnapshotID, types.NodeAddress]{
+			HashMod: &db.snapshotInfo.DeallocationRoot.HashMod,
+			SpaceRoot: types.ParentInfo{
+				State:   &db.snapshotInfo.DeallocationRoot.State,
+				Pointer: &db.snapshotInfo.DeallocationRoot.Pointer,
+			},
+			PointerNodeAllocator: db.pointerNodeAllocator,
+			DataNodeAllocator:    db.snapshotToNodeNodeAllocator,
+			Allocator:            db.immediateSnapshotAllocator,
 		},
-		PointerNodeAllocator: db.pointerNodeAllocator,
-		DataNodeAllocator:    db.snapshotToNodeNodeAllocator,
-		Allocator:            db.immediateSnapshotAllocator,
-	})
+	)
 
 	if err := db.prepareNextSnapshot(); err != nil {
 		return nil, err
