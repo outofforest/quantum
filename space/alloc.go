@@ -10,10 +10,11 @@ import (
 )
 
 // NewNodeAllocator creates new space node allocator.
-func NewNodeAllocator[T comparable](allocator types.Allocator) (*NodeAllocator[T], error) {
+func NewNodeAllocator[H, T comparable](allocator types.Allocator) (*NodeAllocator[H, T], error) {
 	nodeSize := uintptr(allocator.NodeSize())
 
-	headerSize := unsafe.Sizeof(NodeHeader{})
+	var h H
+	headerSize := unsafe.Sizeof(h)
 	headerSize = (headerSize + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length // memory alignment
 	if headerSize >= nodeSize {
 		return nil, errors.New("node size is too small")
@@ -37,9 +38,9 @@ func NewNodeAllocator[T comparable](allocator types.Allocator) (*NodeAllocator[T
 		return nil, errors.New("node size is too small")
 	}
 
-	return &NodeAllocator[T]{
+	return &NodeAllocator[H, T]{
 		allocator: allocator,
-		spaceNode: &Node[T]{
+		spaceNode: &Node[H, T]{
 			numOfItems: numOfItems,
 			itemSize:   itemSize,
 		},
@@ -50,22 +51,22 @@ func NewNodeAllocator[T comparable](allocator types.Allocator) (*NodeAllocator[T
 }
 
 // NodeAllocator converts nodes from bytes to space objects.
-type NodeAllocator[T comparable] struct {
+type NodeAllocator[H, T comparable] struct {
 	allocator types.Allocator
 
-	spaceNode   *Node[T]
+	spaceNode   *Node[H, T]
 	numOfItems  uintptr
 	stateOffset uintptr
 	itemOffset  uintptr
 }
 
 // Get returns object for node.
-func (na *NodeAllocator[T]) Get(nodeAddress types.NodeAddress) *Node[T] {
+func (na *NodeAllocator[H, T]) Get(nodeAddress types.LogicalAddress) *Node[H, T] {
 	return na.project(na.allocator.Node(nodeAddress))
 }
 
 // Allocate allocates new object.
-func (na *NodeAllocator[T]) Allocate(allocator types.SnapshotAllocator) (types.NodeAddress, *Node[T], error) {
+func (na *NodeAllocator[H, T]) Allocate(allocator types.SnapshotAllocator) (types.LogicalAddress, *Node[H, T], error) {
 	n, node, err := allocator.Allocate()
 	if err != nil {
 		return 0, nil, err
@@ -74,25 +75,37 @@ func (na *NodeAllocator[T]) Allocate(allocator types.SnapshotAllocator) (types.N
 }
 
 // Shift shifts bits in hash.
-func (na *NodeAllocator[T]) Shift(hash types.Hash) types.Hash {
+func (na *NodeAllocator[H, T]) Shift(hash types.Hash) types.Hash {
 	return hash / types.Hash(na.numOfItems)
 }
 
-func (na *NodeAllocator[T]) project(node unsafe.Pointer) *Node[T] {
-	na.spaceNode.Header = photon.FromPointer[NodeHeader](node)
+func (na *NodeAllocator[H, T]) project(node unsafe.Pointer) *Node[H, T] {
+	na.spaceNode.Header = photon.FromPointer[H](node)
 	na.spaceNode.statesP = unsafe.Add(node, na.stateOffset)
 	na.spaceNode.itemsP = unsafe.Add(node, na.itemOffset)
 	return na.spaceNode
 }
 
-// NodeHeader is the header common to all space node types.
-type NodeHeader struct {
-	HashMod uint64
+// RevisionHeader stores information about node revision. It must be stored as first bytes in the node.
+type RevisionHeader struct {
+	Revision uint64
+}
+
+// PointerNodeHeader is the header of pointer node.
+type PointerNodeHeader struct {
+	RevisionHeader    RevisionHeader
+	ParentNodeAddress types.LogicalAddress
+	HashMod           uint64
+}
+
+// DataNodeHeader is the header of data node.
+type DataNodeHeader struct {
+	RevisionHeader RevisionHeader
 }
 
 // Node represents data stored inside space node.
-type Node[T comparable] struct {
-	Header *NodeHeader
+type Node[H, T comparable] struct {
+	Header *H
 
 	numOfItems uintptr
 	itemSize   uintptr
@@ -101,13 +114,13 @@ type Node[T comparable] struct {
 }
 
 // ItemByHash returns pointers to the item and its state by hash.
-func (sn *Node[T]) ItemByHash(hash types.Hash) (*T, *types.State) {
+func (sn *Node[H, T]) ItemByHash(hash types.Hash) (*T, *types.State) {
 	index := uintptr(hash) % sn.numOfItems
 	return (*T)(unsafe.Add(sn.itemsP, sn.itemSize*index)), (*types.State)(unsafe.Add(sn.statesP, index))
 }
 
 // Iterator iterates over items.
-func (sn *Node[T]) Iterator() func(func(*T, *types.State) bool) {
+func (sn *Node[H, T]) Iterator() func(func(*T, *types.State) bool) {
 	return func(yield func(*T, *types.State) bool) {
 		itemsP := sn.itemsP
 		statesP := sn.statesP

@@ -8,7 +8,7 @@ import (
 
 // Config stores list configuration.
 type Config struct {
-	Item              *types.NodeAddress
+	ListRoot          *types.Pointer
 	Allocator         types.Allocator
 	SnapshotAllocator types.SnapshotAllocator
 	DirtyListNodesCh  chan<- types.DirtyListNode
@@ -34,25 +34,27 @@ type List struct {
 }
 
 // Add adds address to the list.
-func (l *List) Add(nodeAddress types.NodeAddress) error {
-	if *l.config.Item == 0 {
+func (l *List) Add(pointer types.Pointer) error {
+	if l.config.ListRoot.LogicalAddress == 0 {
 		newNodeAddress, newNode, err := l.nodeAllocator.Allocate(l.config.SnapshotAllocator)
 		if err != nil {
 			return err
 		}
-		newNode.Items[0] = nodeAddress
+		newNode.Pointers[0] = pointer
 		newNode.Header.SnapshotID = l.config.SnapshotAllocator.SnapshotID()
 		newNode.Header.NumOfItems = 1
-		*l.config.Item = newNodeAddress
+		*l.config.ListRoot = types.Pointer{
+			LogicalAddress: newNodeAddress,
+		}
 
 		l.config.DirtyListNodesCh <- types.DirtyListNode{}
 
 		return nil
 	}
 
-	listNode := l.nodeAllocator.Get(*l.config.Item)
-	if listNode.Header.NumOfItems+listNode.Header.NumOfSideLists < uint64(len(listNode.Items)) {
-		listNode.Items[listNode.Header.NumOfItems] = nodeAddress
+	listNode := l.nodeAllocator.Get(l.config.ListRoot.LogicalAddress)
+	if listNode.Header.NumOfItems+listNode.Header.NumOfSideLists < uint64(len(listNode.Pointers)) {
+		listNode.Pointers[listNode.Header.NumOfItems] = pointer
 		listNode.Header.NumOfItems++
 
 		l.config.DirtyListNodesCh <- types.DirtyListNode{}
@@ -64,12 +66,14 @@ func (l *List) Add(nodeAddress types.NodeAddress) error {
 	if err != nil {
 		return err
 	}
-	newNode.Items[0] = nodeAddress
-	newNode.Items[len(newNode.Items)-1] = *l.config.Item
+	newNode.Pointers[0] = pointer
+	newNode.Pointers[len(newNode.Pointers)-1] = *l.config.ListRoot
 	newNode.Header.SnapshotID = l.config.SnapshotAllocator.SnapshotID()
 	newNode.Header.NumOfItems = 1
 	newNode.Header.NumOfSideLists = 1
-	*l.config.Item = newNodeAddress
+	*l.config.ListRoot = types.Pointer{
+		LogicalAddress: newNodeAddress,
+	}
 
 	l.config.DirtyListNodesCh <- types.DirtyListNode{}
 
@@ -77,15 +81,15 @@ func (l *List) Add(nodeAddress types.NodeAddress) error {
 }
 
 // Attach attaches another list.
-func (l *List) Attach(nodeAddress types.NodeAddress) error {
-	if *l.config.Item == 0 {
-		*l.config.Item = nodeAddress
+func (l *List) Attach(pointer types.Pointer) error {
+	if l.config.ListRoot.LogicalAddress == 0 {
+		*l.config.ListRoot = pointer
 		return nil
 	}
 
-	listNode := l.nodeAllocator.Get(*l.config.Item)
-	if listNode.Header.NumOfItems+listNode.Header.NumOfSideLists < uint64(len(listNode.Items)) {
-		listNode.Items[uint64(len(listNode.Items))-listNode.Header.NumOfSideLists-1] = nodeAddress
+	listNode := l.nodeAllocator.Get(l.config.ListRoot.LogicalAddress)
+	if listNode.Header.NumOfItems+listNode.Header.NumOfSideLists < uint64(len(listNode.Pointers)) {
+		listNode.Pointers[uint64(len(listNode.Pointers))-listNode.Header.NumOfSideLists-1] = pointer
 		listNode.Header.NumOfSideLists++
 
 		l.config.DirtyListNodesCh <- types.DirtyListNode{}
@@ -97,11 +101,13 @@ func (l *List) Attach(nodeAddress types.NodeAddress) error {
 	if err != nil {
 		return err
 	}
-	newNode.Items[uint64(len(listNode.Items))-1] = *l.config.Item
-	newNode.Items[uint64(len(listNode.Items))-2] = nodeAddress
+	newNode.Pointers[uint64(len(listNode.Pointers))-1] = *l.config.ListRoot
+	newNode.Pointers[uint64(len(listNode.Pointers))-2] = pointer
 	newNode.Header.SnapshotID = l.config.SnapshotAllocator.SnapshotID()
 	newNode.Header.NumOfSideLists = 2
-	*l.config.Item = newNodeAddress
+	*l.config.ListRoot = types.Pointer{
+		LogicalAddress: newNodeAddress,
+	}
 
 	l.config.DirtyListNodesCh <- types.DirtyListNode{}
 
@@ -110,67 +116,67 @@ func (l *List) Attach(nodeAddress types.NodeAddress) error {
 
 // Deallocate deallocates nodes referenced by the list.
 func (l *List) Deallocate() {
-	if *l.config.Item == 0 {
+	if l.config.ListRoot.LogicalAddress == 0 {
 		return
 	}
 
 	// FIXME (wojciech): Optimize heap allocations.
-	stack := []types.NodeAddress{*l.config.Item}
+	stack := []types.Pointer{*l.config.ListRoot}
 	for {
 		if len(stack) == 0 {
 			return
 		}
 
-		n := stack[len(stack)-1]
+		pointer := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 
-		listNode := l.nodeAllocator.Get(n)
+		listNode := l.nodeAllocator.Get(pointer.LogicalAddress)
 		// FIXME (wojciech): No-copy test
 		// for i := range listNode.Header.NumOfItems {
-		//	allocator.Deallocate(listNode.Items[i])
+		//	allocator.Deallocate(listNode.Pointers[i])
 		// }
 
-		stack = append(stack, listNode.Items[uint64(len(listNode.Items))-listNode.Header.NumOfSideLists:]...)
-		l.config.Allocator.Deallocate(n)
+		stack = append(stack, listNode.Pointers[uint64(len(listNode.Pointers))-listNode.Header.NumOfSideLists:]...)
+		l.config.Allocator.Deallocate(pointer.LogicalAddress)
 	}
 }
 
 // Iterator iterates over items in the list.
-func (l *List) Iterator() func(func(types.NodeAddress) bool) {
-	return func(yield func(types.NodeAddress) bool) {
-		if *l.config.Item == 0 {
+func (l *List) Iterator() func(func(types.Pointer) bool) {
+	return func(yield func(types.Pointer) bool) {
+		if l.config.ListRoot.LogicalAddress == 0 {
 			return
 		}
 
-		stack := []types.NodeAddress{*l.config.Item}
+		stack := []types.Pointer{*l.config.ListRoot}
 		for {
 			if len(stack) == 0 {
 				return
 			}
 
-			n := stack[len(stack)-1]
+			pointer := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 
-			listNode := l.nodeAllocator.Get(n)
+			listNode := l.nodeAllocator.Get(pointer.LogicalAddress)
 			for i := range listNode.Header.NumOfItems {
-				if !yield(listNode.Items[i]) {
+				if !yield(listNode.Pointers[i]) {
 					return
 				}
 			}
 
-			stack = append(stack, listNode.Items[uint64(len(listNode.Items))-listNode.Header.NumOfSideLists:]...)
+			stack = append(stack, listNode.Pointers[uint64(len(listNode.Pointers))-listNode.Header.NumOfSideLists:]...)
 		}
 	}
 }
 
 // Nodes returns list of nodes used by the list.
-func (l *List) Nodes() []types.NodeAddress {
-	if *l.config.Item == 0 {
+func (l *List) Nodes() []types.LogicalAddress {
+	if l.config.ListRoot.LogicalAddress == 0 {
 		return nil
 	}
 
-	nodes := []types.NodeAddress{}
-	stack := []types.NodeAddress{*l.config.Item}
+	nodes := []types.LogicalAddress{}
+	stack := []types.Pointer{*l.config.ListRoot}
 
 	for {
 		if len(stack) == 0 {
@@ -181,11 +187,11 @@ func (l *List) Nodes() []types.NodeAddress {
 			return nodes
 		}
 
-		n := stack[len(stack)-1]
+		pointer := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		nodes = append(nodes, n)
+		nodes = append(nodes, pointer.LogicalAddress)
 
-		listNode := l.nodeAllocator.Get(n)
-		stack = append(stack, listNode.Items[uint64(len(listNode.Items))-listNode.Header.NumOfSideLists:]...)
+		listNode := l.nodeAllocator.Get(pointer.LogicalAddress)
+		stack = append(stack, listNode.Pointers[uint64(len(listNode.Pointers))-listNode.Header.NumOfSideLists:]...)
 	}
 }
