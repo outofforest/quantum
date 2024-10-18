@@ -18,7 +18,7 @@ type Config[K, V comparable] struct {
 	SpaceRoot         types.ParentEntry
 	Allocator         types.Allocator
 	SnapshotAllocator types.SnapshotAllocator
-	DirtyDataNodesCh  chan<- types.DirtyDataNode
+	DirtySpaceNodesCh chan<- types.DirtySpaceNode
 }
 
 // New creates new space.
@@ -139,10 +139,10 @@ func (s *Space[K, V]) AllocatePointers(levels uint64) error {
 		if err != nil {
 			return err
 		}
-
-		// FIXME (wojciech): Pointer nodes must be stored on disk
-
 		pointerNode.Header.ParentNodeAddress = pToAllocate.PAddress
+
+		s.config.DirtySpaceNodesCh <- types.DirtySpaceNode{}
+
 		*pToAllocate.PEntry.State = types.StatePointer
 		*pToAllocate.PEntry.SpacePointer = types.SpacePointer{
 			SnapshotID: s.config.SnapshotAllocator.SnapshotID(),
@@ -304,7 +304,7 @@ func (s *Space[K, V]) deleteValue(v Entry[K, V]) error {
 	}
 	if v.itemP.Hash == v.item.Hash && v.itemP.Key == v.item.Key {
 		*v.stateP = types.StateDeleted
-		s.config.DirtyDataNodesCh <- types.DirtyDataNode{}
+		s.config.DirtySpaceNodesCh <- types.DirtySpaceNode{}
 		return nil
 	}
 	return nil
@@ -354,7 +354,7 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 			v.itemP = item
 			v.exists = true
 
-			s.config.DirtyDataNodesCh <- types.DirtyDataNode{}
+			s.config.DirtySpaceNodesCh <- types.DirtySpaceNode{}
 
 			return v, nil
 		case types.StateData:
@@ -382,7 +382,7 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 				v.itemP = item
 				v.exists = true
 
-				s.config.DirtyDataNodesCh <- types.DirtyDataNode{}
+				s.config.DirtySpaceNodesCh <- types.DirtySpaceNode{}
 
 				return v, nil
 			}
@@ -394,7 +394,7 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 				v.itemP = item
 				v.exists = true
 
-				s.config.DirtyDataNodesCh <- types.DirtyDataNode{}
+				s.config.DirtySpaceNodesCh <- types.DirtySpaceNode{}
 
 				return v, nil
 			}

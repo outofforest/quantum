@@ -18,9 +18,9 @@ import (
 
 // Config stores snapshot configuration.
 type Config struct {
-	Allocator            types.Allocator
-	DirtyDataNodeWorkers uint
-	DirtyListNodeWorkers uint
+	Allocator             types.Allocator
+	DirtySpaceNodeWorkers uint
+	DirtyListNodeWorkers  uint
 }
 
 // SpaceToCommit represents requested space which might require to be committed.
@@ -39,7 +39,7 @@ func New(config Config) (*DB, error) {
 		spacesToCommit:            map[types.SpaceID]SpaceToCommit{},
 		deallocationListsToCommit: map[types.SnapshotID]alloc.ListToCommit{},
 		availableSnapshots:        map[types.SnapshotID]struct{}{},
-		dirtyDataNodesCh:          make(chan types.DirtyDataNode, 100),
+		dirtySpaceNodesCh:         make(chan types.DirtySpaceNode, 100),
 		dirtyListNodesCh:          make(chan types.DirtyListNode, 100),
 		doneCh:                    make(chan struct{}),
 	}
@@ -62,7 +62,7 @@ func New(config Config) (*DB, error) {
 		},
 		Allocator:         config.Allocator,
 		SnapshotAllocator: db.immediateSnapshotAllocator,
-		DirtyDataNodesCh:  db.dirtyDataNodesCh,
+		DirtySpaceNodesCh: db.dirtySpaceNodesCh,
 	})
 	if err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ func New(config Config) (*DB, error) {
 		},
 		Allocator:         config.Allocator,
 		SnapshotAllocator: db.snapshotAllocator,
-		DirtyDataNodesCh:  db.dirtyDataNodesCh,
+		DirtySpaceNodesCh: db.dirtySpaceNodesCh,
 	})
 	if err != nil {
 		return nil, err
@@ -91,7 +91,7 @@ func New(config Config) (*DB, error) {
 			},
 			Allocator:         config.Allocator,
 			SnapshotAllocator: db.immediateSnapshotAllocator,
-			DirtyDataNodesCh:  db.dirtyDataNodesCh,
+			DirtySpaceNodesCh: db.dirtySpaceNodesCh,
 		},
 	)
 
@@ -120,9 +120,9 @@ type DB struct {
 	deallocationListsToCommit map[types.SnapshotID]alloc.ListToCommit
 	availableSnapshots        map[types.SnapshotID]struct{}
 
-	dirtyDataNodesCh chan types.DirtyDataNode
-	dirtyListNodesCh chan types.DirtyListNode
-	doneCh           chan struct{}
+	dirtySpaceNodesCh chan types.DirtySpaceNode
+	dirtyListNodesCh  chan types.DirtyListNode
+	doneCh            chan struct{}
 }
 
 // DeleteSnapshot deletes snapshot.
@@ -152,7 +152,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 				},
 				Allocator:         db.config.Allocator,
 				SnapshotAllocator: db.immediateSnapshotAllocator,
-				DirtyDataNodesCh:  db.dirtyDataNodesCh,
+				DirtySpaceNodesCh: db.dirtySpaceNodesCh,
 			},
 		)
 		if err != nil {
@@ -176,7 +176,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 			},
 			Allocator:         db.config.Allocator,
 			SnapshotAllocator: db.immediateSnapshotAllocator,
-			DirtyDataNodesCh:  db.dirtyDataNodesCh,
+			DirtySpaceNodesCh: db.dirtySpaceNodesCh,
 		},
 	)
 	if err != nil {
@@ -318,7 +318,7 @@ func (db *DB) Commit() error {
 
 // Close closed DB.
 func (db *DB) Close() {
-	close(db.dirtyDataNodesCh)
+	close(db.dirtySpaceNodesCh)
 	close(db.dirtyListNodesCh)
 
 	<-db.doneCh
@@ -329,9 +329,9 @@ func (db *DB) Run(ctx context.Context) error {
 	defer close(db.doneCh)
 
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-		for i := range db.config.DirtyDataNodeWorkers {
-			spawn(fmt.Sprintf("dirtyDataNodeWorker-%02d", i), parallel.Continue, func(ctx context.Context) error {
-				return db.processDirtyDataNodes(ctx, db.dirtyDataNodesCh)
+		for i := range db.config.DirtySpaceNodeWorkers {
+			spawn(fmt.Sprintf("dirtySpaceNodeWorker-%02d", i), parallel.Continue, func(ctx context.Context) error {
+				return db.processDirtySpaceNodes(ctx, db.dirtySpaceNodesCh)
 			})
 		}
 		for i := range db.config.DirtyListNodeWorkers {
@@ -343,8 +343,8 @@ func (db *DB) Run(ctx context.Context) error {
 	})
 }
 
-func (db *DB) processDirtyDataNodes(ctx context.Context, dirtyDataNodesCh <-chan types.DirtyDataNode) error {
-	for range dirtyDataNodesCh {
+func (db *DB) processDirtySpaceNodes(ctx context.Context, dirtySpaceNodesCh <-chan types.DirtySpaceNode) error {
+	for range dirtySpaceNodesCh {
 
 	}
 	return errors.WithStack(ctx.Err())
@@ -419,6 +419,6 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 		SpaceRoot:         s.PInfo,
 		Allocator:         db.config.Allocator,
 		SnapshotAllocator: db.snapshotAllocator,
-		DirtyDataNodesCh:  db.dirtyDataNodesCh,
+		DirtySpaceNodesCh: db.dirtySpaceNodesCh,
 	})
 }

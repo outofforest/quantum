@@ -118,8 +118,8 @@ type SingularityNode struct {
 	SnapshotRoot    SpaceInfo
 }
 
-// DirtyDataNode stores information about modified data node.
-type DirtyDataNode struct {
+// DirtySpaceNode stores information about modified data node.
+type DirtySpaceNode struct {
 	DataNodeAddress    LogicalAddress
 	PointerNodeAddress LogicalAddress
 }
