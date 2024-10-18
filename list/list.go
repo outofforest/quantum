@@ -8,7 +8,6 @@ import (
 
 // Config stores list configuration.
 type Config struct {
-	SnapshotID    types.SnapshotID
 	Item          *types.NodeAddress
 	NodeAllocator NodeAllocator
 	Allocator     types.SnapshotAllocator
@@ -34,7 +33,7 @@ func (l *List) Add(nodeAddress types.NodeAddress) error {
 			return err
 		}
 		newNode.Items[0] = nodeAddress
-		newNode.Header.SnapshotID = l.config.SnapshotID
+		newNode.Header.SnapshotID = l.config.Allocator.SnapshotID()
 		newNode.Header.NumOfItems = 1
 		*l.config.Item = newNodeAddress
 
@@ -43,12 +42,12 @@ func (l *List) Add(nodeAddress types.NodeAddress) error {
 	listNode := l.config.NodeAllocator.Get(*l.config.Item)
 	//nolint:nestif
 	if listNode.Header.NumOfItems+listNode.Header.NumOfSideLists < uint64(len(listNode.Items)) {
-		if listNode.Header.SnapshotID < l.config.SnapshotID {
+		if listNode.Header.SnapshotID < l.config.Allocator.SnapshotID() {
 			newNodeAddress, newNode, err := l.config.NodeAllocator.Copy(l.config.Allocator, *l.config.Item)
 			if err != nil {
 				return err
 			}
-			newNode.Header.SnapshotID = l.config.SnapshotID
+			newNode.Header.SnapshotID = l.config.Allocator.SnapshotID()
 			oldNodeAddress := *l.config.Item
 			*l.config.Item = newNodeAddress
 			if err := l.config.Allocator.Deallocate(oldNodeAddress, listNode.Header.SnapshotID); err != nil {
@@ -69,7 +68,7 @@ func (l *List) Add(nodeAddress types.NodeAddress) error {
 	}
 	newNode.Items[0] = nodeAddress
 	newNode.Items[len(newNode.Items)-1] = *l.config.Item
-	newNode.Header.SnapshotID = l.config.SnapshotID
+	newNode.Header.SnapshotID = l.config.Allocator.SnapshotID()
 	newNode.Header.NumOfItems = 1
 	newNode.Header.NumOfSideLists = 1
 	*l.config.Item = newNodeAddress
@@ -86,12 +85,12 @@ func (l *List) Attach(nodeAddress types.NodeAddress) error {
 	listNode := l.config.NodeAllocator.Get(*l.config.Item)
 	//nolint:nestif
 	if listNode.Header.NumOfItems+listNode.Header.NumOfSideLists < uint64(len(listNode.Items)) {
-		if listNode.Header.SnapshotID < l.config.SnapshotID {
+		if listNode.Header.SnapshotID < l.config.Allocator.SnapshotID() {
 			newNodeAddress, newNode, err := l.config.NodeAllocator.Copy(l.config.Allocator, *l.config.Item)
 			if err != nil {
 				return err
 			}
-			newNode.Header.SnapshotID = l.config.SnapshotID
+			newNode.Header.SnapshotID = l.config.Allocator.SnapshotID()
 			oldNodeAddress := *l.config.Item
 			*l.config.Item = newNodeAddress
 			if err := l.config.Allocator.Deallocate(oldNodeAddress, listNode.Header.SnapshotID); err != nil {
@@ -112,7 +111,7 @@ func (l *List) Attach(nodeAddress types.NodeAddress) error {
 	}
 	newNode.Items[uint64(len(listNode.Items))-1] = *l.config.Item
 	newNode.Items[uint64(len(listNode.Items))-2] = nodeAddress
-	newNode.Header.SnapshotID = l.config.SnapshotID
+	newNode.Header.SnapshotID = l.config.Allocator.SnapshotID()
 	newNode.Header.NumOfSideLists = 2
 	*l.config.Item = newNodeAddress
 

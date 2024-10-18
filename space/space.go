@@ -14,7 +14,6 @@ const trials = 50
 
 // Config stores space configuration.
 type Config[K, V comparable] struct {
-	SnapshotID           types.SnapshotID
 	HashMod              *uint64
 	SpaceRoot            types.ParentInfo
 	PointerNodeAllocator NodeAllocator[types.Pointer]
@@ -118,7 +117,7 @@ func (s *Space[K, V]) AllocatePointers(levels uint64) error {
 			}
 			*pInfo.State = types.StatePointer
 			*pInfo.Pointer = types.Pointer{
-				SnapshotID: s.config.SnapshotID,
+				SnapshotID: s.config.Allocator.SnapshotID(),
 				Address:    pointerNodeAddress,
 			}
 
@@ -307,7 +306,7 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 			}
 
 			*v.pInfo.State = types.StateData
-			v.pInfo.Pointer.SnapshotID = s.config.SnapshotID
+			v.pInfo.Pointer.SnapshotID = s.config.Allocator.SnapshotID()
 			v.pInfo.Pointer.Address = dataNodeAddress
 
 			index := s.config.DataNodeAllocator.Index(v.item.Hash + 1)
@@ -395,7 +394,7 @@ func (s *Space[K, V]) redistributeNode(pInfo types.ParentInfo, conflict bool) er
 
 	*pInfo.State = types.StatePointer
 	*pInfo.Pointer = types.Pointer{
-		SnapshotID: s.config.SnapshotID,
+		SnapshotID: s.config.Allocator.SnapshotID(),
 		Address:    pointerNodeAddress,
 	}
 

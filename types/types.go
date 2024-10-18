@@ -47,6 +47,8 @@ type Allocator interface {
 
 // SnapshotAllocator manages memory on snapshot level.
 type SnapshotAllocator interface {
+	SnapshotID() SnapshotID
+	SetSnapshotID(snapshotID SnapshotID)
 	Allocate() (NodeAddress, unsafe.Pointer, error)
 	Copy(nodeAddress NodeAddress) (NodeAddress, unsafe.Pointer, error)
 	Deallocate(nodeAddress NodeAddress, srcSnapshotID SnapshotID) error
