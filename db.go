@@ -135,7 +135,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 
 	var nextSnapshotInfo *types.SnapshotInfo
 	var nextDeallocationLists *space.Space[types.SnapshotID, types.Pointer]
-	if snapshotInfo.NextSnapshotID < db.snapshotAllocator.SnapshotID() {
+	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
 		nextSnapshotInfoValue := db.snapshots.Get(snapshotInfo.NextSnapshotID)
 		if !nextSnapshotInfoValue.Exists() {
 			return errors.Errorf("snapshot %d does not exist", snapshotID)
@@ -230,9 +230,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 		}
 	}
 
-	if err := deallocationLists.DeallocateAll(); err != nil {
-		return err
-	}
+	deallocationLists.DeallocateAll()
 
 	if snapshotID == db.singularityNode.FirstSnapshotID {
 		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.NextSnapshotID
@@ -240,7 +238,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
 	}
 
-	if snapshotInfo.NextSnapshotID < db.snapshotAllocator.SnapshotID() {
+	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
 		nextSnapshotInfoValue := db.snapshots.Get(snapshotInfo.NextSnapshotID)
 		if _, err := nextSnapshotInfoValue.Set(*nextSnapshotInfo); err != nil {
 			return err
@@ -265,7 +263,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 		db.singularityNode.FirstSnapshotID = snapshotInfo.NextSnapshotID
 	}
 	if snapshotID == db.snapshotInfo.PreviousSnapshotID {
-		db.snapshotInfo.PreviousSnapshotID = db.snapshotAllocator.SnapshotID()
+		db.snapshotInfo.PreviousSnapshotID = db.singularityNode.LastSnapshotID
 	}
 
 	if err := snapshotInfoValue.Delete(); err != nil {
@@ -304,14 +302,14 @@ func (db *DB) Commit() error {
 		return err
 	}
 
-	nextSnapshotInfoValue := db.snapshots.Get(db.snapshotAllocator.SnapshotID())
+	nextSnapshotInfoValue := db.snapshots.Get(db.singularityNode.LastSnapshotID)
 	if _, err := nextSnapshotInfoValue.Set(db.snapshotInfo); err != nil {
 		return err
 	}
 
 	*photon.FromPointer[types.SingularityNode](db.config.Allocator.Node(0)) = db.singularityNode
 
-	db.availableSnapshots[db.snapshotAllocator.SnapshotID()] = struct{}{}
+	db.availableSnapshots[db.singularityNode.LastSnapshotID] = struct{}{}
 
 	return db.prepareNextSnapshot()
 }

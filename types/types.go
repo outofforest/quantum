@@ -49,18 +49,15 @@ type Allocator interface {
 
 // SnapshotAllocator manages memory on snapshot level.
 type SnapshotAllocator interface {
-	SnapshotID() SnapshotID
 	SetSnapshotID(snapshotID SnapshotID)
 	Allocate() (LogicalAddress, unsafe.Pointer, error)
 	Deallocate(nodeAddress LogicalAddress, srcSnapshotID SnapshotID) error
 }
 
-// ListNodeHeader is the header of the list node.
-type ListNodeHeader struct {
-	Version        uint64
-	SnapshotID     SnapshotID
-	NumOfItems     uint64
-	NumOfSideLists uint64
+// RevisionHeader stores information about node revision. It must be stored as first bytes in the node.
+type RevisionHeader struct {
+	Revision   uint64
+	SnapshotID SnapshotID
 }
 
 // Pointer is the pointer to another block.
@@ -69,17 +66,10 @@ type Pointer struct {
 	PhysicalAddress PhysicalAddress
 }
 
-// ListNode represents data stored inside list node.
-type ListNode struct {
-	Header   *ListNodeHeader
-	Pointers []Pointer
-}
-
 // SpacePointer is the pointer to another block in the space.
 type SpacePointer struct {
-	Version    uint64
-	SnapshotID SnapshotID
-	Pointer    Pointer
+	Version uint64
+	Pointer Pointer
 }
 
 // DataItem stores single key-value pair.

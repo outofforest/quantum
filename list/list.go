@@ -41,7 +41,6 @@ func (l *List) Add(pointer types.Pointer) error {
 			return err
 		}
 		newNode.Pointers[0] = pointer
-		newNode.Header.SnapshotID = l.config.SnapshotAllocator.SnapshotID()
 		newNode.Header.NumOfItems = 1
 		*l.config.ListRoot = types.Pointer{
 			LogicalAddress: newNodeAddress,
@@ -68,7 +67,6 @@ func (l *List) Add(pointer types.Pointer) error {
 	}
 	newNode.Pointers[0] = pointer
 	newNode.Pointers[len(newNode.Pointers)-1] = *l.config.ListRoot
-	newNode.Header.SnapshotID = l.config.SnapshotAllocator.SnapshotID()
 	newNode.Header.NumOfItems = 1
 	newNode.Header.NumOfSideLists = 1
 	*l.config.ListRoot = types.Pointer{
@@ -103,7 +101,6 @@ func (l *List) Attach(pointer types.Pointer) error {
 	}
 	newNode.Pointers[uint64(len(listNode.Pointers))-1] = *l.config.ListRoot
 	newNode.Pointers[uint64(len(listNode.Pointers))-2] = pointer
-	newNode.Header.SnapshotID = l.config.SnapshotAllocator.SnapshotID()
 	newNode.Header.NumOfSideLists = 2
 	*l.config.ListRoot = types.Pointer{
 		LogicalAddress: newNodeAddress,
@@ -116,6 +113,8 @@ func (l *List) Attach(pointer types.Pointer) error {
 
 // Deallocate deallocates nodes referenced by the list.
 func (l *List) Deallocate() {
+	// FIXME (wojciech): Deallocate in the same goroutine which stores data on disk to be consistent with snapshot ID.
+
 	if l.config.ListRoot.LogicalAddress == 0 {
 		return
 	}

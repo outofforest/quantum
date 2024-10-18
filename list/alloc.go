@@ -13,7 +13,7 @@ import (
 func NewNodeAllocator(allocator types.Allocator) (*NodeAllocator, error) {
 	nodeSize := uintptr(allocator.NodeSize())
 
-	headerSize := unsafe.Sizeof(types.ListNodeHeader{})
+	headerSize := unsafe.Sizeof(NodeHeader{})
 	headerSize = (headerSize + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length // memory alignment
 	if headerSize >= nodeSize {
 		return nil, errors.New("node size is too small")
@@ -27,7 +27,7 @@ func NewNodeAllocator(allocator types.Allocator) (*NodeAllocator, error) {
 
 	return &NodeAllocator{
 		allocator:     allocator,
-		listNode:      &types.ListNode{},
+		listNode:      &Node{},
 		numOfPointers: uint64(numOfPointers),
 		pointerOffset: headerSize,
 	}, nil
@@ -37,18 +37,18 @@ func NewNodeAllocator(allocator types.Allocator) (*NodeAllocator, error) {
 type NodeAllocator struct {
 	allocator types.Allocator
 
-	listNode      *types.ListNode
+	listNode      *Node
 	numOfPointers uint64
 	pointerOffset uintptr
 }
 
 // Get returns object for node.
-func (na *NodeAllocator) Get(nodeAddress types.LogicalAddress) *types.ListNode {
+func (na *NodeAllocator) Get(nodeAddress types.LogicalAddress) *Node {
 	return na.project(na.allocator.Node(nodeAddress))
 }
 
 // Allocate allocates new object.
-func (na *NodeAllocator) Allocate(allocator types.SnapshotAllocator) (types.LogicalAddress, *types.ListNode, error) {
+func (na *NodeAllocator) Allocate(allocator types.SnapshotAllocator) (types.LogicalAddress, *Node, error) {
 	n, node, err := allocator.Allocate()
 	if err != nil {
 		return 0, nil, err
@@ -56,10 +56,24 @@ func (na *NodeAllocator) Allocate(allocator types.SnapshotAllocator) (types.Logi
 	return n, na.project(node), nil
 }
 
-func (na *NodeAllocator) project(node unsafe.Pointer) *types.ListNode {
-	na.listNode.Header = photon.FromPointer[types.ListNodeHeader](node)
+func (na *NodeAllocator) project(node unsafe.Pointer) *Node {
+	na.listNode.Header = photon.FromPointer[NodeHeader](node)
 	na.listNode.Pointers = photon.SliceFromPointer[types.Pointer](unsafe.Add(node, na.pointerOffset),
 		int(na.numOfPointers))
 
 	return na.listNode
+}
+
+// NodeHeader is the header of the list node.
+type NodeHeader struct {
+	RevisionHeader types.RevisionHeader
+	Version        uint64
+	NumOfItems     uint64
+	NumOfSideLists uint64
+}
+
+// Node represents data stored inside list node.
+type Node struct {
+	Header   *NodeHeader
+	Pointers []types.Pointer
 }
