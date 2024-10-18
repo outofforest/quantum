@@ -14,23 +14,36 @@ const trials = 50
 
 // Config stores space configuration.
 type Config[K, V comparable] struct {
-	HashMod              *uint64
-	SpaceRoot            types.ParentInfo
-	PointerNodeAllocator *NodeAllocator[types.Pointer]
-	DataNodeAllocator    *NodeAllocator[types.DataItem[K, V]]
-	Allocator            types.SnapshotAllocator
+	HashMod           *uint64
+	SpaceRoot         types.ParentInfo
+	Allocator         types.Allocator
+	SnapshotAllocator types.SnapshotAllocator
 }
 
 // New creates new space.
-func New[K, V comparable](config Config[K, V]) *Space[K, V] {
-	return &Space[K, V]{
-		config: config,
+func New[K, V comparable](config Config[K, V]) (*Space[K, V], error) {
+	pointerNodeAllocator, err := NewNodeAllocator[types.Pointer](config.Allocator)
+	if err != nil {
+		return nil, err
 	}
+
+	dataNodeAllocator, err := NewNodeAllocator[types.DataItem[K, V]](config.Allocator)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Space[K, V]{
+		config:               config,
+		pointerNodeAllocator: pointerNodeAllocator,
+		dataNodeAllocator:    dataNodeAllocator,
+	}, nil
 }
 
 // Space represents the substate where values V are stored by key K.
 type Space[K, V comparable] struct {
-	config Config[K, V]
+	config               Config[K, V]
+	pointerNodeAllocator *NodeAllocator[types.Pointer]
+	dataNodeAllocator    *NodeAllocator[types.DataItem[K, V]]
 }
 
 // Get gets the value of the key.
@@ -66,24 +79,24 @@ func (s *Space[K, V]) Iterator() func(func(types.DataItem[K, V]) bool) {
 
 			switch *pInfo.State {
 			case types.StateData:
-				dataNode := s.config.DataNodeAllocator.Get(pInfo.Pointer.Address)
-				for i, state := range dataNode.States {
-					if state != types.StateData {
+				dataNode := s.dataNodeAllocator.Get(pInfo.Pointer.Address)
+				for item, state := range dataNode.Iterator() {
+					if *state != types.StateData {
 						continue
 					}
-					if !yield(dataNode.Items[i]) {
+					if !yield(*item) {
 						return
 					}
 				}
 			case types.StatePointer:
-				pointerNode := s.config.PointerNodeAllocator.Get(pInfo.Pointer.Address)
-				for i, state := range pointerNode.States {
-					if state == types.StateFree {
+				pointerNode := s.pointerNodeAllocator.Get(pInfo.Pointer.Address)
+				for item, state := range pointerNode.Iterator() {
+					if *state == types.StateFree {
 						continue
 					}
 					stack = append(stack, types.ParentInfo{
-						State:   &pointerNode.States[i],
-						Pointer: &pointerNode.Items[i],
+						State:   state,
+						Pointer: item,
 					})
 				}
 			}
@@ -111,13 +124,13 @@ func (s *Space[K, V]) AllocatePointers(levels uint64) error {
 		for pInfo, level := range stack {
 			delete(stack, pInfo)
 
-			pointerNodeAddress, pointerNode, err := s.config.PointerNodeAllocator.Allocate(s.config.Allocator)
+			pointerNodeAddress, pointerNode, err := s.pointerNodeAllocator.Allocate(s.config.SnapshotAllocator)
 			if err != nil {
 				return err
 			}
 			*pInfo.State = types.StatePointer
 			*pInfo.Pointer = types.Pointer{
-				SnapshotID: s.config.Allocator.SnapshotID(),
+				SnapshotID: s.config.SnapshotAllocator.SnapshotID(),
 				Address:    pointerNodeAddress,
 			}
 
@@ -126,10 +139,10 @@ func (s *Space[K, V]) AllocatePointers(levels uint64) error {
 			}
 
 			level++
-			for i := range pointerNode.States {
+			for item, state := range pointerNode.Iterator() {
 				stack[types.ParentInfo{
-					State:   &pointerNode.States[i],
-					Pointer: &pointerNode.Items[i],
+					State:   state,
+					Pointer: item,
 				}] = level
 			}
 		}
@@ -142,7 +155,8 @@ func (s *Space[K, V]) DeallocateAll() error {
 	case types.StateFree:
 		return nil
 	case types.StateData:
-		return s.config.Allocator.Deallocate(s.config.SpaceRoot.Pointer.Address, s.config.SpaceRoot.Pointer.SnapshotID)
+		return s.config.SnapshotAllocator.Deallocate(s.config.SpaceRoot.Pointer.Address,
+			s.config.SpaceRoot.Pointer.SnapshotID)
 	}
 
 	// FIXME (wojciech): Optimize heap allocations
@@ -156,18 +170,18 @@ func (s *Space[K, V]) DeallocateAll() error {
 		pointer := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 
-		pointerNode := s.config.PointerNodeAllocator.Get(pointer.Address)
-		for i, p := range pointerNode.Items {
-			switch pointerNode.States[i] {
+		pointerNode := s.pointerNodeAllocator.Get(pointer.Address)
+		for item, state := range pointerNode.Iterator() {
+			switch *state {
 			case types.StateData:
-				if err := s.config.Allocator.Deallocate(p.Address, p.SnapshotID); err != nil {
+				if err := s.config.SnapshotAllocator.Deallocate(item.Address, item.SnapshotID); err != nil {
 					return err
 				}
 			case types.StatePointer:
-				stack = append(stack, p)
+				stack = append(stack, *item)
 			}
 		}
-		if err := s.config.Allocator.Deallocate(pointer.Address, pointer.SnapshotID); err != nil {
+		if err := s.config.SnapshotAllocator.Deallocate(pointer.Address, pointer.SnapshotID); err != nil {
 			return err
 		}
 	}
@@ -198,14 +212,14 @@ func (s *Space[K, V]) Nodes() []types.NodeAddress {
 		stack = stack[:len(stack)-1]
 		nodes = append(nodes, n)
 
-		pointerNode := s.config.PointerNodeAllocator.Get(n)
-		for i, state := range pointerNode.States {
-			switch state {
+		pointerNode := s.pointerNodeAllocator.Get(n)
+		for item, state := range pointerNode.Iterator() {
+			switch *state {
 			case types.StateFree:
 			case types.StateData:
-				nodes = append(nodes, pointerNode.Items[i].Address)
+				nodes = append(nodes, item.Address)
 			case types.StatePointer:
-				stack = append(stack, pointerNode.Items[i].Address)
+				stack = append(stack, item.Address)
 			}
 		}
 	}
@@ -237,9 +251,9 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64) {
 		pointerNodes++
 		stack = stack[:len(stack)-1]
 
-		pointerNode := s.config.PointerNodeAllocator.Get(n)
-		for i, state := range pointerNode.States {
-			switch state {
+		pointerNode := s.pointerNodeAllocator.Get(n)
+		for item, state := range pointerNode.Iterator() {
+			switch *state {
 			case types.StateFree:
 			case types.StateData:
 				dataNodes++
@@ -247,8 +261,8 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64) {
 					maxLevel = level
 				}
 			case types.StatePointer:
-				stack = append(stack, pointerNode.Items[i].Address)
-				levels[pointerNode.Items[i].Address] = level
+				stack = append(stack, item.Address)
+				levels[item.Address] = level
 			}
 		}
 	}
@@ -300,56 +314,57 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 	for {
 		switch *v.pInfo.State {
 		case types.StateFree:
-			dataNodeAddress, dataNode, err := s.config.DataNodeAllocator.Allocate(s.config.Allocator)
+			dataNodeAddress, dataNode, err := s.dataNodeAllocator.Allocate(s.config.SnapshotAllocator)
 			if err != nil {
 				return Entry[K, V]{}, err
 			}
 
 			*v.pInfo.State = types.StateData
-			v.pInfo.Pointer.SnapshotID = s.config.Allocator.SnapshotID()
+			v.pInfo.Pointer.SnapshotID = s.config.SnapshotAllocator.SnapshotID()
 			v.pInfo.Pointer.Address = dataNodeAddress
 
-			index := s.config.DataNodeAllocator.Index(v.item.Hash + 1)
-			dataNode.States[index] = types.StateData
-			dataNode.Items[index] = v.item
+			item, state := dataNode.ItemByHash(v.item.Hash + 1)
+			*state = types.StateData
+			*item = v.item
 
-			v.stateP = &dataNode.States[index]
-			v.itemP = &dataNode.Items[index]
+			v.stateP = state
+			v.itemP = item
 			v.exists = true
 
 			return v, nil
 		case types.StateData:
-			dataNode := s.config.DataNodeAllocator.Get(v.pInfo.Pointer.Address)
+			dataNode := s.dataNodeAllocator.Get(v.pInfo.Pointer.Address)
 
-			var index uint64
-			var keyMatches, conflict bool
+			var stateMatches, keyMatches, conflict bool
+			var item *types.DataItem[K, V]
+			var state *types.State
 			for i := types.Hash(0); i < trials; i++ {
-				index = s.config.DataNodeAllocator.Index(v.item.Hash + 1<<i + i)
-				hashMatches := v.item.Hash == dataNode.Items[index].Hash
-				keyMatches = hashMatches && v.item.Key == dataNode.Items[index].Key
+				item, state = dataNode.ItemByHash(v.item.Hash + 1<<i + i)
+				hashMatches := v.item.Hash == item.Hash
+				keyMatches = hashMatches && v.item.Key == item.Key
 				conflict = conflict || hashMatches
+				stateMatches = *state == types.StateFree || *state == types.StateDeleted
 
-				if dataNode.States[index] == types.StateFree || dataNode.States[index] == types.StateDeleted ||
-					keyMatches {
+				if stateMatches || keyMatches {
 					break
 				}
 			}
-			if dataNode.States[index] == types.StateFree || dataNode.States[index] == types.StateDeleted {
-				dataNode.States[index] = types.StateData
-				dataNode.Items[index] = v.item
+			if stateMatches {
+				*state = types.StateData
+				*item = v.item
 
-				v.stateP = &dataNode.States[index]
-				v.itemP = &dataNode.Items[index]
+				v.stateP = state
+				v.itemP = item
 				v.exists = true
 
 				return v, nil
 			}
 
 			if keyMatches {
-				dataNode.Items[index] = v.item
+				*item = v.item
 
-				v.stateP = &dataNode.States[index]
-				v.itemP = &dataNode.Items[index]
+				v.stateP = state
+				v.itemP = item
 				v.exists = true
 
 				return v, nil
@@ -360,17 +375,17 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 			}
 			return s.set(v)
 		default:
-			pointerNode := s.config.PointerNodeAllocator.Get(v.pInfo.Pointer.Address)
+			pointerNode := s.pointerNodeAllocator.Get(v.pInfo.Pointer.Address)
 			if pointerNode.Header.HashMod > 0 {
 				v.item.Hash = hashKey(v.item.Key, pointerNode.Header.HashMod)
 			}
 
-			index := s.config.PointerNodeAllocator.Index(v.item.Hash)
-			v.item.Hash = s.config.PointerNodeAllocator.Shift(v.item.Hash)
+			item, state := pointerNode.ItemByHash(v.item.Hash)
+			v.item.Hash = s.pointerNodeAllocator.Shift(v.item.Hash)
 
 			v.pInfo = types.ParentInfo{
-				State:   &pointerNode.States[index],
-				Pointer: &pointerNode.Items[index],
+				State:   state,
+				Pointer: item,
 			}
 		}
 	}
@@ -378,94 +393,92 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 
 func (s *Space[K, V]) redistributeNode(pInfo types.ParentInfo, conflict bool) error {
 	dataNodePointer := *pInfo.Pointer
-	dataNode := s.config.DataNodeAllocator.Get(dataNodePointer.Address)
+	dataNode := s.dataNodeAllocator.Get(dataNodePointer.Address)
 
-	pointerNodeAddress, pointerNode, err := s.config.PointerNodeAllocator.Allocate(s.config.Allocator)
+	pointerNodeAddress, pointerNode, err := s.pointerNodeAllocator.Allocate(s.config.SnapshotAllocator)
 	if err != nil {
 		return err
 	}
 
 	if conflict {
 		*s.config.HashMod++
-		*pointerNode.Header = types.SpaceNodeHeader{
+		*pointerNode.Header = NodeHeader{
 			HashMod: *s.config.HashMod,
 		}
 	}
 
 	*pInfo.State = types.StatePointer
 	*pInfo.Pointer = types.Pointer{
-		SnapshotID: s.config.Allocator.SnapshotID(),
+		SnapshotID: s.config.SnapshotAllocator.SnapshotID(),
 		Address:    pointerNodeAddress,
 	}
 
-	for i, state := range dataNode.States {
-		if state != types.StateData {
+	for item, state := range dataNode.Iterator() {
+		if *state != types.StateData {
 			continue
 		}
 
-		item := dataNode.Items[i]
 		if conflict {
 			item.Hash = hashKey(item.Key, pointerNode.Header.HashMod)
 		}
-		index := s.config.PointerNodeAllocator.Index(item.Hash)
-		item.Hash = s.config.PointerNodeAllocator.Shift(item.Hash)
+		pointerItem, pointerState := pointerNode.ItemByHash(item.Hash)
+		item.Hash = s.pointerNodeAllocator.Shift(item.Hash)
 
 		if _, err := s.set(Entry[K, V]{
 			space: s,
-			item:  item,
+			item:  *item,
 			pInfo: types.ParentInfo{
-				State:   &pointerNode.States[index],
-				Pointer: &pointerNode.Items[index],
+				State:   pointerState,
+				Pointer: pointerItem,
 			},
 		}); err != nil {
 			return err
 		}
 	}
 
-	return s.config.Allocator.Deallocate(dataNodePointer.Address, dataNodePointer.SnapshotID)
+	return s.config.SnapshotAllocator.Deallocate(dataNodePointer.Address, dataNodePointer.SnapshotID)
 }
 
 func (s *Space[K, V]) find(v Entry[K, V]) (Entry[K, V], error) {
 	for {
 		switch *v.pInfo.State {
 		case types.StatePointer:
-			pointerNode := s.config.PointerNodeAllocator.Get(v.pInfo.Pointer.Address)
+			pointerNode := s.pointerNodeAllocator.Get(v.pInfo.Pointer.Address)
 			if pointerNode.Header.HashMod != 0 {
 				v.item.Hash = hashKey(v.item.Key, pointerNode.Header.HashMod)
 			}
 
-			index := s.config.PointerNodeAllocator.Index(v.item.Hash)
-			v.item.Hash = s.config.PointerNodeAllocator.Shift(v.item.Hash)
+			item, state := pointerNode.ItemByHash(v.item.Hash)
+			v.item.Hash = s.pointerNodeAllocator.Shift(v.item.Hash)
 
 			v.pInfo = types.ParentInfo{
-				State:   &pointerNode.States[index],
-				Pointer: &pointerNode.Items[index],
+				State:   state,
+				Pointer: item,
 			}
 		case types.StateData:
-			dataNode := s.config.DataNodeAllocator.Get(v.pInfo.Pointer.Address)
+			dataNode := s.dataNodeAllocator.Get(v.pInfo.Pointer.Address)
 			for i := types.Hash(0); i < trials; i++ {
-				index := s.config.DataNodeAllocator.Index(v.item.Hash + 1<<i + i)
+				item, state := dataNode.ItemByHash(v.item.Hash + 1<<i + i)
 
-				switch dataNode.States[index] {
+				switch *state {
 				case types.StateFree:
 					if v.stateP == nil {
-						v.stateP = &dataNode.States[index]
-						v.itemP = &dataNode.Items[index]
+						v.stateP = state
+						v.itemP = item
 					}
 					return v, nil
 				case types.StateData:
-					item := dataNode.Items[index]
 					if item.Hash == v.item.Hash && item.Key == v.item.Key {
 						v.exists = true
-						v.stateP = &dataNode.States[index]
-						v.itemP = &dataNode.Items[index]
+						v.stateP = state
+						v.itemP = item
 						v.item.Value = item.Value
 						return v, nil
 					}
 				default:
 					if v.stateP == nil {
-						v.stateP = &dataNode.States[index]
-						v.itemP = &dataNode.Items[index]
+						v.stateP = state
+						v.itemP = item
 					}
 				}
 			}

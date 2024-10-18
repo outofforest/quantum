@@ -441,36 +441,28 @@ func newEnv(requireT *require.Assertions) *env {
 		NodeSize:  512,
 	})
 
-	pointerNodeAllocator, err := space.NewNodeAllocator[types.Pointer](allocator)
-	requireT.NoError(err)
-
-	dataNodeAllocator, err := space.NewNodeAllocator[types.DataItem[int, int]](allocator)
-	requireT.NoError(err)
-
 	e := &env{
 		Allocator: allocator,
 		snapshotAllocator: alloc.NewImmediateSnapshotAllocator(alloc.NewSnapshotAllocator(
 			allocator,
 			map[types.SnapshotID]alloc.ListToCommit{},
 			map[types.SnapshotID]struct{}{},
-			nil,
 		)),
 		spaceRoot: types.ParentInfo{
 			State:   lo.ToPtr(types.StateFree),
 			Pointer: &types.Pointer{},
 		},
-		spaceHashMod:         lo.ToPtr[uint64](0),
-		pointerNodeAllocator: pointerNodeAllocator,
-		dataNodeAllocator:    dataNodeAllocator,
+		spaceHashMod: lo.ToPtr[uint64](0),
 	}
 
-	e.Space = space.New[int, int](space.Config[int, int]{
-		HashMod:              e.spaceHashMod,
-		SpaceRoot:            e.spaceRoot,
-		PointerNodeAllocator: e.pointerNodeAllocator,
-		DataNodeAllocator:    e.dataNodeAllocator,
-		Allocator:            e.snapshotAllocator,
+	var err error
+	e.Space, err = space.New[int, int](space.Config[int, int]{
+		HashMod:           e.spaceHashMod,
+		SpaceRoot:         e.spaceRoot,
+		Allocator:         allocator,
+		SnapshotAllocator: e.snapshotAllocator,
 	})
+	requireT.NoError(err)
 
 	return e
 }
@@ -480,11 +472,9 @@ type env struct {
 	Space             *space.Space[int, int]
 	snapshotAllocator types.SnapshotAllocator
 
-	snapshotID           types.SnapshotID
-	spaceRoot            types.ParentInfo
-	spaceHashMod         *uint64
-	pointerNodeAllocator *space.NodeAllocator[types.Pointer]
-	dataNodeAllocator    *space.NodeAllocator[types.DataItem[int, int]]
+	snapshotID   types.SnapshotID
+	spaceRoot    types.ParentInfo
+	spaceHashMod *uint64
 }
 
 func (e *env) NextSnapshot() {

@@ -147,13 +147,11 @@ func NewSnapshotAllocator(
 	allocator types.Allocator,
 	deallocationListCache map[types.SnapshotID]ListToCommit,
 	availableSnapshots map[types.SnapshotID]struct{},
-	listNodeAllocator *list.NodeAllocator,
 ) *SnapshotAllocator {
 	sa := &SnapshotAllocator{
 		allocator:             allocator,
 		deallocationListCache: deallocationListCache,
 		availableSnapshots:    availableSnapshots,
-		listNodeAllocator:     listNodeAllocator,
 	}
 	sa.immediateAllocator = NewImmediateSnapshotAllocator(sa)
 	return sa
@@ -166,7 +164,6 @@ type SnapshotAllocator struct {
 	immediateAllocator    types.SnapshotAllocator
 	deallocationListCache map[types.SnapshotID]ListToCommit
 	availableSnapshots    map[types.SnapshotID]struct{}
-	listNodeAllocator     *list.NodeAllocator
 }
 
 // SnapshotID returns snapshot ID.
@@ -211,20 +208,24 @@ func (sa *SnapshotAllocator) Deallocate(nodeAddress types.NodeAddress, srcSnapsh
 		return nil
 	}
 
-	l, exists := sa.deallocationListCache[srcSnapshotID]
+	listToCommit, exists := sa.deallocationListCache[srcSnapshotID]
 	if !exists {
-		l = ListToCommit{
-			Item: lo.ToPtr[types.NodeAddress](0),
-			List: list.New(list.Config{
-				Item:          l.Item,
-				NodeAllocator: sa.listNodeAllocator,
-				Allocator:     sa.immediateAllocator,
-			}),
+		l, err := list.New(list.Config{
+			Item:              listToCommit.Item,
+			Allocator:         sa.allocator,
+			SnapshotAllocator: sa.immediateAllocator,
+		})
+		if err != nil {
+			return err
 		}
-		sa.deallocationListCache[srcSnapshotID] = l
+		listToCommit = ListToCommit{
+			Item: lo.ToPtr[types.NodeAddress](0),
+			List: l,
+		}
+		sa.deallocationListCache[srcSnapshotID] = listToCommit
 	}
 
-	return l.List.Add(nodeAddress)
+	return listToCommit.List.Add(nodeAddress)
 }
 
 // NewImmediateSnapshotAllocator creates new immediate snapshot deallocator.

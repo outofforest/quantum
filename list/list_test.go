@@ -40,7 +40,7 @@ func TestAttach(t *testing.T) {
 	items := make([]types.NodeAddress, 0, 1000)
 	var item types.NodeAddress
 	for range 100 {
-		l2Address, l2 := e.NewList()
+		l2Address, l2 := e.NewList(requireT)
 		for range 100 {
 			items = append(items, item)
 			requireT.NoError(l2.Add(item))
@@ -79,7 +79,7 @@ func TestAddAttach(t *testing.T) {
 	items := make([]types.NodeAddress, 0, 10000)
 	var item types.NodeAddress
 	for range 1000 {
-		l2Address, l2 := e.NewList()
+		l2Address, l2 := e.NewList(requireT)
 		for range 5 {
 			items = append(items, item)
 			requireT.NoError(e.List.Add(item))
@@ -103,9 +103,9 @@ func TestAttachTwoLevels(t *testing.T) {
 	items := make([]types.NodeAddress, 0, 10000)
 	var item types.NodeAddress
 	for range 100 {
-		l2Address, l2 := e.NewList()
+		l2Address, l2 := e.NewList(requireT)
 		for range 10 {
-			l3Address, l3 := e.NewList()
+			l3Address, l3 := e.NewList(requireT)
 
 			items = append(items, item)
 			requireT.NoError(l3.Add(item))
@@ -174,12 +174,12 @@ func TestDeallocate(t *testing.T) {
 	requireT.NoError(e.List.Add(nodeAddress))
 
 	for range 10 {
-		l2Address, l2 := e.NewList()
+		l2Address, l2 := e.NewList(requireT)
 		nodeAddress, _, err := e.Allocator.Allocate()
 		requireT.NoError(err)
 		requireT.NoError(l2.Add(nodeAddress))
 		for range 10 {
-			l3Address, l3 := e.NewList()
+			l3Address, l3 := e.NewList(requireT)
 			nodeAddress, _, err := e.Allocator.Allocate()
 			requireT.NoError(err)
 
@@ -195,7 +195,7 @@ func TestDeallocate(t *testing.T) {
 	requireT.Equal(nodesUsed1, nodesAllocated1)
 	requireT.Empty(nodesDeallocated1)
 
-	e.List.Deallocate(e.Allocator)
+	e.List.Deallocate()
 
 	nodesUsed2, nodesAllocated2, nodesDeallocated2 := e.Allocator.Nodes()
 	requireT.Empty(nodesUsed2)
@@ -209,9 +209,6 @@ func newEnv(requireT *require.Assertions) *env {
 		NodeSize:  512,
 	})
 
-	nodeAllocator, err := list.NewNodeAllocator(allocator)
-	requireT.NoError(err)
-
 	e := &env{
 		Allocator: allocator,
 		Item:      lo.ToPtr[types.NodeAddress](0),
@@ -219,16 +216,16 @@ func newEnv(requireT *require.Assertions) *env {
 			allocator,
 			map[types.SnapshotID]alloc.ListToCommit{},
 			map[types.SnapshotID]struct{}{},
-			nodeAllocator,
 		)),
-		nodeAllocator: nodeAllocator,
 	}
 
-	e.List = list.New(list.Config{
-		Item:          e.Item,
-		NodeAllocator: e.nodeAllocator,
-		Allocator:     e.snapshotAllocator,
+	var err error
+	e.List, err = list.New(list.Config{
+		Item:              e.Item,
+		Allocator:         e.Allocator,
+		SnapshotAllocator: e.snapshotAllocator,
 	})
+	requireT.NoError(err)
 
 	return e
 }
@@ -240,7 +237,6 @@ type env struct {
 
 	snapshotID        types.SnapshotID
 	snapshotAllocator types.SnapshotAllocator
-	nodeAllocator     *list.NodeAllocator
 }
 
 func (e *env) NextSnapshot() {
@@ -248,11 +244,13 @@ func (e *env) NextSnapshot() {
 	e.snapshotID++
 }
 
-func (e *env) NewList() (*types.NodeAddress, *list.List) {
+func (e *env) NewList(requireT *require.Assertions) (*types.NodeAddress, *list.List) {
 	nodeAddress := lo.ToPtr[types.NodeAddress](0)
-	return nodeAddress, list.New(list.Config{
-		Item:          nodeAddress,
-		NodeAllocator: e.nodeAllocator,
-		Allocator:     e.snapshotAllocator,
+	l, err := list.New(list.Config{
+		Item:              nodeAddress,
+		Allocator:         e.Allocator,
+		SnapshotAllocator: e.snapshotAllocator,
 	})
+	requireT.NoError(err)
+	return nodeAddress, l
 }

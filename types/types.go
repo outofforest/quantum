@@ -54,18 +54,6 @@ type SnapshotAllocator interface {
 	Deallocate(nodeAddress NodeAddress, srcSnapshotID SnapshotID) error
 }
 
-// SpaceNodeHeader is the header common to all space node types.
-type SpaceNodeHeader struct {
-	HashMod uint64
-}
-
-// SpaceNode represents data stored inside space node.
-type SpaceNode[T comparable] struct {
-	Header *SpaceNodeHeader
-	States []State
-	Items  []T
-}
-
 // ListNodeHeader is the header of the list node.
 type ListNodeHeader struct {
 	Version        uint64

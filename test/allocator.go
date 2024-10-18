@@ -17,12 +17,8 @@ type AllocatorConfig struct {
 
 // NewAllocator creates memory allocator used in tests.
 func NewAllocator(config AllocatorConfig) *Allocator {
-	availableNodes := map[types.NodeAddress]struct{}{}
 	numOfNodes := config.TotalSize/config.NodeSize + 1
 	data := make([]byte, config.NodeSize*numOfNodes)
-	for i := types.NodeAddress(0x01); i < types.NodeAddress(numOfNodes); i++ {
-		availableNodes[i] = struct{}{}
-	}
 
 	return &Allocator{
 		config:     config,
