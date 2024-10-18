@@ -15,27 +15,27 @@ import (
 func TestAdd(t *testing.T) {
 	requireT := require.New(t)
 	e := newEnv(requireT)
-	l := e.NextSnapshot()
+	e.NextSnapshot()
 
 	items := make([]types.NodeAddress, 0, 100)
 	for i := range types.NodeAddress(cap(items)) {
 		items = append(items, i)
-		requireT.NoError(l.Add(i))
+		requireT.NoError(e.List.Add(i))
 	}
 
-	requireT.Equal(items, test.CollectListItems(l))
+	requireT.Equal(items, test.CollectListItems(e.List))
 
 	nodesUsed, nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
 	requireT.Equal([]types.NodeAddress{0x01, 0x02}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x01, 0x02}, nodesAllocated)
 	requireT.Empty(nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x01, 0x02}, l.Nodes())
+	requireT.Equal([]types.NodeAddress{0x01, 0x02}, e.List.Nodes())
 }
 
 func TestAttach(t *testing.T) {
 	requireT := require.New(t)
 	e := newEnv(requireT)
-	l := e.NextSnapshot()
+	e.NextSnapshot()
 
 	items := make([]types.NodeAddress, 0, 1000)
 	var item types.NodeAddress
@@ -46,10 +46,10 @@ func TestAttach(t *testing.T) {
 			requireT.NoError(l2.Add(item))
 			item++
 		}
-		requireT.NoError(l.Attach(*l2Address))
+		requireT.NoError(e.List.Attach(*l2Address))
 	}
 
-	requireT.Equal(items, test.CollectListItems(l))
+	requireT.Equal(items, test.CollectListItems(e.List))
 
 	nodesUsed, nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
 	requireT.Equal([]types.NodeAddress{
@@ -68,13 +68,13 @@ func TestAttach(t *testing.T) {
 	}, nodesUsed)
 	requireT.Equal(nodesUsed, nodesAllocated)
 	requireT.Empty(nodesDeallocated)
-	requireT.Equal(nodesUsed, l.Nodes())
+	requireT.Equal(nodesUsed, e.List.Nodes())
 }
 
 func TestAddAttach(t *testing.T) {
 	requireT := require.New(t)
 	e := newEnv(requireT)
-	l := e.NextSnapshot()
+	e.NextSnapshot()
 
 	items := make([]types.NodeAddress, 0, 10000)
 	var item types.NodeAddress
@@ -82,23 +82,23 @@ func TestAddAttach(t *testing.T) {
 		l2Address, l2 := e.NewList()
 		for range 5 {
 			items = append(items, item)
-			requireT.NoError(l.Add(item))
+			requireT.NoError(e.List.Add(item))
 			item++
 
 			items = append(items, item)
 			requireT.NoError(l2.Add(item))
 			item++
 		}
-		requireT.NoError(l.Attach(*l2Address))
+		requireT.NoError(e.List.Attach(*l2Address))
 	}
 
-	requireT.Equal(items, test.CollectListItems(l))
+	requireT.Equal(items, test.CollectListItems(e.List))
 }
 
 func TestAttachTwoLevels(t *testing.T) {
 	requireT := require.New(t)
 	e := newEnv(requireT)
-	l := e.NextSnapshot()
+	e.NextSnapshot()
 
 	items := make([]types.NodeAddress, 0, 10000)
 	var item types.NodeAddress
@@ -113,10 +113,10 @@ func TestAttachTwoLevels(t *testing.T) {
 
 			requireT.NoError(l2.Attach(*l3Address))
 		}
-		requireT.NoError(l.Attach(*l2Address))
+		requireT.NoError(e.List.Attach(*l2Address))
 	}
 
-	requireT.Equal(items, test.CollectListItems(l))
+	requireT.Equal(items, test.CollectListItems(e.List))
 }
 
 func TestTwoSnapshots(t *testing.T) {
@@ -125,41 +125,41 @@ func TestTwoSnapshots(t *testing.T) {
 
 	// Snapshot 0
 
-	l0 := e.NextSnapshot()
+	e.NextSnapshot()
 
 	items0 := make([]types.NodeAddress, 0, 100)
 	for i := range types.NodeAddress(cap(items0)) {
 		items0 = append(items0, i)
-		requireT.NoError(l0.Add(i))
+		requireT.NoError(e.List.Add(i))
 	}
 
-	requireT.Equal(items0, test.CollectListItems(l0))
+	requireT.Equal(items0, test.CollectListItems(e.List))
 
 	nodesUsed, nodesAllocated, nodesDeallocated := e.Allocator.Nodes()
 	requireT.Equal([]types.NodeAddress{0x01, 0x02}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x01, 0x02}, nodesAllocated)
 	requireT.Empty(nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x01, 0x02}, l0.Nodes())
+	requireT.Equal([]types.NodeAddress{0x01, 0x02}, e.List.Nodes())
 
 	// Snapshot 1
 
 	items1 := make([]types.NodeAddress, 0, 2*cap(items0))
 	items1 = append(items1, items0...)
 
-	l1 := e.NextSnapshot()
+	e.NextSnapshot()
 
 	for i := types.NodeAddress(cap(items0)); i < types.NodeAddress(cap(items1)); i++ {
 		items1 = append(items1, i)
-		requireT.NoError(l1.Add(i))
+		requireT.NoError(e.List.Add(i))
 	}
 
 	nodesUsed, nodesAllocated, nodesDeallocated = e.Allocator.Nodes()
 	requireT.Equal([]types.NodeAddress{0x01, 0x03, 0x04}, nodesUsed)
 	requireT.Equal([]types.NodeAddress{0x03, 0x04}, nodesAllocated)
 	requireT.Equal([]types.NodeAddress{0x02}, nodesDeallocated)
-	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x03, 0x04}, l1.Nodes())
+	requireT.Equal([]types.NodeAddress{0x01, 0x02, 0x03, 0x04}, e.List.Nodes())
 
-	requireT.Equal(items1, test.CollectListItems(l1))
+	requireT.Equal(items1, test.CollectListItems(e.List))
 }
 
 func TestDeallocate(t *testing.T) {
@@ -167,11 +167,11 @@ func TestDeallocate(t *testing.T) {
 	t.Skip()
 	requireT := require.New(t)
 	e := newEnv(requireT)
-	l := e.NextSnapshot()
+	e.NextSnapshot()
 
 	nodeAddress, _, err := e.Allocator.Allocate()
 	requireT.NoError(err)
-	requireT.NoError(l.Add(nodeAddress))
+	requireT.NoError(e.List.Add(nodeAddress))
 
 	for range 10 {
 		l2Address, l2 := e.NewList()
@@ -187,7 +187,7 @@ func TestDeallocate(t *testing.T) {
 
 			requireT.NoError(l2.Attach(*l3Address))
 		}
-		requireT.NoError(l.Attach(*l2Address))
+		requireT.NoError(e.List.Attach(*l2Address))
 	}
 
 	nodesUsed1, nodesAllocated1, nodesDeallocated1 := e.Allocator.Nodes()
@@ -195,7 +195,7 @@ func TestDeallocate(t *testing.T) {
 	requireT.Equal(nodesUsed1, nodesAllocated1)
 	requireT.Empty(nodesDeallocated1)
 
-	l.Deallocate(e.Allocator)
+	e.List.Deallocate(e.Allocator)
 
 	nodesUsed2, nodesAllocated2, nodesDeallocated2 := e.Allocator.Nodes()
 	requireT.Empty(nodesUsed2)
@@ -212,15 +212,30 @@ func newEnv(requireT *require.Assertions) *env {
 	nodeAllocator, err := list.NewNodeAllocator(allocator)
 	requireT.NoError(err)
 
-	return &env{
-		Allocator:     allocator,
-		Item:          lo.ToPtr[types.NodeAddress](0),
+	e := &env{
+		Allocator: allocator,
+		Item:      lo.ToPtr[types.NodeAddress](0),
+		snapshotAllocator: alloc.NewImmediateSnapshotAllocator(alloc.NewSnapshotAllocator(
+			allocator,
+			map[types.SnapshotID]alloc.ListToCommit{},
+			map[types.SnapshotID]struct{}{},
+			nodeAllocator,
+		)),
 		nodeAllocator: nodeAllocator,
 	}
+
+	e.List = list.New(list.Config{
+		Item:          e.Item,
+		NodeAllocator: e.nodeAllocator,
+		Allocator:     e.snapshotAllocator,
+	})
+
+	return e
 }
 
 type env struct {
 	Allocator *test.Allocator
+	List      *list.List
 	Item      *types.NodeAddress
 
 	snapshotID        types.SnapshotID
@@ -228,33 +243,14 @@ type env struct {
 	nodeAllocator     list.NodeAllocator
 }
 
-func (e *env) NextSnapshot() *list.List {
-	snapshotID := e.snapshotID
+func (e *env) NextSnapshot() {
+	e.snapshotAllocator.SetSnapshotID(e.snapshotID)
 	e.snapshotID++
-
-	e.Item = lo.ToPtr(*e.Item)
-
-	e.snapshotAllocator = alloc.NewImmediateSnapshotAllocator(snapshotID, alloc.NewSnapshotAllocator(
-		snapshotID,
-		e.Allocator,
-		map[types.SnapshotID]alloc.ListToCommit{},
-		map[types.SnapshotID]struct{}{},
-		e.nodeAllocator,
-	))
-
-	return list.New(list.Config{
-		SnapshotID:    snapshotID,
-		Item:          e.Item,
-		NodeAllocator: e.nodeAllocator,
-		Allocator:     e.snapshotAllocator,
-	})
 }
 
 func (e *env) NewList() (*types.NodeAddress, *list.List) {
 	nodeAddress := lo.ToPtr[types.NodeAddress](0)
-	snapshotID := e.snapshotID - 1
 	return nodeAddress, list.New(list.Config{
-		SnapshotID:    snapshotID,
 		Item:          nodeAddress,
 		NodeAllocator: e.nodeAllocator,
 		Allocator:     e.snapshotAllocator,

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/types"
 )
@@ -15,7 +17,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 10_000_000
+		numOfAddresses = 50_000_000
 		txsPerCommit   = 2000
 		balance        = 100_000
 	)
@@ -100,12 +102,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 							panic(err)
 						}
 					}
-
-					var err error
-					s, err = GetSpace[accountAddress, accountBalance](spaceID, db)
-					if err != nil {
-						panic(err)
-					}
 				}
 			}
 			b.StopTimer()
@@ -113,9 +109,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			fmt.Println(s.Stats())
 		}()
 
-		// for _, addr := range accounts {
-		//	require.Equal(b, accountBalance(balance), s.Get(addr).Value())
-		// }
+		for _, addr := range accounts {
+			require.Equal(b, accountBalance(balance), s.Get(addr).Value())
+		}
 
 		deallocFunc()
 	}
