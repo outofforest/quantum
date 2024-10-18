@@ -145,7 +145,6 @@ func (s *Space[K, V]) AllocatePointers(levels uint64) error {
 
 		*pToAllocate.PEntry.State = types.StatePointer
 		*pToAllocate.PEntry.SpacePointer = types.SpacePointer{
-			SnapshotID: s.config.SnapshotAllocator.SnapshotID(),
 			Pointer: types.Pointer{
 				LogicalAddress: pointerNodeAddress,
 			},
@@ -170,13 +169,15 @@ func (s *Space[K, V]) AllocatePointers(levels uint64) error {
 }
 
 // DeallocateAll deallocate all deallocates all nodes used by the space.
-func (s *Space[K, V]) DeallocateAll() error {
+func (s *Space[K, V]) DeallocateAll() {
+	// FIXME (wojciech): Deallocate in the same goroutine which stores data on disk to be consistent with snapshot ID.
+
 	switch *s.config.SpaceRoot.State {
 	case types.StateFree:
-		return nil
+		return
 	case types.StateData:
-		return s.config.SnapshotAllocator.Deallocate(s.config.SpaceRoot.SpacePointer.Pointer.LogicalAddress,
-			s.config.SpaceRoot.SpacePointer.SnapshotID)
+		s.config.Allocator.Deallocate(s.config.SpaceRoot.SpacePointer.Pointer.LogicalAddress)
+		return
 	}
 
 	// FIXME (wojciech): Optimize heap allocations
@@ -184,7 +185,7 @@ func (s *Space[K, V]) DeallocateAll() error {
 
 	for {
 		if len(stack) == 0 {
-			return nil
+			return
 		}
 
 		spacePointer := stack[len(stack)-1]
@@ -194,18 +195,12 @@ func (s *Space[K, V]) DeallocateAll() error {
 		for sPointer, state := range pointerNode.Iterator() {
 			switch *state {
 			case types.StateData:
-				if err := s.config.SnapshotAllocator.Deallocate(sPointer.Pointer.LogicalAddress,
-					sPointer.SnapshotID); err != nil {
-					return err
-				}
+				s.config.Allocator.Deallocate(sPointer.Pointer.LogicalAddress)
 			case types.StatePointer:
 				stack = append(stack, *sPointer)
 			}
 		}
-		if err := s.config.SnapshotAllocator.Deallocate(spacePointer.Pointer.LogicalAddress,
-			spacePointer.SnapshotID); err != nil {
-			return err
-		}
+		s.config.Allocator.Deallocate(spacePointer.Pointer.LogicalAddress)
 	}
 }
 
@@ -343,7 +338,6 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 			}
 
 			*v.pEntry.State = types.StateData
-			v.pEntry.SpacePointer.SnapshotID = s.config.SnapshotAllocator.SnapshotID()
 			v.pEntry.SpacePointer.Pointer.LogicalAddress = dataNodeAddress
 
 			item, state := dataNode.ItemByHash(v.item.Hash + 1)
@@ -440,7 +434,6 @@ func (s *Space[K, V]) redistributeNode(pEntry types.ParentEntry, pAddress types.
 
 	*pEntry.State = types.StatePointer
 	*pEntry.SpacePointer = types.SpacePointer{
-		SnapshotID: s.config.SnapshotAllocator.SnapshotID(),
 		Pointer: types.Pointer{
 			LogicalAddress: pointerNodeAddress,
 		},
@@ -470,7 +463,9 @@ func (s *Space[K, V]) redistributeNode(pEntry types.ParentEntry, pAddress types.
 		}
 	}
 
-	return s.config.SnapshotAllocator.Deallocate(dataNodePointer.Pointer.LogicalAddress, dataNodePointer.SnapshotID)
+	// FIXME (wojciech): Deallocate in the same goroutine which stores data on disk to be consistent with snapshot ID.
+	return s.config.SnapshotAllocator.Deallocate(dataNodePointer.Pointer.LogicalAddress,
+		dataNode.Header.RevisionHeader.SnapshotID)
 }
 
 func (s *Space[K, V]) find(v Entry[K, V]) (Entry[K, V], error) {

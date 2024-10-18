@@ -86,21 +86,16 @@ func (na *NodeAllocator[H, T]) project(node unsafe.Pointer) *Node[H, T] {
 	return na.spaceNode
 }
 
-// RevisionHeader stores information about node revision. It must be stored as first bytes in the node.
-type RevisionHeader struct {
-	Revision uint64
-}
-
 // PointerNodeHeader is the header of pointer node.
 type PointerNodeHeader struct {
-	RevisionHeader    RevisionHeader
+	RevisionHeader    types.RevisionHeader
 	ParentNodeAddress types.LogicalAddress
 	HashMod           uint64
 }
 
 // DataNodeHeader is the header of data node.
 type DataNodeHeader struct {
-	RevisionHeader RevisionHeader
+	RevisionHeader types.RevisionHeader
 }
 
 // Node represents data stored inside space node.

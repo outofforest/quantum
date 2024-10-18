@@ -430,7 +430,7 @@ func TestDeallocateAll(t *testing.T) {
 	requireT.Equal(s1Nodes, e.Space.Nodes())
 	e.Allocator.Nodes() // to clean collected data
 
-	requireT.NoError(e.Space.DeallocateAll())
+	e.Space.DeallocateAll()
 	_, _, deallocatedNodes := e.Allocator.Nodes()
 	requireT.Equal(s1Nodes, deallocatedNodes)
 }

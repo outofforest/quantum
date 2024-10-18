@@ -153,11 +153,6 @@ type SnapshotAllocator struct {
 	dirtyListNodesCh      chan<- types.DirtyListNode
 }
 
-// SnapshotID returns snapshot ID.
-func (sa *SnapshotAllocator) SnapshotID() types.SnapshotID {
-	return sa.snapshotID
-}
-
 // SetSnapshotID sets snapshot ID.
 func (sa *SnapshotAllocator) SetSnapshotID(snapshotID types.SnapshotID) {
 	sa.snapshotID = snapshotID
@@ -220,15 +215,12 @@ func NewImmediateSnapshotAllocator(
 // ImmediateSnapshotAllocator deallocates nodes immediately instead of adding them to deallocation list.
 type ImmediateSnapshotAllocator struct {
 	parentSnapshotAllocator types.SnapshotAllocator
-}
-
-// SnapshotID returns snapshot ID.
-func (sa *ImmediateSnapshotAllocator) SnapshotID() types.SnapshotID {
-	return sa.parentSnapshotAllocator.SnapshotID()
+	snapshotID              types.SnapshotID
 }
 
 // SetSnapshotID sets snapshot ID.
 func (sa *ImmediateSnapshotAllocator) SetSnapshotID(snapshotID types.SnapshotID) {
+	sa.snapshotID = snapshotID
 	sa.parentSnapshotAllocator.SetSnapshotID(snapshotID)
 }
 
@@ -240,5 +232,5 @@ func (sa *ImmediateSnapshotAllocator) Allocate() (types.LogicalAddress, unsafe.P
 // Deallocate marks node for deallocation.
 func (sa *ImmediateSnapshotAllocator) Deallocate(nodeAddress types.LogicalAddress, _ types.SnapshotID) error {
 	// using sa.snapshotID instead of the snapshotID argument causes immediate deallocation.
-	return sa.parentSnapshotAllocator.Deallocate(nodeAddress, sa.parentSnapshotAllocator.SnapshotID())
+	return sa.parentSnapshotAllocator.Deallocate(nodeAddress, sa.snapshotID)
 }
