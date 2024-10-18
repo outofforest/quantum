@@ -147,7 +147,7 @@ func NewSnapshotAllocator(
 	allocator types.Allocator,
 	deallocationListCache map[types.SnapshotID]ListToCommit,
 	availableSnapshots map[types.SnapshotID]struct{},
-	listNodeAllocator list.NodeAllocator,
+	listNodeAllocator *list.NodeAllocator,
 ) *SnapshotAllocator {
 	sa := &SnapshotAllocator{
 		allocator:             allocator,
@@ -166,7 +166,7 @@ type SnapshotAllocator struct {
 	immediateAllocator    types.SnapshotAllocator
 	deallocationListCache map[types.SnapshotID]ListToCommit
 	availableSnapshots    map[types.SnapshotID]struct{}
-	listNodeAllocator     list.NodeAllocator
+	listNodeAllocator     *list.NodeAllocator
 }
 
 // SnapshotID returns snapshot ID.

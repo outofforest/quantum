@@ -9,7 +9,7 @@ import (
 // Config stores list configuration.
 type Config struct {
 	Item          *types.NodeAddress
-	NodeAllocator NodeAllocator
+	NodeAllocator *NodeAllocator
 	Allocator     types.SnapshotAllocator
 }
 

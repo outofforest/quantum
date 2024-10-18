@@ -240,7 +240,7 @@ type env struct {
 
 	snapshotID        types.SnapshotID
 	snapshotAllocator types.SnapshotAllocator
-	nodeAllocator     list.NodeAllocator
+	nodeAllocator     *list.NodeAllocator
 }
 
 func (e *env) NextSnapshot() {

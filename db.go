@@ -130,11 +130,11 @@ type DB struct {
 	spaces                     *space.Space[types.SpaceID, types.SpaceInfo]
 	deallocationLists          *space.Space[types.SnapshotID, types.NodeAddress]
 
-	pointerNodeAllocator        space.NodeAllocator[types.Pointer]
-	snapshotInfoNodeAllocator   space.NodeAllocator[types.DataItem[types.SnapshotID, types.SnapshotInfo]]
-	spaceInfoNodeAllocator      space.NodeAllocator[types.DataItem[types.SpaceID, types.SpaceInfo]]
-	snapshotToNodeNodeAllocator space.NodeAllocator[types.DataItem[types.SnapshotID, types.NodeAddress]]
-	listNodeAllocator           list.NodeAllocator
+	pointerNodeAllocator        *space.NodeAllocator[types.Pointer]
+	snapshotInfoNodeAllocator   *space.NodeAllocator[types.DataItem[types.SnapshotID, types.SnapshotInfo]]
+	spaceInfoNodeAllocator      *space.NodeAllocator[types.DataItem[types.SpaceID, types.SpaceInfo]]
+	snapshotToNodeNodeAllocator *space.NodeAllocator[types.DataItem[types.SnapshotID, types.NodeAddress]]
+	listNodeAllocator           *list.NodeAllocator
 
 	spacesToCommit            map[types.SpaceID]SpaceToCommit
 	deallocationListsToCommit map[types.SnapshotID]alloc.ListToCommit
