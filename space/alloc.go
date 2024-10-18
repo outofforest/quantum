@@ -11,18 +11,18 @@ import (
 
 // NewNodeAllocator creates new space node allocator.
 func NewNodeAllocator[T comparable](allocator types.Allocator) (*NodeAllocator[T], error) {
-	nodeSize := allocator.NodeSize()
+	nodeSize := uintptr(allocator.NodeSize())
 
-	headerSize := uint64(unsafe.Sizeof(types.SpaceNodeHeader{}))
+	headerSize := unsafe.Sizeof(NodeHeader{})
 	headerSize = (headerSize + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length // memory alignment
-	if headerSize >= allocator.NodeSize() {
+	if headerSize >= nodeSize {
 		return nil, errors.New("node size is too small")
 	}
 
 	spaceLeft := nodeSize - headerSize
 
 	var t T
-	itemSize := uint64(unsafe.Sizeof(t))
+	itemSize := unsafe.Sizeof(t)
 	itemSize = (itemSize + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length
 
 	numOfItems := spaceLeft / (itemSize + 1) // 1 is for slot state
@@ -38,9 +38,12 @@ func NewNodeAllocator[T comparable](allocator types.Allocator) (*NodeAllocator[T
 	}
 
 	return &NodeAllocator[T]{
-		allocator:   allocator,
-		itemSize:    itemSize,
-		numOfItems:  int(numOfItems),
+		allocator: allocator,
+		spaceNode: &Node[T]{
+			numOfItems: numOfItems,
+			itemSize:   itemSize,
+		},
+		numOfItems:  numOfItems,
 		stateOffset: headerSize,
 		itemOffset:  headerSize + stateSize,
 	}, nil
@@ -50,22 +53,22 @@ func NewNodeAllocator[T comparable](allocator types.Allocator) (*NodeAllocator[T
 type NodeAllocator[T comparable] struct {
 	allocator types.Allocator
 
-	itemSize    uint64
-	numOfItems  int
-	stateOffset uint64
-	itemOffset  uint64
+	spaceNode   *Node[T]
+	numOfItems  uintptr
+	stateOffset uintptr
+	itemOffset  uintptr
 }
 
 // Get returns object for node.
-func (na *NodeAllocator[T]) Get(nodeAddress types.NodeAddress) types.SpaceNode[T] {
+func (na *NodeAllocator[T]) Get(nodeAddress types.NodeAddress) *Node[T] {
 	return na.project(na.allocator.Node(nodeAddress))
 }
 
 // Allocate allocates new object.
-func (na *NodeAllocator[T]) Allocate(allocator types.SnapshotAllocator) (types.NodeAddress, types.SpaceNode[T], error) {
+func (na *NodeAllocator[T]) Allocate(allocator types.SnapshotAllocator) (types.NodeAddress, *Node[T], error) {
 	n, node, err := allocator.Allocate()
 	if err != nil {
-		return 0, types.SpaceNode[T]{}, err
+		return 0, nil, err
 	}
 	return n, na.project(node), nil
 }
@@ -74,17 +77,12 @@ func (na *NodeAllocator[T]) Allocate(allocator types.SnapshotAllocator) (types.N
 func (na *NodeAllocator[T]) Copy(
 	allocator types.SnapshotAllocator,
 	nodeAddress types.NodeAddress,
-) (types.NodeAddress, types.SpaceNode[T], error) {
+) (types.NodeAddress, *Node[T], error) {
 	n, node, err := allocator.Copy(nodeAddress)
 	if err != nil {
-		return 0, types.SpaceNode[T]{}, err
+		return 0, nil, err
 	}
 	return n, na.project(node), nil
-}
-
-// Index returns element index based on hash.
-func (na *NodeAllocator[T]) Index(hash types.Hash) uint64 {
-	return uint64(hash) % uint64(na.numOfItems)
 }
 
 // Shift shifts bits in hash.
@@ -92,10 +90,45 @@ func (na *NodeAllocator[T]) Shift(hash types.Hash) types.Hash {
 	return hash / types.Hash(na.numOfItems)
 }
 
-func (na *NodeAllocator[T]) project(node unsafe.Pointer) types.SpaceNode[T] {
-	return types.SpaceNode[T]{
-		Header: photon.FromPointer[types.SpaceNodeHeader](node),
-		States: photon.SliceFromPointer[types.State](unsafe.Add(node, na.stateOffset), na.numOfItems),
-		Items:  photon.SliceFromPointer[T](unsafe.Add(node, na.itemOffset), na.numOfItems),
+func (na *NodeAllocator[T]) project(node unsafe.Pointer) *Node[T] {
+	na.spaceNode.Header = photon.FromPointer[NodeHeader](node)
+	na.spaceNode.statesP = unsafe.Add(node, na.stateOffset)
+	na.spaceNode.itemsP = unsafe.Add(node, na.itemOffset)
+	return na.spaceNode
+}
+
+// NodeHeader is the header common to all space node types.
+type NodeHeader struct {
+	HashMod uint64
+}
+
+// Node represents data stored inside space node.
+type Node[T comparable] struct {
+	Header *NodeHeader
+
+	numOfItems uintptr
+	itemSize   uintptr
+	statesP    unsafe.Pointer
+	itemsP     unsafe.Pointer
+}
+
+// ItemByHash returns pointers to the item and its state by hash.
+func (sn *Node[T]) ItemByHash(hash types.Hash) (*T, *types.State) {
+	index := uintptr(hash) % sn.numOfItems
+	return (*T)(unsafe.Add(sn.itemsP, sn.itemSize*index)), (*types.State)(unsafe.Add(sn.statesP, index))
+}
+
+// Iterator iterates over items.
+func (sn *Node[T]) Iterator() func(func(*T, *types.State) bool) {
+	return func(yield func(*T, *types.State) bool) {
+		itemsP := sn.itemsP
+		statesP := sn.statesP
+		for range sn.numOfItems {
+			if !yield((*T)(itemsP), (*types.State)(statesP)) {
+				return
+			}
+			itemsP = unsafe.Add(itemsP, sn.itemSize)
+			statesP = unsafe.Add(statesP, 1)
+		}
 	}
 }

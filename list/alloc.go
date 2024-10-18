@@ -11,9 +11,9 @@ import (
 
 // NewNodeAllocator creates new list node allocator.
 func NewNodeAllocator(allocator types.Allocator) (*NodeAllocator, error) {
-	nodeSize := allocator.NodeSize()
+	nodeSize := uintptr(allocator.NodeSize())
 
-	headerSize := uint64(unsafe.Sizeof(types.ListNodeHeader{}))
+	headerSize := unsafe.Sizeof(types.ListNodeHeader{})
 	headerSize = (headerSize + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length // memory alignment
 	if headerSize >= nodeSize {
 		return nil, errors.New("node size is too small")
@@ -26,7 +26,8 @@ func NewNodeAllocator(allocator types.Allocator) (*NodeAllocator, error) {
 
 	return &NodeAllocator{
 		allocator:  allocator,
-		numOfItems: int(numOfItems),
+		listNode:   &types.ListNode{},
+		numOfItems: uint64(numOfItems),
 		itemOffset: headerSize,
 	}, nil
 }
@@ -35,20 +36,21 @@ func NewNodeAllocator(allocator types.Allocator) (*NodeAllocator, error) {
 type NodeAllocator struct {
 	allocator types.Allocator
 
-	numOfItems int
-	itemOffset uint64
+	listNode   *types.ListNode
+	numOfItems uint64
+	itemOffset uintptr
 }
 
 // Get returns object for node.
-func (na *NodeAllocator) Get(nodeAddress types.NodeAddress) types.ListNode {
+func (na *NodeAllocator) Get(nodeAddress types.NodeAddress) *types.ListNode {
 	return na.project(na.allocator.Node(nodeAddress))
 }
 
 // Allocate allocates new object.
-func (na *NodeAllocator) Allocate(allocator types.SnapshotAllocator) (types.NodeAddress, types.ListNode, error) {
+func (na *NodeAllocator) Allocate(allocator types.SnapshotAllocator) (types.NodeAddress, *types.ListNode, error) {
 	n, node, err := allocator.Allocate()
 	if err != nil {
-		return 0, types.ListNode{}, err
+		return 0, nil, err
 	}
 	return n, na.project(node), nil
 }
@@ -57,17 +59,17 @@ func (na *NodeAllocator) Allocate(allocator types.SnapshotAllocator) (types.Node
 func (na *NodeAllocator) Copy(
 	allocator types.SnapshotAllocator,
 	nodeAddress types.NodeAddress,
-) (types.NodeAddress, types.ListNode, error) {
+) (types.NodeAddress, *types.ListNode, error) {
 	n, node, err := allocator.Copy(nodeAddress)
 	if err != nil {
-		return 0, types.ListNode{}, err
+		return 0, nil, err
 	}
 	return n, na.project(node), nil
 }
 
-func (na *NodeAllocator) project(node unsafe.Pointer) types.ListNode {
-	return types.ListNode{
-		Header: photon.FromPointer[types.ListNodeHeader](node),
-		Items:  photon.SliceFromPointer[types.NodeAddress](unsafe.Add(node, na.itemOffset), na.numOfItems),
-	}
+func (na *NodeAllocator) project(node unsafe.Pointer) *types.ListNode {
+	na.listNode.Header = photon.FromPointer[types.ListNodeHeader](node)
+	na.listNode.Items = photon.SliceFromPointer[types.NodeAddress](unsafe.Add(node, na.itemOffset), int(na.numOfItems))
+
+	return na.listNode
 }
