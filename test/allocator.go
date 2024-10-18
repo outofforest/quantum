@@ -63,21 +63,6 @@ func (a *Allocator) Allocate() (types.NodeAddress, unsafe.Pointer, error) {
 	return a.lastAllocatedNode, a.Node(a.lastAllocatedNode), nil
 }
 
-// Copy allocates new node and moves existing one there.
-func (a *Allocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, unsafe.Pointer, error) {
-	// FIXME (wojciech): No-copy test
-	// newNodeAddress, newNodeData, err := a.Allocate()
-	// if err != nil {
-	//	return 0, nil, err
-	// }
-
-	// a.nodes[nodeAddress], a.nodes[newNodeAddress] = newNodeData, a.nodes[nodeAddress]
-
-	// return newNodeAddress, a.nodes[newNodeAddress], nil
-
-	return nodeAddress, a.Node(nodeAddress), nil
-}
-
 // Deallocate deallocates node.
 func (a *Allocator) Deallocate(nodeAddress types.NodeAddress) {
 	a.nodesDeallocated[nodeAddress] = struct{}{}

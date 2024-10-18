@@ -92,21 +92,6 @@ func (a *Allocator) Allocate() (types.NodeAddress, unsafe.Pointer, error) {
 	return nodeAddress, a.Node(nodeAddress), nil
 }
 
-// Copy allocates new node and moves existing one there.
-func (a *Allocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, unsafe.Pointer, error) {
-	// FIXME (wojciech): No-copy test
-	// newNodeAddress, newNodeData, err := a.Allocate()
-	// if err != nil {
-	// 	return 0, nil, err
-	// }
-
-	// a.nodes[nodeAddress], a.nodes[newNodeAddress] = newNodeData, a.nodes[nodeAddress]
-
-	// return newNodeAddress, a.nodes[newNodeAddress], nil
-
-	return nodeAddress, a.Node(nodeAddress), nil
-}
-
 // Deallocate deallocates node.
 func (a *Allocator) Deallocate(nodeAddress types.NodeAddress) {
 	if a.deallocatedNodesCh == nil {
@@ -147,11 +132,13 @@ func NewSnapshotAllocator(
 	allocator types.Allocator,
 	deallocationListCache map[types.SnapshotID]ListToCommit,
 	availableSnapshots map[types.SnapshotID]struct{},
+	dirtyListNodesCh chan<- types.DirtyListNode,
 ) *SnapshotAllocator {
 	sa := &SnapshotAllocator{
 		allocator:             allocator,
 		deallocationListCache: deallocationListCache,
 		availableSnapshots:    availableSnapshots,
+		dirtyListNodesCh:      dirtyListNodesCh,
 	}
 	sa.immediateAllocator = NewImmediateSnapshotAllocator(sa)
 	return sa
@@ -164,6 +151,7 @@ type SnapshotAllocator struct {
 	immediateAllocator    types.SnapshotAllocator
 	deallocationListCache map[types.SnapshotID]ListToCommit
 	availableSnapshots    map[types.SnapshotID]struct{}
+	dirtyListNodesCh      chan<- types.DirtyListNode
 }
 
 // SnapshotID returns snapshot ID.
@@ -186,16 +174,6 @@ func (sa *SnapshotAllocator) Allocate() (types.NodeAddress, unsafe.Pointer, erro
 	return nodeAddress, node, nil
 }
 
-// Copy allocates new node and copies content from existing one.
-func (sa *SnapshotAllocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, unsafe.Pointer, error) {
-	newNodeAddress, node, err := sa.allocator.Copy(nodeAddress)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	return newNodeAddress, node, nil
-}
-
 // Deallocate marks node for deallocation.
 func (sa *SnapshotAllocator) Deallocate(nodeAddress types.NodeAddress, srcSnapshotID types.SnapshotID) error {
 	if srcSnapshotID == sa.snapshotID {
@@ -214,6 +192,7 @@ func (sa *SnapshotAllocator) Deallocate(nodeAddress types.NodeAddress, srcSnapsh
 			Item:              listToCommit.Item,
 			Allocator:         sa.allocator,
 			SnapshotAllocator: sa.immediateAllocator,
+			DirtyListNodesCh:  sa.dirtyListNodesCh,
 		})
 		if err != nil {
 			return err
@@ -255,11 +234,6 @@ func (sa *ImmediateSnapshotAllocator) SetSnapshotID(snapshotID types.SnapshotID)
 // Allocate allocates new node.
 func (sa *ImmediateSnapshotAllocator) Allocate() (types.NodeAddress, unsafe.Pointer, error) {
 	return sa.parentSnapshotAllocator.Allocate()
-}
-
-// Copy allocates new node and copies content from existing one.
-func (sa *ImmediateSnapshotAllocator) Copy(nodeAddress types.NodeAddress) (types.NodeAddress, unsafe.Pointer, error) {
-	return sa.parentSnapshotAllocator.Copy(nodeAddress)
 }
 
 // Deallocate marks node for deallocation.

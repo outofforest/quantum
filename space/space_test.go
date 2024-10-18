@@ -440,13 +440,17 @@ func newEnv(requireT *require.Assertions) *env {
 		TotalSize: 1024 * 1024,
 		NodeSize:  512,
 	})
+	dirtyListNodesCh := make(chan types.DirtyListNode, 1000)
 
 	e := &env{
-		Allocator: allocator,
+		Allocator:        allocator,
+		DirtyDataNodesCh: make(chan types.DirtyDataNode, 1000),
+		DirtyListNodesCh: dirtyListNodesCh,
 		snapshotAllocator: alloc.NewImmediateSnapshotAllocator(alloc.NewSnapshotAllocator(
 			allocator,
 			map[types.SnapshotID]alloc.ListToCommit{},
 			map[types.SnapshotID]struct{}{},
+			dirtyListNodesCh,
 		)),
 		spaceRoot: types.ParentInfo{
 			State:   lo.ToPtr(types.StateFree),
@@ -461,6 +465,7 @@ func newEnv(requireT *require.Assertions) *env {
 		SpaceRoot:         e.spaceRoot,
 		Allocator:         allocator,
 		SnapshotAllocator: e.snapshotAllocator,
+		DirtyDataNodesCh:  e.DirtyDataNodesCh,
 	})
 	requireT.NoError(err)
 
@@ -470,6 +475,8 @@ func newEnv(requireT *require.Assertions) *env {
 type env struct {
 	Allocator         *test.Allocator
 	Space             *space.Space[int, int]
+	DirtyDataNodesCh  chan types.DirtyDataNode
+	DirtyListNodesCh  chan types.DirtyListNode
 	snapshotAllocator types.SnapshotAllocator
 
 	snapshotID   types.SnapshotID

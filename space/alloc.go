@@ -73,18 +73,6 @@ func (na *NodeAllocator[T]) Allocate(allocator types.SnapshotAllocator) (types.N
 	return n, na.project(node), nil
 }
 
-// Copy allocates copy of existing object.
-func (na *NodeAllocator[T]) Copy(
-	allocator types.SnapshotAllocator,
-	nodeAddress types.NodeAddress,
-) (types.NodeAddress, *Node[T], error) {
-	n, node, err := allocator.Copy(nodeAddress)
-	if err != nil {
-		return 0, nil, err
-	}
-	return n, na.project(node), nil
-}
-
 // Shift shifts bits in hash.
 func (na *NodeAllocator[T]) Shift(hash types.Hash) types.Hash {
 	return hash / types.Hash(na.numOfItems)
