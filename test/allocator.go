@@ -26,9 +26,9 @@ func NewAllocator(config AllocatorConfig) *Allocator {
 		dataP:      unsafe.Pointer(&data[0]),
 		numOfNodes: numOfNodes,
 
-		nodesUsed:        map[types.NodeAddress]struct{}{},
-		nodesAllocated:   map[types.NodeAddress]struct{}{},
-		nodesDeallocated: map[types.NodeAddress]struct{}{},
+		nodesUsed:        map[types.LogicalAddress]struct{}{},
+		nodesAllocated:   map[types.LogicalAddress]struct{}{},
+		nodesDeallocated: map[types.LogicalAddress]struct{}{},
 	}
 }
 
@@ -38,20 +38,20 @@ type Allocator struct {
 	data              []byte
 	dataP             unsafe.Pointer
 	numOfNodes        uint64
-	lastAllocatedNode types.NodeAddress
+	lastAllocatedNode types.LogicalAddress
 
-	nodesUsed        map[types.NodeAddress]struct{}
-	nodesAllocated   map[types.NodeAddress]struct{}
-	nodesDeallocated map[types.NodeAddress]struct{}
+	nodesUsed        map[types.LogicalAddress]struct{}
+	nodesAllocated   map[types.LogicalAddress]struct{}
+	nodesDeallocated map[types.LogicalAddress]struct{}
 }
 
 // Node returns node bytes.
-func (a *Allocator) Node(nodeAddress types.NodeAddress) unsafe.Pointer {
+func (a *Allocator) Node(nodeAddress types.LogicalAddress) unsafe.Pointer {
 	return unsafe.Add(a.dataP, uint64(nodeAddress)*a.config.NodeSize)
 }
 
 // Allocate allocates node and copies data into it.
-func (a *Allocator) Allocate() (types.NodeAddress, unsafe.Pointer, error) {
+func (a *Allocator) Allocate() (types.LogicalAddress, unsafe.Pointer, error) {
 	a.lastAllocatedNode++
 	if uint64(a.lastAllocatedNode) >= a.numOfNodes {
 		return 0, nil, errors.New("out of space")
@@ -64,7 +64,7 @@ func (a *Allocator) Allocate() (types.NodeAddress, unsafe.Pointer, error) {
 }
 
 // Deallocate deallocates node.
-func (a *Allocator) Deallocate(nodeAddress types.NodeAddress) {
+func (a *Allocator) Deallocate(nodeAddress types.LogicalAddress) {
 	a.nodesDeallocated[nodeAddress] = struct{}{}
 	delete(a.nodesUsed, nodeAddress)
 }
@@ -76,17 +76,17 @@ func (a *Allocator) NodeSize() uint64 {
 
 // Nodes returns touched nodes.
 func (a *Allocator) Nodes() (
-	used []types.NodeAddress,
-	allocated []types.NodeAddress,
-	deallocated []types.NodeAddress,
+	used []types.LogicalAddress,
+	allocated []types.LogicalAddress,
+	deallocated []types.LogicalAddress,
 ) {
 	return mapToSlice(a.nodesUsed, false),
 		mapToSlice(a.nodesAllocated, true),
 		mapToSlice(a.nodesDeallocated, true)
 }
 
-func mapToSlice(m map[types.NodeAddress]struct{}, empty bool) []types.NodeAddress {
-	s := make([]types.NodeAddress, 0, len(m))
+func mapToSlice(m map[types.LogicalAddress]struct{}, empty bool) []types.LogicalAddress {
+	s := make([]types.LogicalAddress, 0, len(m))
 	for k := range m {
 		s = append(s, k)
 	}

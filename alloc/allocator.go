@@ -5,7 +5,6 @@ import (
 	"unsafe"
 
 	"github.com/pkg/errors"
-	"github.com/samber/lo"
 
 	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/list"
@@ -35,12 +34,12 @@ func NewAllocator(config Config) (*Allocator, func(), error) {
 		return nil, nil, errors.Wrapf(err, "memory allocation failed")
 	}
 
-	availableNodes := make([]types.NodeAddress, 0, numOfNodes)
+	availableNodes := make([]types.LogicalAddress, 0, numOfNodes)
 	for i := config.NodeSize; i < uint64(len(data)); i += config.NodeSize {
-		availableNodes = append(availableNodes, types.NodeAddress(i))
+		availableNodes = append(availableNodes, types.LogicalAddress(i))
 	}
 
-	availableNodesCh := make(chan []types.NodeAddress, numOfGroups)
+	availableNodesCh := make(chan []types.LogicalAddress, numOfGroups)
 	for i := uint64(0); i < uint64(len(availableNodes)); i += nodesPerGroup {
 		availableNodesCh <- availableNodes[i : i+nodesPerGroup]
 	}
@@ -51,8 +50,8 @@ func NewAllocator(config Config) (*Allocator, func(), error) {
 			dataP:                  unsafe.Pointer(&data[0]),
 			availableNodesCh:       availableNodesCh,
 			nodesToAllocate:        <-availableNodesCh,
-			nodesToDeallocate:      make([]types.NodeAddress, 0, nodesPerGroup),
-			nodesToDeallocateStack: make([][]types.NodeAddress, 0, 1),
+			nodesToDeallocate:      make([]types.LogicalAddress, 0, nodesPerGroup),
+			nodesToDeallocateStack: make([][]types.LogicalAddress, 0, 1),
 		}, func() {
 			_ = syscall.Munmap(data)
 		}, nil
@@ -63,21 +62,21 @@ type Allocator struct {
 	config             Config
 	data               []byte
 	dataP              unsafe.Pointer
-	availableNodesCh   chan []types.NodeAddress
-	deallocatedNodesCh chan []types.NodeAddress
+	availableNodesCh   chan []types.LogicalAddress
+	deallocatedNodesCh chan []types.LogicalAddress
 
-	nodesToAllocate        []types.NodeAddress
-	nodesToDeallocate      []types.NodeAddress
-	nodesToDeallocateStack [][]types.NodeAddress
+	nodesToAllocate        []types.LogicalAddress
+	nodesToDeallocate      []types.LogicalAddress
+	nodesToDeallocateStack [][]types.LogicalAddress
 }
 
 // Node returns node bytes.
-func (a *Allocator) Node(nodeAddress types.NodeAddress) unsafe.Pointer {
+func (a *Allocator) Node(nodeAddress types.LogicalAddress) unsafe.Pointer {
 	return unsafe.Add(a.dataP, nodeAddress)
 }
 
 // Allocate allocates node.
-func (a *Allocator) Allocate() (types.NodeAddress, unsafe.Pointer, error) {
+func (a *Allocator) Allocate() (types.LogicalAddress, unsafe.Pointer, error) {
 	nodeAddress := a.nodesToAllocate[len(a.nodesToAllocate)-1]
 	a.nodesToAllocate = a.nodesToAllocate[:len(a.nodesToAllocate)-1]
 
@@ -93,9 +92,9 @@ func (a *Allocator) Allocate() (types.NodeAddress, unsafe.Pointer, error) {
 }
 
 // Deallocate deallocates node.
-func (a *Allocator) Deallocate(nodeAddress types.NodeAddress) {
+func (a *Allocator) Deallocate(nodeAddress types.LogicalAddress) {
 	if a.deallocatedNodesCh == nil {
-		a.deallocatedNodesCh = make(chan []types.NodeAddress, 100)
+		a.deallocatedNodesCh = make(chan []types.LogicalAddress, 100)
 		for range 5 {
 			go func() {
 				for nodes := range a.deallocatedNodesCh {
@@ -123,8 +122,8 @@ func (a *Allocator) NodeSize() uint64 {
 
 // ListToCommit contains cached deallocation list.
 type ListToCommit struct {
-	List *list.List
-	Item *types.NodeAddress
+	List     *list.List
+	ListRoot *types.Pointer
 }
 
 // NewSnapshotAllocator returns snapshot-level allocator.
@@ -165,7 +164,7 @@ func (sa *SnapshotAllocator) SetSnapshotID(snapshotID types.SnapshotID) {
 }
 
 // Allocate allocates new node.
-func (sa *SnapshotAllocator) Allocate() (types.NodeAddress, unsafe.Pointer, error) {
+func (sa *SnapshotAllocator) Allocate() (types.LogicalAddress, unsafe.Pointer, error) {
 	nodeAddress, node, err := sa.allocator.Allocate()
 	if err != nil {
 		return 0, nil, err
@@ -175,7 +174,7 @@ func (sa *SnapshotAllocator) Allocate() (types.NodeAddress, unsafe.Pointer, erro
 }
 
 // Deallocate marks node for deallocation.
-func (sa *SnapshotAllocator) Deallocate(nodeAddress types.NodeAddress, srcSnapshotID types.SnapshotID) error {
+func (sa *SnapshotAllocator) Deallocate(nodeAddress types.LogicalAddress, srcSnapshotID types.SnapshotID) error {
 	if srcSnapshotID == sa.snapshotID {
 		sa.allocator.Deallocate(nodeAddress)
 		return nil
@@ -189,7 +188,7 @@ func (sa *SnapshotAllocator) Deallocate(nodeAddress types.NodeAddress, srcSnapsh
 	listToCommit, exists := sa.deallocationListCache[srcSnapshotID]
 	if !exists {
 		l, err := list.New(list.Config{
-			Item:              listToCommit.Item,
+			ListRoot:          listToCommit.ListRoot,
 			Allocator:         sa.allocator,
 			SnapshotAllocator: sa.immediateAllocator,
 			DirtyListNodesCh:  sa.dirtyListNodesCh,
@@ -198,13 +197,15 @@ func (sa *SnapshotAllocator) Deallocate(nodeAddress types.NodeAddress, srcSnapsh
 			return err
 		}
 		listToCommit = ListToCommit{
-			Item: lo.ToPtr[types.NodeAddress](0),
-			List: l,
+			List:     l,
+			ListRoot: &types.Pointer{},
 		}
 		sa.deallocationListCache[srcSnapshotID] = listToCommit
 	}
 
-	return listToCommit.List.Add(nodeAddress)
+	return listToCommit.List.Add(types.Pointer{
+		LogicalAddress: nodeAddress,
+	})
 }
 
 // NewImmediateSnapshotAllocator creates new immediate snapshot deallocator.
@@ -232,12 +233,12 @@ func (sa *ImmediateSnapshotAllocator) SetSnapshotID(snapshotID types.SnapshotID)
 }
 
 // Allocate allocates new node.
-func (sa *ImmediateSnapshotAllocator) Allocate() (types.NodeAddress, unsafe.Pointer, error) {
+func (sa *ImmediateSnapshotAllocator) Allocate() (types.LogicalAddress, unsafe.Pointer, error) {
 	return sa.parentSnapshotAllocator.Allocate()
 }
 
 // Deallocate marks node for deallocation.
-func (sa *ImmediateSnapshotAllocator) Deallocate(nodeAddress types.NodeAddress, _ types.SnapshotID) error {
+func (sa *ImmediateSnapshotAllocator) Deallocate(nodeAddress types.LogicalAddress, _ types.SnapshotID) error {
 	// using sa.snapshotID instead of the snapshotID argument causes immediate deallocation.
 	return sa.parentSnapshotAllocator.Deallocate(nodeAddress, sa.parentSnapshotAllocator.SnapshotID())
 }

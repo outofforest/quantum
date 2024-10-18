@@ -26,9 +26,9 @@ type Config struct {
 // SpaceToCommit represents requested space which might require to be committed.
 type SpaceToCommit struct {
 	HashMod         *uint64
-	PInfo           types.ParentInfo
+	PInfo           types.ParentEntry
 	SpaceInfoValue  space.Entry[types.SpaceID, types.SpaceInfo]
-	OriginalPointer types.Pointer
+	OriginalPointer types.SpacePointer
 }
 
 // New creates new database.
@@ -56,9 +56,9 @@ func New(config Config) (*DB, error) {
 	var err error
 	db.snapshots, err = space.New[types.SnapshotID, types.SnapshotInfo](space.Config[types.SnapshotID, types.SnapshotInfo]{
 		HashMod: &db.singularityNode.SnapshotRoot.HashMod,
-		SpaceRoot: types.ParentInfo{
-			State:   &db.singularityNode.SnapshotRoot.State,
-			Pointer: &db.singularityNode.SnapshotRoot.Pointer,
+		SpaceRoot: types.ParentEntry{
+			State:        &db.singularityNode.SnapshotRoot.State,
+			SpacePointer: &db.singularityNode.SnapshotRoot.Pointer,
 		},
 		Allocator:         config.Allocator,
 		SnapshotAllocator: db.immediateSnapshotAllocator,
@@ -70,9 +70,9 @@ func New(config Config) (*DB, error) {
 
 	db.spaces, err = space.New[types.SpaceID, types.SpaceInfo](space.Config[types.SpaceID, types.SpaceInfo]{
 		HashMod: &db.snapshotInfo.SpaceRoot.HashMod,
-		SpaceRoot: types.ParentInfo{
-			State:   &db.snapshotInfo.SpaceRoot.State,
-			Pointer: &db.snapshotInfo.SpaceRoot.Pointer,
+		SpaceRoot: types.ParentEntry{
+			State:        &db.snapshotInfo.SpaceRoot.State,
+			SpacePointer: &db.snapshotInfo.SpaceRoot.Pointer,
 		},
 		Allocator:         config.Allocator,
 		SnapshotAllocator: db.snapshotAllocator,
@@ -82,12 +82,12 @@ func New(config Config) (*DB, error) {
 		return nil, err
 	}
 
-	db.deallocationLists, err = space.New[types.SnapshotID, types.NodeAddress](
-		space.Config[types.SnapshotID, types.NodeAddress]{
+	db.deallocationLists, err = space.New[types.SnapshotID, types.Pointer](
+		space.Config[types.SnapshotID, types.Pointer]{
 			HashMod: &db.snapshotInfo.DeallocationRoot.HashMod,
-			SpaceRoot: types.ParentInfo{
-				State:   &db.snapshotInfo.DeallocationRoot.State,
-				Pointer: &db.snapshotInfo.DeallocationRoot.Pointer,
+			SpaceRoot: types.ParentEntry{
+				State:        &db.snapshotInfo.DeallocationRoot.State,
+				SpacePointer: &db.snapshotInfo.DeallocationRoot.Pointer,
 			},
 			Allocator:         config.Allocator,
 			SnapshotAllocator: db.immediateSnapshotAllocator,
@@ -114,7 +114,7 @@ type DB struct {
 	snapshots                  *space.Space[types.SnapshotID, types.SnapshotInfo]
 	snapshotInfo               types.SnapshotInfo
 	spaces                     *space.Space[types.SpaceID, types.SpaceInfo]
-	deallocationLists          *space.Space[types.SnapshotID, types.NodeAddress]
+	deallocationLists          *space.Space[types.SnapshotID, types.Pointer]
 
 	spacesToCommit            map[types.SpaceID]SpaceToCommit
 	deallocationListsToCommit map[types.SnapshotID]alloc.ListToCommit
@@ -134,7 +134,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 	snapshotInfo := snapshotInfoValue.Value()
 
 	var nextSnapshotInfo *types.SnapshotInfo
-	var nextDeallocationLists *space.Space[types.SnapshotID, types.NodeAddress]
+	var nextDeallocationLists *space.Space[types.SnapshotID, types.Pointer]
 	if snapshotInfo.NextSnapshotID < db.snapshotAllocator.SnapshotID() {
 		nextSnapshotInfoValue := db.snapshots.Get(snapshotInfo.NextSnapshotID)
 		if !nextSnapshotInfoValue.Exists() {
@@ -143,12 +143,12 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 		tmpNextSnapshotInfo := nextSnapshotInfoValue.Value()
 		nextSnapshotInfo = &tmpNextSnapshotInfo
 		var err error
-		nextDeallocationLists, err = space.New[types.SnapshotID, types.NodeAddress](
-			space.Config[types.SnapshotID, types.NodeAddress]{
+		nextDeallocationLists, err = space.New[types.SnapshotID, types.Pointer](
+			space.Config[types.SnapshotID, types.Pointer]{
 				HashMod: &nextSnapshotInfo.DeallocationRoot.HashMod,
-				SpaceRoot: types.ParentInfo{
-					State:   &nextSnapshotInfo.DeallocationRoot.State,
-					Pointer: &nextSnapshotInfo.DeallocationRoot.Pointer,
+				SpaceRoot: types.ParentEntry{
+					State:        &nextSnapshotInfo.DeallocationRoot.State,
+					SpacePointer: &nextSnapshotInfo.DeallocationRoot.Pointer,
 				},
 				Allocator:         db.config.Allocator,
 				SnapshotAllocator: db.immediateSnapshotAllocator,
@@ -167,12 +167,12 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 		nextDeallocationLists = db.deallocationLists
 	}
 
-	deallocationLists, err := space.New[types.SnapshotID, types.NodeAddress](
-		space.Config[types.SnapshotID, types.NodeAddress]{
+	deallocationLists, err := space.New[types.SnapshotID, types.Pointer](
+		space.Config[types.SnapshotID, types.Pointer]{
 			HashMod: lo.ToPtr(snapshotInfo.DeallocationRoot.HashMod),
-			SpaceRoot: types.ParentInfo{
-				State:   lo.ToPtr(snapshotInfo.DeallocationRoot.State),
-				Pointer: lo.ToPtr(snapshotInfo.DeallocationRoot.Pointer),
+			SpaceRoot: types.ParentEntry{
+				State:        lo.ToPtr(snapshotInfo.DeallocationRoot.State),
+				SpacePointer: lo.ToPtr(snapshotInfo.DeallocationRoot.Pointer),
 			},
 			Allocator:         db.config.Allocator,
 			SnapshotAllocator: db.immediateSnapshotAllocator,
@@ -193,7 +193,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 		}
 
 		l, err := list.New(list.Config{
-			Item:      &snapshotItem.Value,
+			ListRoot:  &snapshotItem.Value,
 			Allocator: db.config.Allocator,
 		})
 		if err != nil {
@@ -212,7 +212,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 		nextListNodeAddress := nextDeallocationListValue.Value()
 		newNextListNodeAddress := nextListNodeAddress
 		nextList, err := list.New(list.Config{
-			Item:              &newNextListNodeAddress,
+			ListRoot:          &newNextListNodeAddress,
 			Allocator:         db.config.Allocator,
 			SnapshotAllocator: db.immediateSnapshotAllocator,
 			DirtyListNodesCh:  db.dirtyListNodesCh,
@@ -286,14 +286,14 @@ func (db *DB) Commit() error {
 
 		for _, spaceID := range spaces {
 			spaceToCommit := db.spacesToCommit[spaceID]
-			if *spaceToCommit.PInfo.Pointer == spaceToCommit.OriginalPointer {
+			if *spaceToCommit.PInfo.SpacePointer == spaceToCommit.OriginalPointer {
 				continue
 			}
-			spaceToCommit.OriginalPointer = *spaceToCommit.PInfo.Pointer
+			spaceToCommit.OriginalPointer = *spaceToCommit.PInfo.SpacePointer
 			if _, err := spaceToCommit.SpaceInfoValue.Set(types.SpaceInfo{
 				HashMod: *spaceToCommit.HashMod,
 				State:   *spaceToCommit.PInfo.State,
-				Pointer: *spaceToCommit.PInfo.Pointer,
+				Pointer: *spaceToCommit.PInfo.SpacePointer,
 			}); err != nil {
 				return err
 			}
@@ -384,7 +384,7 @@ func (db *DB) commitDeallocationLists() error {
 		sort.Slice(lists, func(i, j int) bool { return lists[i] < lists[j] })
 
 		for _, snapshotID := range lists {
-			_, err := db.deallocationLists.Get(snapshotID).Set(*db.deallocationListsToCommit[snapshotID].Item)
+			_, err := db.deallocationLists.Get(snapshotID).Set(*db.deallocationListsToCommit[snapshotID].ListRoot)
 			if err != nil {
 				return err
 			}
@@ -404,9 +404,9 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 		spaceInfo := spaceInfoValue.Value()
 		s = SpaceToCommit{
 			HashMod: &spaceInfo.HashMod,
-			PInfo: types.ParentInfo{
-				State:   &spaceInfo.State,
-				Pointer: &spaceInfo.Pointer,
+			PInfo: types.ParentEntry{
+				State:        &spaceInfo.State,
+				SpacePointer: &spaceInfo.Pointer,
 			},
 			OriginalPointer: spaceInfo.Pointer,
 			SpaceInfoValue:  spaceInfoValue,

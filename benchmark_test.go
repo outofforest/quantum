@@ -38,7 +38,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 	for bi := 0; bi < b.N; bi++ {
 		func() {
 			allocator, deallocFunc, err := alloc.NewAllocator(alloc.Config{
-				TotalSize:    20 * 1024 * 1024 * 1024,
+				TotalSize:    70 * 1024 * 1024 * 1024,
 				NodeSize:     4 * 1024,
 				UseHugePages: true,
 			})
