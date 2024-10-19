@@ -6,12 +6,13 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/outofforest/photon"
+	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/types"
 )
 
 // NewNodeAllocator creates new list node allocator.
-func NewNodeAllocator(allocator types.Allocator) (*NodeAllocator, error) {
-	nodeSize := uintptr(allocator.NodeSize())
+func NewNodeAllocator(state *alloc.State) (*NodeAllocator, error) {
+	nodeSize := uintptr(state.NodeSize())
 
 	headerSize := unsafe.Sizeof(NodeHeader{})
 	headerSize = (headerSize + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length // memory alignment
@@ -26,7 +27,7 @@ func NewNodeAllocator(allocator types.Allocator) (*NodeAllocator, error) {
 	}
 
 	return &NodeAllocator{
-		allocator:     allocator,
+		state:         state,
 		listNode:      &Node{},
 		numOfPointers: uint64(numOfPointers),
 		pointerOffset: headerSize,
@@ -35,7 +36,7 @@ func NewNodeAllocator(allocator types.Allocator) (*NodeAllocator, error) {
 
 // NodeAllocator converts nodes from bytes to list objects.
 type NodeAllocator struct {
-	allocator types.Allocator
+	state *alloc.State
 
 	listNode      *Node
 	numOfPointers uint64
@@ -44,16 +45,16 @@ type NodeAllocator struct {
 
 // Get returns object for node.
 func (na *NodeAllocator) Get(nodeAddress types.LogicalAddress) *Node {
-	return na.project(na.allocator.Node(nodeAddress))
+	return na.project(na.state.Node(nodeAddress))
 }
 
 // Allocate allocates new object.
-func (na *NodeAllocator) Allocate(allocator types.SnapshotAllocator) (types.LogicalAddress, *Node, error) {
-	n, node, err := allocator.Allocate()
+func (na *NodeAllocator) Allocate(pool *alloc.Pool[types.LogicalAddress]) (types.LogicalAddress, *Node, error) {
+	nodeAddress, err := pool.Allocate()
 	if err != nil {
 		return 0, nil, err
 	}
-	return n, na.project(node), nil
+	return nodeAddress, na.project(na.state.Node(nodeAddress)), nil
 }
 
 func (na *NodeAllocator) project(node unsafe.Pointer) *Node {
@@ -68,7 +69,7 @@ func (na *NodeAllocator) project(node unsafe.Pointer) *Node {
 type NodeHeader struct {
 	RevisionHeader types.RevisionHeader
 	Version        uint64
-	NumOfItems     uint64
+	NumOfPointers  uint64
 	NumOfSideLists uint64
 }
 

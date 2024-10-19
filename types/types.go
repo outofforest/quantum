@@ -1,9 +1,5 @@
 package types
 
-import (
-	"unsafe"
-)
-
 // UInt64Length is the number of bytes taken by uint64.
 const UInt64Length = 8
 
@@ -40,21 +36,6 @@ type (
 	// SpaceID is the type for space ID.
 	SpaceID uint64
 )
-
-// Allocator manages memory.
-type Allocator interface {
-	Node(nodeAddress LogicalAddress) unsafe.Pointer
-	Allocate() (LogicalAddress, unsafe.Pointer, error)
-	Deallocate(nodeAddress LogicalAddress)
-	NodeSize() uint64
-}
-
-// SnapshotAllocator manages memory on snapshot level.
-type SnapshotAllocator interface {
-	SetSnapshotID(snapshotID SnapshotID)
-	Allocate() (LogicalAddress, unsafe.Pointer, error)
-	Deallocate(nodeAddress LogicalAddress, srcSnapshotID SnapshotID) error
-}
 
 // RevisionHeader stores information about node revision. It must be stored as first bytes in the node.
 type RevisionHeader struct {
@@ -133,6 +114,11 @@ type SpaceDataNodeDeallocationEvent struct {
 	Pointer Pointer
 }
 
+// SpaceDeallocationEvent is emitted to request space deallocation.
+type SpaceDeallocationEvent struct {
+	SpaceRoot ParentEntry
+}
+
 // ListNodeAllocatedEvent is emitted when new list node is allocated.
 type ListNodeAllocatedEvent struct {
 	Pointer *Pointer
@@ -143,10 +129,12 @@ type ListNodeUpdatedEvent struct {
 	Pointer *Pointer
 }
 
-// DeleteSnapshotEvent is emitted to request snapshot deletion.
-type DeleteSnapshotEvent struct {
-	SnapshotID SnapshotID
+// ListDeallocationEvent is emitted to request list deallocation.
+type ListDeallocationEvent struct {
+	ListRoot Pointer
 }
 
 // DBCommitEvent is emitted to wait until all the events are processed before snapshot is committed.
-type DBCommitEvent struct{}
+type DBCommitEvent struct {
+	DoneCh chan<- struct{}
+}

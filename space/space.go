@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/outofforest/photon"
+	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -14,21 +15,20 @@ const trials = 50
 
 // Config stores space configuration.
 type Config[K, V comparable] struct {
-	HashMod           *uint64
-	SpaceRoot         types.ParentEntry
-	Allocator         types.Allocator
-	SnapshotAllocator types.SnapshotAllocator
-	StorageEventCh    chan<- any
+	HashMod        *uint64
+	SpaceRoot      types.ParentEntry
+	State          *alloc.State
+	StorageEventCh chan<- any
 }
 
 // New creates new space.
 func New[K, V comparable](config Config[K, V]) (*Space[K, V], error) {
-	pointerNodeAllocator, err := NewNodeAllocator[PointerNodeHeader, types.SpacePointer](config.Allocator)
+	pointerNodeAllocator, err := NewNodeAllocator[PointerNodeHeader, types.SpacePointer](config.State)
 	if err != nil {
 		return nil, err
 	}
 
-	dataNodeAllocator, err := NewNodeAllocator[DataNodeHeader, types.DataItem[K, V]](config.Allocator)
+	dataNodeAllocator, err := NewNodeAllocator[DataNodeHeader, types.DataItem[K, V]](config.State)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ type pointerToAllocate struct {
 }
 
 // AllocatePointers allocates specified levels of pointer nodes.
-func (s *Space[K, V]) AllocatePointers(levels uint64) error {
+func (s *Space[K, V]) AllocatePointers(levels uint64, pool *alloc.Pool[types.LogicalAddress]) error {
 	if *s.config.SpaceRoot.State != types.StateFree {
 		return errors.New("pointers can be preallocated only on empty space")
 	}
@@ -135,7 +135,7 @@ func (s *Space[K, V]) AllocatePointers(levels uint64) error {
 		pToAllocate := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 
-		pointerNodeAddress, pointerNode, err := s.pointerNodeAllocator.Allocate(s.config.SnapshotAllocator)
+		pointerNodeAddress, pointerNode, err := s.pointerNodeAllocator.Allocate(pool)
 		if err != nil {
 			return err
 		}
@@ -145,8 +145,7 @@ func (s *Space[K, V]) AllocatePointers(levels uint64) error {
 		pToAllocate.PEntry.SpacePointer.Pointer.LogicalAddress = pointerNodeAddress
 
 		s.config.StorageEventCh <- types.SpacePointerNodeAllocatedEvent{
-			Pointer:  &pToAllocate.PEntry.SpacePointer.Pointer,
-			PAddress: pToAllocate.PAddress,
+			Pointer: &pToAllocate.PEntry.SpacePointer.Pointer,
 		}
 
 		if pToAllocate.Level == levels {
@@ -164,40 +163,6 @@ func (s *Space[K, V]) AllocatePointers(levels uint64) error {
 				PAddress: pointerNodeAddress,
 			})
 		}
-	}
-}
-
-// DeallocateAll deallocate all deallocates all nodes used by the space.
-func (s *Space[K, V]) DeallocateAll() {
-	switch *s.config.SpaceRoot.State {
-	case types.StateFree:
-		return
-	case types.StateData:
-		s.config.Allocator.Deallocate(s.config.SpaceRoot.SpacePointer.Pointer.LogicalAddress)
-		return
-	}
-
-	// FIXME (wojciech): Optimize heap allocations
-	stack := []types.SpacePointer{*s.config.SpaceRoot.SpacePointer}
-
-	for {
-		if len(stack) == 0 {
-			return
-		}
-
-		spacePointer := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-
-		pointerNode := s.pointerNodeAllocator.Get(spacePointer.Pointer.LogicalAddress)
-		for sPointer, state := range pointerNode.Iterator() {
-			switch *state {
-			case types.StateData:
-				s.config.Allocator.Deallocate(sPointer.Pointer.LogicalAddress)
-			case types.StatePointer:
-				stack = append(stack, *sPointer)
-			}
-		}
-		s.config.Allocator.Deallocate(spacePointer.Pointer.LogicalAddress)
 	}
 }
 
@@ -305,7 +270,7 @@ func (s *Space[K, V]) deleteValue(v Entry[K, V]) error {
 	return nil
 }
 
-func (s *Space[K, V]) setValue(v Entry[K, V], value V) (Entry[K, V], error) {
+func (s *Space[K, V]) setValue(v Entry[K, V], value V, pool *alloc.Pool[types.LogicalAddress]) (Entry[K, V], error) {
 	if *v.pEntry.State == types.StatePointer {
 		v, _ = s.find(v)
 	}
@@ -325,14 +290,14 @@ func (s *Space[K, V]) setValue(v Entry[K, V], value V) (Entry[K, V], error) {
 		}
 	}
 
-	return s.set(v)
+	return s.set(v, pool)
 }
 
-func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
+func (s *Space[K, V]) set(v Entry[K, V], pool *alloc.Pool[types.LogicalAddress]) (Entry[K, V], error) {
 	for {
 		switch *v.pEntry.State {
 		case types.StateFree:
-			dataNodeAddress, dataNode, err := s.dataNodeAllocator.Allocate(s.config.SnapshotAllocator)
+			dataNodeAddress, dataNode, err := s.dataNodeAllocator.Allocate(pool)
 			if err != nil {
 				return Entry[K, V]{}, err
 			}
@@ -402,10 +367,10 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 				return v, nil
 			}
 
-			if err := s.redistributeNode(v.pEntry, v.pAddress, conflict); err != nil {
+			if err := s.redistributeNode(v.pEntry, v.pAddress, conflict, pool); err != nil {
 				return Entry[K, V]{}, err
 			}
-			return s.set(v)
+			return s.set(v, pool)
 		default:
 			pointerNode := s.pointerNodeAllocator.Get(v.pEntry.SpacePointer.Pointer.LogicalAddress)
 			if pointerNode.Header.HashMod > 0 {
@@ -424,11 +389,16 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 	}
 }
 
-func (s *Space[K, V]) redistributeNode(pEntry types.ParentEntry, pAddress types.LogicalAddress, conflict bool) error {
+func (s *Space[K, V]) redistributeNode(
+	pEntry types.ParentEntry,
+	pAddress types.LogicalAddress,
+	conflict bool,
+	pool *alloc.Pool[types.LogicalAddress],
+) error {
 	dataNodePointer := pEntry.SpacePointer.Pointer
 	dataNode := s.dataNodeAllocator.Get(dataNodePointer.LogicalAddress)
 
-	pointerNodeAddress, pointerNode, err := s.pointerNodeAllocator.Allocate(s.config.SnapshotAllocator)
+	pointerNodeAddress, pointerNode, err := s.pointerNodeAllocator.Allocate(pool)
 	if err != nil {
 		return err
 	}
@@ -463,7 +433,7 @@ func (s *Space[K, V]) redistributeNode(pEntry types.ParentEntry, pAddress types.
 				SpacePointer: pointerItem,
 			},
 			pAddress: pointerNodeAddress,
-		}); err != nil {
+		}, pool); err != nil {
 			return err
 		}
 	}
@@ -472,9 +442,7 @@ func (s *Space[K, V]) redistributeNode(pEntry types.ParentEntry, pAddress types.
 		Pointer: dataNodePointer,
 	}
 
-	// FIXME (wojciech): Deallocate in the same goroutine which stores data on disk to be consistent with snapshot ID.
-	return s.config.SnapshotAllocator.Deallocate(dataNodePointer.LogicalAddress,
-		dataNode.Header.RevisionHeader.SnapshotID)
+	return nil
 }
 
 func (s *Space[K, V]) find(v Entry[K, V]) (Entry[K, V], error) {
@@ -555,8 +523,8 @@ func (v Entry[K, V]) Exists() bool {
 }
 
 // Set sts value for entry.
-func (v Entry[K, V]) Set(value V) (Entry[K, V], error) {
-	return v.space.setValue(v, value)
+func (v Entry[K, V]) Set(value V, pool *alloc.Pool[types.LogicalAddress]) (Entry[K, V], error) {
+	return v.space.setValue(v, value, pool)
 }
 
 // Delete deletes the entry.
@@ -586,4 +554,51 @@ func hashKey[K comparable](key K, hashMod uint64) types.Hash {
 
 func testHash(hash types.Hash) types.Hash {
 	return hash & 0x7fffffff
+}
+
+// Deallocate deallocates all nodes used by the space.
+func Deallocate(
+	state *alloc.State,
+	spaceRoot types.ParentEntry,
+	volatilePool *alloc.Pool[types.LogicalAddress],
+	persistentPool *alloc.Pool[types.PhysicalAddress],
+) error {
+	switch *spaceRoot.State {
+	case types.StateFree:
+		return nil
+	case types.StateData:
+		volatilePool.Deallocate(spaceRoot.SpacePointer.Pointer.LogicalAddress)
+		persistentPool.Deallocate(spaceRoot.SpacePointer.Pointer.PhysicalAddress)
+		return nil
+	}
+
+	// FIXME (wojciech): Optimize heap allocations
+	stack := []types.SpacePointer{*spaceRoot.SpacePointer}
+
+	pointerNodeAllocator, err := NewNodeAllocator[PointerNodeHeader, types.SpacePointer](state)
+	if err != nil {
+		return err
+	}
+
+	for {
+		if len(stack) == 0 {
+			return nil
+		}
+
+		spacePointer := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		pointerNode := pointerNodeAllocator.Get(spacePointer.Pointer.LogicalAddress)
+		for sPointer, state := range pointerNode.Iterator() {
+			switch *state {
+			case types.StateData:
+				volatilePool.Deallocate(sPointer.Pointer.LogicalAddress)
+				persistentPool.Deallocate(sPointer.Pointer.PhysicalAddress)
+			case types.StatePointer:
+				stack = append(stack, *sPointer)
+			}
+		}
+		volatilePool.Deallocate(spacePointer.Pointer.LogicalAddress)
+		persistentPool.Deallocate(spacePointer.Pointer.PhysicalAddress)
+	}
 }

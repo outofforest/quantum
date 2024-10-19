@@ -37,20 +37,22 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 	for bi := 0; bi < b.N; bi++ {
 		func() {
-			allocator, deallocFunc, err := alloc.NewAllocator(alloc.Config{
-				TotalSize:    70 * 1024 * 1024 * 1024,
-				NodeSize:     4 * 1024,
-				UseHugePages: true,
-			})
+			state, stateDeallocFunc, err := alloc.NewState(
+				70*1024*1024*1024,
+				4*1024,
+				1024,
+				true,
+				5,
+			)
 			if err != nil {
 				panic(err)
 			}
-			defer deallocFunc()
+			defer stateDeallocFunc()
+
+			pool := state.NewPool()
 
 			db, err := New(Config{
-				Allocator:            allocator,
-				StorageEventWorkers:  2,
-				DirtyListNodeWorkers: 2,
+				State: state,
 			})
 			if err != nil {
 				panic(err)
@@ -68,13 +70,13 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			if err != nil {
 				panic(err)
 			}
-			if err := s.AllocatePointers(3); err != nil {
+			if err := s.AllocatePointers(3, pool); err != nil {
 				panic(err)
 			}
 
 			for i := 0; i < numOfAddresses; i += 2 {
 				v := s.Get(accounts[i])
-				_, err := v.Set(2 * balance)
+				_, err := v.Set(2*balance, pool)
 				if err != nil {
 					panic(err)
 				}
@@ -89,7 +91,8 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			tx := 0
 			var snapshotID types.SnapshotID
 
-			_ = db.Commit()
+			_ = db.Commit(pool)
+
 			snapshotID++
 
 			func() {
@@ -101,23 +104,26 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 					senderBalance := s.Get(senderAddress)
 					recipientBalance := s.Get(recipientAddress)
 
-					if _, err := senderBalance.Set(senderBalance.Value() - balance); err != nil {
+					if _, err := senderBalance.Set(senderBalance.Value()-balance, pool); err != nil {
 						panic(err)
 					}
-					if _, err := recipientBalance.Set(recipientBalance.Value() + balance); err != nil {
+					if _, err := recipientBalance.Set(recipientBalance.Value()+balance, pool); err != nil {
 						panic(err)
 					}
 
 					tx++
 					if tx%txsPerCommit == 0 {
-						_ = db.Commit()
+						_ = db.Commit(pool)
 						snapshotID++
 
 						if snapshotID > 1 {
-							db.DeleteSnapshot(snapshotID - 2)
+							if err := db.DeleteSnapshot(snapshotID-2, pool); err != nil {
+								panic(err)
+							}
 						}
 					}
 				}
+
 				b.StopTimer()
 			}()
 
