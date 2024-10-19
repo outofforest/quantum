@@ -131,7 +131,7 @@ func NewSnapshotAllocator(
 	allocator types.Allocator,
 	deallocationListCache map[types.SnapshotID]ListToCommit,
 	availableSnapshots map[types.SnapshotID]struct{},
-	storageEventCh chan<- types.StorageEvent,
+	storageEventCh chan<- any,
 ) *SnapshotAllocator {
 	sa := &SnapshotAllocator{
 		allocator:             allocator,
@@ -150,7 +150,7 @@ type SnapshotAllocator struct {
 	immediateAllocator    types.SnapshotAllocator
 	deallocationListCache map[types.SnapshotID]ListToCommit
 	availableSnapshots    map[types.SnapshotID]struct{}
-	storageEventCh        chan<- types.StorageEvent
+	storageEventCh        chan<- any
 }
 
 // SetSnapshotID sets snapshot ID.

@@ -108,8 +108,29 @@ type SingularityNode struct {
 	SnapshotRoot    SpaceInfo
 }
 
-// StorageEvent is used to report events related to storage.
-type StorageEvent struct {
-	DataNodeAddress    LogicalAddress
-	PointerNodeAddress LogicalAddress
-}
+// SpacePointerNodeAllocatedEvent is emitted when new pointer node in space is allocated.
+type SpacePointerNodeAllocatedEvent struct{}
+
+// SpaceDataNodeAllocatedEvent is emitted when new data node in space is allocated.
+type SpaceDataNodeAllocatedEvent struct{}
+
+// SpaceDataNodeUpdatedEvent is emitted when data node is updated in space.
+type SpaceDataNodeUpdatedEvent struct{}
+
+// SpaceDataNodeDeallocationEvent is emitted to request space data node deallocation.
+type SpaceDataNodeDeallocationEvent struct{}
+
+// SpaceDeallocationEvent is emitted to request space deallocation.
+type SpaceDeallocationEvent struct{}
+
+// ListNodeAllocatedEvent is emitted when new list node is allocated.
+type ListNodeAllocatedEvent struct{}
+
+// ListNodeUpdatedEvent is emitted when list node is updated.
+type ListNodeUpdatedEvent struct{}
+
+// ListDeallocationEvent is emitted to request list deallocation.
+type ListDeallocationEvent struct{}
+
+// DBCommitEvent is emitted to wait until all the events are processed before snapshot is committed.
+type DBCommitEvent struct{}

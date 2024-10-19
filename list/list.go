@@ -11,7 +11,7 @@ type Config struct {
 	ListRoot          *types.Pointer
 	Allocator         types.Allocator
 	SnapshotAllocator types.SnapshotAllocator
-	StorageEventCh    chan<- types.StorageEvent
+	StorageEventCh    chan<- any
 }
 
 // New creates new list.
@@ -46,7 +46,7 @@ func (l *List) Add(pointer types.Pointer) error {
 			LogicalAddress: newNodeAddress,
 		}
 
-		l.config.StorageEventCh <- types.StorageEvent{}
+		l.config.StorageEventCh <- types.ListNodeAllocatedEvent{}
 
 		return nil
 	}
@@ -56,7 +56,7 @@ func (l *List) Add(pointer types.Pointer) error {
 		listNode.Pointers[listNode.Header.NumOfItems] = pointer
 		listNode.Header.NumOfItems++
 
-		l.config.StorageEventCh <- types.StorageEvent{}
+		l.config.StorageEventCh <- types.ListNodeUpdatedEvent{}
 
 		return nil
 	}
@@ -73,7 +73,7 @@ func (l *List) Add(pointer types.Pointer) error {
 		LogicalAddress: newNodeAddress,
 	}
 
-	l.config.StorageEventCh <- types.StorageEvent{}
+	l.config.StorageEventCh <- types.ListNodeAllocatedEvent{}
 
 	return nil
 }
@@ -90,7 +90,7 @@ func (l *List) Attach(pointer types.Pointer) error {
 		listNode.Pointers[uint64(len(listNode.Pointers))-listNode.Header.NumOfSideLists-1] = pointer
 		listNode.Header.NumOfSideLists++
 
-		l.config.StorageEventCh <- types.StorageEvent{}
+		l.config.StorageEventCh <- types.ListNodeUpdatedEvent{}
 
 		return nil
 	}
@@ -106,7 +106,7 @@ func (l *List) Attach(pointer types.Pointer) error {
 		LogicalAddress: newNodeAddress,
 	}
 
-	l.config.StorageEventCh <- types.StorageEvent{}
+	l.config.StorageEventCh <- types.ListNodeUpdatedEvent{}
 
 	return nil
 }

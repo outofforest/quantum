@@ -39,7 +39,7 @@ func New(config Config) (*DB, error) {
 		spacesToCommit:            map[types.SpaceID]SpaceToCommit{},
 		deallocationListsToCommit: map[types.SnapshotID]alloc.ListToCommit{},
 		availableSnapshots:        map[types.SnapshotID]struct{}{},
-		storageEventCh:            make(chan types.StorageEvent, 100),
+		storageEventCh:            make(chan any, 100),
 		doneCh:                    make(chan struct{}),
 	}
 
@@ -119,7 +119,7 @@ type DB struct {
 	deallocationListsToCommit map[types.SnapshotID]alloc.ListToCommit
 	availableSnapshots        map[types.SnapshotID]struct{}
 
-	storageEventCh chan types.StorageEvent
+	storageEventCh chan any
 	doneCh         chan struct{}
 }
 
@@ -190,6 +190,8 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 			continue
 		}
 
+		db.storageEventCh <- types.ListDeallocationEvent{}
+
 		l, err := list.New(list.Config{
 			ListRoot:  &snapshotItem.Value,
 			Allocator: db.config.Allocator,
@@ -227,6 +229,8 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 			}
 		}
 	}
+
+	db.storageEventCh <- types.SpaceDeallocationEvent{}
 
 	deallocationLists.DeallocateAll()
 
@@ -273,6 +277,8 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 
 // Commit commits current snapshot and returns next one.
 func (db *DB) Commit() error {
+	db.storageEventCh <- types.DBCommitEvent{}
+
 	if len(db.spacesToCommit) > 0 {
 		spaces := make([]types.SpaceID, 0, len(db.spacesToCommit))
 		for spaceID := range db.spacesToCommit {
@@ -305,6 +311,8 @@ func (db *DB) Commit() error {
 		return err
 	}
 
+	db.storageEventCh <- types.DBCommitEvent{}
+
 	*photon.FromPointer[types.SingularityNode](db.config.Allocator.Node(0)) = db.singularityNode
 
 	db.availableSnapshots[db.singularityNode.LastSnapshotID] = struct{}{}
@@ -333,7 +341,7 @@ func (db *DB) Run(ctx context.Context) error {
 	})
 }
 
-func (db *DB) processStorageEvents(ctx context.Context, storageEventCh <-chan types.StorageEvent) error {
+func (db *DB) processStorageEvents(ctx context.Context, storageEventCh <-chan any) error {
 	for range storageEventCh {
 
 	}
