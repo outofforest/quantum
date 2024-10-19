@@ -114,9 +114,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 						snapshotID++
 
 						if snapshotID > 1 {
-							if err := db.DeleteSnapshot(snapshotID - 2); err != nil {
-								panic(err)
-							}
+							db.DeleteSnapshot(snapshotID - 2)
 						}
 					}
 				}

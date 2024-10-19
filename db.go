@@ -124,155 +124,10 @@ type DB struct {
 }
 
 // DeleteSnapshot deletes snapshot.
-func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
-	snapshotInfoValue := db.snapshots.Get(snapshotID)
-	if !snapshotInfoValue.Exists() {
-		return errors.Errorf("snapshot %d does not exist", snapshotID)
+func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) {
+	db.storageEventCh <- types.DeleteSnapshotEvent{
+		SnapshotID: snapshotID,
 	}
-	snapshotInfo := snapshotInfoValue.Value()
-
-	var nextSnapshotInfo *types.SnapshotInfo
-	var nextDeallocationLists *space.Space[types.SnapshotID, types.Pointer]
-	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
-		nextSnapshotInfoValue := db.snapshots.Get(snapshotInfo.NextSnapshotID)
-		if !nextSnapshotInfoValue.Exists() {
-			return errors.Errorf("snapshot %d does not exist", snapshotID)
-		}
-		tmpNextSnapshotInfo := nextSnapshotInfoValue.Value()
-		nextSnapshotInfo = &tmpNextSnapshotInfo
-		var err error
-		nextDeallocationLists, err = space.New[types.SnapshotID, types.Pointer](
-			space.Config[types.SnapshotID, types.Pointer]{
-				HashMod: &nextSnapshotInfo.DeallocationRoot.HashMod,
-				SpaceRoot: types.ParentEntry{
-					State:        &nextSnapshotInfo.DeallocationRoot.State,
-					SpacePointer: &nextSnapshotInfo.DeallocationRoot.Pointer,
-				},
-				Allocator:         db.config.Allocator,
-				SnapshotAllocator: db.immediateSnapshotAllocator,
-				StorageEventCh:    db.storageEventCh,
-			},
-		)
-		if err != nil {
-			return err
-		}
-	} else {
-		if err := db.commitDeallocationLists(); err != nil {
-			return err
-		}
-
-		nextSnapshotInfo = &db.snapshotInfo
-		nextDeallocationLists = db.deallocationLists
-	}
-
-	deallocationLists, err := space.New[types.SnapshotID, types.Pointer](
-		space.Config[types.SnapshotID, types.Pointer]{
-			HashMod: lo.ToPtr(snapshotInfo.DeallocationRoot.HashMod),
-			SpaceRoot: types.ParentEntry{
-				State:        lo.ToPtr(snapshotInfo.DeallocationRoot.State),
-				SpacePointer: lo.ToPtr(snapshotInfo.DeallocationRoot.Pointer),
-			},
-			Allocator:         db.config.Allocator,
-			SnapshotAllocator: db.immediateSnapshotAllocator,
-			StorageEventCh:    db.storageEventCh,
-		},
-	)
-	if err != nil {
-		return err
-	}
-
-	var startSnapshotID types.SnapshotID
-	if snapshotID != db.singularityNode.FirstSnapshotID {
-		startSnapshotID = snapshotInfo.PreviousSnapshotID + 1
-	}
-	for snapshotItem := range nextDeallocationLists.Iterator() {
-		if snapshotItem.Key < startSnapshotID || snapshotItem.Key > snapshotID {
-			continue
-		}
-
-		db.storageEventCh <- types.ListDeallocationEvent{}
-
-		l, err := list.New(list.Config{
-			ListRoot:  &snapshotItem.Value,
-			Allocator: db.config.Allocator,
-		})
-		if err != nil {
-			return err
-		}
-
-		l.Deallocate()
-		nextDeallocationListValue := nextDeallocationLists.Get(snapshotItem.Key)
-		if err := nextDeallocationListValue.Delete(); err != nil {
-			return err
-		}
-	}
-
-	for snapshotItem := range deallocationLists.Iterator() {
-		nextDeallocationListValue := nextDeallocationLists.Get(snapshotItem.Key)
-		nextListNodeAddress := nextDeallocationListValue.Value()
-		newNextListNodeAddress := nextListNodeAddress
-		nextList, err := list.New(list.Config{
-			ListRoot:          &newNextListNodeAddress,
-			Allocator:         db.config.Allocator,
-			SnapshotAllocator: db.immediateSnapshotAllocator,
-			StorageEventCh:    db.storageEventCh,
-		})
-		if err != nil {
-			return err
-		}
-		if err := nextList.Attach(snapshotItem.Value); err != nil {
-			return err
-		}
-		if newNextListNodeAddress != nextListNodeAddress {
-			if _, err := nextDeallocationListValue.Set(newNextListNodeAddress); err != nil {
-				return err
-			}
-		}
-	}
-
-	db.storageEventCh <- types.SpaceDeallocationEvent{}
-
-	deallocationLists.DeallocateAll()
-
-	if snapshotID == db.singularityNode.FirstSnapshotID {
-		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.NextSnapshotID
-	} else {
-		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
-	}
-
-	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
-		nextSnapshotInfoValue := db.snapshots.Get(snapshotInfo.NextSnapshotID)
-		if _, err := nextSnapshotInfoValue.Set(*nextSnapshotInfo); err != nil {
-			return err
-		}
-	}
-
-	if snapshotID > db.singularityNode.FirstSnapshotID {
-		previousSnapshotInfoValue := db.snapshots.Get(snapshotInfo.PreviousSnapshotID)
-		if !previousSnapshotInfoValue.Exists() {
-			return errors.Errorf("snapshot %d does not exist", snapshotID)
-		}
-
-		previousSnapshotInfo := previousSnapshotInfoValue.Value()
-		previousSnapshotInfo.NextSnapshotID = snapshotInfo.NextSnapshotID
-
-		if _, err := previousSnapshotInfoValue.Set(previousSnapshotInfo); err != nil {
-			return err
-		}
-	}
-
-	if snapshotID == db.singularityNode.FirstSnapshotID {
-		db.singularityNode.FirstSnapshotID = snapshotInfo.NextSnapshotID
-	}
-	if snapshotID == db.snapshotInfo.PreviousSnapshotID {
-		db.snapshotInfo.PreviousSnapshotID = db.singularityNode.LastSnapshotID
-	}
-
-	if err := snapshotInfoValue.Delete(); err != nil {
-		return err
-	}
-	delete(db.availableSnapshots, snapshotID)
-	return nil
 }
 
 // Commit commits current snapshot and returns next one.
@@ -342,10 +197,165 @@ func (db *DB) Run(ctx context.Context) error {
 }
 
 func (db *DB) processStorageEvents(ctx context.Context, storageEventCh <-chan any) error {
-	for range storageEventCh {
-
+	for event := range storageEventCh {
+		//nolint:gocritic
+		switch e := event.(type) {
+		case types.DeleteSnapshotEvent:
+			if err := db.deleteSnapshot(e.SnapshotID); err != nil {
+				return err
+			}
+		}
 	}
 	return errors.WithStack(ctx.Err())
+}
+
+func (db *DB) deleteSnapshot(snapshotID types.SnapshotID) error {
+	snapshotInfoValue := db.snapshots.Get(snapshotID)
+	if !snapshotInfoValue.Exists() {
+		return errors.Errorf("snapshot %d does not exist", snapshotID)
+	}
+
+	if err := snapshotInfoValue.Delete(); err != nil {
+		return err
+	}
+	delete(db.availableSnapshots, snapshotID)
+
+	snapshotInfo := snapshotInfoValue.Value()
+
+	var nextSnapshotInfo *types.SnapshotInfo
+	var nextDeallocationLists *space.Space[types.SnapshotID, types.Pointer]
+	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
+		nextSnapshotInfoValue := db.snapshots.Get(snapshotInfo.NextSnapshotID)
+		if !nextSnapshotInfoValue.Exists() {
+			return errors.Errorf("snapshot %d does not exist", snapshotID)
+		}
+		tmpNextSnapshotInfo := nextSnapshotInfoValue.Value()
+		nextSnapshotInfo = &tmpNextSnapshotInfo
+		var err error
+		nextDeallocationLists, err = space.New[types.SnapshotID, types.Pointer](
+			space.Config[types.SnapshotID, types.Pointer]{
+				HashMod: &nextSnapshotInfo.DeallocationRoot.HashMod,
+				SpaceRoot: types.ParentEntry{
+					State:        &nextSnapshotInfo.DeallocationRoot.State,
+					SpacePointer: &nextSnapshotInfo.DeallocationRoot.Pointer,
+				},
+				Allocator:         db.config.Allocator,
+				SnapshotAllocator: db.immediateSnapshotAllocator,
+				StorageEventCh:    db.storageEventCh,
+			},
+		)
+		if err != nil {
+			return err
+		}
+	} else {
+		if err := db.commitDeallocationLists(); err != nil {
+			return err
+		}
+
+		nextSnapshotInfo = &db.snapshotInfo
+		nextDeallocationLists = db.deallocationLists
+	}
+
+	deallocationLists, err := space.New[types.SnapshotID, types.Pointer](
+		space.Config[types.SnapshotID, types.Pointer]{
+			HashMod: lo.ToPtr(snapshotInfo.DeallocationRoot.HashMod),
+			SpaceRoot: types.ParentEntry{
+				State:        lo.ToPtr(snapshotInfo.DeallocationRoot.State),
+				SpacePointer: lo.ToPtr(snapshotInfo.DeallocationRoot.Pointer),
+			},
+			Allocator:         db.config.Allocator,
+			SnapshotAllocator: db.immediateSnapshotAllocator,
+			StorageEventCh:    db.storageEventCh,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	var startSnapshotID types.SnapshotID
+	if snapshotID != db.singularityNode.FirstSnapshotID {
+		startSnapshotID = snapshotInfo.PreviousSnapshotID + 1
+	}
+	for snapshotItem := range nextDeallocationLists.Iterator() {
+		if snapshotItem.Key < startSnapshotID || snapshotItem.Key > snapshotID {
+			continue
+		}
+
+		l, err := list.New(list.Config{
+			ListRoot:  &snapshotItem.Value,
+			Allocator: db.config.Allocator,
+		})
+		if err != nil {
+			return err
+		}
+
+		l.Deallocate()
+		nextDeallocationListValue := nextDeallocationLists.Get(snapshotItem.Key)
+		if err := nextDeallocationListValue.Delete(); err != nil {
+			return err
+		}
+	}
+
+	for snapshotItem := range deallocationLists.Iterator() {
+		nextDeallocationListValue := nextDeallocationLists.Get(snapshotItem.Key)
+		nextListNodeAddress := nextDeallocationListValue.Value()
+		newNextListNodeAddress := nextListNodeAddress
+		nextList, err := list.New(list.Config{
+			ListRoot:          &newNextListNodeAddress,
+			Allocator:         db.config.Allocator,
+			SnapshotAllocator: db.immediateSnapshotAllocator,
+			StorageEventCh:    db.storageEventCh,
+		})
+		if err != nil {
+			return err
+		}
+		if err := nextList.Attach(snapshotItem.Value); err != nil {
+			return err
+		}
+		if newNextListNodeAddress != nextListNodeAddress {
+			if _, err := nextDeallocationListValue.Set(newNextListNodeAddress); err != nil {
+				return err
+			}
+		}
+	}
+
+	deallocationLists.DeallocateAll()
+
+	if snapshotID == db.singularityNode.FirstSnapshotID {
+		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.NextSnapshotID
+	} else {
+		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
+	}
+
+	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
+		nextSnapshotInfoValue := db.snapshots.Get(snapshotInfo.NextSnapshotID)
+		if _, err := nextSnapshotInfoValue.Set(*nextSnapshotInfo); err != nil {
+			return err
+		}
+	}
+
+	if snapshotID > db.singularityNode.FirstSnapshotID {
+		previousSnapshotInfoValue := db.snapshots.Get(snapshotInfo.PreviousSnapshotID)
+		if !previousSnapshotInfoValue.Exists() {
+			return errors.Errorf("snapshot %d does not exist", snapshotID)
+		}
+
+		previousSnapshotInfo := previousSnapshotInfoValue.Value()
+		previousSnapshotInfo.NextSnapshotID = snapshotInfo.NextSnapshotID
+
+		if _, err := previousSnapshotInfoValue.Set(previousSnapshotInfo); err != nil {
+			return err
+		}
+	}
+
+	if snapshotID == db.singularityNode.FirstSnapshotID {
+		db.singularityNode.FirstSnapshotID = snapshotInfo.NextSnapshotID
+	}
+	if snapshotID == db.snapshotInfo.PreviousSnapshotID {
+		db.snapshotInfo.PreviousSnapshotID = db.singularityNode.LastSnapshotID
+	}
+
+	return nil
 }
 
 func (db *DB) prepareNextSnapshot() error {

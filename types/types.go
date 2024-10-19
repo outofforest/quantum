@@ -1,6 +1,8 @@
 package types
 
-import "unsafe"
+import (
+	"unsafe"
+)
 
 // UInt64Length is the number of bytes taken by uint64.
 const UInt64Length = 8
@@ -109,28 +111,42 @@ type SingularityNode struct {
 }
 
 // SpacePointerNodeAllocatedEvent is emitted when new pointer node in space is allocated.
-type SpacePointerNodeAllocatedEvent struct{}
+type SpacePointerNodeAllocatedEvent struct {
+	Pointer  *Pointer
+	PAddress LogicalAddress
+}
 
 // SpaceDataNodeAllocatedEvent is emitted when new data node in space is allocated.
-type SpaceDataNodeAllocatedEvent struct{}
+type SpaceDataNodeAllocatedEvent struct {
+	Pointer  *Pointer
+	PAddress LogicalAddress
+}
 
 // SpaceDataNodeUpdatedEvent is emitted when data node is updated in space.
-type SpaceDataNodeUpdatedEvent struct{}
+type SpaceDataNodeUpdatedEvent struct {
+	Pointer  *Pointer
+	PAddress LogicalAddress
+}
 
 // SpaceDataNodeDeallocationEvent is emitted to request space data node deallocation.
-type SpaceDataNodeDeallocationEvent struct{}
-
-// SpaceDeallocationEvent is emitted to request space deallocation.
-type SpaceDeallocationEvent struct{}
+type SpaceDataNodeDeallocationEvent struct {
+	Pointer Pointer
+}
 
 // ListNodeAllocatedEvent is emitted when new list node is allocated.
-type ListNodeAllocatedEvent struct{}
+type ListNodeAllocatedEvent struct {
+	Pointer *Pointer
+}
 
 // ListNodeUpdatedEvent is emitted when list node is updated.
-type ListNodeUpdatedEvent struct{}
+type ListNodeUpdatedEvent struct {
+	Pointer *Pointer
+}
 
-// ListDeallocationEvent is emitted to request list deallocation.
-type ListDeallocationEvent struct{}
+// DeleteSnapshotEvent is emitted to request snapshot deletion.
+type DeleteSnapshotEvent struct {
+	SnapshotID SnapshotID
+}
 
 // DBCommitEvent is emitted to wait until all the events are processed before snapshot is committed.
 type DBCommitEvent struct{}
