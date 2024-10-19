@@ -42,11 +42,11 @@ func (l *List) Add(pointer types.Pointer) error {
 		}
 		newNode.Pointers[0] = pointer
 		newNode.Header.NumOfItems = 1
-		*l.config.ListRoot = types.Pointer{
-			LogicalAddress: newNodeAddress,
-		}
+		l.config.ListRoot.LogicalAddress = newNodeAddress
 
-		l.config.StorageEventCh <- types.ListNodeAllocatedEvent{}
+		l.config.StorageEventCh <- types.ListNodeAllocatedEvent{
+			Pointer: l.config.ListRoot,
+		}
 
 		return nil
 	}
@@ -56,7 +56,9 @@ func (l *List) Add(pointer types.Pointer) error {
 		listNode.Pointers[listNode.Header.NumOfItems] = pointer
 		listNode.Header.NumOfItems++
 
-		l.config.StorageEventCh <- types.ListNodeUpdatedEvent{}
+		l.config.StorageEventCh <- types.ListNodeUpdatedEvent{
+			Pointer: l.config.ListRoot,
+		}
 
 		return nil
 	}
@@ -69,11 +71,11 @@ func (l *List) Add(pointer types.Pointer) error {
 	newNode.Pointers[len(newNode.Pointers)-1] = *l.config.ListRoot
 	newNode.Header.NumOfItems = 1
 	newNode.Header.NumOfSideLists = 1
-	*l.config.ListRoot = types.Pointer{
-		LogicalAddress: newNodeAddress,
-	}
+	l.config.ListRoot.LogicalAddress = newNodeAddress
 
-	l.config.StorageEventCh <- types.ListNodeAllocatedEvent{}
+	l.config.StorageEventCh <- types.ListNodeAllocatedEvent{
+		Pointer: l.config.ListRoot,
+	}
 
 	return nil
 }
@@ -90,7 +92,9 @@ func (l *List) Attach(pointer types.Pointer) error {
 		listNode.Pointers[uint64(len(listNode.Pointers))-listNode.Header.NumOfSideLists-1] = pointer
 		listNode.Header.NumOfSideLists++
 
-		l.config.StorageEventCh <- types.ListNodeUpdatedEvent{}
+		l.config.StorageEventCh <- types.ListNodeUpdatedEvent{
+			Pointer: l.config.ListRoot,
+		}
 
 		return nil
 	}
@@ -102,19 +106,17 @@ func (l *List) Attach(pointer types.Pointer) error {
 	newNode.Pointers[uint64(len(listNode.Pointers))-1] = *l.config.ListRoot
 	newNode.Pointers[uint64(len(listNode.Pointers))-2] = pointer
 	newNode.Header.NumOfSideLists = 2
-	*l.config.ListRoot = types.Pointer{
-		LogicalAddress: newNodeAddress,
-	}
+	l.config.ListRoot.LogicalAddress = newNodeAddress
 
-	l.config.StorageEventCh <- types.ListNodeUpdatedEvent{}
+	l.config.StorageEventCh <- types.ListNodeUpdatedEvent{
+		Pointer: l.config.ListRoot,
+	}
 
 	return nil
 }
 
 // Deallocate deallocates nodes referenced by the list.
 func (l *List) Deallocate() {
-	// FIXME (wojciech): Deallocate in the same goroutine which stores data on disk to be consistent with snapshot ID.
-
 	if l.config.ListRoot.LogicalAddress == 0 {
 		return
 	}
