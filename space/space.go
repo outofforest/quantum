@@ -18,7 +18,7 @@ type Config[K, V comparable] struct {
 	SpaceRoot         types.ParentEntry
 	Allocator         types.Allocator
 	SnapshotAllocator types.SnapshotAllocator
-	StorageEventCh    chan<- types.StorageEvent
+	StorageEventCh    chan<- any
 }
 
 // New creates new space.
@@ -141,7 +141,7 @@ func (s *Space[K, V]) AllocatePointers(levels uint64) error {
 		}
 		pointerNode.Header.ParentNodeAddress = pToAllocate.PAddress
 
-		s.config.StorageEventCh <- types.StorageEvent{}
+		s.config.StorageEventCh <- types.SpacePointerNodeAllocatedEvent{}
 
 		*pToAllocate.PEntry.State = types.StatePointer
 		*pToAllocate.PEntry.SpacePointer = types.SpacePointer{
@@ -299,7 +299,7 @@ func (s *Space[K, V]) deleteValue(v Entry[K, V]) error {
 	}
 	if v.itemP.Hash == v.item.Hash && v.itemP.Key == v.item.Key {
 		*v.stateP = types.StateDeleted
-		s.config.StorageEventCh <- types.StorageEvent{}
+		s.config.StorageEventCh <- types.SpaceDataNodeUpdatedEvent{}
 		return nil
 	}
 	return nil
@@ -348,7 +348,7 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 			v.itemP = item
 			v.exists = true
 
-			s.config.StorageEventCh <- types.StorageEvent{}
+			s.config.StorageEventCh <- types.SpaceDataNodeAllocatedEvent{}
 
 			return v, nil
 		case types.StateData:
@@ -376,7 +376,7 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 				v.itemP = item
 				v.exists = true
 
-				s.config.StorageEventCh <- types.StorageEvent{}
+				s.config.StorageEventCh <- types.SpaceDataNodeUpdatedEvent{}
 
 				return v, nil
 			}
@@ -388,7 +388,7 @@ func (s *Space[K, V]) set(v Entry[K, V]) (Entry[K, V], error) {
 				v.itemP = item
 				v.exists = true
 
-				s.config.StorageEventCh <- types.StorageEvent{}
+				s.config.StorageEventCh <- types.SpaceDataNodeUpdatedEvent{}
 
 				return v, nil
 			}
@@ -462,6 +462,8 @@ func (s *Space[K, V]) redistributeNode(pEntry types.ParentEntry, pAddress types.
 			return err
 		}
 	}
+
+	s.config.StorageEventCh <- types.SpaceDataNodeDeallocationEvent{}
 
 	// FIXME (wojciech): Deallocate in the same goroutine which stores data on disk to be consistent with snapshot ID.
 	return s.config.SnapshotAllocator.Deallocate(dataNodePointer.Pointer.LogicalAddress,
