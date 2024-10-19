@@ -56,14 +56,18 @@ type State struct {
 	deallocationCh    chan []types.LogicalAddress
 }
 
+// NodeSize returns size of node.
 func (s *State) NodeSize() uint64 {
 	return s.nodeSize
 }
 
+// NewPhysicalAllocationCh creates channel containing physical nodes to allocate.
+// FIXME (wojciech): This design is horrible.
 func (s *State) NewPhysicalAllocationCh() chan []types.PhysicalAddress {
 	return NewAllocationCh[types.PhysicalAddress](s.size, s.nodeSize, s.nodesPerGroup)
 }
 
+// NewPool creates new allocation pool.
 func (s *State) NewPool() *Pool[types.LogicalAddress] {
 	return NewPool[types.LogicalAddress](s.allocationCh, s.deallocationCh)
 }
@@ -73,10 +77,13 @@ func (s *State) Node(nodeAddress types.LogicalAddress) unsafe.Pointer {
 	return unsafe.Add(s.dataP, nodeAddress)
 }
 
+// Run runs node eraser.
 func (s *State) Run(ctx context.Context) error {
 	return RunEraser(ctx, s.deallocationCh, s.allocationCh, s.nodeSize, s, s.numOfEraseWorkers)
 }
 
+// Close closes the node eraser channel.
+// FIXME (wojciech): This design is horrible.
 func (s *State) Close() {
 	close(s.deallocationCh)
 }

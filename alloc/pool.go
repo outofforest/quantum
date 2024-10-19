@@ -4,6 +4,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+// NewPool creates new allocation pool.
+// FIXME (wojciech): Ensure that addresses don't leak and that sink channel is not flooded.
 func NewPool[A Address](
 	tapCh <-chan []A,
 	sinkCh chan<- []A,
@@ -17,6 +19,7 @@ func NewPool[A Address](
 	}
 }
 
+// Pool allocates and deallocates nodes in chunks.
 type Pool[A Address] struct {
 	tapCh  <-chan []A
 	sinkCh chan<- []A
@@ -26,6 +29,7 @@ type Pool[A Address] struct {
 	release []A
 }
 
+// Allocate allocates single node.
 func (p *Pool[A]) Allocate() (A, error) {
 	nodeAddress := p.pool[len(p.pool)-1]
 	p.pool = p.pool[:len(p.pool)-1]
@@ -41,6 +45,7 @@ func (p *Pool[A]) Allocate() (A, error) {
 	return nodeAddress, nil
 }
 
+// Deallocate deallocates single node.
 func (p *Pool[A]) Deallocate(nodeAddress A) {
 	if nodeAddress == 0 {
 		return

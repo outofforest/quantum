@@ -67,7 +67,9 @@ func (na *NodeAllocator[H, T]) Get(nodeAddress types.LogicalAddress) *Node[H, T]
 }
 
 // Allocate allocates new object.
-func (na *NodeAllocator[H, T]) Allocate(pool *alloc.Pool[types.LogicalAddress]) (types.LogicalAddress, *Node[H, T], error) {
+func (na *NodeAllocator[H, T]) Allocate(
+	pool *alloc.Pool[types.LogicalAddress],
+) (types.LogicalAddress, *Node[H, T], error) {
 	nodeAddress, err := pool.Allocate()
 	if err != nil {
 		return 0, nil, err

@@ -11,6 +11,7 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
+// RunEraser runs the goroutine erasing deallocated nodes.
 func RunEraser(
 	ctx context.Context,
 	tapCh <-chan []types.LogicalAddress,

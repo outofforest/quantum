@@ -4,10 +4,12 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
+// Address defines accepted address types.
 type Address interface {
 	types.LogicalAddress | types.PhysicalAddress
 }
 
+// NewAllocationCh creates channel containing allocatable addresses.
 func NewAllocationCh[A Address](
 	size uint64,
 	nodeSize uint64,

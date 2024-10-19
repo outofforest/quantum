@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// NewMemoryStore creates new in-memory "persistent" store.
 func NewMemoryStore(size uint64, useHugePages bool) (*MemoryStore, func(), error) {
 	opts := syscall.MAP_SHARED | syscall.MAP_ANONYMOUS | syscall.MAP_NORESERVE | syscall.MAP_POPULATE
 	if useHugePages {
@@ -23,14 +24,17 @@ func NewMemoryStore(size uint64, useHugePages bool) (*MemoryStore, func(), error
 		}, nil
 }
 
+// MemoryStore defines "persistent" in-memory store. Used for testing.
 type MemoryStore struct {
 	data []byte
 }
 
+// Size returns size of the store.
 func (s *MemoryStore) Size() uint64 {
 	return uint64(len(s.data))
 }
 
+// Write writes data to the store.
 func (s *MemoryStore) Write(offset uint64, data []byte) error {
 	copy(s.data[offset:], data)
 	return nil
