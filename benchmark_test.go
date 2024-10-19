@@ -48,9 +48,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			defer deallocFunc()
 
 			db, err := New(Config{
-				Allocator:             allocator,
-				DirtySpaceNodeWorkers: 2,
-				DirtyListNodeWorkers:  2,
+				Allocator:            allocator,
+				StorageEventWorkers:  2,
+				DirtyListNodeWorkers: 2,
 			})
 			if err != nil {
 				panic(err)
