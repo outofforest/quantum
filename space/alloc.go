@@ -6,12 +6,13 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/outofforest/photon"
+	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/types"
 )
 
 // NewNodeAllocator creates new space node allocator.
-func NewNodeAllocator[H, T comparable](allocator types.Allocator) (*NodeAllocator[H, T], error) {
-	nodeSize := uintptr(allocator.NodeSize())
+func NewNodeAllocator[H, T comparable](state *alloc.State) (*NodeAllocator[H, T], error) {
+	nodeSize := uintptr(state.NodeSize())
 
 	var h H
 	headerSize := unsafe.Sizeof(h)
@@ -39,7 +40,7 @@ func NewNodeAllocator[H, T comparable](allocator types.Allocator) (*NodeAllocato
 	}
 
 	return &NodeAllocator[H, T]{
-		allocator: allocator,
+		state: state,
 		spaceNode: &Node[H, T]{
 			numOfItems: numOfItems,
 			itemSize:   itemSize,
@@ -52,7 +53,7 @@ func NewNodeAllocator[H, T comparable](allocator types.Allocator) (*NodeAllocato
 
 // NodeAllocator converts nodes from bytes to space objects.
 type NodeAllocator[H, T comparable] struct {
-	allocator types.Allocator
+	state *alloc.State
 
 	spaceNode   *Node[H, T]
 	numOfItems  uintptr
@@ -62,16 +63,18 @@ type NodeAllocator[H, T comparable] struct {
 
 // Get returns object for node.
 func (na *NodeAllocator[H, T]) Get(nodeAddress types.LogicalAddress) *Node[H, T] {
-	return na.project(na.allocator.Node(nodeAddress))
+	return na.project(na.state.Node(nodeAddress))
 }
 
 // Allocate allocates new object.
-func (na *NodeAllocator[H, T]) Allocate(allocator types.SnapshotAllocator) (types.LogicalAddress, *Node[H, T], error) {
-	n, node, err := allocator.Allocate()
+func (na *NodeAllocator[H, T]) Allocate(
+	pool *alloc.Pool[types.LogicalAddress],
+) (types.LogicalAddress, *Node[H, T], error) {
+	nodeAddress, err := pool.Allocate()
 	if err != nil {
 		return 0, nil, err
 	}
-	return n, na.project(node), nil
+	return nodeAddress, na.project(na.state.Node(nodeAddress)), nil
 }
 
 // Shift shifts bits in hash.
