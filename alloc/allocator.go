@@ -131,13 +131,13 @@ func NewSnapshotAllocator(
 	allocator types.Allocator,
 	deallocationListCache map[types.SnapshotID]ListToCommit,
 	availableSnapshots map[types.SnapshotID]struct{},
-	dirtyListNodesCh chan<- types.DirtyListNode,
+	storageEventCh chan<- types.StorageEvent,
 ) *SnapshotAllocator {
 	sa := &SnapshotAllocator{
 		allocator:             allocator,
 		deallocationListCache: deallocationListCache,
 		availableSnapshots:    availableSnapshots,
-		dirtyListNodesCh:      dirtyListNodesCh,
+		storageEventCh:        storageEventCh,
 	}
 	sa.immediateAllocator = NewImmediateSnapshotAllocator(sa)
 	return sa
@@ -150,7 +150,7 @@ type SnapshotAllocator struct {
 	immediateAllocator    types.SnapshotAllocator
 	deallocationListCache map[types.SnapshotID]ListToCommit
 	availableSnapshots    map[types.SnapshotID]struct{}
-	dirtyListNodesCh      chan<- types.DirtyListNode
+	storageEventCh        chan<- types.StorageEvent
 }
 
 // SetSnapshotID sets snapshot ID.
@@ -186,7 +186,7 @@ func (sa *SnapshotAllocator) Deallocate(nodeAddress types.LogicalAddress, srcSna
 			ListRoot:          listToCommit.ListRoot,
 			Allocator:         sa.allocator,
 			SnapshotAllocator: sa.immediateAllocator,
-			DirtyListNodesCh:  sa.dirtyListNodesCh,
+			StorageEventCh:    sa.storageEventCh,
 		})
 		if err != nil {
 			return err

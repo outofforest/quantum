@@ -18,9 +18,9 @@ import (
 
 // Config stores snapshot configuration.
 type Config struct {
-	Allocator             types.Allocator
-	DirtySpaceNodeWorkers uint
-	DirtyListNodeWorkers  uint
+	Allocator            types.Allocator
+	StorageEventWorkers  uint
+	DirtyListNodeWorkers uint
 }
 
 // SpaceToCommit represents requested space which might require to be committed.
@@ -39,8 +39,7 @@ func New(config Config) (*DB, error) {
 		spacesToCommit:            map[types.SpaceID]SpaceToCommit{},
 		deallocationListsToCommit: map[types.SnapshotID]alloc.ListToCommit{},
 		availableSnapshots:        map[types.SnapshotID]struct{}{},
-		dirtySpaceNodesCh:         make(chan types.DirtySpaceNode, 100),
-		dirtyListNodesCh:          make(chan types.DirtyListNode, 100),
+		storageEventCh:            make(chan types.StorageEvent, 100),
 		doneCh:                    make(chan struct{}),
 	}
 
@@ -48,7 +47,7 @@ func New(config Config) (*DB, error) {
 		config.Allocator,
 		db.deallocationListsToCommit,
 		db.availableSnapshots,
-		db.dirtyListNodesCh,
+		db.storageEventCh,
 	)
 
 	db.immediateSnapshotAllocator = alloc.NewImmediateSnapshotAllocator(db.snapshotAllocator)
@@ -62,7 +61,7 @@ func New(config Config) (*DB, error) {
 		},
 		Allocator:         config.Allocator,
 		SnapshotAllocator: db.immediateSnapshotAllocator,
-		DirtySpaceNodesCh: db.dirtySpaceNodesCh,
+		StorageEventCh:    db.storageEventCh,
 	})
 	if err != nil {
 		return nil, err
@@ -76,7 +75,7 @@ func New(config Config) (*DB, error) {
 		},
 		Allocator:         config.Allocator,
 		SnapshotAllocator: db.snapshotAllocator,
-		DirtySpaceNodesCh: db.dirtySpaceNodesCh,
+		StorageEventCh:    db.storageEventCh,
 	})
 	if err != nil {
 		return nil, err
@@ -91,7 +90,7 @@ func New(config Config) (*DB, error) {
 			},
 			Allocator:         config.Allocator,
 			SnapshotAllocator: db.immediateSnapshotAllocator,
-			DirtySpaceNodesCh: db.dirtySpaceNodesCh,
+			StorageEventCh:    db.storageEventCh,
 		},
 	)
 
@@ -120,9 +119,8 @@ type DB struct {
 	deallocationListsToCommit map[types.SnapshotID]alloc.ListToCommit
 	availableSnapshots        map[types.SnapshotID]struct{}
 
-	dirtySpaceNodesCh chan types.DirtySpaceNode
-	dirtyListNodesCh  chan types.DirtyListNode
-	doneCh            chan struct{}
+	storageEventCh chan types.StorageEvent
+	doneCh         chan struct{}
 }
 
 // DeleteSnapshot deletes snapshot.
@@ -152,7 +150,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 				},
 				Allocator:         db.config.Allocator,
 				SnapshotAllocator: db.immediateSnapshotAllocator,
-				DirtySpaceNodesCh: db.dirtySpaceNodesCh,
+				StorageEventCh:    db.storageEventCh,
 			},
 		)
 		if err != nil {
@@ -176,7 +174,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 			},
 			Allocator:         db.config.Allocator,
 			SnapshotAllocator: db.immediateSnapshotAllocator,
-			DirtySpaceNodesCh: db.dirtySpaceNodesCh,
+			StorageEventCh:    db.storageEventCh,
 		},
 	)
 	if err != nil {
@@ -215,7 +213,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) error {
 			ListRoot:          &newNextListNodeAddress,
 			Allocator:         db.config.Allocator,
 			SnapshotAllocator: db.immediateSnapshotAllocator,
-			DirtyListNodesCh:  db.dirtyListNodesCh,
+			StorageEventCh:    db.storageEventCh,
 		})
 		if err != nil {
 			return err
@@ -316,8 +314,7 @@ func (db *DB) Commit() error {
 
 // Close closed DB.
 func (db *DB) Close() {
-	close(db.dirtySpaceNodesCh)
-	close(db.dirtyListNodesCh)
+	close(db.storageEventCh)
 
 	<-db.doneCh
 }
@@ -327,29 +324,18 @@ func (db *DB) Run(ctx context.Context) error {
 	defer close(db.doneCh)
 
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-		for i := range db.config.DirtySpaceNodeWorkers {
-			spawn(fmt.Sprintf("dirtySpaceNodeWorker-%02d", i), parallel.Continue, func(ctx context.Context) error {
-				return db.processDirtySpaceNodes(ctx, db.dirtySpaceNodesCh)
-			})
-		}
-		for i := range db.config.DirtyListNodeWorkers {
-			spawn(fmt.Sprintf("dirtyListNodeWorker-%02d", i), parallel.Continue, func(ctx context.Context) error {
-				return db.processDirtyListNodes(ctx, db.dirtyListNodesCh)
+		for i := range db.config.StorageEventWorkers {
+			spawn(fmt.Sprintf("storageEventWorker-%02d", i), parallel.Continue, func(ctx context.Context) error {
+				return db.processStorageEvents(ctx, db.storageEventCh)
 			})
 		}
 		return nil
 	})
 }
 
-func (db *DB) processDirtySpaceNodes(ctx context.Context, dirtySpaceNodesCh <-chan types.DirtySpaceNode) error {
-	for range dirtySpaceNodesCh {
+func (db *DB) processStorageEvents(ctx context.Context, storageEventCh <-chan types.StorageEvent) error {
+	for range storageEventCh {
 
-	}
-	return errors.WithStack(ctx.Err())
-}
-
-func (db *DB) processDirtyListNodes(ctx context.Context, dirtyListNodesCh <-chan types.DirtyListNode) error {
-	for range dirtyListNodesCh {
 	}
 	return errors.WithStack(ctx.Err())
 }
@@ -417,6 +403,6 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 		SpaceRoot:         s.PInfo,
 		Allocator:         db.config.Allocator,
 		SnapshotAllocator: db.snapshotAllocator,
-		DirtySpaceNodesCh: db.dirtySpaceNodesCh,
+		StorageEventCh:    db.storageEventCh,
 	})
 }

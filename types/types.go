@@ -108,12 +108,8 @@ type SingularityNode struct {
 	SnapshotRoot    SpaceInfo
 }
 
-// DirtySpaceNode stores information about modified data node.
-type DirtySpaceNode struct {
+// StorageEvent is used to report events related to storage.
+type StorageEvent struct {
 	DataNodeAddress    LogicalAddress
 	PointerNodeAddress LogicalAddress
-}
-
-// DirtyListNode stores information about modified list node.
-type DirtyListNode struct {
 }
