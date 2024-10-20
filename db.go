@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
+	"github.com/outofforest/mass"
 	"github.com/outofforest/parallel"
 	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/alloc"
@@ -24,7 +25,7 @@ type Config struct {
 type SpaceToCommit struct {
 	HashMod         *uint64
 	PInfo           types.ParentEntry
-	SpaceInfoValue  space.Entry[types.SpaceID, types.SpaceInfo]
+	SpaceInfoValue  *space.Entry[types.SpaceID, types.SpaceInfo]
 	OriginalPointer types.SpacePointer
 }
 
@@ -89,6 +90,7 @@ func New(config Config) (*DB, error) {
 		snapshotToNodeNode:          snapshotToNodeNodeAllocator.NewNode(),
 		spaceInfoNode:               spaceInfoNodeAllocator.NewNode(),
 		listNode:                    listNodeAllocator.NewNode(),
+		massSnapshotToNodeEntry:     mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
 		spacesToCommit:              map[types.SpaceID]SpaceToCommit{},
 		deallocationListsToCommit:   map[types.SnapshotID]ListToCommit{},
 		availableSnapshots:          map[types.SnapshotID]struct{}{},
@@ -105,6 +107,7 @@ func New(config Config) (*DB, error) {
 		State:                config.State,
 		PointerNodeAllocator: pointerNodeAllocator,
 		DataNodeAllocator:    snapshotInfoNodeAllocator,
+		MassEntry:            mass.New[space.Entry[types.SnapshotID, types.SnapshotInfo]](1000),
 		StorageEventCh:       db.storageEventCh,
 	})
 
@@ -117,6 +120,7 @@ func New(config Config) (*DB, error) {
 		State:                config.State,
 		PointerNodeAllocator: pointerNodeAllocator,
 		DataNodeAllocator:    spaceInfoNodeAllocator,
+		MassEntry:            mass.New[space.Entry[types.SpaceID, types.SpaceInfo]](1000),
 		StorageEventCh:       db.storageEventCh,
 	})
 
@@ -130,6 +134,7 @@ func New(config Config) (*DB, error) {
 			State:                config.State,
 			PointerNodeAllocator: pointerNodeAllocator,
 			DataNodeAllocator:    snapshotToNodeNodeAllocator,
+			MassEntry:            mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
 			StorageEventCh:       db.storageEventCh,
 		},
 	)
@@ -160,6 +165,8 @@ type DB struct {
 	snapshotToNodeNode *space.Node[space.DataNodeHeader, types.DataItem[types.SnapshotID, types.Pointer]]
 	spaceInfoNode      *space.Node[space.DataNodeHeader, types.DataItem[types.SpaceID, types.SpaceInfo]]
 	listNode           *list.Node
+
+	massSnapshotToNodeEntry *mass.Mass[space.Entry[types.SnapshotID, types.Pointer]]
 
 	spacesToCommit            map[types.SpaceID]SpaceToCommit
 	deallocationListsToCommit map[types.SnapshotID]ListToCommit
@@ -203,6 +210,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID, pool *alloc.Pool[types
 				State:                db.config.State,
 				PointerNodeAllocator: db.pointerNodeAllocator,
 				DataNodeAllocator:    db.snapshotToNodeNodeAllocator,
+				MassEntry:            db.massSnapshotToNodeEntry,
 				StorageEventCh:       db.storageEventCh,
 			},
 		)
@@ -245,6 +253,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID, pool *alloc.Pool[types
 			State:                db.config.State,
 			PointerNodeAllocator: db.pointerNodeAllocator,
 			DataNodeAllocator:    db.snapshotToNodeNodeAllocator,
+			MassEntry:            db.massSnapshotToNodeEntry,
 		},
 	)
 
@@ -265,7 +274,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID, pool *alloc.Pool[types
 			return err
 		}
 		if newNextListNodeAddress != nextListNodeAddress {
-			if _, err := nextDeallocationListValue.Set(
+			if err := nextDeallocationListValue.Set(
 				newNextListNodeAddress,
 				pool,
 				db.pointerNode,
@@ -288,7 +297,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID, pool *alloc.Pool[types
 
 	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
 		nextSnapshotInfoValue := db.snapshots.Get(snapshotInfo.NextSnapshotID, db.pointerNode, db.snapshotInfoNode)
-		if _, err := nextSnapshotInfoValue.Set(
+		if err := nextSnapshotInfoValue.Set(
 			*nextSnapshotInfo,
 			pool,
 			db.pointerNode,
@@ -308,7 +317,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID, pool *alloc.Pool[types
 		previousSnapshotInfo := previousSnapshotInfoValue.Value()
 		previousSnapshotInfo.NextSnapshotID = snapshotInfo.NextSnapshotID
 
-		if _, err := previousSnapshotInfoValue.Set(
+		if err := previousSnapshotInfoValue.Set(
 			previousSnapshotInfo,
 			pool,
 			db.pointerNode,
@@ -349,7 +358,7 @@ func (db *DB) Commit(pool *alloc.Pool[types.LogicalAddress]) error {
 				continue
 			}
 			spaceToCommit.OriginalPointer = *spaceToCommit.PInfo.SpacePointer
-			if _, err := spaceToCommit.SpaceInfoValue.Set(types.SpaceInfo{
+			if err := spaceToCommit.SpaceInfoValue.Set(types.SpaceInfo{
 				HashMod: *spaceToCommit.HashMod,
 				State:   *spaceToCommit.PInfo.State,
 				Pointer: *spaceToCommit.PInfo.SpacePointer,
@@ -364,7 +373,7 @@ func (db *DB) Commit(pool *alloc.Pool[types.LogicalAddress]) error {
 	}
 
 	nextSnapshotInfoValue := db.snapshots.Get(db.singularityNode.LastSnapshotID, db.pointerNode, db.snapshotInfoNode)
-	if _, err := nextSnapshotInfoValue.Set(
+	if err := nextSnapshotInfoValue.Set(
 		db.snapshotInfo,
 		pool,
 		db.pointerNode,
@@ -515,7 +524,7 @@ func (db *DB) commitDeallocationLists(pool *alloc.Pool[types.LogicalAddress]) er
 		sort.Slice(lists, func(i, j int) bool { return lists[i] < lists[j] })
 
 		for _, snapshotID := range lists {
-			_, err := db.deallocationLists.Get(snapshotID, db.pointerNode, db.snapshotToNodeNode).
+			err := db.deallocationLists.Get(snapshotID, db.pointerNode, db.snapshotToNodeNode).
 				Set(*db.deallocationListsToCommit[snapshotID].ListRoot, pool, db.pointerNode, db.snapshotToNodeNode)
 			if err != nil {
 				return err
@@ -558,5 +567,6 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 		StorageEventCh:       db.storageEventCh,
 		PointerNodeAllocator: db.pointerNodeAllocator,
 		DataNodeAllocator:    dataNodeAllocator,
+		MassEntry:            mass.New[space.Entry[K, V]](1000),
 	}), nil
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/pkg/errors"
 
+	"github.com/outofforest/mass"
 	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/types"
@@ -20,6 +21,7 @@ type Config[K, V comparable] struct {
 	State                *alloc.State
 	PointerNodeAllocator *NodeAllocator[PointerNodeHeader, types.SpacePointer]
 	DataNodeAllocator    *NodeAllocator[DataNodeHeader, types.DataItem[K, V]]
+	MassEntry            *mass.Mass[Entry[K, V]]
 	StorageEventCh       chan<- any
 }
 
@@ -50,18 +52,17 @@ func (s *Space[K, V]) Get(
 	key K,
 	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
 	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
-) Entry[K, V] {
-	v := Entry[K, V]{
-		space: s,
-		item: types.DataItem[K, V]{
-			Hash: hashKey(key, 0),
-			Key:  key,
-		},
-		pEntry: s.config.SpaceRoot,
+) *Entry[K, V] {
+	v := s.config.MassEntry.New()
+	v.space = s
+	v.item = types.DataItem[K, V]{
+		Hash: hashKey(key, 0),
+		Key:  key,
 	}
+	v.pEntry = s.config.SpaceRoot
 
 	// For get, err is always nil.
-	v, _ = s.find(v, pointerNode, dataNode)
+	_ = s.find(v, pointerNode, dataNode)
 	return v
 }
 
@@ -257,12 +258,12 @@ func (s *Space[K, V]) Stats(pointerNode *Node[PointerNodeHeader, types.SpacePoin
 }
 
 func (s *Space[K, V]) deleteValue(
-	v Entry[K, V],
+	v *Entry[K, V],
 	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
 	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
 ) error {
 	if *v.pEntry.State == types.StatePointer {
-		v, _ = s.find(v, pointerNode, dataNode)
+		_ = s.find(v, pointerNode, dataNode)
 	}
 
 	if *v.pEntry.State == types.StateFree {
@@ -284,14 +285,14 @@ func (s *Space[K, V]) deleteValue(
 }
 
 func (s *Space[K, V]) setValue(
-	v Entry[K, V],
+	v *Entry[K, V],
 	value V,
 	pool *alloc.Pool[types.LogicalAddress],
 	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
 	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
-) (Entry[K, V], error) {
+) error {
 	if *v.pEntry.State == types.StatePointer {
-		v, _ = s.find(v, pointerNode, dataNode)
+		_ = s.find(v, pointerNode, dataNode)
 	}
 
 	v.item.Value = value
@@ -301,11 +302,11 @@ func (s *Space[K, V]) setValue(
 			*v.itemP = v.item
 			*v.stateP = types.StateData
 			v.exists = true
-			return v, nil
+			return nil
 		}
 		if v.itemP.Hash == v.item.Hash && v.itemP.Key == v.item.Key {
 			v.itemP.Value = value
-			return v, nil
+			return nil
 		}
 	}
 
@@ -313,17 +314,17 @@ func (s *Space[K, V]) setValue(
 }
 
 func (s *Space[K, V]) set(
-	v Entry[K, V],
+	v *Entry[K, V],
 	pool *alloc.Pool[types.LogicalAddress],
 	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
 	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
-) (Entry[K, V], error) {
+) error {
 	for {
 		switch *v.pEntry.State {
 		case types.StateFree:
 			dataNodeAddress, err := s.config.DataNodeAllocator.Allocate(pool, dataNode)
 			if err != nil {
-				return Entry[K, V]{}, err
+				return err
 			}
 
 			*v.pEntry.State = types.StateData
@@ -342,7 +343,7 @@ func (s *Space[K, V]) set(
 				PAddress: v.pAddress,
 			}
 
-			return v, nil
+			return nil
 		case types.StateData:
 			s.config.DataNodeAllocator.Get(v.pEntry.SpacePointer.Pointer.LogicalAddress, dataNode)
 
@@ -361,7 +362,7 @@ func (s *Space[K, V]) set(
 						PAddress: v.pAddress,
 					}
 
-					return v, nil
+					return nil
 				}
 
 				if v.item.Hash == item.Hash {
@@ -377,7 +378,7 @@ func (s *Space[K, V]) set(
 							PAddress: v.pAddress,
 						}
 
-						return v, nil
+						return nil
 					}
 
 					conflict = true
@@ -392,7 +393,7 @@ func (s *Space[K, V]) set(
 				pointerNode,
 				dataNode,
 			); err != nil {
-				return Entry[K, V]{}, err
+				return err
 			}
 			return s.set(v, pool, pointerNode, dataNode)
 		default:
@@ -405,11 +406,11 @@ func (s *Space[K, V]) set(
 			item, state := pointerNode.ItemByHash(v.item.Hash)
 			v.item.Hash = s.config.PointerNodeAllocator.Shift(v.item.Hash)
 
+			v.pAddress = v.pEntry.SpacePointer.Pointer.LogicalAddress
 			v.pEntry = types.ParentEntry{
 				State:        state,
 				SpacePointer: item,
 			}
-			v.pAddress = v.pEntry.SpacePointer.Pointer.LogicalAddress
 		}
 	}
 }
@@ -452,7 +453,7 @@ func (s *Space[K, V]) redistributeNode(
 		pointerItem, pointerState := pointerNode.ItemByHash(item.Hash)
 		item.Hash = s.config.PointerNodeAllocator.Shift(item.Hash)
 
-		if _, err := s.set(Entry[K, V]{
+		if err := s.set(&Entry[K, V]{
 			space: s,
 			item:  *item,
 			pEntry: types.ParentEntry{
@@ -473,10 +474,10 @@ func (s *Space[K, V]) redistributeNode(
 }
 
 func (s *Space[K, V]) find(
-	v Entry[K, V],
+	v *Entry[K, V],
 	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
 	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
-) (Entry[K, V], error) {
+) error {
 	for {
 		switch *v.pEntry.State {
 		case types.StatePointer:
@@ -488,11 +489,11 @@ func (s *Space[K, V]) find(
 			item, state := pointerNode.ItemByHash(v.item.Hash)
 			v.item.Hash = s.config.PointerNodeAllocator.Shift(v.item.Hash)
 
+			v.pAddress = v.pEntry.SpacePointer.Pointer.LogicalAddress
 			v.pEntry = types.ParentEntry{
 				State:        state,
 				SpacePointer: item,
 			}
-			v.pAddress = v.pEntry.SpacePointer.Pointer.LogicalAddress
 		case types.StateData:
 			s.config.DataNodeAllocator.Get(v.pEntry.SpacePointer.Pointer.LogicalAddress, dataNode)
 			for i := types.Hash(0); i < trials; i++ {
@@ -504,14 +505,14 @@ func (s *Space[K, V]) find(
 						v.stateP = state
 						v.itemP = item
 					}
-					return v, nil
+					return nil
 				case types.StateData:
 					if item.Hash == v.item.Hash && item.Key == v.item.Key {
 						v.exists = true
 						v.stateP = state
 						v.itemP = item
 						v.item.Value = item.Value
-						return v, nil
+						return nil
 					}
 				default:
 					if v.stateP == nil {
@@ -520,9 +521,9 @@ func (s *Space[K, V]) find(
 					}
 				}
 			}
-			return v, nil
+			return nil
 		default:
-			return v, nil
+			return nil
 		}
 	}
 }
@@ -539,32 +540,32 @@ type Entry[K, V comparable] struct {
 }
 
 // Value returns the value from entry.
-func (v Entry[K, V]) Value() V {
+func (v *Entry[K, V]) Value() V {
 	return v.item.Value
 }
 
 // Key returns the key from entry.
-func (v Entry[K, V]) Key() K {
+func (v *Entry[K, V]) Key() K {
 	return v.item.Key
 }
 
 // Exists returns true if entry exists in the space.
-func (v Entry[K, V]) Exists() bool {
+func (v *Entry[K, V]) Exists() bool {
 	return v.exists
 }
 
 // Set sts value for entry.
-func (v Entry[K, V]) Set(
+func (v *Entry[K, V]) Set(
 	value V,
 	pool *alloc.Pool[types.LogicalAddress],
 	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
 	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
-) (Entry[K, V], error) {
+) error {
 	return v.space.setValue(v, value, pool, pointerNode, dataNode)
 }
 
 // Delete deletes the entry.
-func (v Entry[K, V]) Delete(
+func (v *Entry[K, V]) Delete(
 	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
 	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
 ) error {

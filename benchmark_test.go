@@ -80,8 +80,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 			for i := 0; i < numOfAddresses; i += 2 {
 				v := s.Get(accounts[i], pointerNode, dataNode)
-				_, err := v.Set(2*balance, pool, pointerNode, dataNode)
-				if err != nil {
+				if err := v.Set(2*balance, pool, pointerNode, dataNode); err != nil {
 					panic(err)
 				}
 
@@ -108,7 +107,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 					senderBalance := s.Get(senderAddress, pointerNode, dataNode)
 					recipientBalance := s.Get(recipientAddress, pointerNode, dataNode)
 
-					if _, err := senderBalance.Set(
+					if err := senderBalance.Set(
 						senderBalance.Value()-balance,
 						pool,
 						pointerNode,
@@ -116,7 +115,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 					); err != nil {
 						panic(err)
 					}
-					if _, err := recipientBalance.Set(
+					if err := recipientBalance.Set(
 						recipientBalance.Value()+balance,
 						pool,
 						pointerNode,
@@ -137,7 +136,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 						}
 					}
 				}
-
 				b.StopTimer()
 			}()
 
