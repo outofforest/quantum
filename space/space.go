@@ -18,8 +18,8 @@ type Config[K, V comparable] struct {
 	HashMod              *uint64
 	SpaceRoot            types.ParentEntry
 	State                *alloc.State
-	PointerNodeAllocator *NodeAllocator[PointerNodeHeader, types.SpacePointer]
-	DataNodeAllocator    *NodeAllocator[DataNodeHeader, types.DataItem[K, V]]
+	PointerNodeAllocator *PointerNodeAllocator
+	DataNodeAllocator    *DataNodeAllocator[K, V]
 	StorageEventCh       chan<- any
 }
 
@@ -36,20 +36,20 @@ type Space[K, V comparable] struct {
 }
 
 // NewPointerNode creates new pointer node representation.
-func (s *Space[K, V]) NewPointerNode() *Node[PointerNodeHeader, types.SpacePointer] {
+func (s *Space[K, V]) NewPointerNode() *PointerNode {
 	return s.config.PointerNodeAllocator.NewNode()
 }
 
 // NewDataNode creates new data node representation.
-func (s *Space[K, V]) NewDataNode() *Node[DataNodeHeader, types.DataItem[K, V]] {
+func (s *Space[K, V]) NewDataNode() *DataNode[K, V] {
 	return s.config.DataNodeAllocator.NewNode()
 }
 
 // Get gets the value of the key.
 func (s *Space[K, V]) Get(
 	key K,
-	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
-	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+	pointerNode *PointerNode,
+	dataNode *DataNode[K, V],
 ) Entry[K, V] {
 	v := Entry[K, V]{
 		space: s,
@@ -68,8 +68,8 @@ func (s *Space[K, V]) Get(
 // Iterator returns iterator iterating over items in space.
 // FIXME (wojciech): Iterator should return Value[K, V] objects.
 func (s *Space[K, V]) Iterator(
-	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
-	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+	pointerNode *PointerNode,
+	dataNode *DataNode[K, V],
 ) func(func(types.DataItem[K, V]) bool) {
 	return func(yield func(item types.DataItem[K, V]) bool) {
 		// FIXME (wojciech): avoid heap allocations
@@ -120,7 +120,7 @@ type pointerToAllocate struct {
 func (s *Space[K, V]) AllocatePointers(
 	levels uint64,
 	pool *alloc.Pool[types.LogicalAddress],
-	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
+	pointerNode *PointerNode,
 ) error {
 	if *s.config.SpaceRoot.State != types.StateFree {
 		return errors.New("pointers can be preallocated only on empty space")
@@ -176,7 +176,7 @@ func (s *Space[K, V]) AllocatePointers(
 }
 
 // Nodes returns list of nodes used by the space.
-func (s *Space[K, V]) Nodes(pointerNode *Node[PointerNodeHeader, types.SpacePointer]) []types.LogicalAddress {
+func (s *Space[K, V]) Nodes(pointerNode *PointerNode) []types.LogicalAddress {
 	switch *s.config.SpaceRoot.State {
 	case types.StateFree:
 		return nil
@@ -214,7 +214,7 @@ func (s *Space[K, V]) Nodes(pointerNode *Node[PointerNodeHeader, types.SpacePoin
 }
 
 // Stats returns stats about the space.
-func (s *Space[K, V]) Stats(pointerNode *Node[PointerNodeHeader, types.SpacePointer]) (uint64, uint64, uint64) {
+func (s *Space[K, V]) Stats(pointerNode *PointerNode) (uint64, uint64, uint64) {
 	switch *s.config.SpaceRoot.State {
 	case types.StateFree:
 		return 0, 0, 0
@@ -258,8 +258,8 @@ func (s *Space[K, V]) Stats(pointerNode *Node[PointerNodeHeader, types.SpacePoin
 
 func (s *Space[K, V]) deleteValue(
 	v Entry[K, V],
-	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
-	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+	pointerNode *PointerNode,
+	dataNode *DataNode[K, V],
 ) error {
 	if *v.pEntry.State == types.StatePointer {
 		v, _ = s.find(v, pointerNode, dataNode)
@@ -287,8 +287,8 @@ func (s *Space[K, V]) setValue(
 	v Entry[K, V],
 	value V,
 	pool *alloc.Pool[types.LogicalAddress],
-	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
-	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+	pointerNode *PointerNode,
+	dataNode *DataNode[K, V],
 ) (Entry[K, V], error) {
 	if *v.pEntry.State == types.StatePointer {
 		v, _ = s.find(v, pointerNode, dataNode)
@@ -315,8 +315,8 @@ func (s *Space[K, V]) setValue(
 func (s *Space[K, V]) set(
 	v Entry[K, V],
 	pool *alloc.Pool[types.LogicalAddress],
-	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
-	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+	pointerNode *PointerNode,
+	dataNode *DataNode[K, V],
 ) (Entry[K, V], error) {
 	for {
 		switch *v.pEntry.State {
@@ -426,8 +426,8 @@ func (s *Space[K, V]) redistributeNode(
 	pAddress types.LogicalAddress,
 	conflict bool,
 	pool *alloc.Pool[types.LogicalAddress],
-	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
-	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+	pointerNode *PointerNode,
+	dataNode *DataNode[K, V],
 ) error {
 	dataNodePointer := pEntry.SpacePointer.Pointer
 	s.config.DataNodeAllocator.Get(dataNodePointer.LogicalAddress, dataNode)
@@ -481,8 +481,8 @@ func (s *Space[K, V]) redistributeNode(
 
 func (s *Space[K, V]) find(
 	v Entry[K, V],
-	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
-	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+	pointerNode *PointerNode,
+	dataNode *DataNode[K, V],
 ) (Entry[K, V], error) {
 	for {
 		switch *v.pEntry.State {
@@ -564,16 +564,16 @@ func (v Entry[K, V]) Exists() bool {
 func (v Entry[K, V]) Set(
 	value V,
 	pool *alloc.Pool[types.LogicalAddress],
-	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
-	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+	pointerNode *PointerNode,
+	dataNode *DataNode[K, V],
 ) (Entry[K, V], error) {
 	return v.space.setValue(v, value, pool, pointerNode, dataNode)
 }
 
 // Delete deletes the entry.
 func (v Entry[K, V]) Delete(
-	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
-	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+	pointerNode *PointerNode,
+	dataNode *DataNode[K, V],
 ) error {
 	return v.space.deleteValue(v, pointerNode, dataNode)
 }
@@ -608,8 +608,8 @@ func Deallocate(
 	spaceRoot types.ParentEntry,
 	volatilePool *alloc.Pool[types.LogicalAddress],
 	persistentPool *alloc.Pool[types.PhysicalAddress],
-	pointerNodeAllocator *NodeAllocator[PointerNodeHeader, types.SpacePointer],
-	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
+	pointerNodeAllocator *PointerNodeAllocator,
+	pointerNode *PointerNode,
 ) {
 	switch *spaceRoot.State {
 	case types.StateFree:

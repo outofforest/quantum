@@ -2,6 +2,7 @@ package quantum
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	"github.com/pkg/errors"
@@ -36,37 +37,22 @@ type ListToCommit struct {
 
 // New creates new database.
 func New(config Config) (*DB, error) {
-	pointerNodeAllocator, err := space.NewNodeAllocator[space.PointerNodeHeader, types.SpacePointer](config.State)
+	pointerNodeAllocator, err := space.NewPointerNodeAllocator(config.State)
 	if err != nil {
 		return nil, err
 	}
 
-	snapshotInfoNodeAllocator, err := space.NewNodeAllocator[
-		space.DataNodeHeader,
-		types.DataItem[types.SnapshotID, types.SnapshotInfo],
-	](
-		config.State,
-	)
+	snapshotInfoNodeAllocator, err := space.NewDataNodeAllocator[types.SnapshotID, types.SnapshotInfo](config.State)
 	if err != nil {
 		return nil, err
 	}
 
-	snapshotToNodeNodeAllocator, err := space.NewNodeAllocator[
-		space.DataNodeHeader,
-		types.DataItem[types.SnapshotID, types.Pointer],
-	](
-		config.State,
-	)
+	snapshotToNodeNodeAllocator, err := space.NewDataNodeAllocator[types.SnapshotID, types.Pointer](config.State)
 	if err != nil {
 		return nil, err
 	}
 
-	spaceInfoNodeAllocator, err := space.NewNodeAllocator[
-		space.DataNodeHeader,
-		types.DataItem[types.SpaceID, types.SpaceInfo],
-	](
-		config.State,
-	)
+	spaceInfoNodeAllocator, err := space.NewDataNodeAllocator[types.SpaceID, types.SpaceInfo](config.State)
 	if err != nil {
 		return nil, err
 	}
@@ -151,14 +137,14 @@ type DB struct {
 	spaces                 *space.Space[types.SpaceID, types.SpaceInfo]
 	deallocationLists      *space.Space[types.SnapshotID, types.Pointer]
 
-	pointerNodeAllocator        *space.NodeAllocator[space.PointerNodeHeader, types.SpacePointer]
-	snapshotToNodeNodeAllocator *space.NodeAllocator[space.DataNodeHeader, types.DataItem[types.SnapshotID, types.Pointer]]
+	pointerNodeAllocator        *space.PointerNodeAllocator
+	snapshotToNodeNodeAllocator *space.DataNodeAllocator[types.SnapshotID, types.Pointer]
 	listNodeAllocator           *list.NodeAllocator
 
-	pointerNode        *space.Node[space.PointerNodeHeader, types.SpacePointer]
-	snapshotInfoNode   *space.Node[space.DataNodeHeader, types.DataItem[types.SnapshotID, types.SnapshotInfo]]
-	snapshotToNodeNode *space.Node[space.DataNodeHeader, types.DataItem[types.SnapshotID, types.Pointer]]
-	spaceInfoNode      *space.Node[space.DataNodeHeader, types.DataItem[types.SpaceID, types.SpaceInfo]]
+	pointerNode        *space.PointerNode
+	snapshotInfoNode   *space.DataNode[types.SnapshotID, types.SnapshotInfo]
+	snapshotToNodeNode *space.DataNode[types.SnapshotID, types.Pointer]
+	spaceInfoNode      *space.DataNode[types.SpaceID, types.SpaceInfo]
 	listNode           *list.Node
 
 	spacesToCommit            map[types.SpaceID]SpaceToCommit
@@ -546,7 +532,8 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 		db.spacesToCommit[spaceID] = s
 	}
 
-	dataNodeAllocator, err := space.NewNodeAllocator[space.DataNodeHeader, types.DataItem[K, V]](db.config.State)
+	fmt.Println("==========================")
+	dataNodeAllocator, err := space.NewDataNodeAllocator[K, V](db.config.State)
 	if err != nil {
 		return nil, err
 	}

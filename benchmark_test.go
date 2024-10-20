@@ -20,7 +20,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 50_000_000
+		numOfAddresses = 10_000_000
 		txsPerCommit   = 2000
 		balance        = 100_000
 	)
@@ -148,6 +148,16 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			}
 		}()
 	}
+}
+
+type s1 struct {
+	A uint64
+	B [5]byte
+}
+
+type s2 struct {
+	A [3]uint64
+	B [3][5]byte
 }
 
 type accountAddress [20]byte
