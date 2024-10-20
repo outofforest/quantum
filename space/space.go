@@ -346,49 +346,42 @@ func (s *Space[K, V]) set(
 		case types.StateData:
 			s.config.DataNodeAllocator.Get(v.pEntry.SpacePointer.Pointer.LogicalAddress, dataNode)
 
-			var stateMatches, keyMatches, conflict bool
-			var item *types.DataItem[K, V]
-			var state *types.State
+			var conflict bool
 			for i := types.Hash(0); i < trials; i++ {
-				item, state = dataNode.ItemByHash(v.item.Hash + 1<<i + i)
-				hashMatches := v.item.Hash == item.Hash
-				keyMatches = hashMatches && v.item.Key == item.Key
-				conflict = conflict || hashMatches
-				stateMatches = *state == types.StateFree || *state == types.StateDeleted
+				item, state := dataNode.ItemByHash(v.item.Hash + 1<<i + i)
+				if *state <= types.StateDeleted {
+					*item = v.item
 
-				if stateMatches || keyMatches {
-					break
-				}
-			}
-			if stateMatches {
-				*state = types.StateData
-				*item = v.item
+					v.stateP = state
+					v.itemP = item
+					v.exists = true
 
-				v.stateP = state
-				v.itemP = item
-				v.exists = true
+					s.config.StorageEventCh <- types.SpaceDataNodeUpdatedEvent{
+						Pointer:  &v.pEntry.SpacePointer.Pointer,
+						PAddress: v.pAddress,
+					}
 
-				s.config.StorageEventCh <- types.SpaceDataNodeUpdatedEvent{
-					Pointer:  &v.pEntry.SpacePointer.Pointer,
-					PAddress: v.pAddress,
+					return v, nil
 				}
 
-				return v, nil
-			}
+				if v.item.Hash == item.Hash {
+					if v.item.Key == item.Key {
+						item.Value = v.item.Value
 
-			if keyMatches {
-				*item = v.item
+						v.stateP = state
+						v.itemP = item
+						v.exists = true
 
-				v.stateP = state
-				v.itemP = item
-				v.exists = true
+						s.config.StorageEventCh <- types.SpaceDataNodeUpdatedEvent{
+							Pointer:  &v.pEntry.SpacePointer.Pointer,
+							PAddress: v.pAddress,
+						}
 
-				s.config.StorageEventCh <- types.SpaceDataNodeUpdatedEvent{
-					Pointer:  &v.pEntry.SpacePointer.Pointer,
-					PAddress: v.pAddress,
+						return v, nil
+					}
+
+					conflict = true
 				}
-
-				return v, nil
 			}
 
 			if err := s.redistributeNode(
