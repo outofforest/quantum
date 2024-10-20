@@ -90,7 +90,7 @@ func (s *Space[K, V]) Iterator(
 					if *state != types.StateData {
 						continue
 					}
-					if !yield(*item) {
+					if !yield(item) {
 						return
 					}
 				}
@@ -272,7 +272,7 @@ func (s *Space[K, V]) deleteValue(
 	if v.stateP == nil || *v.stateP <= types.StateDeleted {
 		return nil
 	}
-	if v.itemP.Hash == v.item.Hash && v.itemP.Key == v.item.Key {
+	if *v.hashP == v.item.Hash && *v.keyP == v.item.Key {
 		*v.stateP = types.StateDeleted
 		s.config.StorageEventCh <- types.SpaceDataNodeUpdatedEvent{
 			Pointer:  &v.pEntry.SpacePointer.Pointer,
@@ -298,13 +298,15 @@ func (s *Space[K, V]) setValue(
 
 	if *v.pEntry.State == types.StateData && v.stateP != nil {
 		if *v.stateP <= types.StateDeleted {
-			*v.itemP = v.item
+			*v.hashP = v.item.Hash
+			*v.keyP = v.item.Key
+			*v.valueP = v.item.Value
 			*v.stateP = types.StateData
 			v.exists = true
 			return v, nil
 		}
-		if v.itemP.Hash == v.item.Hash && v.itemP.Key == v.item.Key {
-			v.itemP.Value = value
+		if *v.hashP == v.item.Hash && *v.keyP == v.item.Key {
+			*v.valueP = value
 			return v, nil
 		}
 	}
@@ -329,12 +331,16 @@ func (s *Space[K, V]) set(
 			*v.pEntry.State = types.StateData
 			v.pEntry.SpacePointer.Pointer.LogicalAddress = dataNodeAddress
 
-			item, state := dataNode.ItemByHash(v.item.Hash + 1)
+			hash, key, value, state := dataNode.ItemByHash(v.item.Hash + 1)
 			*state = types.StateData
-			*item = v.item
+			*hash = v.item.Hash
+			*key = v.item.Key
+			*value = v.item.Value
 
 			v.stateP = state
-			v.itemP = item
+			v.hashP = hash
+			v.keyP = key
+			v.valueP = value
 			v.exists = true
 
 			s.config.StorageEventCh <- types.SpaceDataNodeAllocatedEvent{
@@ -347,12 +353,14 @@ func (s *Space[K, V]) set(
 			s.config.DataNodeAllocator.Get(v.pEntry.SpacePointer.Pointer.LogicalAddress, dataNode)
 
 			var stateMatches, keyMatches, conflict bool
-			var item *types.DataItem[K, V]
+			var hash *types.Hash
+			var key *K
+			var value *V
 			var state *types.State
 			for i := types.Hash(0); i < trials; i++ {
-				item, state = dataNode.ItemByHash(v.item.Hash + 1<<i + i)
-				hashMatches := v.item.Hash == item.Hash
-				keyMatches = hashMatches && v.item.Key == item.Key
+				hash, key, value, state = dataNode.ItemByHash(v.item.Hash + 1<<i + i)
+				hashMatches := v.item.Hash == *hash
+				keyMatches = hashMatches && v.item.Key == *key
 				conflict = conflict || hashMatches
 				stateMatches = *state == types.StateFree || *state == types.StateDeleted
 
@@ -362,10 +370,14 @@ func (s *Space[K, V]) set(
 			}
 			if stateMatches {
 				*state = types.StateData
-				*item = v.item
+				*hash = v.item.Hash
+				*key = v.item.Key
+				*value = v.item.Value
 
 				v.stateP = state
-				v.itemP = item
+				v.hashP = hash
+				v.keyP = key
+				v.valueP = value
 				v.exists = true
 
 				s.config.StorageEventCh <- types.SpaceDataNodeUpdatedEvent{
@@ -377,10 +389,12 @@ func (s *Space[K, V]) set(
 			}
 
 			if keyMatches {
-				*item = v.item
+				*value = v.item.Value
 
 				v.stateP = state
-				v.itemP = item
+				v.hashP = hash
+				v.keyP = key
+				v.valueP = value
 				v.exists = true
 
 				s.config.StorageEventCh <- types.SpaceDataNodeUpdatedEvent{
@@ -461,7 +475,7 @@ func (s *Space[K, V]) redistributeNode(
 
 		if _, err := s.set(Entry[K, V]{
 			space: s,
-			item:  *item,
+			item:  item,
 			pEntry: types.ParentEntry{
 				State:        pointerState,
 				SpacePointer: pointerItem,
@@ -503,27 +517,33 @@ func (s *Space[K, V]) find(
 		case types.StateData:
 			s.config.DataNodeAllocator.Get(v.pEntry.SpacePointer.Pointer.LogicalAddress, dataNode)
 			for i := types.Hash(0); i < trials; i++ {
-				item, state := dataNode.ItemByHash(v.item.Hash + 1<<i + i)
+				hash, key, value, state := dataNode.ItemByHash(v.item.Hash + 1<<i + i)
 
 				switch *state {
 				case types.StateFree:
 					if v.stateP == nil {
 						v.stateP = state
-						v.itemP = item
+						v.hashP = hash
+						v.keyP = key
+						v.valueP = value
 					}
 					return v, nil
 				case types.StateData:
-					if item.Hash == v.item.Hash && item.Key == v.item.Key {
+					if *hash == v.item.Hash && *key == v.item.Key {
 						v.exists = true
 						v.stateP = state
-						v.itemP = item
-						v.item.Value = item.Value
+						v.hashP = hash
+						v.keyP = key
+						v.valueP = value
+						v.item.Value = *value
 						return v, nil
 					}
 				default:
 					if v.stateP == nil {
 						v.stateP = state
-						v.itemP = item
+						v.hashP = hash
+						v.keyP = key
+						v.valueP = value
 					}
 				}
 			}
@@ -538,7 +558,9 @@ func (s *Space[K, V]) find(
 type Entry[K, V comparable] struct {
 	space    *Space[K, V]
 	item     types.DataItem[K, V]
-	itemP    *types.DataItem[K, V]
+	hashP    *types.Hash
+	keyP     *K
+	valueP   *V
 	stateP   *types.State
 	exists   bool
 	pEntry   types.ParentEntry

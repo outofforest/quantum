@@ -111,18 +111,38 @@ func NewDataNodeAllocator[K, V comparable](state *alloc.State) (*DataNodeAllocat
 
 	spaceLeft := nodeSize - headerSize
 
-	var t types.DataItem[K, V]
-	itemSize := unsafe.Sizeof(t)
-	itemSize = (itemSize + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length
+	var k K
+	keySize := unsafe.Sizeof(k)
+	keyAlignment := unsafe.Alignof(k)
+	keySize = (keySize + keyAlignment - 1) / keyAlignment * keyAlignment
 
-	numOfItems := spaceLeft / (itemSize + 1) // 1 is for slot state
+	var v V
+	valueSize := unsafe.Sizeof(v)
+	valueAlignment := unsafe.Alignof(v)
+	valueSize = (valueSize + valueAlignment - 1) / valueAlignment * valueAlignment
+
+	numOfItems := spaceLeft / (keySize + valueSize + 1 + types.UInt64Length) // 1 is for state
 	if numOfItems == 0 {
 		return nil, errors.New("node size is too small")
 	}
-	stateSize := (numOfItems + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length
-	spaceLeft -= stateSize
+	statesSize := (numOfItems + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length
+	spaceLeft -= statesSize
 
-	numOfItems = spaceLeft / itemSize
+	numOfItems = spaceLeft / (keySize + valueSize + types.UInt64Length)
+	if numOfItems == 0 {
+		return nil, errors.New("node size is too small")
+	}
+	hashesSize := numOfItems * types.UInt64Length // hashes
+	spaceLeft -= hashesSize
+
+	numOfItems = spaceLeft / (keySize + valueSize)
+	if numOfItems == 0 {
+		return nil, errors.New("node size is too small")
+	}
+	keysSize := (numOfItems*keySize + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length
+	spaceLeft -= keysSize
+
+	numOfItems = spaceLeft/valueSize - 1
 	if numOfItems == 0 {
 		return nil, errors.New("node size is too small")
 	}
@@ -132,9 +152,12 @@ func NewDataNodeAllocator[K, V comparable](state *alloc.State) (*DataNodeAllocat
 	return &DataNodeAllocator[K, V]{
 		state:       state,
 		numOfItems:  numOfItems,
-		itemSize:    itemSize,
+		keySize:     keySize,
+		valueSize:   valueSize,
 		stateOffset: headerSize,
-		itemOffset:  headerSize + stateSize,
+		hashOffset:  headerSize + statesSize,
+		keyOffset:   headerSize + statesSize + hashesSize,
+		valueOffset: headerSize + statesSize + hashesSize + keysSize,
 	}, nil
 }
 
@@ -143,16 +166,20 @@ type DataNodeAllocator[K, V comparable] struct {
 	state *alloc.State
 
 	numOfItems  uintptr
-	itemSize    uintptr
+	keySize     uintptr
+	valueSize   uintptr
 	stateOffset uintptr
-	itemOffset  uintptr
+	hashOffset  uintptr
+	keyOffset   uintptr
+	valueOffset uintptr
 }
 
 // NewNode initializes new node.
 func (na *DataNodeAllocator[K, V]) NewNode() *DataNode[K, V] {
 	return &DataNode[K, V]{
 		numOfItems: na.numOfItems,
-		itemSize:   na.itemSize,
+		keySize:    na.keySize,
+		valueSize:  na.valueSize,
 	}
 }
 
@@ -183,7 +210,9 @@ func (na *DataNodeAllocator[K, V]) Shift(hash types.Hash) types.Hash {
 func (na *DataNodeAllocator[K, V]) project(nodeP unsafe.Pointer, node *DataNode[K, V]) {
 	node.Header = photon.FromPointer[DataNodeHeader](nodeP)
 	node.statesP = unsafe.Add(nodeP, na.stateOffset)
-	node.itemsP = unsafe.Add(nodeP, na.itemOffset)
+	node.hashesP = unsafe.Add(nodeP, na.hashOffset)
+	node.keysP = unsafe.Add(nodeP, na.keyOffset)
+	node.valuesP = unsafe.Add(nodeP, na.valueOffset)
 }
 
 // PointerNodeHeader is the header of pointer node.
@@ -234,27 +263,41 @@ type DataNode[K, V comparable] struct {
 	Header *DataNodeHeader
 
 	numOfItems uintptr
-	itemSize   uintptr
+	keySize    uintptr
+	valueSize  uintptr
 	statesP    unsafe.Pointer
-	itemsP     unsafe.Pointer
+	hashesP    unsafe.Pointer
+	keysP      unsafe.Pointer
+	valuesP    unsafe.Pointer
 }
 
 // ItemByHash returns pointers to the item and its state by hash.
-func (sn *DataNode[K, V]) ItemByHash(hash types.Hash) (*types.DataItem[K, V], *types.State) {
+func (sn *DataNode[K, V]) ItemByHash(hash types.Hash) (*types.Hash, *K, *V, *types.State) {
 	index := uintptr(hash) % sn.numOfItems
-	return (*types.DataItem[K, V])(unsafe.Add(sn.itemsP, sn.itemSize*index)), (*types.State)(unsafe.Add(sn.statesP, index))
+	return (*types.Hash)(unsafe.Add(sn.hashesP, types.UInt64Length*index)),
+		(*K)(unsafe.Add(sn.keysP, sn.keySize*index)),
+		(*V)(unsafe.Add(sn.valuesP, sn.valueSize*index)),
+		(*types.State)(unsafe.Add(sn.statesP, index))
 }
 
 // Iterator iterates over items.
-func (sn *DataNode[K, V]) Iterator() func(func(*types.DataItem[K, V], *types.State) bool) {
-	return func(yield func(*types.DataItem[K, V], *types.State) bool) {
-		itemsP := sn.itemsP
+func (sn *DataNode[K, V]) Iterator() func(func(types.DataItem[K, V], *types.State) bool) {
+	return func(yield func(types.DataItem[K, V], *types.State) bool) {
+		hashesP := sn.hashesP
+		keysP := sn.keysP
+		valuesP := sn.valuesP
 		statesP := sn.statesP
 		for range sn.numOfItems {
-			if !yield((*types.DataItem[K, V])(itemsP), (*types.State)(statesP)) {
+			if !yield(types.DataItem[K, V]{
+				Hash:  *(*types.Hash)(hashesP),
+				Key:   *(*K)(keysP),
+				Value: *(*V)(valuesP),
+			}, (*types.State)(statesP)) {
 				return
 			}
-			itemsP = unsafe.Add(itemsP, sn.itemSize)
+			hashesP = unsafe.Add(hashesP, types.UInt64Length)
+			keysP = unsafe.Add(keysP, sn.keySize)
+			valuesP = unsafe.Add(keysP, sn.valueSize)
 			statesP = unsafe.Add(statesP, 1)
 		}
 	}
