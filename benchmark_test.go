@@ -20,7 +20,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 10_000_000
+		numOfAddresses = 50_000_000
 		txsPerCommit   = 2000
 		balance        = 100_000
 	)
@@ -70,13 +70,17 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			if err != nil {
 				panic(err)
 			}
-			if err := s.AllocatePointers(3, pool); err != nil {
+
+			pointerNode := s.NewPointerNode()
+			dataNode := s.NewDataNode()
+
+			if err := s.AllocatePointers(3, pool, pointerNode); err != nil {
 				panic(err)
 			}
 
 			for i := 0; i < numOfAddresses; i += 2 {
-				v := s.Get(accounts[i])
-				_, err := v.Set(2*balance, pool)
+				v := s.Get(accounts[i], pointerNode, dataNode)
+				_, err := v.Set(2*balance, pool, pointerNode, dataNode)
 				if err != nil {
 					panic(err)
 				}
@@ -85,7 +89,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				// require.Equal(b, accountBalance(2*balance), v.Value())
 			}
 
-			fmt.Println(s.Stats())
+			fmt.Println(s.Stats(pointerNode))
 			fmt.Println("===========================")
 
 			tx := 0
@@ -101,13 +105,23 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 					senderAddress := accounts[i]
 					recipientAddress := accounts[i+1]
 
-					senderBalance := s.Get(senderAddress)
-					recipientBalance := s.Get(recipientAddress)
+					senderBalance := s.Get(senderAddress, pointerNode, dataNode)
+					recipientBalance := s.Get(recipientAddress, pointerNode, dataNode)
 
-					if _, err := senderBalance.Set(senderBalance.Value()-balance, pool); err != nil {
+					if _, err := senderBalance.Set(
+						senderBalance.Value()-balance,
+						pool,
+						pointerNode,
+						dataNode,
+					); err != nil {
 						panic(err)
 					}
-					if _, err := recipientBalance.Set(recipientBalance.Value()+balance, pool); err != nil {
+					if _, err := recipientBalance.Set(
+						recipientBalance.Value()+balance,
+						pool,
+						pointerNode,
+						dataNode,
+					); err != nil {
 						panic(err)
 					}
 
@@ -127,10 +141,10 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				b.StopTimer()
 			}()
 
-			fmt.Println(s.Stats())
+			fmt.Println(s.Stats(pointerNode))
 
 			for _, addr := range accounts {
-				require.Equal(b, accountBalance(balance), s.Get(addr).Value())
+				require.Equal(b, accountBalance(balance), s.Get(addr, pointerNode, dataNode).Value())
 			}
 		}()
 	}

@@ -15,40 +15,42 @@ const trials = 50
 
 // Config stores space configuration.
 type Config[K, V comparable] struct {
-	HashMod        *uint64
-	SpaceRoot      types.ParentEntry
-	State          *alloc.State
-	StorageEventCh chan<- any
+	HashMod              *uint64
+	SpaceRoot            types.ParentEntry
+	State                *alloc.State
+	PointerNodeAllocator *NodeAllocator[PointerNodeHeader, types.SpacePointer]
+	DataNodeAllocator    *NodeAllocator[DataNodeHeader, types.DataItem[K, V]]
+	StorageEventCh       chan<- any
 }
 
 // New creates new space.
-func New[K, V comparable](config Config[K, V]) (*Space[K, V], error) {
-	pointerNodeAllocator, err := NewNodeAllocator[PointerNodeHeader, types.SpacePointer](config.State)
-	if err != nil {
-		return nil, err
-	}
-
-	dataNodeAllocator, err := NewNodeAllocator[DataNodeHeader, types.DataItem[K, V]](config.State)
-	if err != nil {
-		return nil, err
-	}
-
+func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 	return &Space[K, V]{
-		config:               config,
-		pointerNodeAllocator: pointerNodeAllocator,
-		dataNodeAllocator:    dataNodeAllocator,
-	}, nil
+		config: config,
+	}
 }
 
 // Space represents the substate where values V are stored by key K.
 type Space[K, V comparable] struct {
-	config               Config[K, V]
-	pointerNodeAllocator *NodeAllocator[PointerNodeHeader, types.SpacePointer]
-	dataNodeAllocator    *NodeAllocator[DataNodeHeader, types.DataItem[K, V]]
+	config Config[K, V]
+}
+
+// NewPointerNode creates new pointer node representation.
+func (s *Space[K, V]) NewPointerNode() *Node[PointerNodeHeader, types.SpacePointer] {
+	return s.config.PointerNodeAllocator.NewNode()
+}
+
+// NewDataNode creates new data node representation.
+func (s *Space[K, V]) NewDataNode() *Node[DataNodeHeader, types.DataItem[K, V]] {
+	return s.config.DataNodeAllocator.NewNode()
 }
 
 // Get gets the value of the key.
-func (s *Space[K, V]) Get(key K) Entry[K, V] {
+func (s *Space[K, V]) Get(
+	key K,
+	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
+	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+) Entry[K, V] {
 	v := Entry[K, V]{
 		space: s,
 		item: types.DataItem[K, V]{
@@ -59,13 +61,16 @@ func (s *Space[K, V]) Get(key K) Entry[K, V] {
 	}
 
 	// For get, err is always nil.
-	v, _ = s.find(v)
+	v, _ = s.find(v, pointerNode, dataNode)
 	return v
 }
 
 // Iterator returns iterator iterating over items in space.
 // FIXME (wojciech): Iterator should return Value[K, V] objects.
-func (s *Space[K, V]) Iterator() func(func(types.DataItem[K, V]) bool) {
+func (s *Space[K, V]) Iterator(
+	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
+	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+) func(func(types.DataItem[K, V]) bool) {
 	return func(yield func(item types.DataItem[K, V]) bool) {
 		// FIXME (wojciech): avoid heap allocations
 		stack := []types.ParentEntry{s.config.SpaceRoot}
@@ -80,7 +85,7 @@ func (s *Space[K, V]) Iterator() func(func(types.DataItem[K, V]) bool) {
 
 			switch *pEntry.State {
 			case types.StateData:
-				dataNode := s.dataNodeAllocator.Get(pEntry.SpacePointer.Pointer.LogicalAddress)
+				s.config.DataNodeAllocator.Get(pEntry.SpacePointer.Pointer.LogicalAddress, dataNode)
 				for item, state := range dataNode.Iterator() {
 					if *state != types.StateData {
 						continue
@@ -90,7 +95,7 @@ func (s *Space[K, V]) Iterator() func(func(types.DataItem[K, V]) bool) {
 					}
 				}
 			case types.StatePointer:
-				pointerNode := s.pointerNodeAllocator.Get(pEntry.SpacePointer.Pointer.LogicalAddress)
+				s.config.PointerNodeAllocator.Get(pEntry.SpacePointer.Pointer.LogicalAddress, pointerNode)
 				for item, state := range pointerNode.Iterator() {
 					if *state == types.StateFree {
 						continue
@@ -112,7 +117,11 @@ type pointerToAllocate struct {
 }
 
 // AllocatePointers allocates specified levels of pointer nodes.
-func (s *Space[K, V]) AllocatePointers(levels uint64, pool *alloc.Pool[types.LogicalAddress]) error {
+func (s *Space[K, V]) AllocatePointers(
+	levels uint64,
+	pool *alloc.Pool[types.LogicalAddress],
+	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
+) error {
 	if *s.config.SpaceRoot.State != types.StateFree {
 		return errors.New("pointers can be preallocated only on empty space")
 	}
@@ -135,7 +144,7 @@ func (s *Space[K, V]) AllocatePointers(levels uint64, pool *alloc.Pool[types.Log
 		pToAllocate := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 
-		pointerNodeAddress, pointerNode, err := s.pointerNodeAllocator.Allocate(pool)
+		pointerNodeAddress, err := s.config.PointerNodeAllocator.Allocate(pool, pointerNode)
 		if err != nil {
 			return err
 		}
@@ -167,7 +176,7 @@ func (s *Space[K, V]) AllocatePointers(levels uint64, pool *alloc.Pool[types.Log
 }
 
 // Nodes returns list of nodes used by the space.
-func (s *Space[K, V]) Nodes() []types.LogicalAddress {
+func (s *Space[K, V]) Nodes(pointerNode *Node[PointerNodeHeader, types.SpacePointer]) []types.LogicalAddress {
 	switch *s.config.SpaceRoot.State {
 	case types.StateFree:
 		return nil
@@ -191,7 +200,7 @@ func (s *Space[K, V]) Nodes() []types.LogicalAddress {
 		stack = stack[:len(stack)-1]
 		nodes = append(nodes, pointerNodeAddress)
 
-		pointerNode := s.pointerNodeAllocator.Get(pointerNodeAddress)
+		s.config.PointerNodeAllocator.Get(pointerNodeAddress, pointerNode)
 		for sPointer, state := range pointerNode.Iterator() {
 			switch *state {
 			case types.StateFree:
@@ -205,7 +214,7 @@ func (s *Space[K, V]) Nodes() []types.LogicalAddress {
 }
 
 // Stats returns stats about the space.
-func (s *Space[K, V]) Stats() (uint64, uint64, uint64) {
+func (s *Space[K, V]) Stats(pointerNode *Node[PointerNodeHeader, types.SpacePointer]) (uint64, uint64, uint64) {
 	switch *s.config.SpaceRoot.State {
 	case types.StateFree:
 		return 0, 0, 0
@@ -230,7 +239,7 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64) {
 		pointerNodes++
 		stack = stack[:len(stack)-1]
 
-		pointerNode := s.pointerNodeAllocator.Get(n)
+		s.config.PointerNodeAllocator.Get(n, pointerNode)
 		for sPointer, state := range pointerNode.Iterator() {
 			switch *state {
 			case types.StateFree:
@@ -247,9 +256,13 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64) {
 	}
 }
 
-func (s *Space[K, V]) deleteValue(v Entry[K, V]) error {
+func (s *Space[K, V]) deleteValue(
+	v Entry[K, V],
+	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
+	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+) error {
 	if *v.pEntry.State == types.StatePointer {
-		v, _ = s.find(v)
+		v, _ = s.find(v, pointerNode, dataNode)
 	}
 
 	if *v.pEntry.State == types.StateFree {
@@ -270,9 +283,15 @@ func (s *Space[K, V]) deleteValue(v Entry[K, V]) error {
 	return nil
 }
 
-func (s *Space[K, V]) setValue(v Entry[K, V], value V, pool *alloc.Pool[types.LogicalAddress]) (Entry[K, V], error) {
+func (s *Space[K, V]) setValue(
+	v Entry[K, V],
+	value V,
+	pool *alloc.Pool[types.LogicalAddress],
+	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
+	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+) (Entry[K, V], error) {
 	if *v.pEntry.State == types.StatePointer {
-		v, _ = s.find(v)
+		v, _ = s.find(v, pointerNode, dataNode)
 	}
 
 	v.item.Value = value
@@ -290,14 +309,19 @@ func (s *Space[K, V]) setValue(v Entry[K, V], value V, pool *alloc.Pool[types.Lo
 		}
 	}
 
-	return s.set(v, pool)
+	return s.set(v, pool, pointerNode, dataNode)
 }
 
-func (s *Space[K, V]) set(v Entry[K, V], pool *alloc.Pool[types.LogicalAddress]) (Entry[K, V], error) {
+func (s *Space[K, V]) set(
+	v Entry[K, V],
+	pool *alloc.Pool[types.LogicalAddress],
+	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
+	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+) (Entry[K, V], error) {
 	for {
 		switch *v.pEntry.State {
 		case types.StateFree:
-			dataNodeAddress, dataNode, err := s.dataNodeAllocator.Allocate(pool)
+			dataNodeAddress, err := s.config.DataNodeAllocator.Allocate(pool, dataNode)
 			if err != nil {
 				return Entry[K, V]{}, err
 			}
@@ -320,7 +344,7 @@ func (s *Space[K, V]) set(v Entry[K, V], pool *alloc.Pool[types.LogicalAddress])
 
 			return v, nil
 		case types.StateData:
-			dataNode := s.dataNodeAllocator.Get(v.pEntry.SpacePointer.Pointer.LogicalAddress)
+			s.config.DataNodeAllocator.Get(v.pEntry.SpacePointer.Pointer.LogicalAddress, dataNode)
 
 			var stateMatches, keyMatches, conflict bool
 			var item *types.DataItem[K, V]
@@ -367,18 +391,26 @@ func (s *Space[K, V]) set(v Entry[K, V], pool *alloc.Pool[types.LogicalAddress])
 				return v, nil
 			}
 
-			if err := s.redistributeNode(v.pEntry, v.pAddress, conflict, pool); err != nil {
+			if err := s.redistributeNode(
+				v.pEntry,
+				v.pAddress,
+				conflict,
+				pool,
+				pointerNode,
+				dataNode,
+			); err != nil {
 				return Entry[K, V]{}, err
 			}
-			return s.set(v, pool)
+			return s.set(v, pool, pointerNode, dataNode)
 		default:
-			pointerNode := s.pointerNodeAllocator.Get(v.pEntry.SpacePointer.Pointer.LogicalAddress)
+			s.config.PointerNodeAllocator.Get(v.pEntry.SpacePointer.Pointer.LogicalAddress,
+				pointerNode)
 			if pointerNode.Header.HashMod > 0 {
 				v.item.Hash = hashKey(v.item.Key, pointerNode.Header.HashMod)
 			}
 
 			item, state := pointerNode.ItemByHash(v.item.Hash)
-			v.item.Hash = s.pointerNodeAllocator.Shift(v.item.Hash)
+			v.item.Hash = s.config.PointerNodeAllocator.Shift(v.item.Hash)
 
 			v.pEntry = types.ParentEntry{
 				State:        state,
@@ -394,11 +426,13 @@ func (s *Space[K, V]) redistributeNode(
 	pAddress types.LogicalAddress,
 	conflict bool,
 	pool *alloc.Pool[types.LogicalAddress],
+	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
+	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
 ) error {
 	dataNodePointer := pEntry.SpacePointer.Pointer
-	dataNode := s.dataNodeAllocator.Get(dataNodePointer.LogicalAddress)
+	s.config.DataNodeAllocator.Get(dataNodePointer.LogicalAddress, dataNode)
 
-	pointerNodeAddress, pointerNode, err := s.pointerNodeAllocator.Allocate(pool)
+	pointerNodeAddress, err := s.config.PointerNodeAllocator.Allocate(pool, pointerNode)
 	if err != nil {
 		return err
 	}
@@ -423,7 +457,7 @@ func (s *Space[K, V]) redistributeNode(
 			item.Hash = hashKey(item.Key, pointerNode.Header.HashMod)
 		}
 		pointerItem, pointerState := pointerNode.ItemByHash(item.Hash)
-		item.Hash = s.pointerNodeAllocator.Shift(item.Hash)
+		item.Hash = s.config.PointerNodeAllocator.Shift(item.Hash)
 
 		if _, err := s.set(Entry[K, V]{
 			space: s,
@@ -433,7 +467,7 @@ func (s *Space[K, V]) redistributeNode(
 				SpacePointer: pointerItem,
 			},
 			pAddress: pointerNodeAddress,
-		}, pool); err != nil {
+		}, pool, pointerNode, dataNode); err != nil {
 			return err
 		}
 	}
@@ -445,17 +479,21 @@ func (s *Space[K, V]) redistributeNode(
 	return nil
 }
 
-func (s *Space[K, V]) find(v Entry[K, V]) (Entry[K, V], error) {
+func (s *Space[K, V]) find(
+	v Entry[K, V],
+	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
+	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+) (Entry[K, V], error) {
 	for {
 		switch *v.pEntry.State {
 		case types.StatePointer:
-			pointerNode := s.pointerNodeAllocator.Get(v.pEntry.SpacePointer.Pointer.LogicalAddress)
+			s.config.PointerNodeAllocator.Get(v.pEntry.SpacePointer.Pointer.LogicalAddress, pointerNode)
 			if pointerNode.Header.HashMod != 0 {
 				v.item.Hash = hashKey(v.item.Key, pointerNode.Header.HashMod)
 			}
 
 			item, state := pointerNode.ItemByHash(v.item.Hash)
-			v.item.Hash = s.pointerNodeAllocator.Shift(v.item.Hash)
+			v.item.Hash = s.config.PointerNodeAllocator.Shift(v.item.Hash)
 
 			v.pEntry = types.ParentEntry{
 				State:        state,
@@ -463,7 +501,7 @@ func (s *Space[K, V]) find(v Entry[K, V]) (Entry[K, V], error) {
 			}
 			v.pAddress = v.pEntry.SpacePointer.Pointer.LogicalAddress
 		case types.StateData:
-			dataNode := s.dataNodeAllocator.Get(v.pEntry.SpacePointer.Pointer.LogicalAddress)
+			s.config.DataNodeAllocator.Get(v.pEntry.SpacePointer.Pointer.LogicalAddress, dataNode)
 			for i := types.Hash(0); i < trials; i++ {
 				item, state := dataNode.ItemByHash(v.item.Hash + 1<<i + i)
 
@@ -523,13 +561,21 @@ func (v Entry[K, V]) Exists() bool {
 }
 
 // Set sts value for entry.
-func (v Entry[K, V]) Set(value V, pool *alloc.Pool[types.LogicalAddress]) (Entry[K, V], error) {
-	return v.space.setValue(v, value, pool)
+func (v Entry[K, V]) Set(
+	value V,
+	pool *alloc.Pool[types.LogicalAddress],
+	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
+	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+) (Entry[K, V], error) {
+	return v.space.setValue(v, value, pool, pointerNode, dataNode)
 }
 
 // Delete deletes the entry.
-func (v Entry[K, V]) Delete() error {
-	return v.space.deleteValue(v)
+func (v Entry[K, V]) Delete(
+	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
+	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+) error {
+	return v.space.deleteValue(v, pointerNode, dataNode)
 }
 
 func hashKey[K comparable](key K, hashMod uint64) types.Hash {
@@ -562,33 +608,30 @@ func Deallocate(
 	spaceRoot types.ParentEntry,
 	volatilePool *alloc.Pool[types.LogicalAddress],
 	persistentPool *alloc.Pool[types.PhysicalAddress],
-) error {
+	pointerNodeAllocator *NodeAllocator[PointerNodeHeader, types.SpacePointer],
+	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
+) {
 	switch *spaceRoot.State {
 	case types.StateFree:
-		return nil
+		return
 	case types.StateData:
 		volatilePool.Deallocate(spaceRoot.SpacePointer.Pointer.LogicalAddress)
 		persistentPool.Deallocate(spaceRoot.SpacePointer.Pointer.PhysicalAddress)
-		return nil
+		return
 	}
 
 	// FIXME (wojciech): Optimize heap allocations
 	stack := []types.SpacePointer{*spaceRoot.SpacePointer}
 
-	pointerNodeAllocator, err := NewNodeAllocator[PointerNodeHeader, types.SpacePointer](state)
-	if err != nil {
-		return err
-	}
-
 	for {
 		if len(stack) == 0 {
-			return nil
+			return
 		}
 
 		spacePointer := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 
-		pointerNode := pointerNodeAllocator.Get(spacePointer.Pointer.LogicalAddress)
+		pointerNodeAllocator.Get(spacePointer.Pointer.LogicalAddress, pointerNode)
 		for sPointer, state := range pointerNode.Iterator() {
 			switch *state {
 			case types.StateData:

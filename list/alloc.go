@@ -28,7 +28,6 @@ func NewNodeAllocator(state *alloc.State) (*NodeAllocator, error) {
 
 	return &NodeAllocator{
 		state:         state,
-		listNode:      &Node{},
 		numOfPointers: uint64(numOfPointers),
 		pointerOffset: headerSize,
 	}, nil
@@ -38,31 +37,38 @@ func NewNodeAllocator(state *alloc.State) (*NodeAllocator, error) {
 type NodeAllocator struct {
 	state *alloc.State
 
-	listNode      *Node
 	numOfPointers uint64
 	pointerOffset uintptr
 }
 
+// NewNode initializes new node.
+func (na *NodeAllocator) NewNode() *Node {
+	return &Node{}
+}
+
 // Get returns object for node.
-func (na *NodeAllocator) Get(nodeAddress types.LogicalAddress) *Node {
-	return na.project(na.state.Node(nodeAddress))
+func (na *NodeAllocator) Get(nodeAddress types.LogicalAddress, node *Node) {
+	na.project(na.state.Node(nodeAddress), node)
 }
 
 // Allocate allocates new object.
-func (na *NodeAllocator) Allocate(pool *alloc.Pool[types.LogicalAddress]) (types.LogicalAddress, *Node, error) {
+func (na *NodeAllocator) Allocate(
+	pool *alloc.Pool[types.LogicalAddress],
+	node *Node,
+) (types.LogicalAddress, error) {
 	nodeAddress, err := pool.Allocate()
 	if err != nil {
-		return 0, nil, err
+		return 0, err
 	}
-	return nodeAddress, na.project(na.state.Node(nodeAddress)), nil
+
+	na.project(na.state.Node(nodeAddress), node)
+	return nodeAddress, nil
 }
 
-func (na *NodeAllocator) project(node unsafe.Pointer) *Node {
-	na.listNode.Header = photon.FromPointer[NodeHeader](node)
-	na.listNode.Pointers = photon.SliceFromPointer[types.Pointer](unsafe.Add(node, na.pointerOffset),
+func (na *NodeAllocator) project(nodeP unsafe.Pointer, node *Node) {
+	node.Header = photon.FromPointer[NodeHeader](nodeP)
+	node.Pointers = photon.SliceFromPointer[types.Pointer](unsafe.Add(nodeP, na.pointerOffset),
 		int(na.numOfPointers))
-
-	return na.listNode
 }
 
 // NodeHeader is the header of the list node.
