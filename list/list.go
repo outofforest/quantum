@@ -11,37 +11,35 @@ import (
 type Config struct {
 	ListRoot       *types.Pointer
 	State          *alloc.State
+	NodeAllocator  *NodeAllocator
 	StorageEventCh chan<- any
 }
 
 // New creates new list.
 func New(config Config) (*List, error) {
-	nodeAllocator, err := NewNodeAllocator(config.State)
-	if err != nil {
-		return nil, err
-	}
-
 	return &List{
-		config:        config,
-		nodeAllocator: nodeAllocator,
+		config: config,
 	}, nil
 }
 
 // List represents the list of node addresses.
 type List struct {
-	config        Config
-	nodeAllocator *NodeAllocator
+	config Config
 }
 
 // Add adds address to the list.
-func (l *List) Add(pointer types.Pointer, pool *alloc.Pool[types.LogicalAddress]) error {
+func (l *List) Add(
+	pointer types.Pointer,
+	pool *alloc.Pool[types.LogicalAddress],
+	node *Node,
+) error {
 	if l.config.ListRoot.LogicalAddress == 0 {
-		newNodeAddress, newNode, err := l.nodeAllocator.Allocate(pool)
+		newNodeAddress, err := l.config.NodeAllocator.Allocate(pool, node)
 		if err != nil {
 			return err
 		}
-		newNode.Pointers[0] = pointer
-		newNode.Header.NumOfPointers = 1
+		node.Pointers[0] = pointer
+		node.Header.NumOfPointers = 1
 		l.config.ListRoot.LogicalAddress = newNodeAddress
 
 		l.config.StorageEventCh <- types.ListNodeAllocatedEvent{
@@ -51,10 +49,10 @@ func (l *List) Add(pointer types.Pointer, pool *alloc.Pool[types.LogicalAddress]
 		return nil
 	}
 
-	listNode := l.nodeAllocator.Get(l.config.ListRoot.LogicalAddress)
-	if listNode.Header.NumOfPointers+listNode.Header.NumOfSideLists < uint64(len(listNode.Pointers)) {
-		listNode.Pointers[listNode.Header.NumOfPointers] = pointer
-		listNode.Header.NumOfPointers++
+	l.config.NodeAllocator.Get(l.config.ListRoot.LogicalAddress, node)
+	if node.Header.NumOfPointers+node.Header.NumOfSideLists < uint64(len(node.Pointers)) {
+		node.Pointers[node.Header.NumOfPointers] = pointer
+		node.Header.NumOfPointers++
 
 		l.config.StorageEventCh <- types.ListNodeUpdatedEvent{
 			Pointer: l.config.ListRoot,
@@ -63,14 +61,14 @@ func (l *List) Add(pointer types.Pointer, pool *alloc.Pool[types.LogicalAddress]
 		return nil
 	}
 
-	newNodeAddress, newNode, err := l.nodeAllocator.Allocate(pool)
+	newNodeAddress, err := l.config.NodeAllocator.Allocate(pool, node)
 	if err != nil {
 		return err
 	}
-	newNode.Pointers[0] = pointer
-	newNode.Pointers[len(newNode.Pointers)-1] = *l.config.ListRoot
-	newNode.Header.NumOfPointers = 1
-	newNode.Header.NumOfSideLists = 1
+	node.Pointers[0] = pointer
+	node.Pointers[len(node.Pointers)-1] = *l.config.ListRoot
+	node.Header.NumOfPointers = 1
+	node.Header.NumOfSideLists = 1
 	l.config.ListRoot.LogicalAddress = newNodeAddress
 
 	l.config.StorageEventCh <- types.ListNodeAllocatedEvent{
@@ -81,16 +79,20 @@ func (l *List) Add(pointer types.Pointer, pool *alloc.Pool[types.LogicalAddress]
 }
 
 // Attach attaches another list.
-func (l *List) Attach(pointer types.Pointer, pool *alloc.Pool[types.LogicalAddress]) error {
+func (l *List) Attach(
+	pointer types.Pointer,
+	pool *alloc.Pool[types.LogicalAddress],
+	node *Node,
+) error {
 	if l.config.ListRoot.LogicalAddress == 0 {
 		*l.config.ListRoot = pointer
 		return nil
 	}
 
-	listNode := l.nodeAllocator.Get(l.config.ListRoot.LogicalAddress)
-	if listNode.Header.NumOfPointers+listNode.Header.NumOfSideLists < uint64(len(listNode.Pointers)) {
-		listNode.Pointers[uint64(len(listNode.Pointers))-listNode.Header.NumOfSideLists-1] = pointer
-		listNode.Header.NumOfSideLists++
+	l.config.NodeAllocator.Get(l.config.ListRoot.LogicalAddress, node)
+	if node.Header.NumOfPointers+node.Header.NumOfSideLists < uint64(len(node.Pointers)) {
+		node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists-1] = pointer
+		node.Header.NumOfSideLists++
 
 		l.config.StorageEventCh <- types.ListNodeUpdatedEvent{
 			Pointer: l.config.ListRoot,
@@ -99,13 +101,13 @@ func (l *List) Attach(pointer types.Pointer, pool *alloc.Pool[types.LogicalAddre
 		return nil
 	}
 
-	newNodeAddress, newNode, err := l.nodeAllocator.Allocate(pool)
+	newNodeAddress, err := l.config.NodeAllocator.Allocate(pool, node)
 	if err != nil {
 		return err
 	}
-	newNode.Pointers[uint64(len(listNode.Pointers))-1] = *l.config.ListRoot
-	newNode.Pointers[uint64(len(listNode.Pointers))-2] = pointer
-	newNode.Header.NumOfSideLists = 2
+	node.Pointers[uint64(len(node.Pointers))-1] = *l.config.ListRoot
+	node.Pointers[uint64(len(node.Pointers))-2] = pointer
+	node.Header.NumOfSideLists = 2
 	l.config.ListRoot.LogicalAddress = newNodeAddress
 
 	l.config.StorageEventCh <- types.ListNodeUpdatedEvent{
@@ -116,7 +118,7 @@ func (l *List) Attach(pointer types.Pointer, pool *alloc.Pool[types.LogicalAddre
 }
 
 // Iterator iterates over items in the list.
-func (l *List) Iterator() func(func(types.Pointer) bool) {
+func (l *List) Iterator(node *Node) func(func(types.Pointer) bool) {
 	return func(yield func(types.Pointer) bool) {
 		if l.config.ListRoot.LogicalAddress == 0 {
 			return
@@ -131,20 +133,20 @@ func (l *List) Iterator() func(func(types.Pointer) bool) {
 			pointer := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 
-			listNode := l.nodeAllocator.Get(pointer.LogicalAddress)
-			for i := range listNode.Header.NumOfPointers {
-				if !yield(listNode.Pointers[i]) {
+			l.config.NodeAllocator.Get(pointer.LogicalAddress, node)
+			for i := range node.Header.NumOfPointers {
+				if !yield(node.Pointers[i]) {
 					return
 				}
 			}
 
-			stack = append(stack, listNode.Pointers[uint64(len(listNode.Pointers))-listNode.Header.NumOfSideLists:]...)
+			stack = append(stack, node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists:]...)
 		}
 	}
 }
 
 // Nodes returns list of nodes used by the list.
-func (l *List) Nodes() []types.LogicalAddress {
+func (l *List) Nodes(node *Node) []types.LogicalAddress {
 	if l.config.ListRoot.LogicalAddress == 0 {
 		return nil
 	}
@@ -165,8 +167,8 @@ func (l *List) Nodes() []types.LogicalAddress {
 		stack = stack[:len(stack)-1]
 		nodes = append(nodes, pointer.LogicalAddress)
 
-		listNode := l.nodeAllocator.Get(pointer.LogicalAddress)
-		stack = append(stack, listNode.Pointers[uint64(len(listNode.Pointers))-listNode.Header.NumOfSideLists:]...)
+		l.config.NodeAllocator.Get(pointer.LogicalAddress, node)
+		stack = append(stack, node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists:]...)
 	}
 }
 
@@ -176,33 +178,30 @@ func Deallocate(
 	listRoot types.Pointer,
 	volatilePool *alloc.Pool[types.LogicalAddress],
 	persistentPool *alloc.Pool[types.PhysicalAddress],
-) error {
+	nodeAllocator *NodeAllocator,
+	node *Node,
+) {
 	if listRoot.LogicalAddress == 0 {
-		return nil
-	}
-
-	nodeAllocator, err := NewNodeAllocator(state)
-	if err != nil {
-		return err
+		return
 	}
 
 	// FIXME (wojciech): Optimize heap allocations.
 	stack := []types.Pointer{listRoot}
 	for {
 		if len(stack) == 0 {
-			return nil
+			return
 		}
 
 		pointer := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 
-		listNode := nodeAllocator.Get(pointer.LogicalAddress)
-		for i := range listNode.Header.NumOfPointers {
+		nodeAllocator.Get(pointer.LogicalAddress, node)
+		for i := range node.Header.NumOfPointers {
 			// We don't deallocate from volatile pool here, because those nodes are still used by next revisions.
-			persistentPool.Deallocate(listNode.Pointers[i].PhysicalAddress)
+			persistentPool.Deallocate(node.Pointers[i].PhysicalAddress)
 		}
 
-		stack = append(stack, listNode.Pointers[uint64(len(listNode.Pointers))-listNode.Header.NumOfSideLists:]...)
+		stack = append(stack, node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists:]...)
 		volatilePool.Deallocate(pointer.LogicalAddress)
 		persistentPool.Deallocate(pointer.PhysicalAddress)
 	}

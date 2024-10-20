@@ -40,12 +40,9 @@ func NewNodeAllocator[H, T comparable](state *alloc.State) (*NodeAllocator[H, T]
 	}
 
 	return &NodeAllocator[H, T]{
-		state: state,
-		spaceNode: &Node[H, T]{
-			numOfItems: numOfItems,
-			itemSize:   itemSize,
-		},
+		state:       state,
 		numOfItems:  numOfItems,
+		itemSize:    itemSize,
 		stateOffset: headerSize,
 		itemOffset:  headerSize + stateSize,
 	}, nil
@@ -55,26 +52,37 @@ func NewNodeAllocator[H, T comparable](state *alloc.State) (*NodeAllocator[H, T]
 type NodeAllocator[H, T comparable] struct {
 	state *alloc.State
 
-	spaceNode   *Node[H, T]
 	numOfItems  uintptr
+	itemSize    uintptr
 	stateOffset uintptr
 	itemOffset  uintptr
 }
 
+// NewNode initializes new node.
+func (na *NodeAllocator[H, T]) NewNode() *Node[H, T] {
+	return &Node[H, T]{
+		numOfItems: na.numOfItems,
+		itemSize:   na.itemSize,
+	}
+}
+
 // Get returns object for node.
-func (na *NodeAllocator[H, T]) Get(nodeAddress types.LogicalAddress) *Node[H, T] {
-	return na.project(na.state.Node(nodeAddress))
+func (na *NodeAllocator[H, T]) Get(nodeAddress types.LogicalAddress, node *Node[H, T]) {
+	na.project(na.state.Node(nodeAddress), node)
 }
 
 // Allocate allocates new object.
 func (na *NodeAllocator[H, T]) Allocate(
 	pool *alloc.Pool[types.LogicalAddress],
-) (types.LogicalAddress, *Node[H, T], error) {
+	node *Node[H, T],
+) (types.LogicalAddress, error) {
 	nodeAddress, err := pool.Allocate()
 	if err != nil {
-		return 0, nil, err
+		return 0, err
 	}
-	return nodeAddress, na.project(na.state.Node(nodeAddress)), nil
+
+	na.project(na.state.Node(nodeAddress), node)
+	return nodeAddress, nil
 }
 
 // Shift shifts bits in hash.
@@ -82,11 +90,10 @@ func (na *NodeAllocator[H, T]) Shift(hash types.Hash) types.Hash {
 	return hash / types.Hash(na.numOfItems)
 }
 
-func (na *NodeAllocator[H, T]) project(node unsafe.Pointer) *Node[H, T] {
-	na.spaceNode.Header = photon.FromPointer[H](node)
-	na.spaceNode.statesP = unsafe.Add(node, na.stateOffset)
-	na.spaceNode.itemsP = unsafe.Add(node, na.itemOffset)
-	return na.spaceNode
+func (na *NodeAllocator[H, T]) project(nodeP unsafe.Pointer, node *Node[H, T]) {
+	node.Header = photon.FromPointer[H](nodeP)
+	node.statesP = unsafe.Add(nodeP, na.stateOffset)
+	node.itemsP = unsafe.Add(nodeP, na.itemOffset)
 }
 
 // PointerNodeHeader is the header of pointer node.
