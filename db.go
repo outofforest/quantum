@@ -484,17 +484,35 @@ func (db *DB) processEvents(
 			}
 		case types.SpaceDataNodeUpdatedEvent:
 			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.LogicalAddress))
+			header.RevisionHeader.SnapshotID = db.singularityNode.LastSnapshotID
+
+			revision := atomic.AddUint64(&header.RevisionHeader.Revision, 1)
+
 			if header.RevisionHeader.SnapshotID != db.singularityNode.LastSnapshotID {
 				header.RevisionHeader.SnapshotID = db.singularityNode.LastSnapshotID
-				pointerNodeAddress := e.PAddress
-				for pointerNodeAddress != 0 {
-					header := photon.FromPointer[space.PointerNodeHeader](db.config.State.Node(pointerNodeAddress))
-					if header.RevisionHeader.SnapshotID == db.singularityNode.LastSnapshotID {
-						break
-					}
-					header.RevisionHeader.SnapshotID = db.singularityNode.LastSnapshotID
-					pointerNodeAddress = header.ParentNodeAddress
+				var err error
+				e.Pointer.PhysicalAddress, err = persistentPool.Allocate()
+				if err != nil {
+					return err
 				}
+
+				if e.PNodeAddress != 0 {
+					if err := db.storeSpacePointerNodes(
+						e.PNodeAddress,
+						e.RootPointer,
+						pointerNode,
+						parentPointerNode,
+						persistentPool,
+						storeRequestCh,
+					); err != nil {
+						return err
+					}
+				}
+			}
+
+			storeRequestCh <- types.StoreRequest{
+				Revision: revision,
+				Pointer:  e.Pointer,
 			}
 		case types.SpaceDataNodeDeallocationEvent:
 			volatilePool.Deallocate(e.Pointer.LogicalAddress)
@@ -604,8 +622,6 @@ func (db *DB) processStoreRequests(ctx context.Context, storeRequestCh <-chan ty
 			); err != nil {
 				return err
 			}
-
-			// TODO: Store node
 
 			continue
 		}

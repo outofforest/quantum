@@ -106,8 +106,9 @@ type SpaceDataNodeAllocatedEvent struct {
 
 // SpaceDataNodeUpdatedEvent is emitted when data node is updated in space.
 type SpaceDataNodeUpdatedEvent struct {
-	Pointer  *Pointer
-	PAddress LogicalAddress
+	Pointer      *Pointer
+	PNodeAddress LogicalAddress
+	RootPointer  *Pointer
 }
 
 // SpaceDataNodeDeallocationEvent is emitted to request space data node deallocation.

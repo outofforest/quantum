@@ -283,8 +283,9 @@ func (s *Space[K, V]) deleteValue(
 	if v.itemP.Hash == v.item.Hash && v.itemP.Key == v.item.Key {
 		*v.stateP = types.StateDeleted
 		s.config.StorageEventCh <- types.SpaceDataNodeUpdatedEvent{
-			Pointer:  &v.pEntry.SpacePointer.Pointer,
-			PAddress: v.pAddress,
+			Pointer:      &v.pEntry.SpacePointer.Pointer,
+			PNodeAddress: v.pAddress,
+			RootPointer:  &s.config.SpaceRoot.SpacePointer.Pointer,
 		}
 		return nil
 	}
@@ -366,8 +367,9 @@ func (s *Space[K, V]) set(
 					v.exists = true
 
 					s.config.StorageEventCh <- types.SpaceDataNodeUpdatedEvent{
-						Pointer:  &v.pEntry.SpacePointer.Pointer,
-						PAddress: v.pAddress,
+						Pointer:      &v.pEntry.SpacePointer.Pointer,
+						PNodeAddress: v.pAddress,
+						RootPointer:  &s.config.SpaceRoot.SpacePointer.Pointer,
 					}
 
 					return nil
@@ -382,8 +384,9 @@ func (s *Space[K, V]) set(
 						v.exists = true
 
 						s.config.StorageEventCh <- types.SpaceDataNodeUpdatedEvent{
-							Pointer:  &v.pEntry.SpacePointer.Pointer,
-							PAddress: v.pAddress,
+							Pointer:      &v.pEntry.SpacePointer.Pointer,
+							PNodeAddress: v.pAddress,
+							RootPointer:  &s.config.SpaceRoot.SpacePointer.Pointer,
 						}
 
 						return nil
