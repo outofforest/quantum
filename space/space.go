@@ -22,7 +22,7 @@ type Config[K, V comparable] struct {
 	PointerNodeAllocator *NodeAllocator[PointerNodeHeader, types.SpacePointer]
 	DataNodeAllocator    *NodeAllocator[DataNodeHeader, types.DataItem[K, V]]
 	MassEntry            *mass.Mass[Entry[K, V]]
-	StorageEventCh       chan<- any
+	EventCh              chan<- any
 }
 
 // New creates new space.
@@ -157,7 +157,7 @@ func (s *Space[K, V]) AllocatePointers(
 		pToAllocate.PEntry.SpacePointer.Pointer.LogicalAddress = pointerNodeAddress
 
 		if pToAllocate.Level == levels {
-			s.config.StorageEventCh <- types.SpacePointerNodeAllocatedEvent{
+			s.config.EventCh <- types.SpacePointerNodeAllocatedEvent{
 				NodeAddress: pointerNodeAddress,
 				RootPointer: &s.config.SpaceRoot.SpacePointer.Pointer,
 			}
@@ -282,7 +282,7 @@ func (s *Space[K, V]) deleteValue(
 	}
 	if v.itemP.Hash == v.item.Hash && v.itemP.Key == v.item.Key {
 		*v.stateP = types.StateDeleted
-		s.config.StorageEventCh <- types.SpaceDataNodeUpdatedEvent{
+		s.config.EventCh <- types.SpaceDataNodeUpdatedEvent{
 			Pointer:      &v.pEntry.SpacePointer.Pointer,
 			PNodeAddress: v.pAddress,
 			RootPointer:  &s.config.SpaceRoot.SpacePointer.Pointer,
@@ -346,7 +346,7 @@ func (s *Space[K, V]) set(
 			v.itemP = item
 			v.exists = true
 
-			s.config.StorageEventCh <- types.SpaceDataNodeAllocatedEvent{
+			s.config.EventCh <- types.SpaceDataNodeAllocatedEvent{
 				Pointer:      &v.pEntry.SpacePointer.Pointer,
 				PNodeAddress: v.pAddress,
 				RootPointer:  &s.config.SpaceRoot.SpacePointer.Pointer,
@@ -366,7 +366,7 @@ func (s *Space[K, V]) set(
 					v.itemP = item
 					v.exists = true
 
-					s.config.StorageEventCh <- types.SpaceDataNodeUpdatedEvent{
+					s.config.EventCh <- types.SpaceDataNodeUpdatedEvent{
 						Pointer:      &v.pEntry.SpacePointer.Pointer,
 						PNodeAddress: v.pAddress,
 						RootPointer:  &s.config.SpaceRoot.SpacePointer.Pointer,
@@ -383,7 +383,7 @@ func (s *Space[K, V]) set(
 						v.itemP = item
 						v.exists = true
 
-						s.config.StorageEventCh <- types.SpaceDataNodeUpdatedEvent{
+						s.config.EventCh <- types.SpaceDataNodeUpdatedEvent{
 							Pointer:      &v.pEntry.SpacePointer.Pointer,
 							PNodeAddress: v.pAddress,
 							RootPointer:  &s.config.SpaceRoot.SpacePointer.Pointer,
@@ -484,7 +484,7 @@ func (s *Space[K, V]) redistributeNode(
 		}
 	}
 
-	s.config.StorageEventCh <- types.SpaceDataNodeDeallocationEvent{
+	s.config.EventCh <- types.SpaceDataNodeDeallocationEvent{
 		Pointer: dataNodePointer,
 	}
 
