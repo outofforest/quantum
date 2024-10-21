@@ -74,7 +74,8 @@ func (na *NodeAllocator) project(nodeP unsafe.Pointer, node *Node) {
 // NodeHeader is the header of the list node.
 type NodeHeader struct {
 	RevisionHeader types.RevisionHeader
-	Version        uint64
+	SnapshotID     types.SnapshotID
+	Version        uint64 // FIXME (wojciech): move this to pointer
 	NumOfPointers  uint64
 	NumOfSideLists uint64
 }

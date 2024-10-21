@@ -82,7 +82,6 @@ func New(config Config) (*DB, error) {
 
 	db := &DB{
 		config:                      config,
-		statePool:                   config.State.NewPool(),
 		persistentAllocationCh:      config.State.NewPhysicalAllocationCh(),
 		singularityNode:             *photon.FromPointer[types.SingularityNode](config.State.Node(0)),
 		pointerNodeAllocator:        pointerNodeAllocator,
@@ -98,6 +97,7 @@ func New(config Config) (*DB, error) {
 		deallocationListsToCommit:   map[types.SnapshotID]ListToCommit{},
 		availableSnapshots:          map[types.SnapshotID]struct{}{},
 		eventCh:                     make(chan any, 100),
+		storeRequestCh:              make(chan types.StoreRequest, 500),
 		doneCh:                      make(chan struct{}),
 	}
 
@@ -111,7 +111,7 @@ func New(config Config) (*DB, error) {
 		PointerNodeAllocator: pointerNodeAllocator,
 		DataNodeAllocator:    snapshotInfoNodeAllocator,
 		MassEntry:            mass.New[space.Entry[types.SnapshotID, types.SnapshotInfo]](1000),
-		StorageEventCh:       db.eventCh,
+		EventCh:              db.eventCh,
 	})
 
 	db.spaces = space.New[types.SpaceID, types.SpaceInfo](space.Config[types.SpaceID, types.SpaceInfo]{
@@ -124,7 +124,7 @@ func New(config Config) (*DB, error) {
 		PointerNodeAllocator: pointerNodeAllocator,
 		DataNodeAllocator:    spaceInfoNodeAllocator,
 		MassEntry:            mass.New[space.Entry[types.SpaceID, types.SpaceInfo]](1000),
-		StorageEventCh:       db.eventCh,
+		EventCh:              db.eventCh,
 	})
 
 	db.deallocationLists = space.New[types.SnapshotID, types.Pointer](
@@ -138,7 +138,7 @@ func New(config Config) (*DB, error) {
 			PointerNodeAllocator: pointerNodeAllocator,
 			DataNodeAllocator:    snapshotToNodeNodeAllocator,
 			MassEntry:            mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
-			StorageEventCh:       db.eventCh,
+			EventCh:              db.eventCh,
 		},
 	)
 
@@ -151,7 +151,6 @@ func New(config Config) (*DB, error) {
 // DB represents the database.
 type DB struct {
 	config                 Config
-	statePool              *alloc.Pool[types.LogicalAddress]
 	persistentAllocationCh chan []types.PhysicalAddress
 	singularityNode        types.SingularityNode
 	snapshotInfo           types.SnapshotInfo
@@ -175,12 +174,27 @@ type DB struct {
 	deallocationListsToCommit map[types.SnapshotID]ListToCommit
 	availableSnapshots        map[types.SnapshotID]struct{}
 
-	eventCh chan any
-	doneCh  chan struct{}
+	eventCh        chan any
+	storeRequestCh chan types.StoreRequest
+	doneCh         chan struct{}
+}
+
+// NewVolatilePool creates new volatile allocation pool.
+func (db *DB) NewVolatilePool() *alloc.Pool[types.LogicalAddress] {
+	return db.config.State.NewPool()
+}
+
+// NewPersistentPool creates new persistent allocation pool.
+func (db *DB) NewPersistentPool() *alloc.Pool[types.PhysicalAddress] {
+	return alloc.NewPool[types.PhysicalAddress](db.persistentAllocationCh, db.persistentAllocationCh)
 }
 
 // DeleteSnapshot deletes snapshot.
-func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID, pool *alloc.Pool[types.LogicalAddress]) error {
+func (db *DB) DeleteSnapshot(
+	snapshotID types.SnapshotID,
+	volatilePool *alloc.Pool[types.LogicalAddress],
+	persistentPool *alloc.Pool[types.PhysicalAddress],
+) error {
 	snapshotInfoValue := db.snapshots.Get(snapshotID, db.pointerNode, db.snapshotInfoNode)
 	if !snapshotInfoValue.Exists() {
 		return errors.Errorf("snapshot %d does not exist", snapshotID)
@@ -214,11 +228,11 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID, pool *alloc.Pool[types
 				PointerNodeAllocator: db.pointerNodeAllocator,
 				DataNodeAllocator:    db.snapshotToNodeNodeAllocator,
 				MassEntry:            db.massSnapshotToNodeEntry,
-				StorageEventCh:       db.eventCh,
+				EventCh:              db.eventCh,
 			},
 		)
 	} else {
-		if err := db.commitDeallocationLists(pool); err != nil {
+		if err := db.commitDeallocationLists(volatilePool); err != nil {
 			return err
 		}
 
@@ -264,22 +278,25 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID, pool *alloc.Pool[types
 		nextDeallocationListValue := nextDeallocationLists.Get(snapshotItem.Key, db.pointerNode, db.snapshotToNodeNode)
 		nextListNodeAddress := nextDeallocationListValue.Value()
 		newNextListNodeAddress := nextListNodeAddress
-		nextList, err := list.New(list.Config{
+		nextList := list.New(list.Config{
 			ListRoot:       &newNextListNodeAddress,
 			State:          db.config.State,
 			NodeAllocator:  db.listNodeAllocator,
-			StorageEventCh: db.eventCh,
+			StoreRequestCh: db.storeRequestCh,
 		})
-		if err != nil {
-			return err
-		}
-		if err := nextList.Attach(snapshotItem.Value, pool, db.listNode); err != nil {
+		if err := nextList.Attach(
+			snapshotItem.Value,
+			db.singularityNode.LastSnapshotID,
+			volatilePool,
+			persistentPool,
+			db.listNode,
+		); err != nil {
 			return err
 		}
 		if newNextListNodeAddress != nextListNodeAddress {
 			if err := nextDeallocationListValue.Set(
 				newNextListNodeAddress,
-				pool,
+				volatilePool,
 				db.pointerNode,
 				db.snapshotToNodeNode,
 			); err != nil {
@@ -302,7 +319,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID, pool *alloc.Pool[types
 		nextSnapshotInfoValue := db.snapshots.Get(snapshotInfo.NextSnapshotID, db.pointerNode, db.snapshotInfoNode)
 		if err := nextSnapshotInfoValue.Set(
 			*nextSnapshotInfo,
-			pool,
+			volatilePool,
 			db.pointerNode,
 			db.snapshotInfoNode,
 		); err != nil {
@@ -322,7 +339,7 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID, pool *alloc.Pool[types
 
 		if err := previousSnapshotInfoValue.Set(
 			previousSnapshotInfo,
-			pool,
+			volatilePool,
 			db.pointerNode,
 			db.snapshotInfoNode,
 		); err != nil {
@@ -396,6 +413,9 @@ func (db *DB) Commit(pool *alloc.Pool[types.LogicalAddress]) error {
 	db.availableSnapshots[db.singularityNode.LastSnapshotID] = struct{}{}
 
 	return db.prepareNextSnapshot()
+
+	// FIXME (wojciech): Store singularity node
+	// FIXME (wojciech): Call Sync on DB file
 }
 
 // Close closed DB.
@@ -411,15 +431,14 @@ func (db *DB) Run(ctx context.Context) error {
 	defer close(db.doneCh)
 
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-		storeRequestCh := make(chan types.StoreRequest, 500)
-
 		spawn("state", parallel.Continue, db.config.State.Run)
 		spawn("events", parallel.Continue, func(ctx context.Context) error {
-			defer close(storeRequestCh)
-			return db.processEvents(ctx, db.eventCh, storeRequestCh)
+			defer close(db.storeRequestCh)
+
+			return db.processEvents(ctx, db.eventCh, db.storeRequestCh)
 		})
-		spawn("storeRequests", parallel.Continue, func(ctx context.Context) error {
-			return db.processStoreRequests(ctx, storeRequestCh)
+		spawn("store", parallel.Continue, func(ctx context.Context) error {
+			return db.processStoreRequests(ctx, db.storeRequestCh)
 		})
 
 		return nil
@@ -431,8 +450,8 @@ func (db *DB) processEvents(
 	eventCh <-chan any,
 	storeRequestCh chan<- types.StoreRequest,
 ) error {
-	volatilePool := db.config.State.NewPool()
-	persistentPool := alloc.NewPool[types.PhysicalAddress](db.persistentAllocationCh, db.persistentAllocationCh)
+	volatilePool := db.NewVolatilePool()
+	persistentPool := db.NewPersistentPool()
 
 	pointerNode := db.pointerNodeAllocator.NewNode()
 	parentPointerNode := db.pointerNodeAllocator.NewNode()
@@ -446,6 +465,8 @@ func (db *DB) processEvents(
 				e.RootPointer,
 				pointerNode,
 				parentPointerNode,
+				listNode,
+				volatilePool,
 				persistentPool,
 				storeRequestCh,
 			); err != nil {
@@ -453,7 +474,7 @@ func (db *DB) processEvents(
 			}
 		case types.SpaceDataNodeAllocatedEvent:
 			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.LogicalAddress))
-			header.RevisionHeader.SnapshotID = db.singularityNode.LastSnapshotID
+			header.SnapshotID = db.singularityNode.LastSnapshotID
 
 			revision := atomic.AddUint64(&header.RevisionHeader.Revision, 1)
 
@@ -477,6 +498,8 @@ func (db *DB) processEvents(
 				e.RootPointer,
 				pointerNode,
 				parentPointerNode,
+				listNode,
+				volatilePool,
 				persistentPool,
 				storeRequestCh,
 			); err != nil {
@@ -484,12 +507,24 @@ func (db *DB) processEvents(
 			}
 		case types.SpaceDataNodeUpdatedEvent:
 			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.LogicalAddress))
-			header.RevisionHeader.SnapshotID = db.singularityNode.LastSnapshotID
-
 			revision := atomic.AddUint64(&header.RevisionHeader.Revision, 1)
 
-			if header.RevisionHeader.SnapshotID != db.singularityNode.LastSnapshotID {
-				header.RevisionHeader.SnapshotID = db.singularityNode.LastSnapshotID
+			//nolint:nestif
+			if header.SnapshotID != db.singularityNode.LastSnapshotID {
+				if e.Pointer.PhysicalAddress != 0 {
+					if err := db.deallocateNode(
+						*e.Pointer,
+						header.SnapshotID,
+						volatilePool,
+						persistentPool,
+						listNode,
+					); err != nil {
+						return err
+					}
+				}
+
+				header.SnapshotID = db.singularityNode.LastSnapshotID
+
 				var err error
 				e.Pointer.PhysicalAddress, err = persistentPool.Allocate()
 				if err != nil {
@@ -502,6 +537,8 @@ func (db *DB) processEvents(
 						e.RootPointer,
 						pointerNode,
 						parentPointerNode,
+						listNode,
+						volatilePool,
 						persistentPool,
 						storeRequestCh,
 					); err != nil {
@@ -515,8 +552,22 @@ func (db *DB) processEvents(
 				Pointer:  e.Pointer,
 			}
 		case types.SpaceDataNodeDeallocationEvent:
-			volatilePool.Deallocate(e.Pointer.LogicalAddress)
-			persistentPool.Deallocate(e.Pointer.PhysicalAddress)
+			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.LogicalAddress))
+
+			if header.SnapshotID == db.singularityNode.LastSnapshotID {
+				// This is done to ignore any potential pending writes of this block.
+				atomic.AddUint64(&header.RevisionHeader.Revision, 1)
+			}
+
+			if err := db.deallocateNode(
+				e.Pointer,
+				header.SnapshotID,
+				volatilePool,
+				persistentPool,
+				listNode,
+			); err != nil {
+				return err
+			}
 		case types.SpaceDeallocationEvent:
 			space.Deallocate(
 				db.config.State,
@@ -526,14 +577,6 @@ func (db *DB) processEvents(
 				db.pointerNodeAllocator,
 				pointerNode,
 			)
-		case types.ListNodeAllocatedEvent:
-			header := photon.FromPointer[list.NodeHeader](db.config.State.Node(e.Pointer.LogicalAddress))
-			header.RevisionHeader.SnapshotID = db.singularityNode.LastSnapshotID
-		case types.ListNodeUpdatedEvent:
-			header := photon.FromPointer[list.NodeHeader](db.config.State.Node(e.Pointer.LogicalAddress))
-			if header.RevisionHeader.SnapshotID != db.singularityNode.LastSnapshotID {
-				header.RevisionHeader.SnapshotID = db.singularityNode.LastSnapshotID
-			}
 		case types.ListDeallocationEvent:
 			list.Deallocate(
 				db.config.State,
@@ -560,6 +603,8 @@ func (db *DB) storeSpacePointerNodes(
 	rootPointer *types.Pointer,
 	pointerNode *space.Node[space.PointerNodeHeader, types.SpacePointer],
 	parentPointerNode *space.Node[space.PointerNodeHeader, types.SpacePointer],
+	listNode *list.Node,
+	volatilePool *alloc.Pool[types.LogicalAddress],
 	persistentPool *alloc.Pool[types.PhysicalAddress],
 	storeRequestCh chan<- types.StoreRequest,
 ) error {
@@ -577,9 +622,20 @@ func (db *DB) storeSpacePointerNodes(
 
 		revision := atomic.AddUint64(&pointerNode.Header.RevisionHeader.Revision, 1)
 
-		if pointerNode.Header.RevisionHeader.SnapshotID != db.singularityNode.LastSnapshotID {
-			pointerNode.Header.RevisionHeader.SnapshotID = db.singularityNode.LastSnapshotID
-			pointer.PhysicalAddress = 0
+		if pointerNode.Header.SnapshotID != db.singularityNode.LastSnapshotID {
+			if pointer.PhysicalAddress != 0 {
+				if err := db.deallocateNode(
+					*pointer,
+					pointerNode.Header.SnapshotID,
+					volatilePool,
+					persistentPool,
+					listNode,
+				); err != nil {
+					return err
+				}
+				pointer.PhysicalAddress = 0
+			}
+			pointerNode.Header.SnapshotID = db.singularityNode.LastSnapshotID
 		}
 
 		terminate := true
@@ -629,6 +685,48 @@ func (db *DB) processStoreRequests(ctx context.Context, storeRequestCh <-chan ty
 		req.DoneCh <- struct{}{}
 	}
 	return errors.WithStack(ctx.Err())
+}
+
+func (db *DB) deallocateNode(
+	pointer types.Pointer,
+	srcSnapshotID types.SnapshotID,
+	volatilePool *alloc.Pool[types.LogicalAddress],
+	persistentPool *alloc.Pool[types.PhysicalAddress],
+	node *list.Node,
+) error {
+	if srcSnapshotID == db.singularityNode.LastSnapshotID {
+		volatilePool.Deallocate(pointer.LogicalAddress)
+		persistentPool.Deallocate(pointer.PhysicalAddress)
+
+		return nil
+	}
+
+	if _, exists := db.availableSnapshots[srcSnapshotID]; !exists {
+		volatilePool.Deallocate(pointer.LogicalAddress)
+		persistentPool.Deallocate(pointer.PhysicalAddress)
+
+		return nil
+	}
+
+	l, exists := db.deallocationListsToCommit[srcSnapshotID]
+	if !exists {
+		l.ListRoot = &types.Pointer{}
+		l.List = list.New(list.Config{
+			ListRoot:       l.ListRoot,
+			State:          db.config.State,
+			NodeAllocator:  db.listNodeAllocator,
+			StoreRequestCh: db.storeRequestCh,
+		})
+		db.deallocationListsToCommit[srcSnapshotID] = l
+	}
+
+	return l.List.Add(
+		pointer,
+		db.singularityNode.LastSnapshotID,
+		volatilePool,
+		persistentPool,
+		node,
+	)
 }
 
 func (db *DB) prepareNextSnapshot() error {
@@ -697,7 +795,7 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 		HashMod:              s.HashMod,
 		SpaceRoot:            s.PInfo,
 		State:                db.config.State,
-		StorageEventCh:       db.eventCh,
+		EventCh:              db.eventCh,
 		PointerNodeAllocator: db.pointerNodeAllocator,
 		DataNodeAllocator:    dataNodeAllocator,
 		MassEntry:            mass.New[space.Entry[K, V]](1000),

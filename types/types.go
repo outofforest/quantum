@@ -39,8 +39,7 @@ type (
 
 // RevisionHeader stores information about node revision. It must be stored as first bytes in the node.
 type RevisionHeader struct {
-	Revision   uint64
-	SnapshotID SnapshotID
+	Revision uint64
 }
 
 // Pointer is the pointer to another block.
@@ -51,7 +50,7 @@ type Pointer struct {
 
 // SpacePointer is the pointer to another block in the space.
 type SpacePointer struct {
-	Version uint64
+	Version uint64 // FIXME (wojciech): move this to pointer
 	Pointer Pointer
 }
 
@@ -119,16 +118,6 @@ type SpaceDataNodeDeallocationEvent struct {
 // SpaceDeallocationEvent is emitted to request space deallocation.
 type SpaceDeallocationEvent struct {
 	SpaceRoot ParentEntry
-}
-
-// ListNodeAllocatedEvent is emitted when new list node is allocated.
-type ListNodeAllocatedEvent struct {
-	Pointer *Pointer
-}
-
-// ListNodeUpdatedEvent is emitted when list node is updated.
-type ListNodeUpdatedEvent struct {
-	Pointer *Pointer
 }
 
 // ListDeallocationEvent is emitted to request list deallocation.

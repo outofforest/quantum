@@ -66,6 +66,8 @@ func (na *NodeAllocator[H, T]) NewNode() *Node[H, T] {
 	}
 }
 
+// FIXME (wojciech): Get and allocate might be called directly on State. Here I just need Project.
+
 // Get returns object for node.
 func (na *NodeAllocator[H, T]) Get(nodeAddress types.LogicalAddress, node *Node[H, T]) {
 	na.project(na.state.Node(nodeAddress), node)
@@ -104,6 +106,7 @@ func (na *NodeAllocator[H, T]) project(nodeP unsafe.Pointer, node *Node[H, T]) {
 // PointerNodeHeader is the header of pointer node.
 type PointerNodeHeader struct {
 	RevisionHeader    types.RevisionHeader
+	SnapshotID        types.SnapshotID
 	ParentNodeAddress types.LogicalAddress
 	ParentNodeIndex   uintptr
 	HashMod           uint64
@@ -112,6 +115,7 @@ type PointerNodeHeader struct {
 // DataNodeHeader is the header of data node.
 type DataNodeHeader struct {
 	RevisionHeader types.RevisionHeader
+	SnapshotID     types.SnapshotID
 }
 
 // Node represents data stored inside space node.

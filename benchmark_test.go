@@ -24,7 +24,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 50_000_000
+		numOfAddresses = 10_000_000
 		txsPerCommit   = 2000
 		balance        = 100_000
 	)
@@ -53,8 +53,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				panic(err)
 			}
 			defer stateDeallocFunc()
-
-			pool := state.NewPool()
 
 			file, err := os.OpenFile(filepath.Join(b.TempDir(), "db.quantum"), os.O_CREATE|os.O_RDWR|os.O_TRUNC,
 				0o600)
@@ -91,6 +89,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 			defer db.Close()
 
+			volatilePool := db.NewVolatilePool()
+			persistentPool := db.NewPersistentPool()
+
 			s, err := GetSpace[accountAddress, accountBalance](spaceID, db)
 			if err != nil {
 				panic(err)
@@ -99,13 +100,13 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			pointerNode := s.NewPointerNode()
 			dataNode := s.NewDataNode()
 
-			if err := s.AllocatePointers(3, pool, pointerNode); err != nil {
+			if err := s.AllocatePointers(3, volatilePool, pointerNode); err != nil {
 				panic(err)
 			}
 
 			for i := 0; i < numOfAddresses; i += 2 {
 				v := s.Get(accounts[i], pointerNode, dataNode)
-				if err := v.Set(2*balance, pool, pointerNode, dataNode); err != nil {
+				if err := v.Set(2*balance, volatilePool, pointerNode, dataNode); err != nil {
 					panic(err)
 				}
 
@@ -119,7 +120,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			tx := 0
 			var snapshotID types.SnapshotID
 
-			_ = db.Commit(pool)
+			_ = db.Commit(volatilePool)
 
 			snapshotID++
 
@@ -134,7 +135,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 					if err := senderBalance.Set(
 						senderBalance.Value()-balance,
-						pool,
+						volatilePool,
 						pointerNode,
 						dataNode,
 					); err != nil {
@@ -142,7 +143,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 					}
 					if err := recipientBalance.Set(
 						recipientBalance.Value()+balance,
-						pool,
+						volatilePool,
 						pointerNode,
 						dataNode,
 					); err != nil {
@@ -151,11 +152,11 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 					tx++
 					if tx%txsPerCommit == 0 {
-						_ = db.Commit(pool)
+						_ = db.Commit(volatilePool)
 						snapshotID++
 
 						if snapshotID > 1 {
-							if err := db.DeleteSnapshot(snapshotID-2, pool); err != nil {
+							if err := db.DeleteSnapshot(snapshotID-2, volatilePool, persistentPool); err != nil {
 								panic(err)
 							}
 						}
