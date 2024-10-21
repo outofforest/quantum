@@ -179,10 +179,12 @@ type DB struct {
 	doneCh         chan struct{}
 }
 
+// NewVolatilePool creates new volatile allocation pool.
 func (db *DB) NewVolatilePool() *alloc.Pool[types.LogicalAddress] {
 	return db.config.State.NewPool()
 }
 
+// NewPersistentPool creates new persistent allocation pool.
 func (db *DB) NewPersistentPool() *alloc.Pool[types.PhysicalAddress] {
 	return alloc.NewPool[types.PhysicalAddress](db.persistentAllocationCh, db.persistentAllocationCh)
 }
@@ -507,6 +509,7 @@ func (db *DB) processEvents(
 			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.LogicalAddress))
 			revision := atomic.AddUint64(&header.RevisionHeader.Revision, 1)
 
+			//nolint:nestif
 			if header.SnapshotID != db.singularityNode.LastSnapshotID {
 				if e.Pointer.PhysicalAddress != 0 {
 					if err := db.deallocateNode(
@@ -662,7 +665,6 @@ func (db *DB) storeSpacePointerNodes(
 func (db *DB) processStoreRequests(ctx context.Context, storeRequestCh <-chan types.StoreRequest) error {
 	for req := range storeRequestCh {
 		if req.Pointer != nil {
-
 			header := photon.FromPointer[types.RevisionHeader](db.config.State.Node(req.Pointer.LogicalAddress))
 			revision := atomic.LoadUint64(&header.Revision)
 
