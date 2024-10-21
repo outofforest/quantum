@@ -346,8 +346,9 @@ func (s *Space[K, V]) set(
 			v.exists = true
 
 			s.config.StorageEventCh <- types.SpaceDataNodeAllocatedEvent{
-				Pointer:  &v.pEntry.SpacePointer.Pointer,
-				PAddress: v.pAddress,
+				Pointer:      &v.pEntry.SpacePointer.Pointer,
+				PNodeAddress: v.pAddress,
+				RootPointer:  &s.config.SpaceRoot.SpacePointer.Pointer,
 			}
 
 			return nil

@@ -441,58 +441,46 @@ func (db *DB) processEvents(
 	for event := range eventCh {
 		switch e := event.(type) {
 		case types.SpacePointerNodeAllocatedEvent:
-			db.pointerNodeAllocator.Get(e.NodeAddress, pointerNode)
-
-			for {
-				var pointer *types.Pointer
-				if pointerNode.Header.ParentNodeAddress == 0 {
-					pointer = e.RootPointer
-				} else {
-					db.pointerNodeAllocator.Get(pointerNode.Header.ParentNodeAddress, parentPointerNode)
-					spacePointer, _ := parentPointerNode.Item(pointerNode.Header.ParentNodeIndex)
-					pointer = &spacePointer.Pointer
-				}
-
-				revision := atomic.AddUint64(&pointerNode.Header.RevisionHeader.Revision, 1)
-
-				if pointerNode.Header.RevisionHeader.SnapshotID != db.singularityNode.LastSnapshotID {
-					pointerNode.Header.RevisionHeader.SnapshotID = db.singularityNode.LastSnapshotID
-					pointer.PhysicalAddress = 0
-				}
-
-				terminate := true
-				if pointer.PhysicalAddress == 0 {
-					var err error
-					pointer.PhysicalAddress, err = persistentPool.Allocate()
-					if err != nil {
-						return err
-					}
-
-					terminate = pointer == e.RootPointer
-				}
-
-				storeRequestCh <- types.StoreRequest{
-					Revision: revision,
-					Pointer:  pointer,
-				}
-
-				if terminate {
-					break
-				}
-
-				pointerNode = parentPointerNode
+			if err := db.storeSpacePointerNodes(
+				e.NodeAddress,
+				e.RootPointer,
+				pointerNode,
+				parentPointerNode,
+				persistentPool,
+				storeRequestCh,
+			); err != nil {
+				return err
 			}
 		case types.SpaceDataNodeAllocatedEvent:
 			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.LogicalAddress))
 			header.RevisionHeader.SnapshotID = db.singularityNode.LastSnapshotID
-			pointerNodeAddress := e.PAddress
-			for pointerNodeAddress != 0 {
-				header := photon.FromPointer[space.PointerNodeHeader](db.config.State.Node(pointerNodeAddress))
-				if header.RevisionHeader.SnapshotID == db.singularityNode.LastSnapshotID {
-					break
-				}
-				header.RevisionHeader.SnapshotID = db.singularityNode.LastSnapshotID
-				pointerNodeAddress = header.ParentNodeAddress
+
+			revision := atomic.AddUint64(&header.RevisionHeader.Revision, 1)
+
+			var err error
+			e.Pointer.PhysicalAddress, err = persistentPool.Allocate()
+			if err != nil {
+				return err
+			}
+
+			storeRequestCh <- types.StoreRequest{
+				Revision: revision,
+				Pointer:  e.Pointer,
+			}
+
+			if e.PNodeAddress == 0 {
+				continue
+			}
+
+			if err := db.storeSpacePointerNodes(
+				e.PNodeAddress,
+				e.RootPointer,
+				pointerNode,
+				parentPointerNode,
+				persistentPool,
+				storeRequestCh,
+			); err != nil {
+				return err
 			}
 		case types.SpaceDataNodeUpdatedEvent:
 			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.LogicalAddress))
@@ -547,6 +535,57 @@ func (db *DB) processEvents(
 		}
 	}
 	return errors.WithStack(ctx.Err())
+}
+
+func (db *DB) storeSpacePointerNodes(
+	nodeAddress types.LogicalAddress,
+	rootPointer *types.Pointer,
+	pointerNode *space.Node[space.PointerNodeHeader, types.SpacePointer],
+	parentPointerNode *space.Node[space.PointerNodeHeader, types.SpacePointer],
+	persistentPool *alloc.Pool[types.PhysicalAddress],
+	storeRequestCh chan<- types.StoreRequest,
+) error {
+	db.pointerNodeAllocator.Get(nodeAddress, pointerNode)
+
+	for {
+		var pointer *types.Pointer
+		if pointerNode.Header.ParentNodeAddress == 0 {
+			pointer = rootPointer
+		} else {
+			db.pointerNodeAllocator.Get(pointerNode.Header.ParentNodeAddress, parentPointerNode)
+			spacePointer, _ := parentPointerNode.Item(pointerNode.Header.ParentNodeIndex)
+			pointer = &spacePointer.Pointer
+		}
+
+		revision := atomic.AddUint64(&pointerNode.Header.RevisionHeader.Revision, 1)
+
+		if pointerNode.Header.RevisionHeader.SnapshotID != db.singularityNode.LastSnapshotID {
+			pointerNode.Header.RevisionHeader.SnapshotID = db.singularityNode.LastSnapshotID
+			pointer.PhysicalAddress = 0
+		}
+
+		terminate := true
+		if pointer.PhysicalAddress == 0 {
+			var err error
+			pointer.PhysicalAddress, err = persistentPool.Allocate()
+			if err != nil {
+				return err
+			}
+
+			terminate = pointer == rootPointer
+		}
+
+		storeRequestCh <- types.StoreRequest{
+			Revision: revision,
+			Pointer:  pointer,
+		}
+
+		if terminate {
+			return nil
+		}
+
+		pointerNode = parentPointerNode
+	}
 }
 
 func (db *DB) processStoreRequests(ctx context.Context, storeRequestCh <-chan types.StoreRequest) error {
