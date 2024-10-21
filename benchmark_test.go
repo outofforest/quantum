@@ -11,6 +11,7 @@ import (
 	"github.com/outofforest/logger"
 	"github.com/outofforest/parallel"
 	"github.com/outofforest/quantum/alloc"
+	"github.com/outofforest/quantum/persistent"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -37,8 +38,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 	for bi := 0; bi < b.N; bi++ {
 		func() {
+			var size uint64 = 20 * 1024 * 1024 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
-				70*1024*1024*1024,
+				size,
 				4*1024,
 				1024,
 				true,
@@ -51,8 +53,15 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 			pool := state.NewPool()
 
+			store, storeDeallocFunc, err := persistent.NewMemoryStore(size, true)
+			if err != nil {
+				panic(err)
+			}
+			defer storeDeallocFunc()
+
 			db, err := New(Config{
 				State: state,
+				Store: store,
 			})
 			if err != nil {
 				panic(err)
