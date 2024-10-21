@@ -4,6 +4,9 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -21,7 +24,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 10_000_000
+		numOfAddresses = 50_000_000
 		txsPerCommit   = 2000
 		balance        = 100_000
 	)
@@ -38,7 +41,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 	for bi := 0; bi < b.N; bi++ {
 		func() {
-			var size uint64 = 20 * 1024 * 1024 * 1024
+			var size uint64 = 70 * 1024 * 1024 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size,
 				4*1024,
@@ -53,11 +56,24 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 			pool := state.NewPool()
 
-			store, storeDeallocFunc, err := persistent.NewMemoryStore(size, true)
+			file, err := os.OpenFile(filepath.Join(b.TempDir(), "db.quantum"), os.O_CREATE|os.O_RDWR|os.O_TRUNC,
+				0o600)
 			if err != nil {
 				panic(err)
 			}
-			defer storeDeallocFunc()
+			defer file.Close()
+
+			if _, err := file.Seek(int64(size-1), io.SeekStart); err != nil {
+				panic(err)
+			}
+			if _, err := file.Write([]byte{0x00}); err != nil {
+				panic(err)
+			}
+
+			store := persistent.NewFileStore(file)
+			if err != nil {
+				panic(err)
+			}
 
 			db, err := New(Config{
 				State: state,
