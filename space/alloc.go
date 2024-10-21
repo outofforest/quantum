@@ -85,6 +85,11 @@ func (na *NodeAllocator[H, T]) Allocate(
 	return nodeAddress, nil
 }
 
+// Index returns index from hash.
+func (na *NodeAllocator[H, T]) Index(hash types.Hash) uintptr {
+	return uintptr(hash) % na.numOfItems
+}
+
 // Shift shifts bits in hash.
 func (na *NodeAllocator[H, T]) Shift(hash types.Hash) types.Hash {
 	return hash / types.Hash(na.numOfItems)
@@ -100,6 +105,7 @@ func (na *NodeAllocator[H, T]) project(nodeP unsafe.Pointer, node *Node[H, T]) {
 type PointerNodeHeader struct {
 	RevisionHeader    types.RevisionHeader
 	ParentNodeAddress types.LogicalAddress
+	ParentNodeIndex   uintptr
 	HashMod           uint64
 }
 
@@ -118,9 +124,8 @@ type Node[H, T comparable] struct {
 	itemsP     unsafe.Pointer
 }
 
-// ItemByHash returns pointers to the item and its state by hash.
-func (sn *Node[H, T]) ItemByHash(hash types.Hash) (*T, *types.State) {
-	index := uintptr(hash) % sn.numOfItems
+// Item returns pointers to the item and its state by index.
+func (sn *Node[H, T]) Item(index uintptr) (*T, *types.State) {
 	return (*T)(unsafe.Add(sn.itemsP, sn.itemSize*index)), (*types.State)(unsafe.Add(sn.statesP, index))
 }
 

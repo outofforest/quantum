@@ -4,6 +4,8 @@ import (
 	"syscall"
 
 	"github.com/pkg/errors"
+
+	"github.com/outofforest/quantum/types"
 )
 
 // NewMemoryStore creates new in-memory "persistent" store.
@@ -29,13 +31,8 @@ type MemoryStore struct {
 	data []byte
 }
 
-// Size returns size of the store.
-func (s *MemoryStore) Size() uint64 {
-	return uint64(len(s.data))
-}
-
 // Write writes data to the store.
-func (s *MemoryStore) Write(offset uint64, data []byte) error {
-	copy(s.data[offset:], data)
+func (s *MemoryStore) Write(address types.PhysicalAddress, data []byte) error {
+	copy(s.data[address:], data)
 	return nil
 }

@@ -1,7 +1,8 @@
 package persistent
 
+import "github.com/outofforest/quantum/types"
+
 // Store defines the interface of the store.
 type Store interface {
-	Size() uint64
-	Write(offset uint64, data []byte) error
+	Write(address types.PhysicalAddress, data []byte) error
 }

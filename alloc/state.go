@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -75,6 +76,11 @@ func (s *State) NewPool() *Pool[types.LogicalAddress] {
 // Node returns node bytes.
 func (s *State) Node(nodeAddress types.LogicalAddress) unsafe.Pointer {
 	return unsafe.Add(s.dataP, nodeAddress)
+}
+
+// Bytes returns byte slice of a node.
+func (s *State) Bytes(nodeAddress types.LogicalAddress) []byte {
+	return photon.SliceFromPointer[byte](s.Node(nodeAddress), int(s.nodeSize))
 }
 
 // Run runs node eraser.

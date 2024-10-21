@@ -115,6 +115,7 @@ type pointerToAllocate struct {
 	Level    uint64
 	PEntry   types.ParentEntry
 	PAddress types.LogicalAddress
+	PIndex   uintptr
 }
 
 // AllocatePointers allocates specified levels of pointer nodes.
@@ -150,19 +151,22 @@ func (s *Space[K, V]) AllocatePointers(
 			return err
 		}
 		pointerNode.Header.ParentNodeAddress = pToAllocate.PAddress
+		pointerNode.Header.ParentNodeIndex = pToAllocate.PIndex
 
 		*pToAllocate.PEntry.State = types.StatePointer
 		pToAllocate.PEntry.SpacePointer.Pointer.LogicalAddress = pointerNodeAddress
 
-		s.config.StorageEventCh <- types.SpacePointerNodeAllocatedEvent{
-			Pointer: &pToAllocate.PEntry.SpacePointer.Pointer,
-		}
-
 		if pToAllocate.Level == levels {
+			s.config.StorageEventCh <- types.SpacePointerNodeAllocatedEvent{
+				NodeAddress: pointerNodeAddress,
+				RootPointer: &s.config.SpaceRoot.SpacePointer.Pointer,
+			}
+
 			continue
 		}
 
 		pToAllocate.Level++
+		var index uintptr
 		for item, state := range pointerNode.Iterator() {
 			stack = append(stack, pointerToAllocate{
 				Level: pToAllocate.Level,
@@ -171,7 +175,10 @@ func (s *Space[K, V]) AllocatePointers(
 					SpacePointer: item,
 				},
 				PAddress: pointerNodeAddress,
+				PIndex:   index,
 			})
+
+			index++
 		}
 	}
 }
@@ -330,7 +337,7 @@ func (s *Space[K, V]) set(
 			*v.pEntry.State = types.StateData
 			v.pEntry.SpacePointer.Pointer.LogicalAddress = dataNodeAddress
 
-			item, state := dataNode.ItemByHash(v.item.Hash + 1)
+			item, state := dataNode.Item(s.config.DataNodeAllocator.Index(v.item.Hash + 1))
 			*state = types.StateData
 			*item = v.item
 
@@ -349,7 +356,7 @@ func (s *Space[K, V]) set(
 
 			var conflict bool
 			for i := types.Hash(0); i < trials; i++ {
-				item, state := dataNode.ItemByHash(v.item.Hash + 1<<i + i)
+				item, state := dataNode.Item(s.config.DataNodeAllocator.Index(v.item.Hash + 1<<i + i))
 				if *state <= types.StateDeleted {
 					*item = v.item
 
@@ -388,6 +395,7 @@ func (s *Space[K, V]) set(
 			if err := s.redistributeNode(
 				v.pEntry,
 				v.pAddress,
+				v.pIndex,
 				conflict,
 				pool,
 				pointerNode,
@@ -403,10 +411,12 @@ func (s *Space[K, V]) set(
 				v.item.Hash = hashKey(v.item.Key, pointerNode.Header.HashMod)
 			}
 
-			item, state := pointerNode.ItemByHash(v.item.Hash)
+			index := s.config.PointerNodeAllocator.Index(v.item.Hash)
+			item, state := pointerNode.Item(index)
 			v.item.Hash = s.config.PointerNodeAllocator.Shift(v.item.Hash)
 
 			v.pAddress = v.pEntry.SpacePointer.Pointer.LogicalAddress
+			v.pIndex = index
 			v.pEntry = types.ParentEntry{
 				State:        state,
 				SpacePointer: item,
@@ -418,6 +428,7 @@ func (s *Space[K, V]) set(
 func (s *Space[K, V]) redistributeNode(
 	pEntry types.ParentEntry,
 	pAddress types.LogicalAddress,
+	pIndex uintptr,
 	conflict bool,
 	pool *alloc.Pool[types.LogicalAddress],
 	pointerNode *Node[PointerNodeHeader, types.SpacePointer],
@@ -432,6 +443,7 @@ func (s *Space[K, V]) redistributeNode(
 	}
 
 	pointerNode.Header.ParentNodeAddress = pAddress
+	pointerNode.Header.ParentNodeIndex = pIndex
 	if conflict {
 		*s.config.HashMod++
 		*pointerNode.Header = PointerNodeHeader{
@@ -450,7 +462,8 @@ func (s *Space[K, V]) redistributeNode(
 		if conflict {
 			item.Hash = hashKey(item.Key, pointerNode.Header.HashMod)
 		}
-		pointerItem, pointerState := pointerNode.ItemByHash(item.Hash)
+		index := s.config.PointerNodeAllocator.Index(item.Hash)
+		pointerItem, pointerState := pointerNode.Item(index)
 		item.Hash = s.config.PointerNodeAllocator.Shift(item.Hash)
 
 		if err := s.set(&Entry[K, V]{
@@ -461,6 +474,7 @@ func (s *Space[K, V]) redistributeNode(
 				SpacePointer: pointerItem,
 			},
 			pAddress: pointerNodeAddress,
+			pIndex:   index,
 		}, pool, pointerNode, dataNode); err != nil {
 			return err
 		}
@@ -486,10 +500,12 @@ func (s *Space[K, V]) find(
 				v.item.Hash = hashKey(v.item.Key, pointerNode.Header.HashMod)
 			}
 
-			item, state := pointerNode.ItemByHash(v.item.Hash)
+			index := s.config.PointerNodeAllocator.Index(v.item.Hash)
+			item, state := pointerNode.Item(index)
 			v.item.Hash = s.config.PointerNodeAllocator.Shift(v.item.Hash)
 
 			v.pAddress = v.pEntry.SpacePointer.Pointer.LogicalAddress
+			v.pIndex = index
 			v.pEntry = types.ParentEntry{
 				State:        state,
 				SpacePointer: item,
@@ -497,7 +513,7 @@ func (s *Space[K, V]) find(
 		case types.StateData:
 			s.config.DataNodeAllocator.Get(v.pEntry.SpacePointer.Pointer.LogicalAddress, dataNode)
 			for i := types.Hash(0); i < trials; i++ {
-				item, state := dataNode.ItemByHash(v.item.Hash + 1<<i + i)
+				item, state := dataNode.Item(s.config.DataNodeAllocator.Index(v.item.Hash + 1<<i + i))
 
 				switch *state {
 				case types.StateFree:
@@ -537,6 +553,7 @@ type Entry[K, V comparable] struct {
 	exists   bool
 	pEntry   types.ParentEntry
 	pAddress types.LogicalAddress
+	pIndex   uintptr
 }
 
 // Value returns the value from entry.
