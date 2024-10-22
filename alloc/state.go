@@ -24,7 +24,7 @@ func NewState(
 	numOfNodes := numOfGroups * nodesPerGroup
 	size = numOfNodes * nodeSize
 
-	file, err := os.OpenFile("/dev/mem", os.O_RDWR, 0o000)
+	file, err := os.OpenFile("/dev/mem", os.O_RDWR|os.O_SYNC, 0o000)
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
@@ -34,6 +34,7 @@ func NewState(
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "memory allocation failed")
 	}
+	clear(data)
 
 	return &State{
 			size:              size,
