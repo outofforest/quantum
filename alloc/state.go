@@ -2,10 +2,10 @@ package alloc
 
 import (
 	"context"
-	"syscall"
 	"unsafe"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 
 	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/types"
@@ -22,11 +22,11 @@ func NewState(
 	numOfGroups := size / nodeSize / nodesPerGroup
 	numOfNodes := numOfGroups * nodesPerGroup
 	size = numOfNodes * nodeSize
-	opts := syscall.MAP_SHARED | syscall.MAP_ANONYMOUS | syscall.MAP_NORESERVE | syscall.MAP_POPULATE
+	opts := unix.MAP_SHARED | unix.MAP_ANONYMOUS | unix.MAP_NORESERVE | unix.MAP_POPULATE
 	if useHugePages {
-		opts |= syscall.MAP_HUGETLB
+		opts |= unix.MAP_HUGETLB
 	}
-	data, err := syscall.Mmap(-1, 0, int(size), syscall.PROT_READ|syscall.PROT_WRITE, opts)
+	data, err := unix.Mmap(-1, 0, int(size), unix.PROT_READ|unix.PROT_WRITE, opts)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "memory allocation failed")
 	}
@@ -41,7 +41,7 @@ func NewState(
 			allocationCh:      NewAllocationCh[types.LogicalAddress](size, nodeSize, nodesPerGroup),
 			deallocationCh:    make(chan []types.LogicalAddress, 100),
 		}, func() {
-			_ = syscall.Munmap(data)
+			_ = unix.Munmap(data)
 		}, nil
 }
 

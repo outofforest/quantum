@@ -44,14 +44,9 @@ type RevisionHeader struct {
 
 // Pointer is the pointer to another block.
 type Pointer struct {
+	Version         uint64
 	LogicalAddress  LogicalAddress
 	PhysicalAddress PhysicalAddress
-}
-
-// SpacePointer is the pointer to another block in the space.
-type SpacePointer struct {
-	Version uint64 // FIXME (wojciech): move this to pointer
-	Pointer Pointer
 }
 
 // DataItem stores single key-value pair.
@@ -63,14 +58,14 @@ type DataItem[K, V comparable] struct {
 
 // ParentEntry stores state and item of the slot used to retrieve node from parent pointer.
 type ParentEntry struct {
-	State        *State
-	SpacePointer *SpacePointer
+	State   *State
+	Pointer *Pointer
 }
 
 // SpaceInfo stores information required to retrieve space.
 type SpaceInfo struct {
 	State   State
-	Pointer SpacePointer
+	Pointer Pointer
 	HashMod uint64
 }
 

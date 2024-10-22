@@ -2,17 +2,17 @@ package persistent
 
 import (
 	"os"
-	"syscall"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 
 	"github.com/outofforest/quantum/types"
 )
 
 // NewFileStore creates new file-based store.
 func NewFileStore(file *os.File, size uint64) (*FileStore, func(), error) {
-	data, err := syscall.Mmap(int(file.Fd()), 0, int(size), syscall.PROT_READ|syscall.PROT_WRITE,
-		syscall.MAP_SHARED)
+	data, err := unix.Mmap(int(file.Fd()), 0, int(size), unix.PROT_READ|unix.PROT_WRITE,
+		unix.MAP_SHARED)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "memory allocation failed")
 	}
@@ -21,7 +21,7 @@ func NewFileStore(file *os.File, size uint64) (*FileStore, func(), error) {
 			file: file,
 			data: data,
 		}, func() {
-			_ = syscall.Munmap(data)
+			_ = unix.Munmap(data)
 			_ = file.Close()
 		}, nil
 }
@@ -40,5 +40,8 @@ func (s *FileStore) Write(address types.PhysicalAddress, data []byte) error {
 
 // Sync syncs pending writes.
 func (s *FileStore) Sync() error {
+	if err := unix.Msync(s.data, unix.MS_SYNC); err != nil {
+		return errors.WithStack(err)
+	}
 	return errors.WithStack(s.file.Sync())
 }
