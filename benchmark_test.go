@@ -25,7 +25,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 50_000_000
+		numOfAddresses = 10_000_000
 		txsPerCommit   = 2000
 		balance        = 100_000
 	)
@@ -42,7 +42,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 	for bi := 0; bi < b.N; bi++ {
 		func() {
-			var size uint64 = 70 * 1024 * 1024 * 1024
+			var size uint64 = 20 * 1024 * 1024 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size,
 				4*1024,
@@ -78,7 +78,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			}
 			defer storeCloseFunc()
 
-			// store = persistent.NewDummyStore()
+			store = persistent.NewDummyStore()
 
 			db, err := New(Config{
 				State: state,
