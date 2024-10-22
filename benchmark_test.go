@@ -42,7 +42,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 	for bi := 0; bi < b.N; bi++ {
 		func() {
-			var size uint64 = 70 * 1024 * 1024 * 1024
+			var size uint64 = 20 * 1024 * 1024 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size,
 				4*1024,
@@ -60,7 +60,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			if err != nil {
 				panic(err)
 			}
-			defer file.Close()
 
 			if _, err := file.Seek(int64(size-1), io.SeekStart); err != nil {
 				panic(err)
@@ -69,15 +68,17 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				panic(err)
 			}
 
-			//nolint:gosimple
 			var store persistent.Store
+			var storeCloseFunc func()
 
-			store = persistent.NewFileStore(file)
+			//nolint:ineffassign,wastedassign
+			store, storeCloseFunc, err = persistent.NewFileStore(file, size)
 			if err != nil {
 				panic(err)
 			}
+			defer storeCloseFunc()
 
-			// store = persistent.NewDummyStore()
+			store = persistent.NewDummyStore()
 
 			db, err := New(Config{
 				State: state,
@@ -126,7 +127,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			tx := 0
 			var snapshotID types.SnapshotID
 
-			_ = db.Commit(volatilePool)
+			_ = db.Commit(volatilePool, persistentPool)
 
 			snapshotID++
 
@@ -158,7 +159,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 					tx++
 					if tx%txsPerCommit == 0 {
-						_ = db.Commit(volatilePool)
+						_ = db.Commit(volatilePool, persistentPool)
 						snapshotID++
 
 						if snapshotID > 1 {
