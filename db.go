@@ -101,6 +101,8 @@ func New(config Config) (*DB, error) {
 		doneCh:                      make(chan struct{}),
 	}
 
+	// FIXME (wojciech): Physical nodes deallocated from snapshot space must be deallocated in the commit phase.
+	// Logical nodes might be deallocated immediately.
 	db.snapshots = space.New[types.SnapshotID, types.SnapshotInfo](space.Config[types.SnapshotID, types.SnapshotInfo]{
 		HashMod: &db.singularityNode.SnapshotRoot.HashMod,
 		SpaceRoot: types.ParentEntry{
