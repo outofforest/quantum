@@ -1,4 +1,4 @@
-package quantum
+package quantum_test
 
 import (
 	"context"
@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/outofforest/logger"
 	"github.com/outofforest/parallel"
+	"github.com/outofforest/quantum"
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/persistent"
 	"github.com/outofforest/quantum/types"
@@ -42,7 +42,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 	for bi := 0; bi < b.N; bi++ {
 		func() {
-			var size uint64 = 20 * 1024 * 1024 * 1024
+			var size uint64 = 70 * 1024 * 1024 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size,
 				4*1024,
@@ -55,8 +55,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			}
 			defer stateDeallocFunc()
 
-			file, err := os.OpenFile(filepath.Join(b.TempDir(), "db.quantum"), os.O_CREATE|os.O_RDWR|os.O_TRUNC,
-				0o600)
+			file, err := os.OpenFile("db.quantum", os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o600)
 			if err != nil {
 				panic(err)
 			}
@@ -71,16 +70,15 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			var store persistent.Store
 			var storeCloseFunc func()
 
-			//nolint:ineffassign,wastedassign
 			store, storeCloseFunc, err = persistent.NewFileStore(file, size)
 			if err != nil {
 				panic(err)
 			}
 			defer storeCloseFunc()
 
-			store = persistent.NewDummyStore()
+			// store = persistent.NewDummyStore()
 
-			db, err := New(Config{
+			db, err := quantum.New(quantum.Config{
 				State: state,
 				Store: store,
 			})
@@ -99,7 +97,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			volatilePool := db.NewVolatilePool()
 			persistentPool := db.NewPersistentPool()
 
-			s, err := GetSpace[accountAddress, accountBalance](spaceID, db)
+			s, err := quantum.GetSpace[accountAddress, accountBalance](spaceID, db)
 			if err != nil {
 				panic(err)
 			}
