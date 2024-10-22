@@ -2,6 +2,7 @@ package alloc
 
 import (
 	"context"
+	"os"
 	"syscall"
 	"unsafe"
 
@@ -22,11 +23,14 @@ func NewState(
 	numOfGroups := size / nodeSize / nodesPerGroup
 	numOfNodes := numOfGroups * nodesPerGroup
 	size = numOfNodes * nodeSize
-	opts := syscall.MAP_SHARED | syscall.MAP_ANONYMOUS | syscall.MAP_NORESERVE | syscall.MAP_POPULATE
-	if useHugePages {
-		opts |= syscall.MAP_HUGETLB
+
+	file, err := os.OpenFile("/dev/mem", os.O_RDWR, 0o000)
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
 	}
-	data, err := syscall.Mmap(-1, 0, int(size), syscall.PROT_READ|syscall.PROT_WRITE, opts)
+
+	data, err := syscall.Mmap(int(file.Fd()), 0x100000000, int(size), syscall.PROT_READ|syscall.PROT_WRITE,
+		syscall.MAP_SHARED)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "memory allocation failed")
 	}
@@ -42,6 +46,7 @@ func NewState(
 			deallocationCh:    make(chan []types.LogicalAddress, 100),
 		}, func() {
 			_ = syscall.Munmap(data)
+			_ = file.Close()
 		}, nil
 }
 
@@ -51,6 +56,7 @@ type State struct {
 	nodeSize          uint64
 	nodesPerGroup     uint64
 	numOfEraseWorkers uint64
+	file              *os.File
 	data              []byte
 	dataP             unsafe.Pointer
 	allocationCh      chan []types.LogicalAddress

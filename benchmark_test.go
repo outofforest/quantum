@@ -21,6 +21,8 @@ import (
 // echo 70 | sudo tee /proc/sys/vm/nr_hugepages
 // go test -benchtime=1x -bench=. -run=^$ -cpuprofile profile.out
 // go tool pprof -http="localhost:8000" pprofbin ./profile.out
+// memmap=50G$0x1980000000
+// /proc/iomem
 
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
@@ -55,8 +57,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			}
 			defer stateDeallocFunc()
 
-			file, err := os.OpenFile(filepath.Join(b.TempDir(), "db.quantum"), os.O_CREATE|os.O_RDWR|os.O_TRUNC,
-				0o600)
+			// TODO (wojciech): Benchmark O_DIRECT option once there is a dedicated disk.
+			file, err := os.OpenFile(filepath.Join(b.TempDir(), "db.quantum"),
+				os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o600)
 			if err != nil {
 				panic(err)
 			}
@@ -77,7 +80,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				panic(err)
 			}
 
-			// store = persistent.NewDummyStore()
+			store = persistent.NewDummyStore()
 
 			db, err := New(Config{
 				State: state,
