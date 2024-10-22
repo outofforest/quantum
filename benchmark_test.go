@@ -68,10 +68,10 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				panic(err)
 			}
 
-			//nolint:gosimple
 			var store persistent.Store
 			var storeCloseFunc func()
 
+			//nolint:ineffassign,wastedassign
 			store, storeCloseFunc, err = persistent.NewFileStore(file, size)
 			if err != nil {
 				panic(err)
