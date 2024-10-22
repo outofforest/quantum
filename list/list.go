@@ -75,7 +75,7 @@ func (l *List) Add(
 
 			l.config.ListRoot.PhysicalAddress = physicalAddress
 
-			// FIXME (wojciech): Deallocate old node
+			// FIXME (wojciech): Deallocate old node, but physical node must be deallocated in the commit phase
 		}
 		revision := atomic.AddUint64(&node.Header.RevisionHeader.Revision, 1)
 
@@ -143,7 +143,7 @@ func (l *List) Attach(
 
 			l.config.ListRoot.PhysicalAddress = physicalAddress
 
-			// FIXME (wojciech): Deallocate old node
+			// FIXME (wojciech): Deallocate old node, but physical node must be deallocated in the commit phase
 		}
 		revision := atomic.AddUint64(&node.Header.RevisionHeader.Revision, 1)
 

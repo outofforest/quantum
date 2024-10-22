@@ -18,6 +18,7 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
+// echo 70 | sudo tee /proc/sys/vm/nr_hugepages
 // go test -benchtime=1x -bench=. -run=^$ -cpuprofile profile.out
 // go tool pprof -http="localhost:8000" pprofbin ./profile.out
 
@@ -68,10 +69,15 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				panic(err)
 			}
 
-			store := persistent.NewFileStore(file)
+			//nolint:gosimple
+			var store persistent.Store
+
+			store = persistent.NewFileStore(file)
 			if err != nil {
 				panic(err)
 			}
+
+			// store = persistent.NewDummyStore()
 
 			db, err := New(Config{
 				State: state,
