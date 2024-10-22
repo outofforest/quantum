@@ -125,7 +125,13 @@ type ListDeallocationEvent struct {
 	ListRoot Pointer
 }
 
-// DBCommitEvent is emitted to wait until all the events are processed before snapshot is committed.
+// SyncEvent is emitted to wait until all the events are processed.
+type SyncEvent struct {
+	SyncCh chan<- struct{}
+}
+
+// DBCommitEvent is emitted to wait until all the events are processed, blocks are stored in the persistent store
+// and singularity node might be stored.
 type DBCommitEvent struct {
 	SingularityNodePointer *Pointer
 	SyncCh                 chan<- struct{}

@@ -236,10 +236,6 @@ func (db *DB) DeleteSnapshot(
 			},
 		)
 	} else {
-		if err := db.commitDeallocationLists(volatilePool); err != nil {
-			return err
-		}
-
 		nextSnapshotInfo = &db.snapshotInfo
 		nextDeallocationLists = db.deallocationLists
 	}
@@ -362,7 +358,16 @@ func (db *DB) DeleteSnapshot(
 }
 
 // Commit commits current snapshot and returns next one.
-func (db *DB) Commit(pool *alloc.Pool[types.LogicalAddress]) error {
+func (db *DB) Commit(
+	volatilePool *alloc.Pool[types.LogicalAddress],
+	persistentPool *alloc.Pool[types.PhysicalAddress],
+) error {
+	syncCh := make(chan struct{}, 1)
+	db.eventCh <- types.SyncEvent{
+		SyncCh: syncCh,
+	}
+	<-syncCh
+
 	if len(db.spacesToCommit) > 0 {
 		spaces := make([]types.SpaceID, 0, len(db.spacesToCommit))
 		for spaceID := range db.spacesToCommit {
@@ -380,27 +385,60 @@ func (db *DB) Commit(pool *alloc.Pool[types.LogicalAddress]) error {
 				HashMod: *spaceToCommit.HashMod,
 				State:   *spaceToCommit.PInfo.State,
 				Pointer: *spaceToCommit.PInfo.SpacePointer,
-			}, pool, db.pointerNode, db.spaceInfoNode); err != nil {
+			}, volatilePool, db.pointerNode, db.spaceInfoNode); err != nil {
 				return err
 			}
 		}
 	}
 
-	if err := db.commitDeallocationLists(pool); err != nil {
-		return err
+	if len(db.deallocationListsToCommit) > 0 {
+		lists := make([]types.SnapshotID, 0, len(db.deallocationListsToCommit))
+		for snapshotID := range db.deallocationListsToCommit {
+			lists = append(lists, snapshotID)
+		}
+		sort.Slice(lists, func(i, j int) bool { return lists[i] < lists[j] })
+
+		for _, snapshotID := range lists {
+			deallocationListValue := db.deallocationLists.Get(snapshotID, db.pointerNode, db.snapshotToNodeNode)
+			if deallocationListValue.Exists() {
+				if err := db.deallocationListsToCommit[snapshotID].List.Attach(
+					deallocationListValue.Value(),
+					db.singularityNode.LastSnapshotID,
+					volatilePool,
+					persistentPool,
+					db.listNode,
+				); err != nil {
+					return err
+				}
+			}
+			if err := deallocationListValue.Set(
+				*db.deallocationListsToCommit[snapshotID].ListRoot,
+				volatilePool,
+				db.pointerNode,
+				db.snapshotToNodeNode,
+			); err != nil {
+				return err
+			}
+		}
+
+		clear(db.deallocationListsToCommit)
 	}
+
+	db.eventCh <- types.SyncEvent{
+		SyncCh: syncCh,
+	}
+	<-syncCh
 
 	nextSnapshotInfoValue := db.snapshots.Get(db.singularityNode.LastSnapshotID, db.pointerNode, db.snapshotInfoNode)
 	if err := nextSnapshotInfoValue.Set(
 		db.snapshotInfo,
-		pool,
+		volatilePool,
 		db.pointerNode,
 		db.snapshotInfoNode,
 	); err != nil {
 		return err
 	}
 
-	syncCh := make(chan struct{})
 	db.eventCh <- types.DBCommitEvent{
 		SingularityNodePointer: db.singularityNodePointer,
 		SyncCh:                 syncCh,
@@ -580,6 +618,8 @@ func (db *DB) processEvents(
 				db.listNodeAllocator,
 				listNode,
 			)
+		case types.SyncEvent:
+			e.SyncCh <- struct{}{}
 		case types.DBCommitEvent:
 			syncCh := make(chan struct{}, 1)
 			storeRequestCh <- types.StoreRequest{
@@ -588,7 +628,7 @@ func (db *DB) processEvents(
 				SyncCh:   syncCh,
 			}
 			<-syncCh
-			close(e.SyncCh)
+			e.SyncCh <- struct{}{}
 		}
 	}
 	return errors.WithStack(ctx.Err())
@@ -698,6 +738,8 @@ func (db *DB) deallocateNode(
 		return nil
 	}
 
+	// FIXME (wojciech): It's not valid to blindly delete the node if snapshot exists.
+	// There still might be other ones in between referencing the node.
 	if _, exists := db.availableSnapshots[srcSnapshotID]; !exists {
 		volatilePool.Deallocate(pointer.LogicalAddress)
 		persistentPool.Deallocate(pointer.PhysicalAddress)
@@ -739,28 +781,6 @@ func (db *DB) prepareNextSnapshot() error {
 	}
 
 	db.singularityNode.LastSnapshotID = snapshotID
-
-	return nil
-}
-
-func (db *DB) commitDeallocationLists(pool *alloc.Pool[types.LogicalAddress]) error {
-	if len(db.deallocationListsToCommit) > 0 {
-		lists := make([]types.SnapshotID, 0, len(db.deallocationListsToCommit))
-		for snapshotID := range db.deallocationListsToCommit {
-			lists = append(lists, snapshotID)
-		}
-		sort.Slice(lists, func(i, j int) bool { return lists[i] < lists[j] })
-
-		for _, snapshotID := range lists {
-			err := db.deallocationLists.Get(snapshotID, db.pointerNode, db.snapshotToNodeNode).
-				Set(*db.deallocationListsToCommit[snapshotID].ListRoot, pool, db.pointerNode, db.snapshotToNodeNode)
-			if err != nil {
-				return err
-			}
-		}
-
-		clear(db.deallocationListsToCommit)
-	}
 
 	return nil
 }
