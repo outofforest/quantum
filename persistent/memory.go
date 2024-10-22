@@ -36,3 +36,8 @@ func (s *MemoryStore) Write(address types.PhysicalAddress, data []byte) error {
 	copy(s.data[address:], data)
 	return nil
 }
+
+// Sync does nothing.
+func (s *MemoryStore) Sync() error {
+	return nil
+}

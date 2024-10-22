@@ -83,7 +83,8 @@ func New(config Config) (*DB, error) {
 	db := &DB{
 		config:                      config,
 		persistentAllocationCh:      config.State.NewPhysicalAllocationCh(),
-		singularityNode:             *photon.FromPointer[types.SingularityNode](config.State.Node(0)),
+		singularityNode:             photon.FromPointer[types.SingularityNode](config.State.Node(0)),
+		singularityNodePointer:      &types.Pointer{},
 		pointerNodeAllocator:        pointerNodeAllocator,
 		snapshotToNodeNodeAllocator: snapshotToNodeNodeAllocator,
 		listNodeAllocator:           listNodeAllocator,
@@ -154,7 +155,8 @@ func New(config Config) (*DB, error) {
 type DB struct {
 	config                 Config
 	persistentAllocationCh chan []types.PhysicalAddress
-	singularityNode        types.SingularityNode
+	singularityNode        *types.SingularityNode
+	singularityNodePointer *types.Pointer
 	snapshotInfo           types.SnapshotInfo
 	snapshots              *space.Space[types.SnapshotID, types.SnapshotInfo]
 	spaces                 *space.Space[types.SpaceID, types.SpaceInfo]
@@ -361,12 +363,6 @@ func (db *DB) DeleteSnapshot(
 
 // Commit commits current snapshot and returns next one.
 func (db *DB) Commit(pool *alloc.Pool[types.LogicalAddress]) error {
-	doneCh := make(chan struct{})
-	db.eventCh <- types.DBCommitEvent{
-		DoneCh: doneCh,
-	}
-	<-doneCh
-
 	if len(db.spacesToCommit) > 0 {
 		spaces := make([]types.SpaceID, 0, len(db.spacesToCommit))
 		for spaceID := range db.spacesToCommit {
@@ -404,20 +400,16 @@ func (db *DB) Commit(pool *alloc.Pool[types.LogicalAddress]) error {
 		return err
 	}
 
-	doneCh = make(chan struct{})
+	syncCh := make(chan struct{})
 	db.eventCh <- types.DBCommitEvent{
-		DoneCh: doneCh,
+		SingularityNodePointer: db.singularityNodePointer,
+		SyncCh:                 syncCh,
 	}
-	<-doneCh
-
-	*photon.FromPointer[types.SingularityNode](db.config.State.Node(0)) = db.singularityNode
+	<-syncCh
 
 	db.availableSnapshots[db.singularityNode.LastSnapshotID] = struct{}{}
 
 	return db.prepareNextSnapshot()
-
-	// FIXME (wojciech): Store singularity node
-	// FIXME (wojciech): Call Sync on DB file
 }
 
 // Close closed DB.
@@ -589,12 +581,14 @@ func (db *DB) processEvents(
 				listNode,
 			)
 		case types.DBCommitEvent:
-			ch := make(chan struct{}, 1)
+			syncCh := make(chan struct{}, 1)
 			storeRequestCh <- types.StoreRequest{
-				DoneCh: ch,
+				Revision: 0,
+				Pointer:  e.SingularityNodePointer,
+				SyncCh:   syncCh,
 			}
-			<-ch
-			close(e.DoneCh)
+			<-syncCh
+			close(e.SyncCh)
 		}
 	}
 	return errors.WithStack(ctx.Err())
@@ -666,25 +660,26 @@ func (db *DB) storeSpacePointerNodes(
 
 func (db *DB) processStoreRequests(ctx context.Context, storeRequestCh <-chan types.StoreRequest) error {
 	for req := range storeRequestCh {
-		if req.Pointer != nil {
-			header := photon.FromPointer[types.RevisionHeader](db.config.State.Node(req.Pointer.LogicalAddress))
-			revision := atomic.LoadUint64(&header.Revision)
+		header := photon.FromPointer[types.RevisionHeader](db.config.State.Node(req.Pointer.LogicalAddress))
+		revision := atomic.LoadUint64(&header.Revision)
 
-			if revision != req.Revision {
-				continue
-			}
-
-			if err := db.config.Store.Write(
-				req.Pointer.PhysicalAddress,
-				db.config.State.Bytes(req.Pointer.LogicalAddress),
-			); err != nil {
-				return err
-			}
-
+		if revision != req.Revision {
 			continue
 		}
 
-		req.DoneCh <- struct{}{}
+		if err := db.config.Store.Write(
+			req.Pointer.PhysicalAddress,
+			db.config.State.Bytes(req.Pointer.LogicalAddress),
+		); err != nil {
+			return err
+		}
+
+		if req.SyncCh != nil {
+			if err := db.config.Store.Sync(); err != nil {
+				return err
+			}
+			req.SyncCh <- struct{}{}
+		}
 	}
 	return errors.WithStack(ctx.Err())
 }

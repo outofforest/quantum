@@ -16,3 +16,8 @@ type DummyStore struct{}
 func (s *DummyStore) Write(_ types.PhysicalAddress, _ []byte) error {
 	return nil
 }
+
+// Sync does nothing.
+func (s *DummyStore) Sync() error {
+	return nil
+}

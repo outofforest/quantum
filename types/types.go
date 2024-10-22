@@ -84,7 +84,7 @@ type SnapshotInfo struct {
 
 // SingularityNode is the root of the store.
 type SingularityNode struct {
-	Version         uint64
+	RevisionHeader
 	FirstSnapshotID SnapshotID
 	LastSnapshotID  SnapshotID
 	SnapshotRoot    SpaceInfo
@@ -127,12 +127,13 @@ type ListDeallocationEvent struct {
 
 // DBCommitEvent is emitted to wait until all the events are processed before snapshot is committed.
 type DBCommitEvent struct {
-	DoneCh chan<- struct{}
+	SingularityNodePointer *Pointer
+	SyncCh                 chan<- struct{}
 }
 
 // StoreRequest is used to request writing a node to the store.
 type StoreRequest struct {
 	Revision uint64
 	Pointer  *Pointer
-	DoneCh   chan<- struct{}
+	SyncCh   chan<- struct{}
 }
