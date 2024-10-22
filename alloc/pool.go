@@ -24,7 +24,6 @@ type Pool[A Address] struct {
 	tapCh  <-chan []A
 	sinkCh chan<- []A
 
-	// FIXME (wojciech): Leak of allocated addresses when pool object is abandoned
 	pool    []A
 	release []A
 }

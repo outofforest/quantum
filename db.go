@@ -96,7 +96,6 @@ func New(config Config) (*DB, error) {
 		massSnapshotToNodeEntry:     mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
 		spacesToCommit:              map[types.SpaceID]SpaceToCommit{},
 		deallocationListsToCommit:   map[types.SnapshotID]ListToCommit{},
-		availableSnapshots:          map[types.SnapshotID]struct{}{},
 		eventCh:                     make(chan any, 100),
 		storeRequestCh:              make(chan types.StoreRequest, 500),
 		doneCh:                      make(chan struct{}),
@@ -152,6 +151,7 @@ func New(config Config) (*DB, error) {
 }
 
 // DB represents the database.
+// FIXME (wojciech): Need a mechanism to quit/fail Set (and any other) operation if Run exits.
 type DB struct {
 	config                 Config
 	persistentAllocationCh chan []types.PhysicalAddress
@@ -176,7 +176,6 @@ type DB struct {
 
 	spacesToCommit            map[types.SpaceID]SpaceToCommit
 	deallocationListsToCommit map[types.SnapshotID]ListToCommit
-	availableSnapshots        map[types.SnapshotID]struct{}
 
 	eventCh        chan any
 	storeRequestCh chan types.StoreRequest
@@ -199,6 +198,12 @@ func (db *DB) DeleteSnapshot(
 	volatilePool *alloc.Pool[types.LogicalAddress],
 	persistentPool *alloc.Pool[types.PhysicalAddress],
 ) error {
+	syncCh := make(chan struct{})
+	db.eventCh <- types.SyncEvent{
+		SyncCh: syncCh,
+	}
+	<-syncCh
+
 	snapshotInfoValue := db.snapshots.Get(snapshotID, db.pointerNode, db.snapshotInfoNode)
 	if !snapshotInfoValue.Exists() {
 		return errors.Errorf("snapshot %d does not exist", snapshotID)
@@ -207,7 +212,6 @@ func (db *DB) DeleteSnapshot(
 	if err := snapshotInfoValue.Delete(db.pointerNode, db.snapshotInfoNode); err != nil {
 		return err
 	}
-	delete(db.availableSnapshots, snapshotID)
 
 	snapshotInfo := snapshotInfoValue.Value()
 
@@ -447,8 +451,6 @@ func (db *DB) Commit(
 	}
 	<-syncCh
 
-	db.availableSnapshots[db.singularityNode.LastSnapshotID] = struct{}{}
-
 	return db.prepareNextSnapshot()
 }
 
@@ -585,6 +587,7 @@ func (db *DB) processEvents(
 				Revision: revision,
 				Pointer:  e.Pointer,
 			}
+
 		case types.SpaceDataNodeDeallocationEvent:
 			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.LogicalAddress))
 
@@ -732,16 +735,8 @@ func (db *DB) deallocateNode(
 	persistentPool *alloc.Pool[types.PhysicalAddress],
 	node *list.Node,
 ) error {
-	if srcSnapshotID == db.singularityNode.LastSnapshotID {
-		volatilePool.Deallocate(pointer.LogicalAddress)
-		persistentPool.Deallocate(pointer.PhysicalAddress)
-
-		return nil
-	}
-
-	// FIXME (wojciech): It's not valid to blindly delete the node if snapshot exists.
-	// There still might be other ones in between referencing the node.
-	if _, exists := db.availableSnapshots[srcSnapshotID]; !exists {
+	if db.snapshotInfo.PreviousSnapshotID == db.singularityNode.LastSnapshotID ||
+		srcSnapshotID > db.snapshotInfo.PreviousSnapshotID {
 		volatilePool.Deallocate(pointer.LogicalAddress)
 		persistentPool.Deallocate(pointer.PhysicalAddress)
 

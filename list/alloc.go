@@ -75,7 +75,6 @@ func (na *NodeAllocator) project(nodeP unsafe.Pointer, node *Node) {
 type NodeHeader struct {
 	RevisionHeader types.RevisionHeader
 	SnapshotID     types.SnapshotID
-	Version        uint64 // FIXME (wojciech): move this to pointer
 	NumOfPointers  uint64
 	NumOfSideLists uint64
 }
