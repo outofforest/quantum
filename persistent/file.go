@@ -29,3 +29,8 @@ func (s *FileStore) Write(address types.PhysicalAddress, data []byte) error {
 	_, err := s.file.Write(data)
 	return errors.WithStack(err)
 }
+
+// Sync syncs pending writes.
+func (s *FileStore) Sync() error {
+	return errors.WithStack(s.file.Sync())
+}
