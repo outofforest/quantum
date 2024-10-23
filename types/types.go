@@ -74,7 +74,9 @@ type SnapshotInfo struct {
 	PreviousSnapshotID SnapshotID
 	NextSnapshotID     SnapshotID
 	DeallocationRoot   SpaceInfo
-	SpaceRoot          SpaceInfo
+
+	// FIXME (wojciech): Generalize this to any number of spaces.
+	Spaces [2]SpaceInfo
 }
 
 // SingularityNode is the root of the store.

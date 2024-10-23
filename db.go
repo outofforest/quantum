@@ -65,16 +65,6 @@ func New(config Config) (*DB, error) {
 		return nil, err
 	}
 
-	spaceInfoNodeAllocator, err := space.NewNodeAllocator[
-		space.DataNodeHeader,
-		types.DataItem[types.SpaceID, types.SpaceInfo],
-	](
-		config.State,
-	)
-	if err != nil {
-		return nil, err
-	}
-
 	listNodeAllocator, err := list.NewNodeAllocator(config.State)
 	if err != nil {
 		return nil, err
@@ -91,10 +81,8 @@ func New(config Config) (*DB, error) {
 		pointerNode:                 pointerNodeAllocator.NewNode(),
 		snapshotInfoNode:            snapshotInfoNodeAllocator.NewNode(),
 		snapshotToNodeNode:          snapshotToNodeNodeAllocator.NewNode(),
-		spaceInfoNode:               spaceInfoNodeAllocator.NewNode(),
 		listNode:                    listNodeAllocator.NewNode(),
 		massSnapshotToNodeEntry:     mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
-		spacesToCommit:              map[types.SpaceID]SpaceToCommit{},
 		deallocationListsToCommit:   map[types.SnapshotID]ListToCommit{},
 		eventCh:                     make(chan any, 100),
 		storeRequestCh:              make(chan types.StoreRequest, 1000),
@@ -113,19 +101,6 @@ func New(config Config) (*DB, error) {
 		PointerNodeAllocator: pointerNodeAllocator,
 		DataNodeAllocator:    snapshotInfoNodeAllocator,
 		MassEntry:            mass.New[space.Entry[types.SnapshotID, types.SnapshotInfo]](1000),
-		EventCh:              db.eventCh,
-	})
-
-	db.spaces = space.New[types.SpaceID, types.SpaceInfo](space.Config[types.SpaceID, types.SpaceInfo]{
-		HashMod: &db.snapshotInfo.SpaceRoot.HashMod,
-		SpaceRoot: types.ParentEntry{
-			State:   &db.snapshotInfo.SpaceRoot.State,
-			Pointer: &db.snapshotInfo.SpaceRoot.Pointer,
-		},
-		State:                config.State,
-		PointerNodeAllocator: pointerNodeAllocator,
-		DataNodeAllocator:    spaceInfoNodeAllocator,
-		MassEntry:            mass.New[space.Entry[types.SpaceID, types.SpaceInfo]](1000),
 		EventCh:              db.eventCh,
 	})
 
@@ -159,7 +134,6 @@ type DB struct {
 	singularityNodePointer *types.Pointer
 	snapshotInfo           types.SnapshotInfo
 	snapshots              *space.Space[types.SnapshotID, types.SnapshotInfo]
-	spaces                 *space.Space[types.SpaceID, types.SpaceInfo]
 	deallocationLists      *space.Space[types.SnapshotID, types.Pointer]
 
 	pointerNodeAllocator        *space.NodeAllocator[space.PointerNodeHeader, types.Pointer]
@@ -169,12 +143,10 @@ type DB struct {
 	pointerNode        *space.Node[space.PointerNodeHeader, types.Pointer]
 	snapshotInfoNode   *space.Node[space.DataNodeHeader, types.DataItem[types.SnapshotID, types.SnapshotInfo]]
 	snapshotToNodeNode *space.Node[space.DataNodeHeader, types.DataItem[types.SnapshotID, types.Pointer]]
-	spaceInfoNode      *space.Node[space.DataNodeHeader, types.DataItem[types.SpaceID, types.SpaceInfo]]
 	listNode           *list.Node
 
 	massSnapshotToNodeEntry *mass.Mass[space.Entry[types.SnapshotID, types.Pointer]]
 
-	spacesToCommit            map[types.SpaceID]SpaceToCommit
 	deallocationListsToCommit map[types.SnapshotID]ListToCommit
 
 	eventCh        chan any
@@ -366,35 +338,6 @@ func (db *DB) Commit(
 	volatilePool *alloc.Pool[types.LogicalAddress],
 	persistentPool *alloc.Pool[types.PhysicalAddress],
 ) error {
-	if len(db.spacesToCommit) > 0 {
-		syncCh := make(chan struct{})
-		db.eventCh <- types.SyncEvent{
-			SyncCh: syncCh,
-		}
-		<-syncCh
-
-		spaces := make([]types.SpaceID, 0, len(db.spacesToCommit))
-		for spaceID := range db.spacesToCommit {
-			spaces = append(spaces, spaceID)
-		}
-		sort.Slice(spaces, func(i, j int) bool { return spaces[i] < spaces[j] })
-
-		for _, spaceID := range spaces {
-			spaceToCommit := db.spacesToCommit[spaceID]
-			if *spaceToCommit.PInfo.Pointer == spaceToCommit.OriginalPointer {
-				continue
-			}
-			spaceToCommit.OriginalPointer = *spaceToCommit.PInfo.Pointer
-			if err := spaceToCommit.SpaceInfoValue.Set(types.SpaceInfo{
-				HashMod: *spaceToCommit.HashMod,
-				State:   *spaceToCommit.PInfo.State,
-				Pointer: *spaceToCommit.PInfo.Pointer,
-			}, volatilePool, db.pointerNode, db.spaceInfoNode); err != nil {
-				return err
-			}
-		}
-	}
-
 	if len(db.deallocationListsToCommit) > 0 {
 		syncCh := make(chan struct{})
 		db.eventCh <- types.SyncEvent{
@@ -770,12 +713,8 @@ func (db *DB) prepareNextSnapshot() error {
 		snapshotID = db.singularityNode.LastSnapshotID + 1
 	}
 
-	db.snapshotInfo = types.SnapshotInfo{
-		PreviousSnapshotID: db.singularityNode.LastSnapshotID,
-		NextSnapshotID:     snapshotID + 1,
-		SpaceRoot:          db.snapshotInfo.SpaceRoot,
-	}
-
+	db.snapshotInfo.PreviousSnapshotID = db.singularityNode.LastSnapshotID
+	db.snapshotInfo.NextSnapshotID = snapshotID + 1
 	db.singularityNode.LastSnapshotID = snapshotID
 
 	return nil
@@ -783,21 +722,10 @@ func (db *DB) prepareNextSnapshot() error {
 
 // GetSpace retrieves space from snapshot.
 func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V], error) {
-	s, exists := db.spacesToCommit[spaceID]
-	if !exists {
-		spaceInfoValue := db.spaces.Get(spaceID, db.pointerNode, db.spaceInfoNode)
-		spaceInfo := spaceInfoValue.Value()
-		s = SpaceToCommit{
-			HashMod: &spaceInfo.HashMod,
-			PInfo: types.ParentEntry{
-				State:   &spaceInfo.State,
-				Pointer: &spaceInfo.Pointer,
-			},
-			OriginalPointer: spaceInfo.Pointer,
-			SpaceInfoValue:  spaceInfoValue,
-		}
-		db.spacesToCommit[spaceID] = s
+	if spaceID >= types.SpaceID(len(db.snapshotInfo.Spaces)) {
+		return nil, errors.Errorf("space %d is not defined", spaceID)
 	}
+	spaceInfo := &db.snapshotInfo.Spaces[spaceID]
 
 	dataNodeAllocator, err := space.NewNodeAllocator[space.DataNodeHeader, types.DataItem[K, V]](db.config.State)
 	if err != nil {
@@ -805,8 +733,11 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 	}
 
 	return space.New[K, V](space.Config[K, V]{
-		HashMod:              s.HashMod,
-		SpaceRoot:            s.PInfo,
+		HashMod: &spaceInfo.HashMod,
+		SpaceRoot: types.ParentEntry{
+			State:   &spaceInfo.State,
+			Pointer: &spaceInfo.Pointer,
+		},
 		State:                db.config.State,
 		EventCh:              db.eventCh,
 		PointerNodeAllocator: db.pointerNodeAllocator,
