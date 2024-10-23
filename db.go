@@ -97,7 +97,7 @@ func New(config Config) (*DB, error) {
 		spacesToCommit:              map[types.SpaceID]SpaceToCommit{},
 		deallocationListsToCommit:   map[types.SnapshotID]ListToCommit{},
 		eventCh:                     make(chan any, 100),
-		storeRequestCh:              make(chan types.StoreRequest, 500),
+		storeRequestCh:              make(chan types.StoreRequest, 1000),
 		doneCh:                      make(chan struct{}),
 	}
 

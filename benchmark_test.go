@@ -21,6 +21,7 @@ import (
 // echo 70 | sudo tee /proc/sys/vm/nr_hugepages
 // go test -benchtime=1x -bench=. -run=^$ -cpuprofile profile.out
 // go tool pprof -http="localhost:8000" pprofbin ./profile.out
+// go test -c -o bench ./benchmark_test.go
 
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
