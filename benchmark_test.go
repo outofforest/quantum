@@ -71,13 +71,14 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			var store persistent.Store
 			var storeCloseFunc func()
 
+			//nolint:ineffassign,wastedassign
 			store, storeCloseFunc, err = persistent.NewFileStore(file, size)
 			if err != nil {
 				panic(err)
 			}
 			defer storeCloseFunc()
 
-			// store = persistent.NewDummyStore()
+			store = persistent.NewDummyStore()
 
 			db, err := quantum.New(quantum.Config{
 				State: state,
