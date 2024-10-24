@@ -12,7 +12,7 @@ import (
 type Config struct {
 	ListRoot       *types.Pointer
 	State          *alloc.State
-	NodeAllocator  *NodeAllocator
+	NodeAssistant  *NodeAssistant
 	StoreRequestCh chan<- types.StoreRequest
 }
 
@@ -37,10 +37,11 @@ func (l *List) Add(
 	node *Node,
 ) error {
 	if l.config.ListRoot.LogicalAddress == 0 {
-		newNodeAddress, err := l.config.NodeAllocator.Allocate(volatilePool, node)
+		newNodeAddress, err := volatilePool.Allocate()
 		if err != nil {
 			return err
 		}
+		l.config.NodeAssistant.Project(newNodeAddress, node)
 
 		node.Header.SnapshotID = snapshotID
 		revision := atomic.AddUint64(&node.Header.RevisionHeader.Revision, 1)
@@ -63,7 +64,7 @@ func (l *List) Add(
 		return nil
 	}
 
-	l.config.NodeAllocator.Get(l.config.ListRoot.LogicalAddress, node)
+	l.config.NodeAssistant.Project(l.config.ListRoot.LogicalAddress, node)
 	if node.Header.NumOfPointers+node.Header.NumOfSideLists < uint64(len(node.Pointers)) {
 		if node.Header.SnapshotID != snapshotID {
 			node.Header.SnapshotID = snapshotID
@@ -89,10 +90,11 @@ func (l *List) Add(
 		return nil
 	}
 
-	newNodeAddress, err := l.config.NodeAllocator.Allocate(volatilePool, node)
+	newNodeAddress, err := volatilePool.Allocate()
 	if err != nil {
 		return err
 	}
+	l.config.NodeAssistant.Project(newNodeAddress, node)
 
 	node.Header.SnapshotID = snapshotID
 	revision := atomic.AddUint64(&node.Header.RevisionHeader.Revision, 1)
@@ -130,7 +132,7 @@ func (l *List) Attach(
 		return nil
 	}
 
-	l.config.NodeAllocator.Get(l.config.ListRoot.LogicalAddress, node)
+	l.config.NodeAssistant.Project(l.config.ListRoot.LogicalAddress, node)
 	if node.Header.NumOfPointers+node.Header.NumOfSideLists < uint64(len(node.Pointers)) {
 		if node.Header.SnapshotID != snapshotID {
 			node.Header.SnapshotID = snapshotID
@@ -156,10 +158,11 @@ func (l *List) Attach(
 		return nil
 	}
 
-	newNodeAddress, err := l.config.NodeAllocator.Allocate(volatilePool, node)
+	newNodeAddress, err := volatilePool.Allocate()
 	if err != nil {
 		return err
 	}
+	l.config.NodeAssistant.Project(newNodeAddress, node)
 
 	node.Header.SnapshotID = snapshotID
 	revision := atomic.AddUint64(&node.Header.RevisionHeader.Revision, 1)
@@ -199,7 +202,7 @@ func (l *List) Iterator(node *Node) func(func(types.Pointer) bool) {
 			pointer := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 
-			l.config.NodeAllocator.Get(pointer.LogicalAddress, node)
+			l.config.NodeAssistant.Project(pointer.LogicalAddress, node)
 			for i := range node.Header.NumOfPointers {
 				if !yield(node.Pointers[i]) {
 					return
@@ -233,7 +236,7 @@ func (l *List) Nodes(node *Node) []types.LogicalAddress {
 		stack = stack[:len(stack)-1]
 		nodes = append(nodes, pointer.LogicalAddress)
 
-		l.config.NodeAllocator.Get(pointer.LogicalAddress, node)
+		l.config.NodeAssistant.Project(pointer.LogicalAddress, node)
 		stack = append(stack, node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists:]...)
 	}
 }
@@ -243,7 +246,7 @@ func Deallocate(
 	listRoot types.Pointer,
 	volatilePool *alloc.Pool[types.LogicalAddress],
 	persistentPool *alloc.Pool[types.PhysicalAddress],
-	nodeAllocator *NodeAllocator,
+	nodeAssistant *NodeAssistant,
 	node *Node,
 ) {
 	if listRoot.LogicalAddress == 0 {
@@ -263,7 +266,7 @@ func Deallocate(
 		stackLen--
 		pointer := stack[stackLen]
 
-		nodeAllocator.Get(pointer.LogicalAddress, node)
+		nodeAssistant.Project(pointer.LogicalAddress, node)
 		for i := range node.Header.NumOfPointers {
 			// We don't deallocate from volatile pool here, because those nodes are still used by next revisions.
 			persistentPool.Deallocate(node.Pointers[i].PhysicalAddress)
@@ -281,7 +284,7 @@ func Deallocate(
 				listRoot,
 				volatilePool,
 				persistentPool,
-				nodeAllocator,
+				nodeAssistant,
 				node,
 			)
 		}

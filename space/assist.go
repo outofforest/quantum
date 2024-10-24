@@ -10,8 +10,8 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-// NewNodeAllocator creates new space node allocator.
-func NewNodeAllocator[H, T comparable](state *alloc.State) (*NodeAllocator[H, T], error) {
+// NewNodeAssistant creates new space node assistant.
+func NewNodeAssistant[H, T comparable](state *alloc.State) (*NodeAssistant[H, T], error) {
 	nodeSize := uintptr(state.NodeSize())
 
 	var h H
@@ -39,7 +39,7 @@ func NewNodeAllocator[H, T comparable](state *alloc.State) (*NodeAllocator[H, T]
 		return nil, errors.New("node size is too small")
 	}
 
-	return &NodeAllocator[H, T]{
+	return &NodeAssistant[H, T]{
 		state:       state,
 		numOfItems:  numOfItems,
 		itemSize:    itemSize,
@@ -48,8 +48,8 @@ func NewNodeAllocator[H, T comparable](state *alloc.State) (*NodeAllocator[H, T]
 	}, nil
 }
 
-// NodeAllocator converts nodes from bytes to space objects.
-type NodeAllocator[H, T comparable] struct {
+// NodeAssistant converts nodes from bytes to space objects.
+type NodeAssistant[H, T comparable] struct {
 	state *alloc.State
 
 	numOfItems  uintptr
@@ -59,48 +59,29 @@ type NodeAllocator[H, T comparable] struct {
 }
 
 // NewNode initializes new node.
-func (na *NodeAllocator[H, T]) NewNode() *Node[H, T] {
+func (ns *NodeAssistant[H, T]) NewNode() *Node[H, T] {
 	return &Node[H, T]{
-		numOfItems: na.numOfItems,
-		itemSize:   na.itemSize,
+		numOfItems: ns.numOfItems,
+		itemSize:   ns.itemSize,
 	}
-}
-
-// FIXME (wojciech): Get and allocate might be called directly on State. Here I just need Project.
-
-// Get returns object for node.
-func (na *NodeAllocator[H, T]) Get(nodeAddress types.LogicalAddress, node *Node[H, T]) {
-	na.project(na.state.Node(nodeAddress), node)
-}
-
-// Allocate allocates new object.
-func (na *NodeAllocator[H, T]) Allocate(
-	pool *alloc.Pool[types.LogicalAddress],
-	node *Node[H, T],
-) (types.LogicalAddress, error) {
-	nodeAddress, err := pool.Allocate()
-	if err != nil {
-		return 0, err
-	}
-
-	na.project(na.state.Node(nodeAddress), node)
-	return nodeAddress, nil
 }
 
 // Index returns index from hash.
-func (na *NodeAllocator[H, T]) Index(hash types.Hash) uintptr {
-	return uintptr(hash) % na.numOfItems
+func (ns *NodeAssistant[H, T]) Index(hash types.Hash) uintptr {
+	return uintptr(hash) % ns.numOfItems
 }
 
 // Shift shifts bits in hash.
-func (na *NodeAllocator[H, T]) Shift(hash types.Hash) types.Hash {
-	return hash / types.Hash(na.numOfItems)
+func (ns *NodeAssistant[H, T]) Shift(hash types.Hash) types.Hash {
+	return hash / types.Hash(ns.numOfItems)
 }
 
-func (na *NodeAllocator[H, T]) project(nodeP unsafe.Pointer, node *Node[H, T]) {
+// Project projects node bytes to its structure.
+func (ns *NodeAssistant[H, T]) Project(nodeAddress types.LogicalAddress, node *Node[H, T]) {
+	nodeP := ns.state.Node(nodeAddress)
 	node.Header = photon.FromPointer[H](nodeP)
-	node.statesP = unsafe.Add(nodeP, na.stateOffset)
-	node.itemsP = unsafe.Add(nodeP, na.itemOffset)
+	node.statesP = unsafe.Add(nodeP, ns.stateOffset)
+	node.itemsP = unsafe.Add(nodeP, ns.itemOffset)
 }
 
 // PointerNodeHeader is the header of pointer node.

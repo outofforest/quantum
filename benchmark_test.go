@@ -112,12 +112,12 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			}
 
 			for i := 0; i < numOfAddresses; i += 2 {
-				v := s.Get(accounts[i], pointerNode, dataNode)
+				v := s.Find(accounts[i], pointerNode, dataNode)
 				if err := v.Set(2*balance, volatilePool, pointerNode, dataNode); err != nil {
 					panic(err)
 				}
 
-				// v = s.Get(accounts[i])
+				// v = s.Find(accounts[i])
 				// require.Equal(b, accountBalance(2*balance), v.Value())
 			}
 
@@ -137,8 +137,8 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 					senderAddress := accounts[i]
 					recipientAddress := accounts[i+1]
 
-					senderBalance := s.Get(senderAddress, pointerNode, dataNode)
-					recipientBalance := s.Get(recipientAddress, pointerNode, dataNode)
+					senderBalance := s.Find(senderAddress, pointerNode, dataNode)
+					recipientBalance := s.Find(recipientAddress, pointerNode, dataNode)
 
 					if err := senderBalance.Set(
 						senderBalance.Value()-balance,
@@ -175,7 +175,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			fmt.Println(s.Stats(pointerNode))
 
 			for _, addr := range accounts {
-				require.Equal(b, accountBalance(balance), s.Get(addr, pointerNode, dataNode).Value())
+				require.Equal(b, accountBalance(balance), s.Find(addr, pointerNode, dataNode).Value())
 			}
 		}()
 	}
