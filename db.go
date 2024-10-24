@@ -569,14 +569,11 @@ func (db *DB) processEvents(
 		case types.SyncEvent:
 			close(e.SyncCh)
 		case types.DBCommitEvent:
-			syncCh := make(chan struct{}, 1)
 			storeRequestCh <- types.StoreRequest{
 				Revision: 0,
 				Pointer:  e.SingularityNodePointer,
-				SyncCh:   syncCh,
+				SyncCh:   e.SyncCh,
 			}
-			<-syncCh
-			close(e.SyncCh)
 		}
 	}
 	return errors.WithStack(ctx.Err())
