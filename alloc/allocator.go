@@ -6,7 +6,7 @@ import (
 
 // Address defines accepted address types.
 type Address interface {
-	types.LogicalAddress | types.PhysicalAddress
+	types.VolatileAddress | types.PersistentAddress
 }
 
 // NewAllocationCh creates channel containing allocatable addresses.

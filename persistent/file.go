@@ -33,7 +33,7 @@ type FileStore struct {
 }
 
 // Write writes data to the store.
-func (s *FileStore) Write(address types.PhysicalAddress, data []byte) error {
+func (s *FileStore) Write(address types.PersistentAddress, data []byte) error {
 	copy(s.data[address:], data)
 	return nil
 }

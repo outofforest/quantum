@@ -13,7 +13,7 @@ func NewDummyStore() *DummyStore {
 type DummyStore struct{}
 
 // Write is a no-op implementation.
-func (s *DummyStore) Write(_ types.PhysicalAddress, _ []byte) error {
+func (s *DummyStore) Write(_ types.PersistentAddress, _ []byte) error {
 	return nil
 }
 
