@@ -68,45 +68,51 @@ func (s *Space[K, V]) Get(
 }
 
 // Iterator returns iterator iterating over items in space.
-// FIXME (wojciech): Iterator should return Value[K, V] objects.
 func (s *Space[K, V]) Iterator(
 	pointerNode *Node[PointerNodeHeader, types.Pointer],
 	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
-) func(func(types.DataItem[K, V]) bool) {
-	return func(yield func(item types.DataItem[K, V]) bool) {
-		// FIXME (wojciech): avoid heap allocations
-		stack := []types.ParentEntry{s.config.SpaceRoot}
+) func(func(item *types.DataItem[K, V]) bool) {
+	return func(yield func(item *types.DataItem[K, V]) bool) {
+		s.iterate(
+			pointerNode,
+			dataNode,
+			s.config.SpaceRoot,
+			yield,
+		)
+	}
+}
 
-		for {
-			if len(stack) == 0 {
-				return
+func (s *Space[K, V]) iterate(
+	pointerNode *Node[PointerNodeHeader, types.Pointer],
+	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+	pEntry types.ParentEntry,
+	yield func(item *types.DataItem[K, V]) bool,
+) {
+	switch *pEntry.State {
+	case types.StatePointer:
+		s.config.PointerNodeAllocator.Get(pEntry.Pointer.LogicalAddress, pointerNode)
+		for item, state := range pointerNode.Iterator() {
+			if *state == types.StateFree {
+				continue
 			}
 
-			pEntry := stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
-
-			switch *pEntry.State {
-			case types.StateData:
-				s.config.DataNodeAllocator.Get(pEntry.Pointer.LogicalAddress, dataNode)
-				for item, state := range dataNode.Iterator() {
-					if *state != types.StateData {
-						continue
-					}
-					if !yield(*item) {
-						return
-					}
-				}
-			case types.StatePointer:
-				s.config.PointerNodeAllocator.Get(pEntry.Pointer.LogicalAddress, pointerNode)
-				for item, state := range pointerNode.Iterator() {
-					if *state == types.StateFree {
-						continue
-					}
-					stack = append(stack, types.ParentEntry{
-						State:   state,
-						Pointer: item,
-					})
-				}
+			s.iterate(pointerNode,
+				dataNode,
+				types.ParentEntry{
+					State:   state,
+					Pointer: item,
+				},
+				yield,
+			)
+		}
+	case types.StateData:
+		s.config.DataNodeAllocator.Get(pEntry.Pointer.LogicalAddress, dataNode)
+		for item, state := range dataNode.Iterator() {
+			if *state != types.StateData {
+				continue
+			}
+			if !yield(item) {
+				return
 			}
 		}
 	}
@@ -626,7 +632,6 @@ func testHash(hash types.Hash) types.Hash {
 
 // Deallocate deallocates all nodes used by the space.
 func Deallocate(
-	state *alloc.State,
 	spaceRoot types.ParentEntry,
 	volatilePool *alloc.Pool[types.LogicalAddress],
 	persistentPool *alloc.Pool[types.PhysicalAddress],
@@ -642,28 +647,26 @@ func Deallocate(
 		return
 	}
 
-	// FIXME (wojciech): Optimize heap allocations
-	stack := []*types.Pointer{spaceRoot.Pointer}
+	deallocatePointerNode(spaceRoot.Pointer, volatilePool, persistentPool, pointerNodeAllocator, pointerNode)
+}
 
-	for {
-		if len(stack) == 0 {
-			return
+func deallocatePointerNode(
+	pointer *types.Pointer,
+	volatilePool *alloc.Pool[types.LogicalAddress],
+	persistentPool *alloc.Pool[types.PhysicalAddress],
+	pointerNodeAllocator *NodeAllocator[PointerNodeHeader, types.Pointer],
+	pointerNode *Node[PointerNodeHeader, types.Pointer],
+) {
+	pointerNodeAllocator.Get(pointer.LogicalAddress, pointerNode)
+	for p, state := range pointerNode.Iterator() {
+		switch *state {
+		case types.StateData:
+			volatilePool.Deallocate(pointer.LogicalAddress)
+			persistentPool.Deallocate(p.PhysicalAddress)
+		case types.StatePointer:
+			deallocatePointerNode(p, volatilePool, persistentPool, pointerNodeAllocator, pointerNode)
 		}
-
-		pointer := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-
-		pointerNodeAllocator.Get(pointer.LogicalAddress, pointerNode)
-		for p, state := range pointerNode.Iterator() {
-			switch *state {
-			case types.StateData:
-				volatilePool.Deallocate(pointer.LogicalAddress)
-				persistentPool.Deallocate(p.PhysicalAddress)
-			case types.StatePointer:
-				stack = append(stack, p)
-			}
-		}
-		volatilePool.Deallocate(pointer.LogicalAddress)
-		persistentPool.Deallocate(pointer.PhysicalAddress)
 	}
+	volatilePool.Deallocate(pointer.LogicalAddress)
+	persistentPool.Deallocate(pointer.PhysicalAddress)
 }

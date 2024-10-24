@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 
 	"github.com/pkg/errors"
-	"github.com/samber/lo"
 
 	"github.com/outofforest/mass"
 	"github.com/outofforest/parallel"
@@ -183,6 +182,7 @@ func (db *DB) DeleteSnapshot(
 	snapshotInfo := snapshotInfoValue.Value()
 
 	var nextSnapshotInfo *types.SnapshotInfo
+	var nextDeallocationListRoot types.ParentEntry
 	var nextDeallocationLists *space.Space[types.SnapshotID, types.Pointer]
 	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
 		nextSnapshotInfoValue := db.snapshots.Get(snapshotInfo.NextSnapshotID, db.pointerNode, db.snapshotInfoNode)
@@ -192,13 +192,14 @@ func (db *DB) DeleteSnapshot(
 		tmpNextSnapshotInfo := nextSnapshotInfoValue.Value()
 		nextSnapshotInfo = &tmpNextSnapshotInfo
 
+		nextDeallocationListRoot = types.ParentEntry{
+			State:   &nextSnapshotInfo.DeallocationRoot.State,
+			Pointer: &nextSnapshotInfo.DeallocationRoot.Pointer,
+		}
 		nextDeallocationLists = space.New[types.SnapshotID, types.Pointer](
 			space.Config[types.SnapshotID, types.Pointer]{
-				HashMod: &nextSnapshotInfo.DeallocationRoot.HashMod,
-				SpaceRoot: types.ParentEntry{
-					State:   &nextSnapshotInfo.DeallocationRoot.State,
-					Pointer: &nextSnapshotInfo.DeallocationRoot.Pointer,
-				},
+				HashMod:              &nextSnapshotInfo.DeallocationRoot.HashMod,
+				SpaceRoot:            nextDeallocationListRoot,
 				State:                db.config.State,
 				PointerNodeAllocator: db.pointerNodeAllocator,
 				DataNodeAllocator:    db.snapshotToNodeNodeAllocator,
@@ -208,35 +209,20 @@ func (db *DB) DeleteSnapshot(
 		)
 	} else {
 		nextSnapshotInfo = &db.snapshotInfo
+		nextDeallocationListRoot = types.ParentEntry{
+			State:   &db.snapshotInfo.DeallocationRoot.State,
+			Pointer: &db.snapshotInfo.DeallocationRoot.Pointer,
+		}
 		nextDeallocationLists = db.deallocationLists
 	}
 
-	var startSnapshotID types.SnapshotID
-	if snapshotID != db.singularityNode.FirstSnapshotID {
-		startSnapshotID = snapshotInfo.PreviousSnapshotID + 1
-	}
-	for snapshotItem := range nextDeallocationLists.Iterator(db.pointerNode, db.snapshotToNodeNode) {
-		if snapshotItem.Key < startSnapshotID || snapshotItem.Key > snapshotID {
-			continue
-		}
-
-		db.eventCh <- types.ListDeallocationEvent{
-			ListRoot: snapshotItem.Value,
-		}
-
-		nextDeallocationListValue := nextDeallocationLists.Get(snapshotItem.Key, db.pointerNode, db.snapshotToNodeNode)
-		if err := nextDeallocationListValue.Delete(db.pointerNode, db.snapshotToNodeNode); err != nil {
-			return err
-		}
-	}
-
 	deallocationListsRoot := types.ParentEntry{
-		State:   lo.ToPtr(snapshotInfo.DeallocationRoot.State),
-		Pointer: lo.ToPtr(snapshotInfo.DeallocationRoot.Pointer),
+		State:   &snapshotInfo.DeallocationRoot.State,
+		Pointer: &snapshotInfo.DeallocationRoot.Pointer,
 	}
 	deallocationLists := space.New[types.SnapshotID, types.Pointer](
 		space.Config[types.SnapshotID, types.Pointer]{
-			HashMod:              lo.ToPtr(snapshotInfo.DeallocationRoot.HashMod),
+			HashMod:              &snapshotInfo.DeallocationRoot.HashMod,
 			SpaceRoot:            deallocationListsRoot,
 			State:                db.config.State,
 			PointerNodeAllocator: db.pointerNodeAllocator,
@@ -245,18 +231,30 @@ func (db *DB) DeleteSnapshot(
 		},
 	)
 
-	for snapshotItem := range deallocationLists.Iterator(db.pointerNode, db.snapshotToNodeNode) {
-		nextDeallocationListValue := nextDeallocationLists.Get(snapshotItem.Key, db.pointerNode, db.snapshotToNodeNode)
-		nextListNodeAddress := nextDeallocationListValue.Value()
-		newNextListNodeAddress := nextListNodeAddress
-		nextList := list.New(list.Config{
-			ListRoot:       &newNextListNodeAddress,
+	var startSnapshotID types.SnapshotID
+	if snapshotID != db.singularityNode.FirstSnapshotID {
+		startSnapshotID = snapshotInfo.PreviousSnapshotID + 1
+	}
+	for nextDeallocSnapshot := range nextDeallocationLists.Iterator(db.pointerNode, db.snapshotToNodeNode) {
+		if nextDeallocSnapshot.Key >= startSnapshotID && nextDeallocSnapshot.Key <= snapshotID {
+			db.eventCh <- types.ListDeallocationEvent{
+				ListRoot: nextDeallocSnapshot.Value,
+			}
+
+			continue
+		}
+
+		deallocationListValue := deallocationLists.Get(nextDeallocSnapshot.Key, db.pointerNode, db.snapshotToNodeNode)
+		listNodeAddress := deallocationListValue.Value()
+		newListNodeAddress := listNodeAddress
+		list := list.New(list.Config{
+			ListRoot:       &newListNodeAddress,
 			State:          db.config.State,
 			NodeAllocator:  db.listNodeAllocator,
 			StoreRequestCh: db.storeRequestCh,
 		})
-		if err := nextList.Attach(
-			snapshotItem.Value,
+		if err := list.Attach(
+			nextDeallocSnapshot.Value,
 			db.singularityNode.LastSnapshotID,
 			volatilePool,
 			persistentPool,
@@ -264,9 +262,9 @@ func (db *DB) DeleteSnapshot(
 		); err != nil {
 			return err
 		}
-		if newNextListNodeAddress != nextListNodeAddress {
-			if err := nextDeallocationListValue.Set(
-				newNextListNodeAddress,
+		if newListNodeAddress != listNodeAddress {
+			if err := deallocationListValue.Set(
+				newListNodeAddress,
 				volatilePool,
 				db.pointerNode,
 				db.snapshotToNodeNode,
@@ -276,8 +274,10 @@ func (db *DB) DeleteSnapshot(
 		}
 	}
 
+	nextSnapshotInfo.DeallocationRoot = snapshotInfo.DeallocationRoot
+
 	db.eventCh <- types.SpaceDeallocationEvent{
-		SpaceRoot: deallocationListsRoot,
+		SpaceRoot: nextDeallocationListRoot,
 	}
 
 	if snapshotID == db.singularityNode.FirstSnapshotID {
@@ -552,7 +552,6 @@ func (db *DB) processEvents(
 			}
 		case types.SpaceDeallocationEvent:
 			space.Deallocate(
-				db.config.State,
 				e.SpaceRoot,
 				volatilePool,
 				persistentPool,

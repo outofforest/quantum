@@ -9,7 +9,6 @@ require (
 	github.com/outofforest/parallel v0.2.3
 	github.com/outofforest/photon v0.6.0
 	github.com/pkg/errors v0.9.1
-	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/sys v0.0.0-20210510120138-977fb7262007
 )
@@ -17,6 +16,7 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/samber/lo v1.47.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
