@@ -560,7 +560,6 @@ func (db *DB) processEvents(
 			)
 		case types.ListDeallocationEvent:
 			list.Deallocate(
-				db.config.State,
 				e.ListRoot,
 				volatilePool,
 				persistentPool,

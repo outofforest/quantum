@@ -240,7 +240,6 @@ func (l *List) Nodes(node *Node) []types.LogicalAddress {
 
 // Deallocate deallocates nodes referenced by the list.
 func Deallocate(
-	state *alloc.State,
 	listRoot types.Pointer,
 	volatilePool *alloc.Pool[types.LogicalAddress],
 	persistentPool *alloc.Pool[types.PhysicalAddress],
@@ -251,15 +250,18 @@ func Deallocate(
 		return
 	}
 
-	// FIXME (wojciech): Optimize heap allocations.
-	stack := []types.Pointer{listRoot}
+	const maxStackSize = 5
+
+	stack := [maxStackSize]types.Pointer{listRoot}
+	stackLen := 1
+
 	for {
-		if len(stack) == 0 {
+		if stackLen == 0 {
 			return
 		}
 
-		pointer := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
+		stackLen--
+		pointer := stack[stackLen]
 
 		nodeAllocator.Get(pointer.LogicalAddress, node)
 		for i := range node.Header.NumOfPointers {
@@ -267,7 +269,23 @@ func Deallocate(
 			persistentPool.Deallocate(node.Pointers[i].PhysicalAddress)
 		}
 
-		stack = append(stack, node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists:]...)
+		for _, p := range node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists:] {
+			if stackLen < maxStackSize {
+				stack[stackLen] = p
+				stackLen++
+
+				continue
+			}
+
+			Deallocate(
+				listRoot,
+				volatilePool,
+				persistentPool,
+				nodeAllocator,
+				node,
+			)
+		}
+
 		volatilePool.Deallocate(pointer.LogicalAddress)
 		persistentPool.Deallocate(pointer.PhysicalAddress)
 	}
