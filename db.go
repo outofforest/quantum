@@ -330,6 +330,7 @@ func (db *DB) Commit(
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
 ) error {
+	//nolint:nestif
 	if len(db.deallocationListsToCommit) > 0 {
 		if err := db.sync(ctx); err != nil {
 			return err
