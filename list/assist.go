@@ -47,7 +47,7 @@ func (ns *NodeAssistant) NewNode() *Node {
 }
 
 // Project projects node bytes to its structure.
-func (ns *NodeAssistant) Project(nodeAddress types.LogicalAddress, node *Node) {
+func (ns *NodeAssistant) Project(nodeAddress types.VolatileAddress, node *Node) {
 	nodeP := ns.state.Node(nodeAddress)
 	node.Header = photon.FromPointer[NodeHeader](nodeP)
 	node.Pointers = photon.SliceFromPointer[types.Pointer](unsafe.Add(nodeP, ns.pointerOffset),

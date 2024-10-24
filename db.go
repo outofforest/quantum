@@ -71,7 +71,6 @@ func New(config Config) (*DB, error) {
 
 	db := &DB{
 		config:                      config,
-		persistentAllocationCh:      config.State.NewPhysicalAllocationCh(),
 		singularityNode:             photon.FromPointer[types.SingularityNode](config.State.Node(0)),
 		singularityNodePointer:      &types.Pointer{},
 		pointerNodeAssistant:        pointerNodeAssistant,
@@ -129,7 +128,6 @@ func New(config Config) (*DB, error) {
 // FIXME (wojciech): Need a mechanism to quit/fail Set (and any other) operation if Run exits.
 type DB struct {
 	config                 Config
-	persistentAllocationCh chan []types.PhysicalAddress
 	singularityNode        *types.SingularityNode
 	singularityNodePointer *types.Pointer
 	snapshotInfo           types.SnapshotInfo
@@ -155,20 +153,20 @@ type DB struct {
 }
 
 // NewVolatilePool creates new volatile allocation pool.
-func (db *DB) NewVolatilePool() *alloc.Pool[types.LogicalAddress] {
-	return db.config.State.NewPool()
+func (db *DB) NewVolatilePool() *alloc.Pool[types.VolatileAddress] {
+	return db.config.State.NewVolatilePool()
 }
 
 // NewPersistentPool creates new persistent allocation pool.
-func (db *DB) NewPersistentPool() *alloc.Pool[types.PhysicalAddress] {
-	return alloc.NewPool[types.PhysicalAddress](db.persistentAllocationCh, db.persistentAllocationCh)
+func (db *DB) NewPersistentPool() *alloc.Pool[types.PersistentAddress] {
+	return db.config.State.NewPersistentPool()
 }
 
 // DeleteSnapshot deletes snapshot.
 func (db *DB) DeleteSnapshot(
 	snapshotID types.SnapshotID,
-	volatilePool *alloc.Pool[types.LogicalAddress],
-	persistentPool *alloc.Pool[types.PhysicalAddress],
+	volatilePool *alloc.Pool[types.VolatileAddress],
+	persistentPool *alloc.Pool[types.PersistentAddress],
 ) error {
 	snapshotInfoValue := db.snapshots.Find(snapshotID, db.pointerNode, db.snapshotInfoNode)
 	if !snapshotInfoValue.Exists() {
@@ -330,15 +328,11 @@ func (db *DB) DeleteSnapshot(
 
 // Commit commits current snapshot and returns next one.
 func (db *DB) Commit(
-	volatilePool *alloc.Pool[types.LogicalAddress],
-	persistentPool *alloc.Pool[types.PhysicalAddress],
+	volatilePool *alloc.Pool[types.VolatileAddress],
+	persistentPool *alloc.Pool[types.PersistentAddress],
 ) error {
 	if len(db.deallocationListsToCommit) > 0 {
-		syncCh := make(chan struct{})
-		db.eventCh <- types.SyncEvent{
-			SyncCh: syncCh,
-		}
-		<-syncCh
+		db.sync()
 
 		lists := make([]types.SnapshotID, 0, len(db.deallocationListsToCommit))
 		for snapshotID := range db.deallocationListsToCommit {
@@ -389,12 +383,16 @@ func (db *DB) Commit(
 	}
 	<-syncCh
 
+	db.config.State.Commit()
+
 	return db.prepareNextSnapshot()
 }
 
 // Close closed DB.
 func (db *DB) Close() {
+	db.sync()
 	close(db.eventCh)
+
 	db.config.State.Close()
 
 	<-db.doneCh
@@ -580,13 +578,13 @@ func (db *DB) processEvents(
 }
 
 func (db *DB) storeSpacePointerNodes(
-	nodeAddress types.LogicalAddress,
+	nodeAddress types.VolatileAddress,
 	rootPointer *types.Pointer,
 	pointerNode *space.Node[space.PointerNodeHeader, types.Pointer],
 	parentPointerNode *space.Node[space.PointerNodeHeader, types.Pointer],
 	listNode *list.Node,
-	volatilePool *alloc.Pool[types.LogicalAddress],
-	persistentPool *alloc.Pool[types.PhysicalAddress],
+	volatilePool *alloc.Pool[types.VolatileAddress],
+	persistentPool *alloc.Pool[types.PersistentAddress],
 	storeRequestCh chan<- types.StoreRequest,
 	immediateDeallocation bool,
 ) error {
@@ -674,8 +672,8 @@ func (db *DB) processStoreRequests(ctx context.Context, storeRequestCh <-chan ty
 func (db *DB) deallocateNode(
 	pointer types.Pointer,
 	srcSnapshotID types.SnapshotID,
-	volatilePool *alloc.Pool[types.LogicalAddress],
-	persistentPool *alloc.Pool[types.PhysicalAddress],
+	volatilePool *alloc.Pool[types.VolatileAddress],
+	persistentPool *alloc.Pool[types.PersistentAddress],
 	node *list.Node,
 	immediateDeallocation bool,
 	volatileDeallocation bool,
@@ -725,6 +723,14 @@ func (db *DB) prepareNextSnapshot() error {
 	db.singularityNode.LastSnapshotID = snapshotID
 
 	return nil
+}
+
+func (db *DB) sync() {
+	syncCh := make(chan struct{})
+	db.eventCh <- types.SyncEvent{
+		SyncCh: syncCh,
+	}
+	<-syncCh
 }
 
 // GetSpace retrieves space from snapshot.

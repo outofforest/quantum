@@ -77,7 +77,7 @@ func (ns *NodeAssistant[H, T]) Shift(hash types.Hash) types.Hash {
 }
 
 // Project projects node bytes to its structure.
-func (ns *NodeAssistant[H, T]) Project(nodeAddress types.LogicalAddress, node *Node[H, T]) {
+func (ns *NodeAssistant[H, T]) Project(nodeAddress types.VolatileAddress, node *Node[H, T]) {
 	nodeP := ns.state.Node(nodeAddress)
 	node.Header = photon.FromPointer[H](nodeP)
 	node.statesP = unsafe.Add(nodeP, ns.stateOffset)
@@ -88,7 +88,7 @@ func (ns *NodeAssistant[H, T]) Project(nodeAddress types.LogicalAddress, node *N
 type PointerNodeHeader struct {
 	RevisionHeader    types.RevisionHeader
 	SnapshotID        types.SnapshotID
-	ParentNodeAddress types.LogicalAddress
+	ParentNodeAddress types.VolatileAddress
 	ParentNodeIndex   uintptr
 	HashMod           uint64
 }

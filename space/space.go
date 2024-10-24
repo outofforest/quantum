@@ -125,14 +125,14 @@ func (s *Space[K, V]) iterate(
 type pointerToAllocate struct {
 	Level    uint64
 	PEntry   types.ParentEntry
-	PAddress types.LogicalAddress
+	PAddress types.VolatileAddress
 	PIndex   uintptr
 }
 
 // AllocatePointers allocates specified levels of pointer nodes.
 func (s *Space[K, V]) AllocatePointers(
 	levels uint64,
-	pool *alloc.Pool[types.LogicalAddress],
+	pool *alloc.Pool[types.VolatileAddress],
 	pointerNode *Node[PointerNodeHeader, types.Pointer],
 ) error {
 	if *s.config.SpaceRoot.State != types.StateFree {
@@ -199,16 +199,16 @@ func (s *Space[K, V]) AllocatePointers(
 }
 
 // Nodes returns list of nodes used by the space.
-func (s *Space[K, V]) Nodes(pointerNode *Node[PointerNodeHeader, types.Pointer]) []types.LogicalAddress {
+func (s *Space[K, V]) Nodes(pointerNode *Node[PointerNodeHeader, types.Pointer]) []types.VolatileAddress {
 	switch *s.config.SpaceRoot.State {
 	case types.StateFree:
 		return nil
 	case types.StateData:
-		return []types.LogicalAddress{s.config.SpaceRoot.Pointer.LogicalAddress}
+		return []types.VolatileAddress{s.config.SpaceRoot.Pointer.LogicalAddress}
 	}
 
-	nodes := []types.LogicalAddress{}
-	stack := []types.LogicalAddress{s.config.SpaceRoot.Pointer.LogicalAddress}
+	nodes := []types.VolatileAddress{}
+	stack := []types.VolatileAddress{s.config.SpaceRoot.Pointer.LogicalAddress}
 
 	for {
 		if len(stack) == 0 {
@@ -245,9 +245,9 @@ func (s *Space[K, V]) Stats(pointerNode *Node[PointerNodeHeader, types.Pointer])
 		return 1, 0, 1
 	}
 
-	stack := []types.LogicalAddress{s.config.SpaceRoot.Pointer.LogicalAddress}
+	stack := []types.VolatileAddress{s.config.SpaceRoot.Pointer.LogicalAddress}
 
-	levels := map[types.LogicalAddress]uint64{
+	levels := map[types.VolatileAddress]uint64{
 		s.config.SpaceRoot.Pointer.LogicalAddress: 1,
 	}
 	var maxLevel, pointerNodes, dataNodes uint64
@@ -311,7 +311,7 @@ func (s *Space[K, V]) deleteValue(
 func (s *Space[K, V]) setValue(
 	v *Entry[K, V],
 	value V,
-	pool *alloc.Pool[types.LogicalAddress],
+	pool *alloc.Pool[types.VolatileAddress],
 	pointerNode *Node[PointerNodeHeader, types.Pointer],
 	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
 ) error {
@@ -339,7 +339,7 @@ func (s *Space[K, V]) setValue(
 
 func (s *Space[K, V]) set(
 	v *Entry[K, V],
-	pool *alloc.Pool[types.LogicalAddress],
+	pool *alloc.Pool[types.VolatileAddress],
 	pointerNode *Node[PointerNodeHeader, types.Pointer],
 	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
 ) error {
@@ -452,10 +452,10 @@ func (s *Space[K, V]) set(
 
 func (s *Space[K, V]) redistributeNode(
 	pEntry types.ParentEntry,
-	pAddress types.LogicalAddress,
+	pAddress types.VolatileAddress,
 	pIndex uintptr,
 	conflict bool,
-	pool *alloc.Pool[types.LogicalAddress],
+	pool *alloc.Pool[types.VolatileAddress],
 	pointerNode *Node[PointerNodeHeader, types.Pointer],
 	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
 ) error {
@@ -579,7 +579,7 @@ type Entry[K, V comparable] struct {
 	stateP   *types.State
 	exists   bool
 	pEntry   types.ParentEntry
-	pAddress types.LogicalAddress
+	pAddress types.VolatileAddress
 	pIndex   uintptr
 }
 
@@ -601,7 +601,7 @@ func (v *Entry[K, V]) Exists() bool {
 // Set sts value for entry.
 func (v *Entry[K, V]) Set(
 	value V,
-	pool *alloc.Pool[types.LogicalAddress],
+	pool *alloc.Pool[types.VolatileAddress],
 	pointerNode *Node[PointerNodeHeader, types.Pointer],
 	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
 ) error {
@@ -645,8 +645,8 @@ func testHash(hash types.Hash) types.Hash {
 // Deallocate deallocates all nodes used by the space.
 func Deallocate(
 	spaceRoot types.ParentEntry,
-	volatilePool *alloc.Pool[types.LogicalAddress],
-	persistentPool *alloc.Pool[types.PhysicalAddress],
+	volatilePool *alloc.Pool[types.VolatileAddress],
+	persistentPool *alloc.Pool[types.PersistentAddress],
 	pointerNodeAssistant *NodeAssistant[PointerNodeHeader, types.Pointer],
 	pointerNode *Node[PointerNodeHeader, types.Pointer],
 ) {
@@ -664,8 +664,8 @@ func Deallocate(
 
 func deallocatePointerNode(
 	pointer *types.Pointer,
-	volatilePool *alloc.Pool[types.LogicalAddress],
-	persistentPool *alloc.Pool[types.PhysicalAddress],
+	volatilePool *alloc.Pool[types.VolatileAddress],
+	persistentPool *alloc.Pool[types.PersistentAddress],
 	pointerNodeAssistant *NodeAssistant[PointerNodeHeader, types.Pointer],
 	pointerNode *Node[PointerNodeHeader, types.Pointer],
 ) {

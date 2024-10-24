@@ -32,8 +32,8 @@ type List struct {
 func (l *List) Add(
 	pointer types.Pointer,
 	snapshotID types.SnapshotID,
-	volatilePool *alloc.Pool[types.LogicalAddress],
-	persistentPool *alloc.Pool[types.PhysicalAddress],
+	volatilePool *alloc.Pool[types.VolatileAddress],
+	persistentPool *alloc.Pool[types.PersistentAddress],
 	node *Node,
 ) error {
 	if l.config.ListRoot.LogicalAddress == 0 {
@@ -123,8 +123,8 @@ func (l *List) Add(
 func (l *List) Attach(
 	pointer types.Pointer,
 	snapshotID types.SnapshotID,
-	volatilePool *alloc.Pool[types.LogicalAddress],
-	persistentPool *alloc.Pool[types.PhysicalAddress],
+	volatilePool *alloc.Pool[types.VolatileAddress],
+	persistentPool *alloc.Pool[types.PersistentAddress],
 	node *Node,
 ) error {
 	if l.config.ListRoot.LogicalAddress == 0 {
@@ -215,12 +215,12 @@ func (l *List) Iterator(node *Node) func(func(types.Pointer) bool) {
 }
 
 // Nodes returns list of nodes used by the list.
-func (l *List) Nodes(node *Node) []types.LogicalAddress {
+func (l *List) Nodes(node *Node) []types.VolatileAddress {
 	if l.config.ListRoot.LogicalAddress == 0 {
 		return nil
 	}
 
-	nodes := []types.LogicalAddress{}
+	nodes := []types.VolatileAddress{}
 	stack := []types.Pointer{*l.config.ListRoot}
 
 	for {
@@ -244,8 +244,8 @@ func (l *List) Nodes(node *Node) []types.LogicalAddress {
 // Deallocate deallocates nodes referenced by the list.
 func Deallocate(
 	listRoot types.Pointer,
-	volatilePool *alloc.Pool[types.LogicalAddress],
-	persistentPool *alloc.Pool[types.PhysicalAddress],
+	volatilePool *alloc.Pool[types.VolatileAddress],
+	persistentPool *alloc.Pool[types.PersistentAddress],
 	nodeAssistant *NodeAssistant,
 	node *Node,
 ) {
