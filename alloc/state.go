@@ -93,6 +93,14 @@ func (s *State) Bytes(nodeAddress types.VolatileAddress) []byte {
 // Run runs node eraser.
 func (s *State) Run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
+		spawn("watchdog", parallel.Fail, func(ctx context.Context) error {
+			<-ctx.Done()
+
+			close(s.volatileDeallocationCh)
+			close(s.persistentDeallocationPoolCh)
+
+			return errors.WithStack(ctx.Err())
+		})
 		spawn("volatileNodeEraser", parallel.Continue, func(ctx context.Context) error {
 			defer close(s.volatileAllocationCh)
 			return s.runVolatileBlockEraser(ctx, s.volatileDeallocationCh, s.volatileAllocationCh)
@@ -116,12 +124,7 @@ func (s *State) Commit() {
 	s.persistentDeallocationPoolCh <- nil
 }
 
-// Close closes the node eraser channel.
-func (s *State) Close() {
-	close(s.volatileDeallocationCh)
-	close(s.persistentDeallocationPoolCh)
-}
-
+// FIXME (wojciech): Implement "out of space" detector.
 func (s *State) runVolatileBlockEraser(
 	ctx context.Context,
 	deallocationCh <-chan []types.VolatileAddress,
@@ -182,6 +185,7 @@ loop:
 				}
 			}
 		default:
+			fmt.Println("-------------------------")
 			// If we are here it means there was no available pool in `allocationCh`.
 			return errors.New("out of space")
 		}

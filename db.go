@@ -84,7 +84,6 @@ func New(config Config) (*DB, error) {
 		deallocationListsToCommit:   map[types.SnapshotID]ListToCommit{},
 		eventCh:                     make(chan any, 100),
 		storeRequestCh:              make(chan types.StoreRequest, 1000),
-		doneCh:                      make(chan struct{}),
 	}
 
 	// Logical nodes might be deallocated immediately.
@@ -149,7 +148,6 @@ type DB struct {
 
 	eventCh        chan any
 	storeRequestCh chan types.StoreRequest
-	doneCh         chan struct{}
 }
 
 // NewVolatilePool creates new volatile allocation pool.
@@ -328,11 +326,15 @@ func (db *DB) DeleteSnapshot(
 
 // Commit commits current snapshot and returns next one.
 func (db *DB) Commit(
+	ctx context.Context,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
 ) error {
+	//nolint:nestif
 	if len(db.deallocationListsToCommit) > 0 {
-		db.sync()
+		if err := db.sync(ctx); err != nil {
+			return err
+		}
 
 		lists := make([]types.SnapshotID, 0, len(db.deallocationListsToCommit))
 		for snapshotID := range db.deallocationListsToCommit {
@@ -377,6 +379,7 @@ func (db *DB) Commit(
 	}
 
 	syncCh := make(chan struct{})
+	// FIXME (wojciech): Use RoundRobin for storing singularity node.
 	db.eventCh <- types.DBCommitEvent{
 		SingularityNodePointer: db.singularityNodePointer,
 		SyncCh:                 syncCh,
@@ -385,25 +388,29 @@ func (db *DB) Commit(
 
 	db.config.State.Commit()
 
-	return db.prepareNextSnapshot()
-}
+	if err := db.prepareNextSnapshot(); err != nil {
+		return err
+	}
 
-// Close closed DB.
-func (db *DB) Close() {
-	db.sync()
-	close(db.eventCh)
-
-	db.config.State.Close()
-
-	<-db.doneCh
+	return errors.WithStack(ctx.Err())
 }
 
 // Run runs db goroutines.
+// FIXME (wojciech): Test errors in goroutines.
 func (db *DB) Run(ctx context.Context) error {
-	defer close(db.doneCh)
-
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-		spawn("state", parallel.Continue, db.config.State.Run)
+		spawn("watchdog", parallel.Fail, func(ctx context.Context) error {
+			<-ctx.Done()
+
+			close(db.eventCh)
+			for range db.eventCh {
+			}
+			for range db.storeRequestCh {
+			}
+
+			return errors.WithStack(ctx.Err())
+		})
+		spawn("state", parallel.Fail, db.config.State.Run)
 		spawn("events", parallel.Continue, func(ctx context.Context) error {
 			defer close(db.storeRequestCh)
 
@@ -725,12 +732,24 @@ func (db *DB) prepareNextSnapshot() error {
 	return nil
 }
 
-func (db *DB) sync() {
+func (db *DB) sync(ctx context.Context) error {
 	syncCh := make(chan struct{})
-	db.eventCh <- types.SyncEvent{
+
+	select {
+	case <-ctx.Done():
+		return errors.WithStack(ctx.Err())
+	case db.eventCh <- types.SyncEvent{
 		SyncCh: syncCh,
+	}:
 	}
-	<-syncCh
+
+	select {
+	case <-ctx.Done():
+		return errors.WithStack(ctx.Err())
+	case <-syncCh:
+	}
+
+	return nil
 }
 
 // GetSpace retrieves space from snapshot.

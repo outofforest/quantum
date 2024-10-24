@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 
 	"github.com/outofforest/logger"
@@ -94,7 +95,12 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			group := parallel.NewGroup(ctx)
 			group.Spawn("db", parallel.Continue, db.Run)
 
-			defer db.Close()
+			defer func() {
+				group.Exit(nil)
+				if err := group.Wait(); err != nil && !errors.Is(err, context.Canceled) {
+					panic(err)
+				}
+			}()
 
 			volatilePool := db.NewVolatilePool()
 			persistentPool := db.NewPersistentPool()
@@ -127,7 +133,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			tx := 0
 			var snapshotID types.SnapshotID
 
-			_ = db.Commit(volatilePool, persistentPool)
+			if err := db.Commit(group.Context(), volatilePool, persistentPool); err != nil {
+				panic(err)
+			}
 
 			snapshotID++
 
@@ -159,7 +167,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 					tx++
 					if tx%txsPerCommit == 0 {
-						_ = db.Commit(volatilePool, persistentPool)
+						if err := db.Commit(group.Context(), volatilePool, persistentPool); err != nil {
+							panic(err)
+						}
 						snapshotID++
 
 						if snapshotID > 1 {
