@@ -16,13 +16,14 @@ const trials = 50
 
 // Config stores space configuration.
 type Config[K, V comparable] struct {
-	HashMod              *uint64
-	SpaceRoot            types.ParentEntry
-	State                *alloc.State
-	PointerNodeAllocator *NodeAllocator[PointerNodeHeader, types.Pointer]
-	DataNodeAllocator    *NodeAllocator[DataNodeHeader, types.DataItem[K, V]]
-	MassEntry            *mass.Mass[Entry[K, V]]
-	EventCh              chan<- any
+	HashMod               *uint64
+	SpaceRoot             types.ParentEntry
+	State                 *alloc.State
+	PointerNodeAllocator  *NodeAllocator[PointerNodeHeader, types.Pointer]
+	DataNodeAllocator     *NodeAllocator[DataNodeHeader, types.DataItem[K, V]]
+	MassEntry             *mass.Mass[Entry[K, V]]
+	EventCh               chan<- any
+	ImmediateDeallocation bool
 }
 
 // New creates new space.
@@ -158,8 +159,9 @@ func (s *Space[K, V]) AllocatePointers(
 
 		if pToAllocate.Level == levels {
 			s.config.EventCh <- types.SpacePointerNodeAllocatedEvent{
-				NodeAddress: pointerNodeAddress,
-				RootPointer: s.config.SpaceRoot.Pointer,
+				NodeAddress:           pointerNodeAddress,
+				RootPointer:           s.config.SpaceRoot.Pointer,
+				ImmediateDeallocation: s.config.ImmediateDeallocation,
 			}
 
 			continue
@@ -283,9 +285,10 @@ func (s *Space[K, V]) deleteValue(
 	if v.itemP.Hash == v.item.Hash && v.itemP.Key == v.item.Key {
 		*v.stateP = types.StateDeleted
 		s.config.EventCh <- types.SpaceDataNodeUpdatedEvent{
-			Pointer:      v.pEntry.Pointer,
-			PNodeAddress: v.pAddress,
-			RootPointer:  s.config.SpaceRoot.Pointer,
+			Pointer:               v.pEntry.Pointer,
+			PNodeAddress:          v.pAddress,
+			RootPointer:           s.config.SpaceRoot.Pointer,
+			ImmediateDeallocation: s.config.ImmediateDeallocation,
 		}
 		return nil
 	}
@@ -347,9 +350,10 @@ func (s *Space[K, V]) set(
 			v.exists = true
 
 			s.config.EventCh <- types.SpaceDataNodeAllocatedEvent{
-				Pointer:      v.pEntry.Pointer,
-				PNodeAddress: v.pAddress,
-				RootPointer:  s.config.SpaceRoot.Pointer,
+				Pointer:               v.pEntry.Pointer,
+				PNodeAddress:          v.pAddress,
+				RootPointer:           s.config.SpaceRoot.Pointer,
+				ImmediateDeallocation: s.config.ImmediateDeallocation,
 			}
 
 			return nil
@@ -367,9 +371,10 @@ func (s *Space[K, V]) set(
 					v.exists = true
 
 					s.config.EventCh <- types.SpaceDataNodeUpdatedEvent{
-						Pointer:      v.pEntry.Pointer,
-						PNodeAddress: v.pAddress,
-						RootPointer:  s.config.SpaceRoot.Pointer,
+						Pointer:               v.pEntry.Pointer,
+						PNodeAddress:          v.pAddress,
+						RootPointer:           s.config.SpaceRoot.Pointer,
+						ImmediateDeallocation: s.config.ImmediateDeallocation,
 					}
 
 					return nil
@@ -384,9 +389,10 @@ func (s *Space[K, V]) set(
 						v.exists = true
 
 						s.config.EventCh <- types.SpaceDataNodeUpdatedEvent{
-							Pointer:      v.pEntry.Pointer,
-							PNodeAddress: v.pAddress,
-							RootPointer:  s.config.SpaceRoot.Pointer,
+							Pointer:               v.pEntry.Pointer,
+							PNodeAddress:          v.pAddress,
+							RootPointer:           s.config.SpaceRoot.Pointer,
+							ImmediateDeallocation: s.config.ImmediateDeallocation,
 						}
 
 						return nil
@@ -485,7 +491,8 @@ func (s *Space[K, V]) redistributeNode(
 	}
 
 	s.config.EventCh <- types.SpaceDataNodeDeallocationEvent{
-		Pointer: *dataNodePointer,
+		Pointer:               *dataNodePointer,
+		ImmediateDeallocation: s.config.ImmediateDeallocation,
 	}
 
 	return nil

@@ -45,6 +45,7 @@ func (p *Pool[A]) Allocate() (A, error) {
 }
 
 // Deallocate deallocates single node.
+// FIXME (wojciech): Real deallocation must be delayed until snapshot commit.
 func (p *Pool[A]) Deallocate(nodeAddress A) {
 	if nodeAddress == 0 {
 		return

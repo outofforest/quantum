@@ -89,7 +89,6 @@ func New(config Config) (*DB, error) {
 		doneCh:                      make(chan struct{}),
 	}
 
-	// FIXME (wojciech): Physical nodes deallocated from snapshot space must be deallocated in the commit phase.
 	// Logical nodes might be deallocated immediately.
 	db.snapshots = space.New[types.SnapshotID, types.SnapshotInfo](space.Config[types.SnapshotID, types.SnapshotInfo]{
 		HashMod: &db.singularityNode.SnapshotRoot.HashMod,
@@ -97,11 +96,12 @@ func New(config Config) (*DB, error) {
 			State:   &db.singularityNode.SnapshotRoot.State,
 			Pointer: &db.singularityNode.SnapshotRoot.Pointer,
 		},
-		State:                config.State,
-		PointerNodeAllocator: pointerNodeAllocator,
-		DataNodeAllocator:    snapshotInfoNodeAllocator,
-		MassEntry:            mass.New[space.Entry[types.SnapshotID, types.SnapshotInfo]](1000),
-		EventCh:              db.eventCh,
+		State:                 config.State,
+		PointerNodeAllocator:  pointerNodeAllocator,
+		DataNodeAllocator:     snapshotInfoNodeAllocator,
+		MassEntry:             mass.New[space.Entry[types.SnapshotID, types.SnapshotInfo]](1000),
+		EventCh:               db.eventCh,
+		ImmediateDeallocation: true,
 	})
 
 	db.deallocationLists = space.New[types.SnapshotID, types.Pointer](
@@ -111,11 +111,12 @@ func New(config Config) (*DB, error) {
 				State:   &db.snapshotInfo.DeallocationRoot.State,
 				Pointer: &db.snapshotInfo.DeallocationRoot.Pointer,
 			},
-			State:                config.State,
-			PointerNodeAllocator: pointerNodeAllocator,
-			DataNodeAllocator:    snapshotToNodeNodeAllocator,
-			MassEntry:            mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
-			EventCh:              db.eventCh,
+			State:                 config.State,
+			PointerNodeAllocator:  pointerNodeAllocator,
+			DataNodeAllocator:     snapshotToNodeNodeAllocator,
+			MassEntry:             mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
+			EventCh:               db.eventCh,
+			ImmediateDeallocation: true,
 		},
 	)
 
@@ -170,12 +171,6 @@ func (db *DB) DeleteSnapshot(
 	volatilePool *alloc.Pool[types.LogicalAddress],
 	persistentPool *alloc.Pool[types.PhysicalAddress],
 ) error {
-	syncCh := make(chan struct{})
-	db.eventCh <- types.SyncEvent{
-		SyncCh: syncCh,
-	}
-	<-syncCh
-
 	snapshotInfoValue := db.snapshots.Get(snapshotID, db.pointerNode, db.snapshotInfoNode)
 	if !snapshotInfoValue.Exists() {
 		return errors.Errorf("snapshot %d does not exist", snapshotID)
@@ -448,6 +443,7 @@ func (db *DB) processEvents(
 				volatilePool,
 				persistentPool,
 				storeRequestCh,
+				e.ImmediateDeallocation,
 			); err != nil {
 				return err
 			}
@@ -481,6 +477,7 @@ func (db *DB) processEvents(
 				volatilePool,
 				persistentPool,
 				storeRequestCh,
+				e.ImmediateDeallocation,
 			); err != nil {
 				return err
 			}
@@ -497,6 +494,8 @@ func (db *DB) processEvents(
 						volatilePool,
 						persistentPool,
 						listNode,
+						e.ImmediateDeallocation,
+						false,
 					); err != nil {
 						return err
 					}
@@ -520,6 +519,7 @@ func (db *DB) processEvents(
 						volatilePool,
 						persistentPool,
 						storeRequestCh,
+						e.ImmediateDeallocation,
 					); err != nil {
 						return err
 					}
@@ -545,6 +545,8 @@ func (db *DB) processEvents(
 				volatilePool,
 				persistentPool,
 				listNode,
+				e.ImmediateDeallocation,
+				true,
 			); err != nil {
 				return err
 			}
@@ -588,6 +590,7 @@ func (db *DB) storeSpacePointerNodes(
 	volatilePool *alloc.Pool[types.LogicalAddress],
 	persistentPool *alloc.Pool[types.PhysicalAddress],
 	storeRequestCh chan<- types.StoreRequest,
+	immediateDeallocation bool,
 ) error {
 	db.pointerNodeAllocator.Get(nodeAddress, pointerNode)
 
@@ -610,6 +613,8 @@ func (db *DB) storeSpacePointerNodes(
 					volatilePool,
 					persistentPool,
 					listNode,
+					immediateDeallocation,
+					false,
 				); err != nil {
 					return err
 				}
@@ -674,13 +679,19 @@ func (db *DB) deallocateNode(
 	volatilePool *alloc.Pool[types.LogicalAddress],
 	persistentPool *alloc.Pool[types.PhysicalAddress],
 	node *list.Node,
+	immediateDeallocation bool,
+	volatileDeallocation bool,
 ) error {
 	if db.snapshotInfo.PreviousSnapshotID == db.singularityNode.LastSnapshotID ||
-		srcSnapshotID > db.snapshotInfo.PreviousSnapshotID {
+		srcSnapshotID > db.snapshotInfo.PreviousSnapshotID || immediateDeallocation {
 		volatilePool.Deallocate(pointer.LogicalAddress)
 		persistentPool.Deallocate(pointer.PhysicalAddress)
 
 		return nil
+	}
+
+	if volatileDeallocation {
+		volatilePool.Deallocate(pointer.LogicalAddress)
 	}
 
 	l, exists := db.deallocationListsToCommit[srcSnapshotID]
@@ -712,6 +723,7 @@ func (db *DB) prepareNextSnapshot() error {
 
 	db.snapshotInfo.PreviousSnapshotID = db.singularityNode.LastSnapshotID
 	db.snapshotInfo.NextSnapshotID = snapshotID + 1
+	db.snapshotInfo.DeallocationRoot = types.SpaceInfo{}
 	db.singularityNode.LastSnapshotID = snapshotID
 
 	return nil

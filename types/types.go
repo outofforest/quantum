@@ -89,27 +89,31 @@ type SingularityNode struct {
 
 // SpacePointerNodeAllocatedEvent is emitted when new pointer node in space is allocated.
 type SpacePointerNodeAllocatedEvent struct {
-	NodeAddress LogicalAddress
-	RootPointer *Pointer
+	NodeAddress           LogicalAddress
+	RootPointer           *Pointer
+	ImmediateDeallocation bool
 }
 
 // SpaceDataNodeAllocatedEvent is emitted when new data node in space is allocated.
 type SpaceDataNodeAllocatedEvent struct {
-	Pointer      *Pointer
-	PNodeAddress LogicalAddress
-	RootPointer  *Pointer
+	Pointer               *Pointer
+	PNodeAddress          LogicalAddress
+	RootPointer           *Pointer
+	ImmediateDeallocation bool
 }
 
 // SpaceDataNodeUpdatedEvent is emitted when data node is updated in space.
 type SpaceDataNodeUpdatedEvent struct {
-	Pointer      *Pointer
-	PNodeAddress LogicalAddress
-	RootPointer  *Pointer
+	Pointer               *Pointer
+	PNodeAddress          LogicalAddress
+	RootPointer           *Pointer
+	ImmediateDeallocation bool
 }
 
 // SpaceDataNodeDeallocationEvent is emitted to request space data node deallocation.
 type SpaceDataNodeDeallocationEvent struct {
-	Pointer Pointer
+	Pointer               Pointer
+	ImmediateDeallocation bool
 }
 
 // SpaceDeallocationEvent is emitted to request space deallocation.
