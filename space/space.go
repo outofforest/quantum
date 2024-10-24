@@ -2,6 +2,7 @@ package space
 
 import (
 	"sort"
+	"unsafe"
 
 	"github.com/cespare/xxhash"
 	"github.com/pkg/errors"
@@ -28,14 +29,17 @@ type Config[K, V comparable] struct {
 
 // New creates new space.
 func New[K, V comparable](config Config[K, V]) *Space[K, V] {
+	var k K
 	return &Space[K, V]{
-		config: config,
+		config:   config,
+		hashBuff: make([]byte, unsafe.Sizeof(k)+types.UInt64Length),
 	}
 }
 
 // Space represents the substate where values V are stored by key K.
 type Space[K, V comparable] struct {
-	config Config[K, V]
+	config   Config[K, V]
+	hashBuff []byte
 }
 
 // NewPointerNode creates new pointer node representation.
@@ -57,7 +61,7 @@ func (s *Space[K, V]) Get(
 	v := s.config.MassEntry.New()
 	v.space = s
 	v.item = types.DataItem[K, V]{
-		Hash: hashKey(key, 0),
+		Hash: hashKey(key, s.hashBuff, 0),
 		Key:  key,
 	}
 	v.pEntry = s.config.SpaceRoot
@@ -424,7 +428,7 @@ func (s *Space[K, V]) set(
 			s.config.PointerNodeAllocator.Get(v.pEntry.Pointer.LogicalAddress,
 				pointerNode)
 			if pointerNode.Header.HashMod > 0 {
-				v.item.Hash = hashKey(v.item.Key, pointerNode.Header.HashMod)
+				v.item.Hash = hashKey(v.item.Key, s.hashBuff, pointerNode.Header.HashMod)
 			}
 
 			index := s.config.PointerNodeAllocator.Index(v.item.Hash)
@@ -476,7 +480,7 @@ func (s *Space[K, V]) redistributeNode(
 		}
 
 		if conflict {
-			item.Hash = hashKey(item.Key, pointerNode.Header.HashMod)
+			item.Hash = hashKey(item.Key, s.hashBuff, pointerNode.Header.HashMod)
 		}
 		index := s.config.PointerNodeAllocator.Index(item.Hash)
 		pointerItem, pointerState := pointerNode.Item(index)
@@ -514,7 +518,7 @@ func (s *Space[K, V]) find(
 		case types.StatePointer:
 			s.config.PointerNodeAllocator.Get(v.pEntry.Pointer.LogicalAddress, pointerNode)
 			if pointerNode.Header.HashMod != 0 {
-				v.item.Hash = hashKey(v.item.Key, pointerNode.Header.HashMod)
+				v.item.Hash = hashKey(v.item.Key, s.hashBuff, pointerNode.Header.HashMod)
 			}
 
 			index := s.config.PointerNodeAllocator.Index(v.item.Hash)
@@ -606,17 +610,19 @@ func (v *Entry[K, V]) Delete(
 	return v.space.deleteValue(v, pointerNode, dataNode)
 }
 
-func hashKey[K comparable](key K, hashMod uint64) types.Hash {
+func hashKey[K comparable](
+	key K,
+	buff []byte,
+	hashMod uint64,
+) types.Hash {
 	var hash types.Hash
 	p := photon.NewFromValue[K](&key)
 	if hashMod == 0 {
 		hash = types.Hash(xxhash.Sum64(p.B))
 	} else {
-		// FIXME (wojciech): Remove heap allocation
-		b := make([]byte, types.UInt64Length+len(p.B))
-		copy(b, photon.NewFromValue(&hashMod).B)
-		copy(b[types.UInt64Length:], p.B)
-		hash = types.Hash(xxhash.Sum64(b))
+		copy(buff, photon.NewFromValue(&hashMod).B)
+		copy(buff[types.UInt64Length:], p.B)
+		hash = types.Hash(xxhash.Sum64(buff))
 	}
 
 	if types.IsTesting {
