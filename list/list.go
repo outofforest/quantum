@@ -73,9 +73,8 @@ func (l *List) Add(
 				return err
 			}
 
+			persistentPool.Deallocate(l.config.ListRoot.PhysicalAddress)
 			l.config.ListRoot.PhysicalAddress = physicalAddress
-
-			// FIXME (wojciech): Deallocate old node, but physical node must be deallocated in the commit phase
 		}
 		revision := atomic.AddUint64(&node.Header.RevisionHeader.Revision, 1)
 
@@ -141,9 +140,8 @@ func (l *List) Attach(
 				return err
 			}
 
+			persistentPool.Deallocate(l.config.ListRoot.PhysicalAddress)
 			l.config.ListRoot.PhysicalAddress = physicalAddress
-
-			// FIXME (wojciech): Deallocate old node, but physical node must be deallocated in the commit phase
 		}
 		revision := atomic.AddUint64(&node.Header.RevisionHeader.Revision, 1)
 
