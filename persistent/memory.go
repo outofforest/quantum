@@ -10,7 +10,7 @@ import (
 
 // NewMemoryStore creates new in-memory "persistent" store.
 func NewMemoryStore(size uint64, useHugePages bool) (*MemoryStore, func(), error) {
-	opts := syscall.MAP_SHARED | syscall.MAP_ANONYMOUS | syscall.MAP_NORESERVE | syscall.MAP_POPULATE
+	opts := syscall.MAP_SHARED | syscall.MAP_ANONYMOUS | syscall.MAP_POPULATE
 	if useHugePages {
 		opts |= syscall.MAP_HUGETLB
 	}
