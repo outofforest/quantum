@@ -94,7 +94,7 @@ func (s *Space[K, V]) iterate(
 ) {
 	switch *pEntry.State {
 	case types.StatePointer:
-		s.config.PointerNodeAssistant.Project(pEntry.Pointer.LogicalAddress, pointerNode)
+		s.config.PointerNodeAssistant.Project(pEntry.Pointer.VolatileAddress, pointerNode)
 		for item, state := range pointerNode.Iterator() {
 			if *state == types.StateFree {
 				continue
@@ -110,7 +110,7 @@ func (s *Space[K, V]) iterate(
 			)
 		}
 	case types.StateData:
-		s.config.DataNodeAssistant.Project(pEntry.Pointer.LogicalAddress, dataNode)
+		s.config.DataNodeAssistant.Project(pEntry.Pointer.VolatileAddress, dataNode)
 		for item, state := range dataNode.Iterator() {
 			if *state != types.StateData {
 				continue
@@ -168,7 +168,7 @@ func (s *Space[K, V]) AllocatePointers(
 		pointerNode.Header.ParentNodeIndex = pToAllocate.PIndex
 
 		*pToAllocate.PEntry.State = types.StatePointer
-		pToAllocate.PEntry.Pointer.LogicalAddress = pointerNodeAddress
+		pToAllocate.PEntry.Pointer.VolatileAddress = pointerNodeAddress
 
 		if pToAllocate.Level == levels {
 			s.config.EventCh <- types.SpacePointerNodeAllocatedEvent{
@@ -204,11 +204,11 @@ func (s *Space[K, V]) Nodes(pointerNode *Node[PointerNodeHeader, types.Pointer])
 	case types.StateFree:
 		return nil
 	case types.StateData:
-		return []types.VolatileAddress{s.config.SpaceRoot.Pointer.LogicalAddress}
+		return []types.VolatileAddress{s.config.SpaceRoot.Pointer.VolatileAddress}
 	}
 
 	nodes := []types.VolatileAddress{}
-	stack := []types.VolatileAddress{s.config.SpaceRoot.Pointer.LogicalAddress}
+	stack := []types.VolatileAddress{s.config.SpaceRoot.Pointer.VolatileAddress}
 
 	for {
 		if len(stack) == 0 {
@@ -228,9 +228,9 @@ func (s *Space[K, V]) Nodes(pointerNode *Node[PointerNodeHeader, types.Pointer])
 			switch *state {
 			case types.StateFree:
 			case types.StateData:
-				nodes = append(nodes, pointer.LogicalAddress)
+				nodes = append(nodes, pointer.VolatileAddress)
 			case types.StatePointer:
-				stack = append(stack, pointer.LogicalAddress)
+				stack = append(stack, pointer.VolatileAddress)
 			}
 		}
 	}
@@ -245,10 +245,10 @@ func (s *Space[K, V]) Stats(pointerNode *Node[PointerNodeHeader, types.Pointer])
 		return 1, 0, 1
 	}
 
-	stack := []types.VolatileAddress{s.config.SpaceRoot.Pointer.LogicalAddress}
+	stack := []types.VolatileAddress{s.config.SpaceRoot.Pointer.VolatileAddress}
 
 	levels := map[types.VolatileAddress]uint64{
-		s.config.SpaceRoot.Pointer.LogicalAddress: 1,
+		s.config.SpaceRoot.Pointer.VolatileAddress: 1,
 	}
 	var maxLevel, pointerNodes, dataNodes uint64
 
@@ -272,8 +272,8 @@ func (s *Space[K, V]) Stats(pointerNode *Node[PointerNodeHeader, types.Pointer])
 					maxLevel = level
 				}
 			case types.StatePointer:
-				stack = append(stack, pointer.LogicalAddress)
-				levels[pointer.LogicalAddress] = level
+				stack = append(stack, pointer.VolatileAddress)
+				levels[pointer.VolatileAddress] = level
 			}
 		}
 	}
@@ -354,7 +354,7 @@ func (s *Space[K, V]) set(
 			s.config.DataNodeAssistant.Project(dataNodeAddress, dataNode)
 
 			*v.pEntry.State = types.StateData
-			v.pEntry.Pointer.LogicalAddress = dataNodeAddress
+			v.pEntry.Pointer.VolatileAddress = dataNodeAddress
 
 			item, state := dataNode.Item(s.config.DataNodeAssistant.Index(v.item.Hash + 1))
 			*state = types.StateData
@@ -373,7 +373,7 @@ func (s *Space[K, V]) set(
 
 			return nil
 		case types.StateData:
-			s.config.DataNodeAssistant.Project(v.pEntry.Pointer.LogicalAddress, dataNode)
+			s.config.DataNodeAssistant.Project(v.pEntry.Pointer.VolatileAddress, dataNode)
 
 			var conflict bool
 			for i := types.Hash(0); i < trials; i++ {
@@ -430,7 +430,7 @@ func (s *Space[K, V]) set(
 			}
 			return s.set(v, pool, pointerNode, dataNode)
 		default:
-			s.config.PointerNodeAssistant.Project(v.pEntry.Pointer.LogicalAddress,
+			s.config.PointerNodeAssistant.Project(v.pEntry.Pointer.VolatileAddress,
 				pointerNode)
 			if pointerNode.Header.HashMod > 0 {
 				v.item.Hash = hashKey(v.item.Key, s.hashBuff, pointerNode.Header.HashMod)
@@ -440,7 +440,7 @@ func (s *Space[K, V]) set(
 			item, state := pointerNode.Item(index)
 			v.item.Hash = s.config.PointerNodeAssistant.Shift(v.item.Hash)
 
-			v.pAddress = v.pEntry.Pointer.LogicalAddress
+			v.pAddress = v.pEntry.Pointer.VolatileAddress
 			v.pIndex = index
 			v.pEntry = types.ParentEntry{
 				State:   state,
@@ -460,7 +460,7 @@ func (s *Space[K, V]) redistributeNode(
 	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
 ) error {
 	dataNodePointer := pEntry.Pointer
-	s.config.DataNodeAssistant.Project(dataNodePointer.LogicalAddress, dataNode)
+	s.config.DataNodeAssistant.Project(dataNodePointer.VolatileAddress, dataNode)
 
 	pointerNodeAddress, err := pool.Allocate()
 	if err != nil {
@@ -478,7 +478,7 @@ func (s *Space[K, V]) redistributeNode(
 	}
 
 	*pEntry.State = types.StatePointer
-	pEntry.Pointer.LogicalAddress = pointerNodeAddress
+	pEntry.Pointer.VolatileAddress = pointerNodeAddress
 
 	for item, state := range dataNode.Iterator() {
 		if *state != types.StateData {
@@ -522,7 +522,7 @@ func (s *Space[K, V]) find(
 	for {
 		switch *v.pEntry.State {
 		case types.StatePointer:
-			s.config.PointerNodeAssistant.Project(v.pEntry.Pointer.LogicalAddress, pointerNode)
+			s.config.PointerNodeAssistant.Project(v.pEntry.Pointer.VolatileAddress, pointerNode)
 			if pointerNode.Header.HashMod != 0 {
 				v.item.Hash = hashKey(v.item.Key, s.hashBuff, pointerNode.Header.HashMod)
 			}
@@ -531,14 +531,14 @@ func (s *Space[K, V]) find(
 			item, state := pointerNode.Item(index)
 			v.item.Hash = s.config.PointerNodeAssistant.Shift(v.item.Hash)
 
-			v.pAddress = v.pEntry.Pointer.LogicalAddress
+			v.pAddress = v.pEntry.Pointer.VolatileAddress
 			v.pIndex = index
 			v.pEntry = types.ParentEntry{
 				State:   state,
 				Pointer: item,
 			}
 		case types.StateData:
-			s.config.DataNodeAssistant.Project(v.pEntry.Pointer.LogicalAddress, dataNode)
+			s.config.DataNodeAssistant.Project(v.pEntry.Pointer.VolatileAddress, dataNode)
 			for i := types.Hash(0); i < trials; i++ {
 				item, state := dataNode.Item(s.config.DataNodeAssistant.Index(v.item.Hash + 1<<i + i))
 
@@ -654,8 +654,8 @@ func Deallocate(
 	case types.StateFree:
 		return
 	case types.StateData:
-		volatilePool.Deallocate(spaceRoot.Pointer.LogicalAddress)
-		persistentPool.Deallocate(spaceRoot.Pointer.PhysicalAddress)
+		volatilePool.Deallocate(spaceRoot.Pointer.VolatileAddress)
+		persistentPool.Deallocate(spaceRoot.Pointer.PersistentAddress)
 		return
 	}
 
@@ -669,16 +669,16 @@ func deallocatePointerNode(
 	pointerNodeAssistant *NodeAssistant[PointerNodeHeader, types.Pointer],
 	pointerNode *Node[PointerNodeHeader, types.Pointer],
 ) {
-	pointerNodeAssistant.Project(pointer.LogicalAddress, pointerNode)
+	pointerNodeAssistant.Project(pointer.VolatileAddress, pointerNode)
 	for p, state := range pointerNode.Iterator() {
 		switch *state {
 		case types.StateData:
-			volatilePool.Deallocate(pointer.LogicalAddress)
-			persistentPool.Deallocate(p.PhysicalAddress)
+			volatilePool.Deallocate(pointer.VolatileAddress)
+			persistentPool.Deallocate(p.PersistentAddress)
 		case types.StatePointer:
 			deallocatePointerNode(p, volatilePool, persistentPool, pointerNodeAssistant, pointerNode)
 		}
 	}
-	volatilePool.Deallocate(pointer.LogicalAddress)
-	persistentPool.Deallocate(pointer.PhysicalAddress)
+	volatilePool.Deallocate(pointer.VolatileAddress)
+	persistentPool.Deallocate(pointer.PersistentAddress)
 }

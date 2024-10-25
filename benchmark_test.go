@@ -49,6 +49,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				size,
 				4*1024,
 				100,
+				3,
 				true,
 				5,
 			)

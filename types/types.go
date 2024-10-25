@@ -44,9 +44,9 @@ type RevisionHeader struct {
 
 // Pointer is the pointer to another block.
 type Pointer struct {
-	Version         uint64
-	LogicalAddress  VolatileAddress
-	PhysicalAddress PersistentAddress
+	Version           uint64
+	VolatileAddress   VolatileAddress
+	PersistentAddress PersistentAddress
 }
 
 // DataItem stores single key-value pair.
