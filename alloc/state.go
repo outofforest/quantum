@@ -26,7 +26,7 @@ func NewState(
 	numOfGroups := size / nodeSize / nodesPerGroup
 	numOfNodes := numOfGroups * nodesPerGroup
 	size = numOfNodes * nodeSize
-	opts := unix.MAP_SHARED | unix.MAP_ANONYMOUS | unix.MAP_NORESERVE | unix.MAP_POPULATE
+	opts := unix.MAP_SHARED | unix.MAP_ANONYMOUS | unix.MAP_POPULATE
 	if useHugePages {
 		opts |= unix.MAP_HUGETLB
 	}
@@ -34,6 +34,10 @@ func NewState(
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "memory allocation failed")
 	}
+
+	// This line is here to be absolutely sure that the entire region is allocated despite any weird mechanisms
+	// of the kernel. If it's not, then it's better to fail immediately.
+	clear(data)
 
 	volatileAllocationCh, volatileReservedNodes := NewAllocationCh[types.VolatileAddress](size, nodeSize, nodesPerGroup,
 		1)
