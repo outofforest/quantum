@@ -14,13 +14,23 @@ func NewAllocationCh[A Address](
 	size uint64,
 	nodeSize uint64,
 	nodesPerGroup uint64,
-) chan []A {
-	numOfGroups := size / nodeSize / nodesPerGroup
-	numOfNodes := numOfGroups * nodesPerGroup
-	size = numOfNodes * nodeSize
+	numOfReservedNodes uint64,
+) (chan []A, []A) {
+	numOfNodes := size / nodeSize
+	numOfNodes -= numOfReservedNodes
+
+	numOfGroups := numOfNodes / nodesPerGroup
+	numOfNodes = numOfGroups * nodesPerGroup
+	size = (numOfReservedNodes + numOfNodes) * nodeSize
+
+	// FIXME (wojciech): Spread reserved nodes across the store
+	reservedNodes := make([]A, 0, numOfReservedNodes)
+	for i := range numOfReservedNodes {
+		reservedNodes = append(reservedNodes, A(i*nodeSize))
+	}
 
 	availableNodes := make([]A, 0, numOfNodes)
-	for i := nodeSize; i < size; i += nodeSize {
+	for i := numOfReservedNodes * nodeSize; i < size; i += nodeSize {
 		availableNodes = append(availableNodes, A(i))
 	}
 
@@ -29,5 +39,5 @@ func NewAllocationCh[A Address](
 		availableNodesCh <- availableNodes[i : i+nodesPerGroup]
 	}
 
-	return availableNodesCh
+	return availableNodesCh, reservedNodes
 }

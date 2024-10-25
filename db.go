@@ -376,9 +376,8 @@ func (db *DB) Commit(
 	}
 
 	syncCh := make(chan error)
-	// FIXME (wojciech): Use RoundRobin for storing singularity node.
 	db.eventCh <- types.DBCommitEvent{
-		SingularityNodePointer: db.singularityNodePointer,
+		SingularityNodePointer: db.config.State.SingularityNodePointer(db.singularityNode.LastSnapshotID),
 		SyncCh:                 syncCh,
 	}
 	if err := <-syncCh; err != nil {
@@ -470,13 +469,13 @@ func (db *DB) processEvents(
 				return err
 			}
 		case types.SpaceDataNodeAllocatedEvent:
-			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.LogicalAddress))
+			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.VolatileAddress))
 			header.SnapshotID = db.singularityNode.LastSnapshotID
 
 			revision := atomic.AddUint64(&header.RevisionHeader.Revision, 1)
 
 			var err error
-			e.Pointer.PhysicalAddress, err = persistentPool.Allocate()
+			e.Pointer.PersistentAddress, err = persistentPool.Allocate()
 			if err != nil {
 				return err
 			}
@@ -504,12 +503,12 @@ func (db *DB) processEvents(
 				return err
 			}
 		case types.SpaceDataNodeUpdatedEvent:
-			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.LogicalAddress))
+			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.VolatileAddress))
 			revision := atomic.AddUint64(&header.RevisionHeader.Revision, 1)
 
 			//nolint:nestif
 			if header.SnapshotID != db.singularityNode.LastSnapshotID {
-				if e.Pointer.PhysicalAddress != 0 {
+				if e.Pointer.PersistentAddress != 0 {
 					if err := db.deallocateNode(
 						*e.Pointer,
 						header.SnapshotID,
@@ -526,7 +525,7 @@ func (db *DB) processEvents(
 				header.SnapshotID = db.singularityNode.LastSnapshotID
 
 				var err error
-				e.Pointer.PhysicalAddress, err = persistentPool.Allocate()
+				e.Pointer.PersistentAddress, err = persistentPool.Allocate()
 				if err != nil {
 					return err
 				}
@@ -553,7 +552,7 @@ func (db *DB) processEvents(
 				Pointer:  e.Pointer,
 			}
 		case types.SpaceDataNodeDeallocationEvent:
-			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.LogicalAddress))
+			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.VolatileAddress))
 
 			if header.SnapshotID == db.singularityNode.LastSnapshotID {
 				// This is done to ignore any potential pending writes of this block.
@@ -625,7 +624,7 @@ func (db *DB) storeSpacePointerNodes(
 		revision := atomic.AddUint64(&pointerNode.Header.RevisionHeader.Revision, 1)
 
 		if pointerNode.Header.SnapshotID != db.singularityNode.LastSnapshotID {
-			if pointer.PhysicalAddress != 0 {
+			if pointer.PersistentAddress != 0 {
 				if err := db.deallocateNode(
 					*pointer,
 					pointerNode.Header.SnapshotID,
@@ -637,15 +636,15 @@ func (db *DB) storeSpacePointerNodes(
 				); err != nil {
 					return err
 				}
-				pointer.PhysicalAddress = 0
+				pointer.PersistentAddress = 0
 			}
 			pointerNode.Header.SnapshotID = db.singularityNode.LastSnapshotID
 		}
 
 		terminate := true
-		if pointer.PhysicalAddress == 0 {
+		if pointer.PersistentAddress == 0 {
 			var err error
-			pointer.PhysicalAddress, err = persistentPool.Allocate()
+			pointer.PersistentAddress, err = persistentPool.Allocate()
 			if err != nil {
 				return err
 			}
@@ -668,7 +667,7 @@ func (db *DB) storeSpacePointerNodes(
 
 func (db *DB) processStoreRequests(ctx context.Context, storeRequestCh <-chan types.StoreRequest) error {
 	for req := range storeRequestCh {
-		header := photon.FromPointer[types.RevisionHeader](db.config.State.Node(req.Pointer.LogicalAddress))
+		header := photon.FromPointer[types.RevisionHeader](db.config.State.Node(req.Pointer.VolatileAddress))
 		revision := atomic.LoadUint64(&header.Revision)
 
 		if revision != req.Revision {
@@ -676,8 +675,8 @@ func (db *DB) processStoreRequests(ctx context.Context, storeRequestCh <-chan ty
 		}
 
 		if err := db.config.Store.Write(
-			req.Pointer.PhysicalAddress,
-			db.config.State.Bytes(req.Pointer.LogicalAddress),
+			req.Pointer.PersistentAddress,
+			db.config.State.Bytes(req.Pointer.VolatileAddress),
 		); err != nil {
 			return err
 		}
@@ -704,14 +703,14 @@ func (db *DB) deallocateNode(
 ) error {
 	if db.snapshotInfo.PreviousSnapshotID == db.singularityNode.LastSnapshotID ||
 		srcSnapshotID > db.snapshotInfo.PreviousSnapshotID || immediateDeallocation {
-		volatilePool.Deallocate(pointer.LogicalAddress)
-		persistentPool.Deallocate(pointer.PhysicalAddress)
+		volatilePool.Deallocate(pointer.VolatileAddress)
+		persistentPool.Deallocate(pointer.PersistentAddress)
 
 		return nil
 	}
 
 	if volatileDeallocation {
-		volatilePool.Deallocate(pointer.LogicalAddress)
+		volatilePool.Deallocate(pointer.VolatileAddress)
 	}
 
 	l, exists := db.deallocationListsToCommit[srcSnapshotID]

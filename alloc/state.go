@@ -18,6 +18,7 @@ func NewState(
 	size uint64,
 	nodeSize uint64,
 	nodesPerGroup uint64,
+	numOfSingularityNodes uint64,
 	// FIXME (wojciech): For some reason mmap doesn't return error if hugepages are not allocated.
 	useHugePages bool,
 	numOfEraseWorkers uint64,
@@ -34,17 +35,31 @@ func NewState(
 		return nil, nil, errors.Wrapf(err, "memory allocation failed")
 	}
 
+	volatileAllocationCh, volatileReservedNodes := NewAllocationCh[types.VolatileAddress](size, nodeSize, nodesPerGroup,
+		1)
+	persistentAllocationCh, persistentReservedNodes := NewAllocationCh[types.PersistentAddress](size, nodeSize,
+		nodesPerGroup, numOfSingularityNodes)
+
+	singularityNodePointers := make([]types.Pointer, 0, numOfSingularityNodes)
+	for i := range numOfSingularityNodes {
+		singularityNodePointers = append(singularityNodePointers, types.Pointer{
+			VolatileAddress:   volatileReservedNodes[0],
+			PersistentAddress: persistentReservedNodes[i%numOfSingularityNodes],
+		})
+	}
+
 	return &State{
 			size:                       size,
 			nodeSize:                   nodeSize,
 			nodesPerGroup:              nodesPerGroup,
+			singularityNodePointers:    singularityNodePointers,
 			numOfEraseWorkers:          numOfEraseWorkers,
 			data:                       data,
 			dataP:                      unsafe.Pointer(&data[0]),
-			volatileAllocationCh:       NewAllocationCh[types.VolatileAddress](size, nodeSize, nodesPerGroup),
+			volatileAllocationCh:       volatileAllocationCh,
 			volatileDeallocationCh:     make(chan []types.VolatileAddress, 10),
 			volatileAllocationPoolCh:   make(chan []types.VolatileAddress, 1),
-			persistentAllocationCh:     NewAllocationCh[types.PersistentAddress](size, nodeSize, nodesPerGroup),
+			persistentAllocationCh:     persistentAllocationCh,
 			persistentDeallocationCh:   make(chan []types.PersistentAddress, 10),
 			persistentAllocationPoolCh: make(chan []types.PersistentAddress, 1),
 			closedCh:                   make(chan struct{}),
@@ -58,6 +73,7 @@ type State struct {
 	size                       uint64
 	nodeSize                   uint64
 	nodesPerGroup              uint64
+	singularityNodePointers    []types.Pointer
 	numOfEraseWorkers          uint64
 	data                       []byte
 	dataP                      unsafe.Pointer
@@ -83,6 +99,11 @@ func (s *State) NewVolatilePool() *Pool[types.VolatileAddress] {
 // NewPersistentPool creates new persistent allocation pool.
 func (s *State) NewPersistentPool() *Pool[types.PersistentAddress] {
 	return NewPool[types.PersistentAddress](s.persistentAllocationPoolCh, s.persistentDeallocationCh)
+}
+
+// SingularityNodePointer returns pointer where singularity node is stored.
+func (s *State) SingularityNodePointer(snapshotID types.SnapshotID) *types.Pointer {
+	return &s.singularityNodePointers[snapshotID%types.SnapshotID(len(s.singularityNodePointers))]
 }
 
 // Node returns node bytes.
