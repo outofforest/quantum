@@ -23,7 +23,7 @@ func NewAllocationCh[A Address](
 	numOfNodes = numOfGroups * nodesPerGroup
 	totalNumOfNodes := numOfReservedNodes + numOfNodes
 
-	spreadFactor := totalNumOfNodes / numOfReservedNodes
+	spreadFactor := totalNumOfNodes/numOfReservedNodes + 1
 
 	reservedNodes := make([]A, 0, numOfReservedNodes)
 	availableNodes := make([]A, 0, numOfNodes)
