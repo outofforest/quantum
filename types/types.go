@@ -135,12 +135,12 @@ type SyncEvent struct {
 // and singularity node might be stored.
 type DBCommitEvent struct {
 	SingularityNodePointer *Pointer
-	SyncCh                 chan<- struct{}
+	SyncCh                 chan<- error
 }
 
 // StoreRequest is used to request writing a node to the store.
 type StoreRequest struct {
 	Revision uint64
 	Pointer  *Pointer
-	SyncCh   chan<- struct{}
+	SyncCh   chan<- error
 }

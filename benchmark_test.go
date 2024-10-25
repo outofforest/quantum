@@ -102,6 +102,8 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				}
 			}()
 
+			defer db.Close()
+
 			volatilePool := db.NewVolatilePool()
 			persistentPool := db.NewPersistentPool()
 
@@ -119,6 +121,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 			for i := 0; i < numOfAddresses; i += 2 {
 				v := s.Find(accounts[i], pointerNode, dataNode)
+
 				if err := v.Set(2*balance, volatilePool, pointerNode, dataNode); err != nil {
 					panic(err)
 				}
@@ -133,7 +136,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			tx := 0
 			var snapshotID types.SnapshotID
 
-			if err := db.Commit(group.Context(), volatilePool, persistentPool); err != nil {
+			if err := db.Commit(volatilePool, persistentPool); err != nil {
 				panic(err)
 			}
 
@@ -167,7 +170,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 					tx++
 					if tx%txsPerCommit == 0 {
-						if err := db.Commit(group.Context(), volatilePool, persistentPool); err != nil {
+						if err := db.Commit(volatilePool, persistentPool); err != nil {
 							panic(err)
 						}
 						snapshotID++
