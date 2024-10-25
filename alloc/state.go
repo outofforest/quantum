@@ -19,21 +19,25 @@ func NewState(
 	nodeSize uint64,
 	nodesPerGroup uint64,
 	numOfSingularityNodes uint64,
-	// FIXME (wojciech): For some reason mmap doesn't return error if hugepages are not allocated.
 	useHugePages bool,
 	numOfEraseWorkers uint64,
 ) (*State, func(), error) {
-	numOfGroups := size / nodeSize / nodesPerGroup
+	numOfGroups := (size - nodeSize) / nodeSize / nodesPerGroup
 	numOfNodes := numOfGroups * nodesPerGroup
 	size = numOfNodes * nodeSize
 	opts := unix.MAP_SHARED | unix.MAP_ANONYMOUS | unix.MAP_POPULATE
 	if useHugePages {
 		opts |= unix.MAP_HUGETLB
 	}
-	data, err := unix.Mmap(-1, 0, int(size), unix.PROT_READ|unix.PROT_WRITE, opts)
+	data, err := unix.Mmap(-1, 0, int(size+nodeSize), unix.PROT_READ|unix.PROT_WRITE, opts)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "memory allocation failed")
 	}
+
+	// Align allocated memory address to the node size. It might be required if using O_DIRECT option to open files.
+	p := uint64(uintptr(unsafe.Pointer(&data[0])))
+	p = (p+nodeSize-1)/nodeSize*nodeSize - p
+	data = data[p : p+size]
 
 	// This line is here to be absolutely sure that the entire region is allocated despite any weird mechanisms
 	// of the kernel. If it's not, then it's better to fail immediately.
@@ -123,7 +127,7 @@ func (s *State) Bytes(nodeAddress types.VolatileAddress) []byte {
 // Run runs node eraser.
 func (s *State) Run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-		spawn("supervisor", parallel.Fail, func(ctx context.Context) error {
+		spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
 			ctxDone := ctx.Done()
 			var volatileDeallocationCh <-chan []types.VolatileAddress
 			var persistentDeallocationCh <-chan []types.PersistentAddress
@@ -148,7 +152,7 @@ func (s *State) Run(ctx context.Context) error {
 				}
 			}
 		})
-		spawn("volatilePump", parallel.Fail, func(ctx context.Context) error {
+		spawn("volatilePump", parallel.Continue, func(ctx context.Context) error {
 			defer close(s.volatileAllocationPoolCh)
 			return s.runVolatilePump(
 				ctx,
@@ -157,7 +161,7 @@ func (s *State) Run(ctx context.Context) error {
 				s.volatileAllocationPoolCh,
 			)
 		})
-		spawn("persistentPump", parallel.Fail, func(ctx context.Context) error {
+		spawn("persistentPump", parallel.Continue, func(ctx context.Context) error {
 			defer close(s.persistentAllocationPoolCh)
 			return s.runPersistentPump(
 				ctx,

@@ -5,8 +5,10 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"testing"
+	"unsafe"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
@@ -27,7 +29,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 50_000_000
+		numOfAddresses = 10_000_000
 		txsPerCommit   = 2000
 		balance        = 100_000
 	)
@@ -44,10 +46,11 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 	for bi := 0; bi < b.N; bi++ {
 		func() {
-			var size uint64 = 70 * 1024 * 1024 * 1024
+			var size uint64 = 40 * 1024 * 1024 * 1024
+			var nodeSize uint64 = 4 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size,
-				4*1024,
+				nodeSize,
 				100,
 				3,
 				true,
@@ -58,33 +61,23 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			}
 			defer stateDeallocFunc()
 
-			file, err := os.OpenFile("db.quantum", os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o600)
+			//nolint:ineffassign,wastedassign,staticcheck
+			stores, storesCloseFunc, err := fileStores([]string{
+				"db0.quantum",
+				// "db1.quantum",
+				// "/tmp/d0/wojciech/db.quantum",
+				// "/tmp/d1/wojciech/db.quantum",
+			}, size, nodeSize)
 			if err != nil {
 				panic(err)
 			}
+			defer storesCloseFunc()
 
-			if _, err := file.Seek(int64(size-1), io.SeekStart); err != nil {
-				panic(err)
-			}
-			if _, err := file.Write([]byte{0x00}); err != nil {
-				panic(err)
-			}
-
-			var store persistent.Store
-			var storeCloseFunc func()
-
-			//nolint:ineffassign,wastedassign
-			store, storeCloseFunc, err = persistent.NewFileStore(file, size)
-			if err != nil {
-				panic(err)
-			}
-			defer storeCloseFunc()
-
-			store = persistent.NewDummyStore()
+			stores = []persistent.Store{persistent.NewDummyStore()}
 
 			db, err := quantum.New(quantum.Config{
-				State: state,
-				Store: store,
+				State:  state,
+				Stores: stores,
 			})
 			if err != nil {
 				panic(err)
@@ -197,3 +190,66 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 type accountAddress [20]byte
 type accountBalance uint64
+
+func fileStores(
+	paths []string,
+	size uint64,
+	nodeSize uint64,
+) ([]persistent.Store, func(), error) {
+	numOfStores := uint64(len(paths))
+	stores := make([]persistent.Store, 0, numOfStores)
+	funcs := make([]func(), 0, numOfStores)
+
+	expectedNumOfNodes := size / nodeSize
+	expectedCapacity := (expectedNumOfNodes + numOfStores - 1) / numOfStores * nodeSize
+	seekTo := int64(expectedCapacity - nodeSize)
+	data := make([]byte, 2*nodeSize-1)
+	p := uint64(uintptr(unsafe.Pointer(&data[0])))
+	p = (p+nodeSize-1)/nodeSize*nodeSize - p
+	data = data[p : p+nodeSize]
+
+	var minNumOfNodes uint64 = math.MaxUint64
+	for _, path := range paths {
+		file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0o600)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		fileSize, err := file.Seek(0, io.SeekEnd)
+		if err != nil {
+			return nil, nil, errors.WithStack(err)
+		}
+		if fileSize == 0 {
+			if _, err := file.Seek(seekTo, io.SeekEnd); err != nil {
+				return nil, nil, errors.WithStack(err)
+			}
+			if _, err := file.Write(data); err != nil {
+				return nil, nil, errors.WithStack(err)
+			}
+			fileSize = int64(expectedCapacity)
+		}
+
+		numOfNodes := uint64(fileSize) / nodeSize
+		if numOfNodes < minNumOfNodes {
+			minNumOfNodes = numOfNodes
+		}
+
+		store, storeCloseFunc, err := persistent.NewFileStore(file)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		stores = append(stores, store)
+		funcs = append(funcs, storeCloseFunc)
+	}
+
+	if minNumOfNodes*numOfStores < expectedNumOfNodes {
+		return nil, nil, errors.New("files don't provide enough capacity")
+	}
+
+	return stores, func() {
+		for _, f := range funcs {
+			f()
+		}
+	}, nil
+}

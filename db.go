@@ -2,6 +2,7 @@ package quantum
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync/atomic"
 
@@ -19,8 +20,8 @@ import (
 
 // Config stores snapshot configuration.
 type Config struct {
-	State *alloc.State
-	Store persistent.Store
+	State  *alloc.State
+	Stores []persistent.Store
 }
 
 // SpaceToCommit represents requested space which might require to be committed.
@@ -375,13 +376,15 @@ func (db *DB) Commit(
 		return err
 	}
 
-	syncCh := make(chan error)
+	syncCh := make(chan error, len(db.config.Stores))
 	db.eventCh <- types.DBCommitEvent{
 		SingularityNodePointer: db.config.State.SingularityNodePointer(db.singularityNode.LastSnapshotID),
 		SyncCh:                 syncCh,
 	}
-	if err := <-syncCh; err != nil {
-		return err
+	for range cap(syncCh) {
+		if err := <-syncCh; err != nil {
+			return err
+		}
 	}
 
 	db.config.State.Commit()
@@ -402,7 +405,12 @@ func (db *DB) Close() {
 // Run runs db goroutines.
 func (db *DB) Run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-		spawn("supervisor", parallel.Fail, func(ctx context.Context) error {
+		storeChs := make([]chan types.StoreRequest, 0, len(db.config.Stores))
+		for range cap(storeChs) {
+			storeChs = append(storeChs, make(chan types.StoreRequest, 10))
+		}
+
+		spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
 			ctxDone := ctx.Done()
 			var eventCh <-chan any
 			for {
@@ -419,22 +427,70 @@ func (db *DB) Run(ctx context.Context) error {
 					}
 				case <-db.closedCh:
 					close(db.eventCh)
-					for range db.storeRequestCh {
+					for {
+						var closedChs int
+					loop:
+						for _, ch := range storeChs {
+							for {
+								select {
+								case _, ok := <-ch:
+									if !ok {
+										closedChs++
+										continue loop
+									}
+								default:
+									continue loop
+								}
+							}
+						}
+
+						if closedChs == len(storeChs) {
+							break
+						}
 					}
 
 					return errors.WithStack(ctx.Err())
 				}
 			}
 		})
-		spawn("state", parallel.Fail, db.config.State.Run)
-		spawn("events", parallel.Fail, func(ctx context.Context) error {
+		spawn("state", parallel.Continue, db.config.State.Run)
+		spawn("events", parallel.Continue, func(ctx context.Context) error {
 			defer close(db.storeRequestCh)
 
 			return db.processEvents(ctx, db.eventCh, db.storeRequestCh)
 		})
-		spawn("store", parallel.Fail, func(ctx context.Context) error {
-			return db.processStoreRequests(ctx, db.storeRequestCh)
+
+		spawn("store", parallel.Continue, func(ctx context.Context) error {
+			defer func() {
+				for _, ch := range storeChs {
+					close(ch)
+				}
+			}()
+
+			nodeSize := types.PersistentAddress(db.config.State.NodeSize())
+			numOfStores := types.PersistentAddress(len(storeChs))
+
+			for req := range db.storeRequestCh {
+				if req.SyncCh == nil {
+					factor := req.Pointer.PersistentAddress / nodeSize
+					req.Pointer.PersistentAddress = factor / numOfStores * nodeSize
+
+					storeChs[factor%numOfStores] <- req
+				} else {
+					for _, ch := range storeChs {
+						ch <- req
+					}
+				}
+			}
+
+			return errors.WithStack(ctx.Err())
 		})
+
+		for i, store := range db.config.Stores {
+			spawn(fmt.Sprintf("store-%02d", i), parallel.Continue, func(ctx context.Context) error {
+				return db.processStoreRequests(ctx, store, storeChs[i])
+			})
+		}
 
 		return nil
 	})
@@ -665,7 +721,11 @@ func (db *DB) storeSpacePointerNodes(
 	}
 }
 
-func (db *DB) processStoreRequests(ctx context.Context, storeRequestCh <-chan types.StoreRequest) error {
+func (db *DB) processStoreRequests(
+	ctx context.Context,
+	store persistent.Store,
+	storeRequestCh <-chan types.StoreRequest,
+) error {
 	for req := range storeRequestCh {
 		header := photon.FromPointer[types.RevisionHeader](db.config.State.Node(req.Pointer.VolatileAddress))
 		revision := atomic.LoadUint64(&header.Revision)
@@ -674,7 +734,7 @@ func (db *DB) processStoreRequests(ctx context.Context, storeRequestCh <-chan ty
 			continue
 		}
 
-		if err := db.config.Store.Write(
+		if err := store.Write(
 			req.Pointer.PersistentAddress,
 			db.config.State.Bytes(req.Pointer.VolatileAddress),
 		); err != nil {
@@ -682,7 +742,7 @@ func (db *DB) processStoreRequests(ctx context.Context, storeRequestCh <-chan ty
 		}
 
 		if req.SyncCh != nil {
-			err := db.config.Store.Sync()
+			err := store.Sync()
 			req.SyncCh <- err
 			if err != nil {
 				return err
