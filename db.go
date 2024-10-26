@@ -82,9 +82,10 @@ func New(config Config) (*DB, error) {
 		snapshotToNodeNode:          snapshotToNodeNodeAssistant.NewNode(),
 		listNode:                    listNodeAssistant.NewNode(),
 		massSnapshotToNodeEntry:     mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
+		massDataNodeUpdatedEvent:    mass.New[types.SpaceDataNodeUpdatedEvent](1000),
 		deallocationListsToCommit:   map[types.SnapshotID]ListToCommit{},
-		eventCh:                     make(chan any, 100),
-		storeRequestCh:              make(chan types.StoreRequest, 1000),
+		eventCh:                     make(chan any, 1000),
+		storeRequestCh:              make(chan types.StoreRequest, 10000),
 		closedCh:                    make(chan struct{}),
 	}
 
@@ -95,12 +96,13 @@ func New(config Config) (*DB, error) {
 			State:   &db.singularityNode.SnapshotRoot.State,
 			Pointer: &db.singularityNode.SnapshotRoot.Pointer,
 		},
-		State:                 config.State,
-		PointerNodeAssistant:  pointerNodeAssistant,
-		DataNodeAssistant:     snapshotInfoNodeAssistant,
-		MassEntry:             mass.New[space.Entry[types.SnapshotID, types.SnapshotInfo]](1000),
-		EventCh:               db.eventCh,
-		ImmediateDeallocation: true,
+		State:                    config.State,
+		PointerNodeAssistant:     pointerNodeAssistant,
+		DataNodeAssistant:        snapshotInfoNodeAssistant,
+		MassEntry:                mass.New[space.Entry[types.SnapshotID, types.SnapshotInfo]](1000),
+		MassDataNodeUpdatedEvent: mass.New[types.SpaceDataNodeUpdatedEvent](1000),
+		EventCh:                  db.eventCh,
+		ImmediateDeallocation:    true,
 	})
 
 	db.deallocationLists = space.New[types.SnapshotID, types.Pointer](
@@ -110,12 +112,13 @@ func New(config Config) (*DB, error) {
 				State:   &db.snapshotInfo.DeallocationRoot.State,
 				Pointer: &db.snapshotInfo.DeallocationRoot.Pointer,
 			},
-			State:                 config.State,
-			PointerNodeAssistant:  pointerNodeAssistant,
-			DataNodeAssistant:     snapshotToNodeNodeAssistant,
-			MassEntry:             mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
-			EventCh:               db.eventCh,
-			ImmediateDeallocation: true,
+			State:                    config.State,
+			PointerNodeAssistant:     pointerNodeAssistant,
+			DataNodeAssistant:        snapshotToNodeNodeAssistant,
+			MassEntry:                mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
+			MassDataNodeUpdatedEvent: mass.New[types.SpaceDataNodeUpdatedEvent](1000),
+			EventCh:                  db.eventCh,
+			ImmediateDeallocation:    true,
 		},
 	)
 
@@ -143,7 +146,8 @@ type DB struct {
 	snapshotToNodeNode *space.Node[space.DataNodeHeader, types.DataItem[types.SnapshotID, types.Pointer]]
 	listNode           *list.Node
 
-	massSnapshotToNodeEntry *mass.Mass[space.Entry[types.SnapshotID, types.Pointer]]
+	massSnapshotToNodeEntry  *mass.Mass[space.Entry[types.SnapshotID, types.Pointer]]
+	massDataNodeUpdatedEvent *mass.Mass[types.SpaceDataNodeUpdatedEvent]
 
 	deallocationListsToCommit map[types.SnapshotID]ListToCommit
 
@@ -196,13 +200,14 @@ func (db *DB) DeleteSnapshot(
 		}
 		nextDeallocationLists = space.New[types.SnapshotID, types.Pointer](
 			space.Config[types.SnapshotID, types.Pointer]{
-				HashMod:              &nextSnapshotInfo.DeallocationRoot.HashMod,
-				SpaceRoot:            nextDeallocationListRoot,
-				State:                db.config.State,
-				PointerNodeAssistant: db.pointerNodeAssistant,
-				DataNodeAssistant:    db.snapshotToNodeNodeAssistant,
-				MassEntry:            db.massSnapshotToNodeEntry,
-				EventCh:              db.eventCh,
+				HashMod:                  &nextSnapshotInfo.DeallocationRoot.HashMod,
+				SpaceRoot:                nextDeallocationListRoot,
+				State:                    db.config.State,
+				PointerNodeAssistant:     db.pointerNodeAssistant,
+				DataNodeAssistant:        db.snapshotToNodeNodeAssistant,
+				MassEntry:                db.massSnapshotToNodeEntry,
+				MassDataNodeUpdatedEvent: db.massDataNodeUpdatedEvent,
+				EventCh:                  db.eventCh,
 			},
 		)
 	} else {
@@ -220,12 +225,13 @@ func (db *DB) DeleteSnapshot(
 	}
 	deallocationLists := space.New[types.SnapshotID, types.Pointer](
 		space.Config[types.SnapshotID, types.Pointer]{
-			HashMod:              &snapshotInfo.DeallocationRoot.HashMod,
-			SpaceRoot:            deallocationListsRoot,
-			State:                db.config.State,
-			PointerNodeAssistant: db.pointerNodeAssistant,
-			DataNodeAssistant:    db.snapshotToNodeNodeAssistant,
-			MassEntry:            db.massSnapshotToNodeEntry,
+			HashMod:                  &snapshotInfo.DeallocationRoot.HashMod,
+			SpaceRoot:                deallocationListsRoot,
+			State:                    db.config.State,
+			PointerNodeAssistant:     db.pointerNodeAssistant,
+			DataNodeAssistant:        db.snapshotToNodeNodeAssistant,
+			MassEntry:                db.massSnapshotToNodeEntry,
+			MassDataNodeUpdatedEvent: db.massDataNodeUpdatedEvent,
 		},
 	)
 
@@ -405,9 +411,10 @@ func (db *DB) Close() {
 // Run runs db goroutines.
 func (db *DB) Run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
+		storeRequestCh := make(chan types.StoreRequest, 1000)
 		storeChs := make([]chan types.StoreRequest, 0, len(db.config.Stores))
 		for range cap(storeChs) {
-			storeChs = append(storeChs, make(chan types.StoreRequest, 10))
+			storeChs = append(storeChs, make(chan types.StoreRequest, 1000))
 		}
 
 		spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
@@ -459,6 +466,16 @@ func (db *DB) Run(ctx context.Context) error {
 
 			return db.processEvents(ctx, db.eventCh, db.storeRequestCh)
 		})
+		spawn("checksum", parallel.Continue, func(ctx context.Context) error {
+			defer close(storeRequestCh)
+
+			for req := range db.storeRequestCh {
+				// req.Pointer.Checksum = sha256.Sum256(db.config.State.Bytes(req.Pointer.VolatileAddress))
+				storeRequestCh <- req
+			}
+
+			return errors.WithStack(ctx.Err())
+		})
 		spawn("storeDistributor", parallel.Continue, func(ctx context.Context) error {
 			defer func() {
 				for _, ch := range storeChs {
@@ -471,7 +488,7 @@ func (db *DB) Run(ctx context.Context) error {
 				storeChsOut = append(storeChsOut, ch)
 			}
 
-			return db.distributeStoreRequests(ctx, db.storeRequestCh, storeChsOut)
+			return db.distributeStoreRequests(ctx, storeRequestCh, storeChsOut)
 		})
 		for i, store := range db.config.Stores {
 			spawn(fmt.Sprintf("store-%02d", i), parallel.Continue, func(ctx context.Context) error {
@@ -545,11 +562,10 @@ func (db *DB) processEvents(
 			); err != nil {
 				return err
 			}
-		case types.SpaceDataNodeUpdatedEvent:
+		case *types.SpaceDataNodeUpdatedEvent:
 			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.VolatileAddress))
 			revision := atomic.AddUint64(&header.RevisionHeader.Revision, 1)
 
-			//nolint:nestif
 			if header.SnapshotID != db.singularityNode.LastSnapshotID {
 				if e.Pointer.PersistentAddress != 0 {
 					if err := db.deallocateNode(
@@ -572,27 +588,29 @@ func (db *DB) processEvents(
 				if err != nil {
 					return err
 				}
-
-				if e.PNodeAddress != 0 {
-					if err := db.storeSpacePointerNodes(
-						e.PNodeAddress,
-						e.RootPointer,
-						pointerNode,
-						parentPointerNode,
-						listNode,
-						volatilePool,
-						persistentPool,
-						storeRequestCh,
-						e.ImmediateDeallocation,
-					); err != nil {
-						return err
-					}
-				}
 			}
 
 			storeRequestCh <- types.StoreRequest{
 				Revision: revision,
 				Pointer:  e.Pointer,
+			}
+
+			if e.PNodeAddress == 0 {
+				continue
+			}
+
+			if err := db.storeSpacePointerNodes(
+				e.PNodeAddress,
+				e.RootPointer,
+				pointerNode,
+				parentPointerNode,
+				listNode,
+				volatilePool,
+				persistentPool,
+				storeRequestCh,
+				e.ImmediateDeallocation,
+			); err != nil {
+				return err
 			}
 		case types.SpaceDataNodeDeallocationEvent:
 			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.VolatileAddress))
@@ -639,6 +657,7 @@ func (db *DB) processEvents(
 			}
 		}
 	}
+
 	return errors.WithStack(ctx.Err())
 }
 
@@ -684,15 +703,12 @@ func (db *DB) storeSpacePointerNodes(
 			pointerNode.Header.SnapshotID = db.singularityNode.LastSnapshotID
 		}
 
-		terminate := true
 		if pointer.PersistentAddress == 0 {
 			var err error
 			pointer.PersistentAddress, err = persistentPool.Allocate()
 			if err != nil {
 				return err
 			}
-
-			terminate = pointer == rootPointer
 		}
 
 		storeRequestCh <- types.StoreRequest{
@@ -700,7 +716,7 @@ func (db *DB) storeSpacePointerNodes(
 			Pointer:  pointer,
 		}
 
-		if terminate {
+		if pointer == rootPointer {
 			return nil
 		}
 
@@ -743,6 +759,9 @@ func (db *DB) processStoreRequests(
 	store persistent.Store,
 	storeRequestCh <-chan types.StoreRequest,
 ) error {
+	// uniqueNodes := map[types.VolatileAddress]struct{}{}
+	// var numOfWrites uint
+
 	for req := range storeRequestCh {
 		if req.Pointer != nil {
 			header := photon.FromPointer[types.RevisionHeader](db.config.State.Node(req.Pointer.VolatileAddress))
@@ -751,6 +770,9 @@ func (db *DB) processStoreRequests(
 			if revision != req.Revision {
 				continue
 			}
+
+			// uniqueNodes[req.Pointer.VolatileAddress] = struct{}{}
+			// numOfWrites++
 
 			if err := store.Write(
 				req.Pointer.PersistentAddress,
@@ -761,6 +783,14 @@ func (db *DB) processStoreRequests(
 		}
 
 		if req.SyncCh != nil {
+			// fmt.Println("========== STORE")
+			// fmt.Println(len(uniqueNodes))
+			// fmt.Println(numOfWrites)
+			// fmt.Println(float64(numOfWrites) / float64(len(uniqueNodes)))
+
+			// clear(uniqueNodes)
+			// numOfWrites = 0
+
 			err := store.Sync()
 			req.SyncCh <- err
 			if err != nil {
@@ -854,10 +884,11 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 			State:   &spaceInfo.State,
 			Pointer: &spaceInfo.Pointer,
 		},
-		State:                db.config.State,
-		EventCh:              db.eventCh,
-		PointerNodeAssistant: db.pointerNodeAssistant,
-		DataNodeAssistant:    dataNodeAssistant,
-		MassEntry:            mass.New[space.Entry[K, V]](1000),
+		State:                    db.config.State,
+		EventCh:                  db.eventCh,
+		PointerNodeAssistant:     db.pointerNodeAssistant,
+		DataNodeAssistant:        dataNodeAssistant,
+		MassEntry:                mass.New[space.Entry[K, V]](1000),
+		MassDataNodeUpdatedEvent: mass.New[types.SpaceDataNodeUpdatedEvent](1000),
 	}), nil
 }
