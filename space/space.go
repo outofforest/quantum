@@ -17,14 +17,15 @@ const trials = 50
 
 // Config stores space configuration.
 type Config[K, V comparable] struct {
-	HashMod               *uint64
-	SpaceRoot             types.ParentEntry
-	State                 *alloc.State
-	PointerNodeAssistant  *NodeAssistant[PointerNodeHeader, types.Pointer]
-	DataNodeAssistant     *NodeAssistant[DataNodeHeader, types.DataItem[K, V]]
-	MassEntry             *mass.Mass[Entry[K, V]]
-	EventCh               chan<- any
-	ImmediateDeallocation bool
+	HashMod                  *uint64
+	SpaceRoot                types.ParentEntry
+	State                    *alloc.State
+	PointerNodeAssistant     *NodeAssistant[PointerNodeHeader, types.Pointer]
+	DataNodeAssistant        *NodeAssistant[DataNodeHeader, types.DataItem[K, V]]
+	MassEntry                *mass.Mass[Entry[K, V]]
+	MassDataNodeUpdatedEvent *mass.Mass[types.SpaceDataNodeUpdatedEvent]
+	EventCh                  chan<- any
+	ImmediateDeallocation    bool
 }
 
 // New creates new space.
@@ -297,7 +298,7 @@ func (s *Space[K, V]) deleteValue(
 	}
 	if v.itemP.Hash == v.item.Hash && v.itemP.Key == v.item.Key {
 		*v.stateP = types.StateDeleted
-		s.config.EventCh <- types.SpaceDataNodeUpdatedEvent{
+		s.config.EventCh <- &types.SpaceDataNodeUpdatedEvent{
 			Pointer:               v.pEntry.Pointer,
 			PNodeAddress:          v.pAddress,
 			RootPointer:           s.config.SpaceRoot.Pointer,
@@ -326,10 +327,28 @@ func (s *Space[K, V]) setValue(
 			*v.itemP = v.item
 			*v.stateP = types.StateData
 			v.exists = true
+
+			event := s.config.MassDataNodeUpdatedEvent.New()
+			event.Pointer = v.pEntry.Pointer
+			event.PNodeAddress = v.pAddress
+			event.RootPointer = s.config.SpaceRoot.Pointer
+			event.ImmediateDeallocation = s.config.ImmediateDeallocation
+
+			s.config.EventCh <- event
+
 			return nil
 		}
 		if v.itemP.Hash == v.item.Hash && v.itemP.Key == v.item.Key {
 			v.itemP.Value = value
+
+			event := s.config.MassDataNodeUpdatedEvent.New()
+			event.Pointer = v.pEntry.Pointer
+			event.PNodeAddress = v.pAddress
+			event.RootPointer = s.config.SpaceRoot.Pointer
+			event.ImmediateDeallocation = s.config.ImmediateDeallocation
+
+			s.config.EventCh <- event
+
 			return nil
 		}
 	}
@@ -367,12 +386,13 @@ func (s *Space[K, V]) set(
 			v.itemP = item
 			v.exists = true
 
-			s.config.EventCh <- types.SpaceDataNodeAllocatedEvent{
-				Pointer:               v.pEntry.Pointer,
-				PNodeAddress:          v.pAddress,
-				RootPointer:           s.config.SpaceRoot.Pointer,
-				ImmediateDeallocation: s.config.ImmediateDeallocation,
-			}
+			event := s.config.MassDataNodeUpdatedEvent.New()
+			event.Pointer = v.pEntry.Pointer
+			event.PNodeAddress = v.pAddress
+			event.RootPointer = s.config.SpaceRoot.Pointer
+			event.ImmediateDeallocation = s.config.ImmediateDeallocation
+
+			s.config.EventCh <- event
 
 			return nil
 		case types.StateData:
@@ -391,12 +411,13 @@ func (s *Space[K, V]) set(
 					v.itemP = item
 					v.exists = true
 
-					s.config.EventCh <- types.SpaceDataNodeUpdatedEvent{
-						Pointer:               v.pEntry.Pointer,
-						PNodeAddress:          v.pAddress,
-						RootPointer:           s.config.SpaceRoot.Pointer,
-						ImmediateDeallocation: s.config.ImmediateDeallocation,
-					}
+					event := s.config.MassDataNodeUpdatedEvent.New()
+					event.Pointer = v.pEntry.Pointer
+					event.PNodeAddress = v.pAddress
+					event.RootPointer = s.config.SpaceRoot.Pointer
+					event.ImmediateDeallocation = s.config.ImmediateDeallocation
+
+					s.config.EventCh <- event
 
 					return nil
 				}
@@ -409,12 +430,13 @@ func (s *Space[K, V]) set(
 						v.itemP = item
 						v.exists = true
 
-						s.config.EventCh <- types.SpaceDataNodeUpdatedEvent{
-							Pointer:               v.pEntry.Pointer,
-							PNodeAddress:          v.pAddress,
-							RootPointer:           s.config.SpaceRoot.Pointer,
-							ImmediateDeallocation: s.config.ImmediateDeallocation,
-						}
+						event := s.config.MassDataNodeUpdatedEvent.New()
+						event.Pointer = v.pEntry.Pointer
+						event.PNodeAddress = v.pAddress
+						event.RootPointer = s.config.SpaceRoot.Pointer
+						event.ImmediateDeallocation = s.config.ImmediateDeallocation
+
+						s.config.EventCh <- event
 
 						return nil
 					}

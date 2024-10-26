@@ -10,7 +10,8 @@ func NewDummyStore() *DummyStore {
 }
 
 // DummyStore defines persistent no-op store.
-type DummyStore struct{}
+type DummyStore struct {
+}
 
 // Write is a no-op implementation.
 func (s *DummyStore) Write(_ types.PersistentAddress, _ []byte) error {

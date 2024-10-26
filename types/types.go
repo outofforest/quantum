@@ -1,5 +1,7 @@
 package types
 
+import "crypto/sha256"
+
 // UInt64Length is the number of bytes taken by uint64.
 const UInt64Length = 8
 
@@ -45,6 +47,7 @@ type RevisionHeader struct {
 // Pointer is the pointer to another block.
 type Pointer struct {
 	Version           uint64
+	Checksum          [sha256.Size]byte
 	VolatileAddress   VolatileAddress
 	PersistentAddress PersistentAddress
 }
