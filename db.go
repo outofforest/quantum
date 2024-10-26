@@ -459,39 +459,20 @@ func (db *DB) Run(ctx context.Context) error {
 
 			return db.processEvents(ctx, db.eventCh, db.storeRequestCh)
 		})
-
-		spawn("store", parallel.Continue, func(ctx context.Context) error {
+		spawn("storeDistributor", parallel.Continue, func(ctx context.Context) error {
 			defer func() {
 				for _, ch := range storeChs {
 					close(ch)
 				}
 			}()
 
-			nodeSize := types.PersistentAddress(db.config.State.NodeSize())
-			numOfStores := types.PersistentAddress(len(storeChs))
-
-			for req := range db.storeRequestCh {
-				factor := req.Pointer.PersistentAddress / nodeSize
-				req.Pointer.PersistentAddress = factor / numOfStores * nodeSize
-
-				storeIndex := int(factor % numOfStores)
-				storeChs[storeIndex] <- req
-
-				if req.SyncCh != nil {
-					// To the other stores we send only sync request without pointer to store.
-					req.Pointer = nil
-					for i, ch := range storeChs {
-						if i == storeIndex {
-							continue
-						}
-						ch <- req
-					}
-				}
+			storeChsOut := make([]chan<- types.StoreRequest, 0, len(storeChs))
+			for _, ch := range storeChs {
+				storeChsOut = append(storeChsOut, ch)
 			}
 
-			return errors.WithStack(ctx.Err())
+			return db.distributeStoreRequests(ctx, db.storeRequestCh, storeChsOut)
 		})
-
 		for i, store := range db.config.Stores {
 			spawn(fmt.Sprintf("store-%02d", i), parallel.Continue, func(ctx context.Context) error {
 				return db.processStoreRequests(ctx, store, storeChs[i])
@@ -725,6 +706,36 @@ func (db *DB) storeSpacePointerNodes(
 
 		pointerNode = parentPointerNode
 	}
+}
+
+func (db *DB) distributeStoreRequests(
+	ctx context.Context,
+	storeRequestCh <-chan types.StoreRequest,
+	storeChs []chan<- types.StoreRequest,
+) error {
+	nodeSize := types.PersistentAddress(db.config.State.NodeSize())
+	numOfStores := types.PersistentAddress(len(storeChs))
+
+	for req := range storeRequestCh {
+		factor := req.Pointer.PersistentAddress / nodeSize
+		req.Pointer.PersistentAddress = factor / numOfStores * nodeSize
+
+		storeIndex := int(factor % numOfStores)
+		storeChs[storeIndex] <- req
+
+		if req.SyncCh != nil {
+			// To the other stores we send only sync request without pointer to store.
+			req.Pointer = nil
+			for i, ch := range storeChs {
+				if i == storeIndex {
+					continue
+				}
+				ch <- req
+			}
+		}
+	}
+
+	return errors.WithStack(ctx.Err())
 }
 
 func (db *DB) processStoreRequests(
