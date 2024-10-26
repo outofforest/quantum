@@ -471,13 +471,19 @@ func (db *DB) Run(ctx context.Context) error {
 			numOfStores := types.PersistentAddress(len(storeChs))
 
 			for req := range db.storeRequestCh {
-				if req.SyncCh == nil {
-					factor := req.Pointer.PersistentAddress / nodeSize
-					req.Pointer.PersistentAddress = factor / numOfStores * nodeSize
+				factor := req.Pointer.PersistentAddress / nodeSize
+				req.Pointer.PersistentAddress = factor / numOfStores * nodeSize
 
-					storeChs[factor%numOfStores] <- req
-				} else {
-					for _, ch := range storeChs {
+				storeIndex := int(factor % numOfStores)
+				storeChs[storeIndex] <- req
+
+				if req.SyncCh != nil {
+					// To the other stores we send only sync request without pointer to store.
+					req.Pointer = nil
+					for i, ch := range storeChs {
+						if i == storeIndex {
+							continue
+						}
 						ch <- req
 					}
 				}
@@ -727,18 +733,20 @@ func (db *DB) processStoreRequests(
 	storeRequestCh <-chan types.StoreRequest,
 ) error {
 	for req := range storeRequestCh {
-		header := photon.FromPointer[types.RevisionHeader](db.config.State.Node(req.Pointer.VolatileAddress))
-		revision := atomic.LoadUint64(&header.Revision)
+		if req.Pointer != nil {
+			header := photon.FromPointer[types.RevisionHeader](db.config.State.Node(req.Pointer.VolatileAddress))
+			revision := atomic.LoadUint64(&header.Revision)
 
-		if revision != req.Revision {
-			continue
-		}
+			if revision != req.Revision {
+				continue
+			}
 
-		if err := store.Write(
-			req.Pointer.PersistentAddress,
-			db.config.State.Bytes(req.Pointer.VolatileAddress),
-		); err != nil {
-			return err
+			if err := store.Write(
+				req.Pointer.PersistentAddress,
+				db.config.State.Bytes(req.Pointer.VolatileAddress),
+			); err != nil {
+				return err
+			}
 		}
 
 		if req.SyncCh != nil {
