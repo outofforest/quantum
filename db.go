@@ -680,7 +680,7 @@ func (db *DB) storeSpacePointerNodes(
 			pointer = rootPointer
 		} else {
 			db.pointerNodeAssistant.Project(pointerNode.Header.ParentNodeAddress, parentPointerNode)
-			pointer, _ = parentPointerNode.Item(pointerNode.Header.ParentNodeIndex)
+			pointer = parentPointerNode.Item(pointerNode.Header.ParentNodeIndex)
 		}
 
 		revision := atomic.AddUint64(&pointerNode.Header.RevisionHeader.Revision, 1)

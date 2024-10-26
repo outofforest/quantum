@@ -109,9 +109,14 @@ type Node[H, T comparable] struct {
 	itemsP     unsafe.Pointer
 }
 
-// Item returns pointers to the item and its state by index.
-func (sn *Node[H, T]) Item(index uintptr) (*T, *types.State) {
-	return (*T)(unsafe.Add(sn.itemsP, sn.itemSize*index)), (*types.State)(unsafe.Add(sn.statesP, index))
+// State returns pointer to state of an item.
+func (sn *Node[H, T]) State(index uintptr) *types.State {
+	return (*types.State)(unsafe.Add(sn.statesP, index))
+}
+
+// Item returns pointer to the item.
+func (sn *Node[H, T]) Item(index uintptr) *T {
+	return (*T)(unsafe.Add(sn.itemsP, sn.itemSize*index))
 }
 
 // Iterator iterates over items.

@@ -356,7 +356,10 @@ func (s *Space[K, V]) set(
 			*v.pEntry.State = types.StateData
 			v.pEntry.Pointer.VolatileAddress = dataNodeAddress
 
-			item, state := dataNode.Item(s.config.DataNodeAssistant.Index(v.item.Hash + 1))
+			index := s.config.DataNodeAssistant.Index(v.item.Hash + 1)
+			state := dataNode.State(index)
+			item := dataNode.Item(index)
+
 			*state = types.StateData
 			*item = v.item
 
@@ -377,7 +380,10 @@ func (s *Space[K, V]) set(
 
 			var conflict bool
 			for i := types.Hash(0); i < trials; i++ {
-				item, state := dataNode.Item(s.config.DataNodeAssistant.Index(v.item.Hash + 1<<i + i))
+				index := s.config.DataNodeAssistant.Index(v.item.Hash + 1<<i + i)
+				state := dataNode.State(index)
+				item := dataNode.Item(index)
+
 				if *state <= types.StateDeleted {
 					*item = v.item
 
@@ -437,14 +443,12 @@ func (s *Space[K, V]) set(
 			}
 
 			index := s.config.PointerNodeAssistant.Index(v.item.Hash)
-			item, state := pointerNode.Item(index)
 			v.item.Hash = s.config.PointerNodeAssistant.Shift(v.item.Hash)
-
 			v.pAddress = v.pEntry.Pointer.VolatileAddress
 			v.pIndex = index
 			v.pEntry = types.ParentEntry{
-				State:   state,
-				Pointer: item,
+				State:   pointerNode.State(index),
+				Pointer: pointerNode.Item(index),
 			}
 		}
 	}
@@ -489,18 +493,17 @@ func (s *Space[K, V]) redistributeNode(
 			item.Hash = hashKey(item.Key, s.hashBuff, pointerNode.Header.HashMod)
 		}
 		index := s.config.PointerNodeAssistant.Index(item.Hash)
-		pointerItem, pointerState := pointerNode.Item(index)
 		item.Hash = s.config.PointerNodeAssistant.Shift(item.Hash)
 
 		if err := s.set(&Entry[K, V]{
-			space: s,
-			item:  *item,
-			pEntry: types.ParentEntry{
-				State:   pointerState,
-				Pointer: pointerItem,
-			},
+			space:    s,
+			item:     *item,
 			pAddress: pointerNodeAddress,
 			pIndex:   index,
+			pEntry: types.ParentEntry{
+				State:   pointerNode.State(index),
+				Pointer: pointerNode.Item(index),
+			},
 		}, pool, pointerNode, dataNode); err != nil {
 			return err
 		}
@@ -528,28 +531,28 @@ func (s *Space[K, V]) find(
 			}
 
 			index := s.config.PointerNodeAssistant.Index(v.item.Hash)
-			item, state := pointerNode.Item(index)
 			v.item.Hash = s.config.PointerNodeAssistant.Shift(v.item.Hash)
-
 			v.pAddress = v.pEntry.Pointer.VolatileAddress
 			v.pIndex = index
 			v.pEntry = types.ParentEntry{
-				State:   state,
-				Pointer: item,
+				State:   pointerNode.State(index),
+				Pointer: pointerNode.Item(index),
 			}
 		case types.StateData:
 			s.config.DataNodeAssistant.Project(v.pEntry.Pointer.VolatileAddress, dataNode)
 			for i := types.Hash(0); i < trials; i++ {
-				item, state := dataNode.Item(s.config.DataNodeAssistant.Index(v.item.Hash + 1<<i + i))
+				index := s.config.DataNodeAssistant.Index(v.item.Hash + 1<<i + i)
+				state := dataNode.State(index)
 
 				switch *state {
 				case types.StateFree:
 					if v.stateP == nil {
 						v.stateP = state
-						v.itemP = item
+						v.itemP = dataNode.Item(index)
 					}
 					return nil
 				case types.StateData:
+					item := dataNode.Item(index)
 					if item.Hash == v.item.Hash && item.Key == v.item.Key {
 						v.exists = true
 						v.stateP = state
@@ -560,7 +563,7 @@ func (s *Space[K, V]) find(
 				default:
 					if v.stateP == nil {
 						v.stateP = state
-						v.itemP = item
+						v.itemP = dataNode.Item(index)
 					}
 				}
 			}
