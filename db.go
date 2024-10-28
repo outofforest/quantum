@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
 
 	"github.com/outofforest/mass"
 	"github.com/outofforest/parallel"
@@ -14,6 +15,7 @@ import (
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/list"
 	"github.com/outofforest/quantum/persistent"
+	"github.com/outofforest/quantum/queue"
 	"github.com/outofforest/quantum/space"
 	"github.com/outofforest/quantum/types"
 )
@@ -40,25 +42,19 @@ type ListToCommit struct {
 
 // New creates new database.
 func New(config Config) (*DB, error) {
-	pointerNodeAssistant, err := space.NewNodeAssistant[space.PointerNodeHeader, types.Pointer](config.State)
+	pointerNodeAssistant, err := space.NewNodeAssistant[types.Pointer](config.State)
 	if err != nil {
 		return nil, err
 	}
 
-	snapshotInfoNodeAssistant, err := space.NewNodeAssistant[
-		space.DataNodeHeader,
-		types.DataItem[types.SnapshotID, types.SnapshotInfo],
-	](
+	snapshotInfoNodeAssistant, err := space.NewNodeAssistant[types.DataItem[types.SnapshotID, types.SnapshotInfo]](
 		config.State,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	snapshotToNodeNodeAssistant, err := space.NewNodeAssistant[
-		space.DataNodeHeader,
-		types.DataItem[types.SnapshotID, types.Pointer],
-	](
+	snapshotToNodeNodeAssistant, err := space.NewNodeAssistant[types.DataItem[types.SnapshotID, types.Pointer]](
 		config.State,
 	)
 	if err != nil {
@@ -73,7 +69,6 @@ func New(config Config) (*DB, error) {
 	db := &DB{
 		config:                      config,
 		singularityNode:             photon.FromPointer[types.SingularityNode](config.State.Node(0)),
-		singularityNodePointer:      &types.Pointer{},
 		pointerNodeAssistant:        pointerNodeAssistant,
 		snapshotToNodeNodeAssistant: snapshotToNodeNodeAssistant,
 		listNodeAssistant:           listNodeAssistant,
@@ -82,43 +77,37 @@ func New(config Config) (*DB, error) {
 		snapshotToNodeNode:          snapshotToNodeNodeAssistant.NewNode(),
 		listNode:                    listNodeAssistant.NewNode(),
 		massSnapshotToNodeEntry:     mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
-		massDataNodeUpdatedEvent:    mass.New[types.SpaceDataNodeUpdatedEvent](1000),
 		deallocationListsToCommit:   map[types.SnapshotID]ListToCommit{},
-		eventCh:                     make(chan any, 1000),
-		storeRequestCh:              make(chan types.StoreRequest, 10000),
+		storeQ:                      queue.New(),
 		closedCh:                    make(chan struct{}),
 	}
 
 	// Logical nodes might be deallocated immediately.
 	db.snapshots = space.New[types.SnapshotID, types.SnapshotInfo](space.Config[types.SnapshotID, types.SnapshotInfo]{
-		HashMod: &db.singularityNode.SnapshotRoot.HashMod,
 		SpaceRoot: types.ParentEntry{
 			State:   &db.singularityNode.SnapshotRoot.State,
 			Pointer: &db.singularityNode.SnapshotRoot.Pointer,
 		},
-		State:                    config.State,
-		PointerNodeAssistant:     pointerNodeAssistant,
-		DataNodeAssistant:        snapshotInfoNodeAssistant,
-		MassEntry:                mass.New[space.Entry[types.SnapshotID, types.SnapshotInfo]](1000),
-		MassDataNodeUpdatedEvent: mass.New[types.SpaceDataNodeUpdatedEvent](1000),
-		EventCh:                  db.eventCh,
-		ImmediateDeallocation:    true,
+		State:                 config.State,
+		PointerNodeAssistant:  pointerNodeAssistant,
+		DataNodeAssistant:     snapshotInfoNodeAssistant,
+		MassEntry:             mass.New[space.Entry[types.SnapshotID, types.SnapshotInfo]](1000),
+		ImmediateDeallocation: true,
+		StoreQ:                db.storeQ,
 	})
 
 	db.deallocationLists = space.New[types.SnapshotID, types.Pointer](
 		space.Config[types.SnapshotID, types.Pointer]{
-			HashMod: &db.snapshotInfo.DeallocationRoot.HashMod,
 			SpaceRoot: types.ParentEntry{
 				State:   &db.snapshotInfo.DeallocationRoot.State,
 				Pointer: &db.snapshotInfo.DeallocationRoot.Pointer,
 			},
-			State:                    config.State,
-			PointerNodeAssistant:     pointerNodeAssistant,
-			DataNodeAssistant:        snapshotToNodeNodeAssistant,
-			MassEntry:                mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
-			MassDataNodeUpdatedEvent: mass.New[types.SpaceDataNodeUpdatedEvent](1000),
-			EventCh:                  db.eventCh,
-			ImmediateDeallocation:    true,
+			State:                 config.State,
+			PointerNodeAssistant:  pointerNodeAssistant,
+			DataNodeAssistant:     snapshotToNodeNodeAssistant,
+			MassEntry:             mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
+			ImmediateDeallocation: true,
+			StoreQ:                db.storeQ,
 		},
 	)
 
@@ -130,30 +119,27 @@ func New(config Config) (*DB, error) {
 
 // DB represents the database.
 type DB struct {
-	config                 Config
-	singularityNode        *types.SingularityNode
-	singularityNodePointer *types.Pointer
-	snapshotInfo           types.SnapshotInfo
-	snapshots              *space.Space[types.SnapshotID, types.SnapshotInfo]
-	deallocationLists      *space.Space[types.SnapshotID, types.Pointer]
+	config            Config
+	singularityNode   *types.SingularityNode
+	snapshotInfo      types.SnapshotInfo
+	snapshots         *space.Space[types.SnapshotID, types.SnapshotInfo]
+	deallocationLists *space.Space[types.SnapshotID, types.Pointer]
 
-	pointerNodeAssistant        *space.NodeAssistant[space.PointerNodeHeader, types.Pointer]
-	snapshotToNodeNodeAssistant *space.NodeAssistant[space.DataNodeHeader, types.DataItem[types.SnapshotID, types.Pointer]]
+	pointerNodeAssistant        *space.NodeAssistant[types.Pointer]
+	snapshotToNodeNodeAssistant *space.NodeAssistant[types.DataItem[types.SnapshotID, types.Pointer]]
 	listNodeAssistant           *list.NodeAssistant
 
-	pointerNode        *space.Node[space.PointerNodeHeader, types.Pointer]
-	snapshotInfoNode   *space.Node[space.DataNodeHeader, types.DataItem[types.SnapshotID, types.SnapshotInfo]]
-	snapshotToNodeNode *space.Node[space.DataNodeHeader, types.DataItem[types.SnapshotID, types.Pointer]]
+	pointerNode        *space.Node[types.Pointer]
+	snapshotInfoNode   *space.Node[types.DataItem[types.SnapshotID, types.SnapshotInfo]]
+	snapshotToNodeNode *space.Node[types.DataItem[types.SnapshotID, types.Pointer]]
 	listNode           *list.Node
 
-	massSnapshotToNodeEntry  *mass.Mass[space.Entry[types.SnapshotID, types.Pointer]]
-	massDataNodeUpdatedEvent *mass.Mass[types.SpaceDataNodeUpdatedEvent]
+	massSnapshotToNodeEntry *mass.Mass[space.Entry[types.SnapshotID, types.Pointer]]
 
 	deallocationListsToCommit map[types.SnapshotID]ListToCommit
 
-	eventCh        chan any
-	storeRequestCh chan types.StoreRequest
-	closedCh       chan struct{}
+	storeQ   *queue.Queue
+	closedCh chan struct{}
 }
 
 // NewVolatilePool creates new volatile allocation pool.
@@ -200,14 +186,12 @@ func (db *DB) DeleteSnapshot(
 		}
 		nextDeallocationLists = space.New[types.SnapshotID, types.Pointer](
 			space.Config[types.SnapshotID, types.Pointer]{
-				HashMod:                  &nextSnapshotInfo.DeallocationRoot.HashMod,
-				SpaceRoot:                nextDeallocationListRoot,
-				State:                    db.config.State,
-				PointerNodeAssistant:     db.pointerNodeAssistant,
-				DataNodeAssistant:        db.snapshotToNodeNodeAssistant,
-				MassEntry:                db.massSnapshotToNodeEntry,
-				MassDataNodeUpdatedEvent: db.massDataNodeUpdatedEvent,
-				EventCh:                  db.eventCh,
+				SpaceRoot:            nextDeallocationListRoot,
+				State:                db.config.State,
+				PointerNodeAssistant: db.pointerNodeAssistant,
+				DataNodeAssistant:    db.snapshotToNodeNodeAssistant,
+				MassEntry:            db.massSnapshotToNodeEntry,
+				StoreQ:               db.storeQ,
 			},
 		)
 	} else {
@@ -225,13 +209,12 @@ func (db *DB) DeleteSnapshot(
 	}
 	deallocationLists := space.New[types.SnapshotID, types.Pointer](
 		space.Config[types.SnapshotID, types.Pointer]{
-			HashMod:                  &snapshotInfo.DeallocationRoot.HashMod,
-			SpaceRoot:                deallocationListsRoot,
-			State:                    db.config.State,
-			PointerNodeAssistant:     db.pointerNodeAssistant,
-			DataNodeAssistant:        db.snapshotToNodeNodeAssistant,
-			MassEntry:                db.massSnapshotToNodeEntry,
-			MassDataNodeUpdatedEvent: db.massDataNodeUpdatedEvent,
+			SpaceRoot:            deallocationListsRoot,
+			State:                db.config.State,
+			PointerNodeAssistant: db.pointerNodeAssistant,
+			DataNodeAssistant:    db.snapshotToNodeNodeAssistant,
+			MassEntry:            db.massSnapshotToNodeEntry,
+			StoreQ:               db.storeQ,
 		},
 	)
 
@@ -239,11 +222,16 @@ func (db *DB) DeleteSnapshot(
 	if snapshotID != db.singularityNode.FirstSnapshotID {
 		startSnapshotID = snapshotInfo.PreviousSnapshotID + 1
 	}
+
 	for nextDeallocSnapshot := range nextDeallocationLists.Iterator(db.pointerNode, db.snapshotToNodeNode) {
 		if nextDeallocSnapshot.Key >= startSnapshotID && nextDeallocSnapshot.Key <= snapshotID {
-			db.eventCh <- types.ListDeallocationEvent{
-				ListRoot: nextDeallocSnapshot.Value,
-			}
+			list.Deallocate(
+				nextDeallocSnapshot.Value,
+				volatilePool,
+				persistentPool,
+				db.listNodeAssistant,
+				db.listNode,
+			)
 
 			continue
 		}
@@ -252,19 +240,21 @@ func (db *DB) DeleteSnapshot(
 		listNodeAddress := deallocationListValue.Value()
 		newListNodeAddress := listNodeAddress
 		list := list.New(list.Config{
-			ListRoot:       &newListNodeAddress,
-			State:          db.config.State,
-			NodeAssistant:  db.listNodeAssistant,
-			StoreRequestCh: db.storeRequestCh,
+			ListRoot:      &newListNodeAddress,
+			State:         db.config.State,
+			NodeAssistant: db.listNodeAssistant,
 		})
-		if err := list.Attach(
-			nextDeallocSnapshot.Value,
-			db.singularityNode.LastSnapshotID,
-			volatilePool,
-			persistentPool,
-			db.listNode,
-		); err != nil {
+
+		pointerToStore, err := list.Attach(&nextDeallocSnapshot.Value, volatilePool, db.listNode)
+		if err != nil {
 			return err
+		}
+		if pointerToStore != nil {
+			db.storeQ.Push(&queue.Request{
+				Store:                 [queue.StoreCapacity]*types.Pointer{pointerToStore},
+				PointersToStore:       1,
+				ImmediateDeallocation: true,
+			})
 		}
 		if newListNodeAddress != listNodeAddress {
 			if err := deallocationListValue.Set(
@@ -280,9 +270,13 @@ func (db *DB) DeleteSnapshot(
 
 	nextSnapshotInfo.DeallocationRoot = snapshotInfo.DeallocationRoot
 
-	db.eventCh <- types.SpaceDeallocationEvent{
-		SpaceRoot: nextDeallocationListRoot,
-	}
+	space.Deallocate(
+		nextDeallocationListRoot,
+		volatilePool,
+		persistentPool,
+		db.pointerNodeAssistant,
+		db.pointerNode,
+	)
 
 	if snapshotID == db.singularityNode.FirstSnapshotID {
 		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.NextSnapshotID
@@ -333,12 +327,18 @@ func (db *DB) DeleteSnapshot(
 }
 
 // Commit commits current snapshot and returns next one.
-func (db *DB) Commit(
-	volatilePool *alloc.Pool[types.VolatileAddress],
-	persistentPool *alloc.Pool[types.PersistentAddress],
-) error {
+func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
+	//nolint:nestif
 	if len(db.deallocationListsToCommit) > 0 {
-		db.sync()
+		syncCh := make(chan error, len(db.config.Stores))
+		db.storeQ.Push(&queue.Request{
+			Type:   queue.Sync,
+			SyncCh: syncCh,
+		})
+
+		for range cap(syncCh) {
+			<-syncCh
+		}
 
 		lists := make([]types.SnapshotID, 0, len(db.deallocationListsToCommit))
 		for snapshotID := range db.deallocationListsToCommit {
@@ -346,17 +346,21 @@ func (db *DB) Commit(
 		}
 		sort.Slice(lists, func(i, j int) bool { return lists[i] < lists[j] })
 
+		var sr queue.Request
 		for _, snapshotID := range lists {
 			deallocationListValue := db.deallocationLists.Find(snapshotID, db.pointerNode, db.snapshotToNodeNode)
 			if deallocationListValue.Exists() {
-				if err := db.deallocationListsToCommit[snapshotID].List.Attach(
-					deallocationListValue.Value(),
-					db.singularityNode.LastSnapshotID,
+				pointerToStore, err := db.deallocationListsToCommit[snapshotID].List.Attach(
+					lo.ToPtr(deallocationListValue.Value()),
 					volatilePool,
-					persistentPool,
 					db.listNode,
-				); err != nil {
+				)
+				if err != nil {
 					return err
+				}
+				if pointerToStore != nil {
+					sr.Store[sr.PointersToStore] = pointerToStore
+					sr.PointersToStore++
 				}
 			}
 			if err := deallocationListValue.Set(
@@ -367,6 +371,9 @@ func (db *DB) Commit(
 			); err != nil {
 				return err
 			}
+		}
+		if sr.PointersToStore > 0 {
+			db.storeQ.Push(&sr)
 		}
 
 		clear(db.deallocationListsToCommit)
@@ -382,11 +389,15 @@ func (db *DB) Commit(
 		return err
 	}
 
+	pointer := db.config.State.SingularityNodePointer(db.singularityNode.LastSnapshotID)
 	syncCh := make(chan error, len(db.config.Stores))
-	db.eventCh <- types.DBCommitEvent{
-		SingularityNodePointer: db.config.State.SingularityNodePointer(db.singularityNode.LastSnapshotID),
-		SyncCh:                 syncCh,
-	}
+	db.storeQ.Push(&queue.Request{
+		RequestedRevision: pointer.Revision,
+		Store:             [queue.StoreCapacity]*types.Pointer{pointer},
+		PointersToStore:   1,
+		SyncCh:            syncCh,
+	})
+
 	for range cap(syncCh) {
 		if err := <-syncCh; err != nil {
 			return err
@@ -403,96 +414,50 @@ func (db *DB) Close() {
 	select {
 	case <-db.closedCh:
 	default:
+		db.storeQ.Push(&queue.Request{Type: queue.Close})
+
 		close(db.closedCh)
 		db.config.State.Close()
 	}
 }
 
 // Run runs db goroutines.
+// FIXME (wojciech): Commit should return error if any goroutine fails.
 func (db *DB) Run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-		storeRequestCh := make(chan types.StoreRequest, 1000)
-		storeChs := make([]chan types.StoreRequest, 0, len(db.config.Stores))
-		for range cap(storeChs) {
-			storeChs = append(storeChs, make(chan types.StoreRequest, 1000))
+		revisionQReader := db.storeQ.NewReader()
+		allocateQReader := revisionQReader.NewReader()
+		deallocateQReader := allocateQReader.NewReader()
+		storeQReaders := make([]*queue.Reader, 0, len(db.config.Stores))
+		for range cap(storeQReaders) {
+			storeQReaders = append(storeQReaders, deallocateQReader.NewReader())
 		}
 
 		spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
 			ctxDone := ctx.Done()
-			var eventCh <-chan any
 			for {
 				select {
 				case <-ctxDone:
 					ctxDone = nil
-					eventCh = db.eventCh
-				case event := <-eventCh:
-					switch e := event.(type) {
-					case types.SyncEvent:
-						close(e.SyncCh)
-					case types.DBCommitEvent:
-						e.SyncCh <- errors.WithStack(ctx.Err())
-					}
 				case <-db.closedCh:
-					close(db.eventCh)
-					for {
-						var closedChs int
-					loop:
-						for _, ch := range storeChs {
-							for {
-								select {
-								case _, ok := <-ch:
-									if !ok {
-										closedChs++
-										continue loop
-									}
-								default:
-									continue loop
-								}
-							}
-						}
-
-						if closedChs == len(storeChs) {
-							break
-						}
-					}
-
+					// FIXME (wojciech): Read items from store q reader
 					return errors.WithStack(ctx.Err())
 				}
 			}
 		})
 		spawn("state", parallel.Continue, db.config.State.Run)
-		spawn("events", parallel.Continue, func(ctx context.Context) error {
-			defer close(db.storeRequestCh)
-
-			return db.processEvents(ctx, db.eventCh, db.storeRequestCh)
+		spawn("revision", parallel.Continue, func(ctx context.Context) error {
+			return db.processRevisionRequests(ctx, revisionQReader)
 		})
-		spawn("checksum", parallel.Continue, func(ctx context.Context) error {
-			defer close(storeRequestCh)
-
-			for req := range db.storeRequestCh {
-				// req.Pointer.Checksum = sha256.Sum256(db.config.State.Bytes(req.Pointer.VolatileAddress))
-				storeRequestCh <- req
-			}
-
-			return errors.WithStack(ctx.Err())
+		spawn("allocate", parallel.Continue, func(ctx context.Context) error {
+			return db.processAllocationRequests(ctx, allocateQReader)
 		})
-		spawn("storeDistributor", parallel.Continue, func(ctx context.Context) error {
-			defer func() {
-				for _, ch := range storeChs {
-					close(ch)
-				}
-			}()
-
-			storeChsOut := make([]chan<- types.StoreRequest, 0, len(storeChs))
-			for _, ch := range storeChs {
-				storeChsOut = append(storeChsOut, ch)
-			}
-
-			return db.distributeStoreRequests(ctx, storeRequestCh, storeChsOut)
+		spawn("deallocate", parallel.Continue, func(ctx context.Context) error {
+			return db.processDeallocationRequests(ctx, deallocateQReader)
 		})
 		for i, store := range db.config.Stores {
 			spawn(fmt.Sprintf("store-%02d", i), parallel.Continue, func(ctx context.Context) error {
-				return db.processStoreRequests(ctx, store, storeChs[i])
+				return db.processStoreRequests(ctx, store, storeQReaders[i])
 			})
 		}
 
@@ -500,345 +465,204 @@ func (db *DB) Run(ctx context.Context) error {
 	})
 }
 
-func (db *DB) processEvents(
+func (db *DB) processRevisionRequests(
 	ctx context.Context,
-	eventCh <-chan any,
-	storeRequestCh chan<- types.StoreRequest,
+	storeQReader *queue.Reader,
+) error {
+	var revision uint64
+
+	var count uint64
+	for {
+		count = storeQReader.Count(count)
+		for range count {
+			req := storeQReader.Read()
+			if req.Type == queue.Close {
+				storeQReader.Acknowledge(count)
+				return errors.WithStack(ctx.Err())
+			}
+
+			revision++
+			req.RequestedRevision = revision
+			for i := range req.PointersToStore {
+				atomic.StoreUint64(&req.Store[i].Revision, revision)
+			}
+		}
+	}
+}
+
+func (db *DB) processAllocationRequests(
+	ctx context.Context,
+	storeQReader *queue.Reader,
+) error {
+	massPointer := mass.New[types.Pointer](1000)
+	persistentPool := db.NewPersistentPool()
+
+	var count uint64
+	for {
+		count = storeQReader.Count(count)
+		for range count {
+			req := storeQReader.Read()
+			if req.Type == queue.Close {
+				storeQReader.Acknowledge(count)
+				return errors.WithStack(ctx.Err())
+			}
+
+			//nolint:nestif
+			if req.PointersToStore > 0 {
+				// FIXME (wojciech): I believe not all the requests require deallocation.
+				req.Deallocate = massPointer.NewSlice(req.PointersToStore)
+				var numOfPointersToDeallocate uint
+				for i := range req.PointersToStore {
+					p := req.Store[i]
+					if p.SnapshotID != db.singularityNode.LastSnapshotID {
+						if p.PersistentAddress != 0 {
+							req.Deallocate[numOfPointersToDeallocate] = *p
+							numOfPointersToDeallocate++
+						}
+						p.SnapshotID = db.singularityNode.LastSnapshotID
+
+						var err error
+						p.PersistentAddress, err = persistentPool.Allocate()
+						if err != nil {
+							return err
+						}
+					}
+				}
+
+				req.Deallocate = req.Deallocate[:numOfPointersToDeallocate]
+			}
+		}
+	}
+}
+
+func (db *DB) processDeallocationRequests(
+	ctx context.Context,
+	storeQReader *queue.Reader,
 ) error {
 	volatilePool := db.NewVolatilePool()
 	persistentPool := db.NewPersistentPool()
 
-	pointerNode := db.pointerNodeAssistant.NewNode()
-	parentPointerNode := db.pointerNodeAssistant.NewNode()
 	listNode := db.listNodeAssistant.NewNode()
 
-	for event := range eventCh {
-		switch e := event.(type) {
-		case types.SpacePointerNodeAllocatedEvent:
-			if err := db.storeSpacePointerNodes(
-				e.NodeAddress,
-				e.RootPointer,
-				pointerNode,
-				parentPointerNode,
-				listNode,
-				volatilePool,
-				persistentPool,
-				storeRequestCh,
-				e.ImmediateDeallocation,
-			); err != nil {
-				return err
-			}
-		case types.SpaceDataNodeAllocatedEvent:
-			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.VolatileAddress))
-			header.SnapshotID = db.singularityNode.LastSnapshotID
-
-			revision := atomic.AddUint64(&header.RevisionHeader.Revision, 1)
-
-			var err error
-			e.Pointer.PersistentAddress, err = persistentPool.Allocate()
-			if err != nil {
-				return err
-			}
-
-			storeRequestCh <- types.StoreRequest{
-				Revision: revision,
-				Pointer:  e.Pointer,
-			}
-
-			if e.PNodeAddress == 0 {
-				continue
-			}
-
-			if err := db.storeSpacePointerNodes(
-				e.PNodeAddress,
-				e.RootPointer,
-				pointerNode,
-				parentPointerNode,
-				listNode,
-				volatilePool,
-				persistentPool,
-				storeRequestCh,
-				e.ImmediateDeallocation,
-			); err != nil {
-				return err
-			}
-		case *types.SpaceDataNodeUpdatedEvent:
-			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.VolatileAddress))
-			revision := atomic.AddUint64(&header.RevisionHeader.Revision, 1)
-
-			if header.SnapshotID != db.singularityNode.LastSnapshotID {
-				if e.Pointer.PersistentAddress != 0 {
-					if err := db.deallocateNode(
-						*e.Pointer,
-						header.SnapshotID,
-						volatilePool,
-						persistentPool,
-						listNode,
-						e.ImmediateDeallocation,
-						false,
-					); err != nil {
-						return err
-					}
-				}
-
-				header.SnapshotID = db.singularityNode.LastSnapshotID
-
-				var err error
-				e.Pointer.PersistentAddress, err = persistentPool.Allocate()
-				if err != nil {
-					return err
-				}
-			}
-
-			storeRequestCh <- types.StoreRequest{
-				Revision: revision,
-				Pointer:  e.Pointer,
-			}
-
-			if e.PNodeAddress == 0 {
-				continue
-			}
-
-			if err := db.storeSpacePointerNodes(
-				e.PNodeAddress,
-				e.RootPointer,
-				pointerNode,
-				parentPointerNode,
-				listNode,
-				volatilePool,
-				persistentPool,
-				storeRequestCh,
-				e.ImmediateDeallocation,
-			); err != nil {
-				return err
-			}
-		case types.SpaceDataNodeDeallocationEvent:
-			header := photon.FromPointer[space.DataNodeHeader](db.config.State.Node(e.Pointer.VolatileAddress))
-
-			if header.SnapshotID == db.singularityNode.LastSnapshotID {
-				// This is done to ignore any potential pending writes of this block.
-				atomic.AddUint64(&header.RevisionHeader.Revision, 1)
-			}
-
-			if err := db.deallocateNode(
-				e.Pointer,
-				header.SnapshotID,
-				volatilePool,
-				persistentPool,
-				listNode,
-				e.ImmediateDeallocation,
-				true,
-			); err != nil {
-				return err
-			}
-		case types.SpaceDeallocationEvent:
-			space.Deallocate(
-				e.SpaceRoot,
-				volatilePool,
-				persistentPool,
-				db.pointerNodeAssistant,
-				pointerNode,
-			)
-		case types.ListDeallocationEvent:
-			list.Deallocate(
-				e.ListRoot,
-				volatilePool,
-				persistentPool,
-				db.listNodeAssistant,
-				listNode,
-			)
-		case types.SyncEvent:
-			close(e.SyncCh)
-		case types.DBCommitEvent:
-			storeRequestCh <- types.StoreRequest{
-				Revision: 0,
-				Pointer:  e.SingularityNodePointer,
-				SyncCh:   e.SyncCh,
-			}
-		}
-	}
-
-	return errors.WithStack(ctx.Err())
-}
-
-func (db *DB) storeSpacePointerNodes(
-	nodeAddress types.VolatileAddress,
-	rootPointer *types.Pointer,
-	pointerNode *space.Node[space.PointerNodeHeader, types.Pointer],
-	parentPointerNode *space.Node[space.PointerNodeHeader, types.Pointer],
-	listNode *list.Node,
-	volatilePool *alloc.Pool[types.VolatileAddress],
-	persistentPool *alloc.Pool[types.PersistentAddress],
-	storeRequestCh chan<- types.StoreRequest,
-	immediateDeallocation bool,
-) error {
-	db.pointerNodeAssistant.Project(nodeAddress, pointerNode)
-
+	var count uint64
 	for {
-		var pointer *types.Pointer
-		if pointerNode.Header.ParentNodeAddress == 0 {
-			pointer = rootPointer
-		} else {
-			db.pointerNodeAssistant.Project(pointerNode.Header.ParentNodeAddress, parentPointerNode)
-			pointer = parentPointerNode.Item(pointerNode.Header.ParentNodeIndex)
-		}
+		count = storeQReader.Count(count)
+		for range count {
+			req := storeQReader.Read()
+			if req.Type == queue.Close {
+				storeQReader.Acknowledge(count)
+				return errors.WithStack(ctx.Err())
+			}
 
-		revision := atomic.AddUint64(&pointerNode.Header.RevisionHeader.Revision, 1)
-
-		if pointerNode.Header.SnapshotID != db.singularityNode.LastSnapshotID {
-			if pointer.PersistentAddress != 0 {
-				if err := db.deallocateNode(
-					*pointer,
-					pointerNode.Header.SnapshotID,
+			for _, p := range req.Deallocate {
+				pointerToStore, err := db.deallocateNode(
+					&p,
+					req.ImmediateDeallocation,
 					volatilePool,
 					persistentPool,
 					listNode,
-					immediateDeallocation,
-					false,
-				); err != nil {
+				)
+				if err != nil {
 					return err
 				}
-				pointer.PersistentAddress = 0
-			}
-			pointerNode.Header.SnapshotID = db.singularityNode.LastSnapshotID
-		}
 
-		if pointer.PersistentAddress == 0 {
-			var err error
-			pointer.PersistentAddress, err = persistentPool.Allocate()
-			if err != nil {
-				return err
-			}
-		}
-
-		storeRequestCh <- types.StoreRequest{
-			Revision: revision,
-			Pointer:  pointer,
-		}
-
-		if pointer == rootPointer {
-			return nil
-		}
-
-		pointerNode = parentPointerNode
-	}
-}
-
-func (db *DB) distributeStoreRequests(
-	ctx context.Context,
-	storeRequestCh <-chan types.StoreRequest,
-	storeChs []chan<- types.StoreRequest,
-) error {
-	nodeSize := types.PersistentAddress(db.config.State.NodeSize())
-	numOfStores := types.PersistentAddress(len(storeChs))
-
-	for req := range storeRequestCh {
-		factor := req.Pointer.PersistentAddress / nodeSize
-		req.Pointer.PersistentAddress = factor / numOfStores * nodeSize
-
-		storeIndex := int(factor % numOfStores)
-		storeChs[storeIndex] <- req
-
-		if req.SyncCh != nil {
-			// To the other stores we send only sync request without pointer to store.
-			req.Pointer = nil
-			for i, ch := range storeChs {
-				if i == storeIndex {
-					continue
+				//nolint:staticcheck
+				if pointerToStore != nil {
+					// FIXME (wojciech): This must be handled somehow
 				}
-				ch <- req
 			}
 		}
 	}
-
-	return errors.WithStack(ctx.Err())
 }
 
 func (db *DB) processStoreRequests(
 	ctx context.Context,
 	store persistent.Store,
-	storeRequestCh <-chan types.StoreRequest,
+	storeQReader *queue.Reader,
 ) error {
 	// uniqueNodes := map[types.VolatileAddress]struct{}{}
 	// var numOfWrites uint
 
-	for req := range storeRequestCh {
-		if req.Pointer != nil {
-			header := photon.FromPointer[types.RevisionHeader](db.config.State.Node(req.Pointer.VolatileAddress))
-			revision := atomic.LoadUint64(&header.Revision)
-
-			if revision != req.Revision {
+	var count uint64
+	for {
+		count = storeQReader.Count(count)
+		for range count {
+			req := storeQReader.Read()
+			if req.Type == queue.Sync {
+				req.SyncCh <- nil
 				continue
 			}
-
-			// uniqueNodes[req.Pointer.VolatileAddress] = struct{}{}
-			// numOfWrites++
-
-			if err := store.Write(
-				req.Pointer.PersistentAddress,
-				db.config.State.Bytes(req.Pointer.VolatileAddress),
-			); err != nil {
-				return err
+			if req.Type == queue.Close {
+				return errors.WithStack(ctx.Err())
 			}
-		}
+			for i := range req.PointersToStore {
+				p := req.Store[i]
+				if atomic.LoadUint64(&p.Revision) != req.RequestedRevision {
+					continue
+				}
 
-		if req.SyncCh != nil {
-			// fmt.Println("========== STORE")
-			// fmt.Println(len(uniqueNodes))
-			// fmt.Println(numOfWrites)
-			// fmt.Println(float64(numOfWrites) / float64(len(uniqueNodes)))
+				// uniqueNodes[p.VolatileAddress] = struct{}{}
+				// numOfWrites++
 
-			// clear(uniqueNodes)
-			// numOfWrites = 0
+				// https://github.com/zeebo/blake3?tab=readme-ov-file
+				// p.Checksum = blake3.Sum256(db.config.State.Bytes(p.VolatileAddress))
 
-			err := store.Sync()
-			req.SyncCh <- err
-			if err != nil {
-				return err
+				if err := store.Write(
+					p.PersistentAddress,
+					db.config.State.Bytes(p.VolatileAddress),
+				); err != nil {
+					return err
+				}
+			}
+
+			if req.SyncCh != nil {
+				// fmt.Println("========== STORE")
+				// fmt.Println(len(uniqueNodes))
+				// fmt.Println(numOfWrites)
+				// fmt.Println(float64(numOfWrites) / float64(len(uniqueNodes)))
+				// clear(uniqueNodes)
+				// numOfWrites = 0
+
+				err := store.Sync()
+				req.SyncCh <- err
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
-	return errors.WithStack(ctx.Err())
 }
 
 func (db *DB) deallocateNode(
-	pointer types.Pointer,
-	srcSnapshotID types.SnapshotID,
+	pointer *types.Pointer,
+	immediateDeallocation bool,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
 	node *list.Node,
-	immediateDeallocation bool,
-	volatileDeallocation bool,
-) error {
+) (*types.Pointer, error) {
 	if db.snapshotInfo.PreviousSnapshotID == db.singularityNode.LastSnapshotID ||
-		srcSnapshotID > db.snapshotInfo.PreviousSnapshotID || immediateDeallocation {
+		pointer.SnapshotID > db.snapshotInfo.PreviousSnapshotID || immediateDeallocation {
 		volatilePool.Deallocate(pointer.VolatileAddress)
 		persistentPool.Deallocate(pointer.PersistentAddress)
 
-		return nil
+		//nolint:nilnil
+		return nil, nil
 	}
 
-	if volatileDeallocation {
-		volatilePool.Deallocate(pointer.VolatileAddress)
-	}
-
-	l, exists := db.deallocationListsToCommit[srcSnapshotID]
+	l, exists := db.deallocationListsToCommit[pointer.SnapshotID]
 	if !exists {
 		l.ListRoot = &types.Pointer{}
 		l.List = list.New(list.Config{
-			ListRoot:       l.ListRoot,
-			State:          db.config.State,
-			NodeAssistant:  db.listNodeAssistant,
-			StoreRequestCh: db.storeRequestCh,
+			ListRoot:      l.ListRoot,
+			State:         db.config.State,
+			NodeAssistant: db.listNodeAssistant,
 		})
-		db.deallocationListsToCommit[srcSnapshotID] = l
+		db.deallocationListsToCommit[pointer.SnapshotID] = l
 	}
 
 	return l.List.Add(
 		pointer,
-		db.singularityNode.LastSnapshotID,
 		volatilePool,
-		persistentPool,
 		node,
 	)
 }
@@ -857,15 +681,6 @@ func (db *DB) prepareNextSnapshot() error {
 	return nil
 }
 
-func (db *DB) sync() {
-	syncCh := make(chan struct{})
-
-	db.eventCh <- types.SyncEvent{
-		SyncCh: syncCh,
-	}
-	<-syncCh
-}
-
 // GetSpace retrieves space from snapshot.
 func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V], error) {
 	if spaceID >= types.SpaceID(len(db.snapshotInfo.Spaces)) {
@@ -873,22 +688,20 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 	}
 	spaceInfo := &db.snapshotInfo.Spaces[spaceID]
 
-	dataNodeAssistant, err := space.NewNodeAssistant[space.DataNodeHeader, types.DataItem[K, V]](db.config.State)
+	dataNodeAssistant, err := space.NewNodeAssistant[types.DataItem[K, V]](db.config.State)
 	if err != nil {
 		return nil, err
 	}
 
 	return space.New[K, V](space.Config[K, V]{
-		HashMod: &spaceInfo.HashMod,
 		SpaceRoot: types.ParentEntry{
 			State:   &spaceInfo.State,
 			Pointer: &spaceInfo.Pointer,
 		},
-		State:                    db.config.State,
-		EventCh:                  db.eventCh,
-		PointerNodeAssistant:     db.pointerNodeAssistant,
-		DataNodeAssistant:        dataNodeAssistant,
-		MassEntry:                mass.New[space.Entry[K, V]](1000),
-		MassDataNodeUpdatedEvent: mass.New[types.SpaceDataNodeUpdatedEvent](1000),
+		State:                db.config.State,
+		PointerNodeAssistant: db.pointerNodeAssistant,
+		DataNodeAssistant:    dataNodeAssistant,
+		MassEntry:            mass.New[space.Entry[K, V]](1000),
+		StoreQ:               db.storeQ,
 	}), nil
 }

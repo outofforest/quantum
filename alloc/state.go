@@ -39,10 +39,6 @@ func NewState(
 	p = (p+nodeSize-1)/nodeSize*nodeSize - p
 	data = data[p : p+size]
 
-	// This line is here to be absolutely sure that the entire region is allocated despite any weird mechanisms
-	// of the kernel. If it's not, then it's better to fail immediately.
-	clear(data)
-
 	volatileAllocationCh, volatileReservedNodes := NewAllocationCh[types.VolatileAddress](size, nodeSize, nodesPerGroup,
 		1)
 	persistentAllocationCh, persistentReservedNodes := NewAllocationCh[types.PersistentAddress](size, nodeSize,
@@ -51,6 +47,7 @@ func NewState(
 	singularityNodePointers := make([]types.Pointer, 0, numOfSingularityNodes)
 	for i := range numOfSingularityNodes {
 		singularityNodePointers = append(singularityNodePointers, types.Pointer{
+			Revision:          1,
 			VolatileAddress:   volatileReservedNodes[0],
 			PersistentAddress: persistentReservedNodes[i%numOfSingularityNodes],
 		})
@@ -111,7 +108,9 @@ func (s *State) NewPersistentPool() *Pool[types.PersistentAddress] {
 
 // SingularityNodePointer returns pointer where singularity node is stored.
 func (s *State) SingularityNodePointer(snapshotID types.SnapshotID) *types.Pointer {
-	return &s.singularityNodePointers[snapshotID%types.SnapshotID(len(s.singularityNodePointers))]
+	pointer := &s.singularityNodePointers[snapshotID%types.SnapshotID(len(s.singularityNodePointers))]
+	pointer.SnapshotID = snapshotID // To prevent deallocation of the singularity node.
+	return pointer
 }
 
 // Node returns node bytes.

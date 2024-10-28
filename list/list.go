@@ -2,7 +2,6 @@ package list
 
 import (
 	"sort"
-	"sync/atomic"
 
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/types"
@@ -10,10 +9,9 @@ import (
 
 // Config stores list configuration.
 type Config struct {
-	ListRoot       *types.Pointer
-	State          *alloc.State
-	NodeAssistant  *NodeAssistant
-	StoreRequestCh chan<- types.StoreRequest
+	ListRoot      *types.Pointer
+	State         *alloc.State
+	NodeAssistant *NodeAssistant
 }
 
 // New creates new list.
@@ -30,160 +28,83 @@ type List struct {
 
 // Add adds address to the list.
 func (l *List) Add(
-	pointer types.Pointer,
-	snapshotID types.SnapshotID,
+	pointer *types.Pointer,
 	volatilePool *alloc.Pool[types.VolatileAddress],
-	persistentPool *alloc.Pool[types.PersistentAddress],
 	node *Node,
-) error {
+) (*types.Pointer, error) {
 	if l.config.ListRoot.VolatileAddress == 0 {
 		newNodeAddress, err := volatilePool.Allocate()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		l.config.NodeAssistant.Project(newNodeAddress, node)
 
-		node.Header.SnapshotID = snapshotID
-		revision := atomic.AddUint64(&node.Header.RevisionHeader.Revision, 1)
-		node.Pointers[0] = pointer
+		node.Pointers[0] = *pointer
 		node.Header.NumOfPointers = 1
 
-		physicalAddress, err := persistentPool.Allocate()
-		if err != nil {
-			return err
-		}
-
 		l.config.ListRoot.VolatileAddress = newNodeAddress
-		l.config.ListRoot.PersistentAddress = physicalAddress
 
-		l.config.StoreRequestCh <- types.StoreRequest{
-			Revision: revision,
-			Pointer:  l.config.ListRoot,
-		}
-
-		return nil
+		return l.config.ListRoot, nil
 	}
 
 	l.config.NodeAssistant.Project(l.config.ListRoot.VolatileAddress, node)
 	if node.Header.NumOfPointers+node.Header.NumOfSideLists < uint64(len(node.Pointers)) {
-		if node.Header.SnapshotID != snapshotID {
-			node.Header.SnapshotID = snapshotID
-
-			physicalAddress, err := persistentPool.Allocate()
-			if err != nil {
-				return err
-			}
-
-			persistentPool.Deallocate(l.config.ListRoot.PersistentAddress)
-			l.config.ListRoot.PersistentAddress = physicalAddress
-		}
-		revision := atomic.AddUint64(&node.Header.RevisionHeader.Revision, 1)
-
-		node.Pointers[node.Header.NumOfPointers] = pointer
+		node.Pointers[node.Header.NumOfPointers] = *pointer
 		node.Header.NumOfPointers++
 
-		l.config.StoreRequestCh <- types.StoreRequest{
-			Revision: revision,
-			Pointer:  l.config.ListRoot,
-		}
-
-		return nil
+		return l.config.ListRoot, nil
 	}
 
 	newNodeAddress, err := volatilePool.Allocate()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	l.config.NodeAssistant.Project(newNodeAddress, node)
 
-	node.Header.SnapshotID = snapshotID
-	revision := atomic.AddUint64(&node.Header.RevisionHeader.Revision, 1)
-	node.Pointers[0] = pointer
+	node.Pointers[0] = *pointer
 	node.Pointers[len(node.Pointers)-1] = *l.config.ListRoot
 	node.Header.NumOfPointers = 1
 	node.Header.NumOfSideLists = 1
 
-	physicalAddress, err := persistentPool.Allocate()
-	if err != nil {
-		return err
-	}
-
 	l.config.ListRoot.VolatileAddress = newNodeAddress
-	l.config.ListRoot.PersistentAddress = physicalAddress
 
-	l.config.StoreRequestCh <- types.StoreRequest{
-		Revision: revision,
-		Pointer:  l.config.ListRoot,
-	}
-
-	return nil
+	return l.config.ListRoot, nil
 }
 
 // Attach attaches another list.
 func (l *List) Attach(
-	pointer types.Pointer,
-	snapshotID types.SnapshotID,
+	pointer *types.Pointer,
 	volatilePool *alloc.Pool[types.VolatileAddress],
-	persistentPool *alloc.Pool[types.PersistentAddress],
 	node *Node,
-) error {
+) (*types.Pointer, error) {
 	if l.config.ListRoot.VolatileAddress == 0 {
-		*l.config.ListRoot = pointer
-		return nil
+		*l.config.ListRoot = *pointer
+
+		//nolint:nilnil
+		return nil, nil
 	}
 
 	l.config.NodeAssistant.Project(l.config.ListRoot.VolatileAddress, node)
 	if node.Header.NumOfPointers+node.Header.NumOfSideLists < uint64(len(node.Pointers)) {
-		if node.Header.SnapshotID != snapshotID {
-			node.Header.SnapshotID = snapshotID
-
-			physicalAddress, err := persistentPool.Allocate()
-			if err != nil {
-				return err
-			}
-
-			persistentPool.Deallocate(l.config.ListRoot.PersistentAddress)
-			l.config.ListRoot.PersistentAddress = physicalAddress
-		}
-		revision := atomic.AddUint64(&node.Header.RevisionHeader.Revision, 1)
-
-		node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists-1] = pointer
+		node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists-1] = *pointer
 		node.Header.NumOfSideLists++
 
-		l.config.StoreRequestCh <- types.StoreRequest{
-			Revision: revision,
-			Pointer:  l.config.ListRoot,
-		}
-
-		return nil
+		return l.config.ListRoot, nil
 	}
 
 	newNodeAddress, err := volatilePool.Allocate()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	l.config.NodeAssistant.Project(newNodeAddress, node)
 
-	node.Header.SnapshotID = snapshotID
-	revision := atomic.AddUint64(&node.Header.RevisionHeader.Revision, 1)
 	node.Pointers[uint64(len(node.Pointers))-1] = *l.config.ListRoot
-	node.Pointers[uint64(len(node.Pointers))-2] = pointer
+	node.Pointers[uint64(len(node.Pointers))-2] = *pointer
 	node.Header.NumOfSideLists = 2
 
-	physicalAddress, err := persistentPool.Allocate()
-	if err != nil {
-		return err
-	}
-
 	l.config.ListRoot.VolatileAddress = newNodeAddress
-	l.config.ListRoot.PersistentAddress = physicalAddress
 
-	l.config.StoreRequestCh <- types.StoreRequest{
-		Revision: revision,
-		Pointer:  l.config.ListRoot,
-	}
-
-	return nil
+	return l.config.ListRoot, nil
 }
 
 // Iterator iterates over items in the list.
