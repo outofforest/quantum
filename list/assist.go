@@ -10,8 +10,8 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-// NewNodeAllocator creates new list node allocator.
-func NewNodeAllocator(state *alloc.State) (*NodeAllocator, error) {
+// NewNodeAssistant creates new list node assistant.
+func NewNodeAssistant(state *alloc.State) (*NodeAssistant, error) {
 	nodeSize := uintptr(state.NodeSize())
 
 	headerSize := unsafe.Sizeof(NodeHeader{})
@@ -26,15 +26,15 @@ func NewNodeAllocator(state *alloc.State) (*NodeAllocator, error) {
 		return nil, errors.New("node size is too small")
 	}
 
-	return &NodeAllocator{
+	return &NodeAssistant{
 		state:         state,
 		numOfPointers: uint64(numOfPointers),
 		pointerOffset: headerSize,
 	}, nil
 }
 
-// NodeAllocator converts nodes from bytes to list objects.
-type NodeAllocator struct {
+// NodeAssistant converts nodes from bytes to list objects.
+type NodeAssistant struct {
 	state *alloc.State
 
 	numOfPointers uint64
@@ -42,33 +42,16 @@ type NodeAllocator struct {
 }
 
 // NewNode initializes new node.
-func (na *NodeAllocator) NewNode() *Node {
+func (ns *NodeAssistant) NewNode() *Node {
 	return &Node{}
 }
 
-// Get returns object for node.
-func (na *NodeAllocator) Get(nodeAddress types.LogicalAddress, node *Node) {
-	na.project(na.state.Node(nodeAddress), node)
-}
-
-// Allocate allocates new object.
-func (na *NodeAllocator) Allocate(
-	pool *alloc.Pool[types.LogicalAddress],
-	node *Node,
-) (types.LogicalAddress, error) {
-	nodeAddress, err := pool.Allocate()
-	if err != nil {
-		return 0, err
-	}
-
-	na.project(na.state.Node(nodeAddress), node)
-	return nodeAddress, nil
-}
-
-func (na *NodeAllocator) project(nodeP unsafe.Pointer, node *Node) {
+// Project projects node bytes to its structure.
+func (ns *NodeAssistant) Project(nodeAddress types.VolatileAddress, node *Node) {
+	nodeP := ns.state.Node(nodeAddress)
 	node.Header = photon.FromPointer[NodeHeader](nodeP)
-	node.Pointers = photon.SliceFromPointer[types.Pointer](unsafe.Add(nodeP, na.pointerOffset),
-		int(na.numOfPointers))
+	node.Pointers = photon.SliceFromPointer[types.Pointer](unsafe.Add(nodeP, ns.pointerOffset),
+		int(ns.numOfPointers))
 }
 
 // NodeHeader is the header of the list node.

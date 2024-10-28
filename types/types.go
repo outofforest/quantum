@@ -1,5 +1,7 @@
 package types
 
+import "crypto/sha256"
+
 // UInt64Length is the number of bytes taken by uint64.
 const UInt64Length = 8
 
@@ -24,11 +26,11 @@ type (
 	// SnapshotID is the type for snapshot ID.
 	SnapshotID uint64
 
-	// LogicalAddress represents the address of a node in RAM.
-	LogicalAddress uint64
+	// VolatileAddress represents the address of a node in RAM.
+	VolatileAddress uint64
 
-	// PhysicalAddress represents the address of a node on disk.
-	PhysicalAddress uint64
+	// PersistentAddress represents the address of a node in persistent store.
+	PersistentAddress uint64
 
 	// Hash is the type for key hash.
 	Hash uint64
@@ -44,9 +46,10 @@ type RevisionHeader struct {
 
 // Pointer is the pointer to another block.
 type Pointer struct {
-	Version         uint64
-	LogicalAddress  LogicalAddress
-	PhysicalAddress PhysicalAddress
+	Version           uint64
+	Checksum          [sha256.Size]byte
+	VolatileAddress   VolatileAddress
+	PersistentAddress PersistentAddress
 }
 
 // DataItem stores single key-value pair.
@@ -89,7 +92,7 @@ type SingularityNode struct {
 
 // SpacePointerNodeAllocatedEvent is emitted when new pointer node in space is allocated.
 type SpacePointerNodeAllocatedEvent struct {
-	NodeAddress           LogicalAddress
+	NodeAddress           VolatileAddress
 	RootPointer           *Pointer
 	ImmediateDeallocation bool
 }
@@ -97,7 +100,7 @@ type SpacePointerNodeAllocatedEvent struct {
 // SpaceDataNodeAllocatedEvent is emitted when new data node in space is allocated.
 type SpaceDataNodeAllocatedEvent struct {
 	Pointer               *Pointer
-	PNodeAddress          LogicalAddress
+	PNodeAddress          VolatileAddress
 	RootPointer           *Pointer
 	ImmediateDeallocation bool
 }
@@ -105,7 +108,7 @@ type SpaceDataNodeAllocatedEvent struct {
 // SpaceDataNodeUpdatedEvent is emitted when data node is updated in space.
 type SpaceDataNodeUpdatedEvent struct {
 	Pointer               *Pointer
-	PNodeAddress          LogicalAddress
+	PNodeAddress          VolatileAddress
 	RootPointer           *Pointer
 	ImmediateDeallocation bool
 }
@@ -135,12 +138,12 @@ type SyncEvent struct {
 // and singularity node might be stored.
 type DBCommitEvent struct {
 	SingularityNodePointer *Pointer
-	SyncCh                 chan<- struct{}
+	SyncCh                 chan<- error
 }
 
 // StoreRequest is used to request writing a node to the store.
 type StoreRequest struct {
 	Revision uint64
 	Pointer  *Pointer
-	SyncCh   chan<- struct{}
+	SyncCh   chan<- error
 }

@@ -1,27 +1,19 @@
 package persistent
 
 import (
+	"io"
 	"os"
 
 	"github.com/pkg/errors"
-	"golang.org/x/sys/unix"
 
 	"github.com/outofforest/quantum/types"
 )
 
 // NewFileStore creates new file-based store.
-func NewFileStore(file *os.File, size uint64) (*FileStore, func(), error) {
-	data, err := unix.Mmap(int(file.Fd()), 0, int(size), unix.PROT_READ|unix.PROT_WRITE,
-		unix.MAP_SHARED)
-	if err != nil {
-		return nil, nil, errors.Wrapf(err, "memory allocation failed")
-	}
-
+func NewFileStore(file *os.File) (*FileStore, func(), error) {
 	return &FileStore{
 			file: file,
-			data: data,
 		}, func() {
-			_ = unix.Munmap(data)
 			_ = file.Close()
 		}, nil
 }
@@ -29,19 +21,18 @@ func NewFileStore(file *os.File, size uint64) (*FileStore, func(), error) {
 // FileStore defines persistent file-based store.
 type FileStore struct {
 	file *os.File
-	data []byte
 }
 
 // Write writes data to the store.
-func (s *FileStore) Write(address types.PhysicalAddress, data []byte) error {
-	copy(s.data[address:], data)
-	return nil
+func (s *FileStore) Write(address types.PersistentAddress, data []byte) error {
+	if _, err := s.file.Seek(int64(address), io.SeekStart); err != nil {
+		return errors.WithStack(err)
+	}
+	_, err := s.file.Write(data)
+	return errors.WithStack(err)
 }
 
 // Sync syncs pending writes.
 func (s *FileStore) Sync() error {
-	if err := unix.Msync(s.data, unix.MS_SYNC); err != nil {
-		return errors.WithStack(err)
-	}
 	return errors.WithStack(s.file.Sync())
 }

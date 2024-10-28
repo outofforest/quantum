@@ -12,7 +12,7 @@ import (
 type Config struct {
 	ListRoot       *types.Pointer
 	State          *alloc.State
-	NodeAllocator  *NodeAllocator
+	NodeAssistant  *NodeAssistant
 	StoreRequestCh chan<- types.StoreRequest
 }
 
@@ -32,15 +32,16 @@ type List struct {
 func (l *List) Add(
 	pointer types.Pointer,
 	snapshotID types.SnapshotID,
-	volatilePool *alloc.Pool[types.LogicalAddress],
-	persistentPool *alloc.Pool[types.PhysicalAddress],
+	volatilePool *alloc.Pool[types.VolatileAddress],
+	persistentPool *alloc.Pool[types.PersistentAddress],
 	node *Node,
 ) error {
-	if l.config.ListRoot.LogicalAddress == 0 {
-		newNodeAddress, err := l.config.NodeAllocator.Allocate(volatilePool, node)
+	if l.config.ListRoot.VolatileAddress == 0 {
+		newNodeAddress, err := volatilePool.Allocate()
 		if err != nil {
 			return err
 		}
+		l.config.NodeAssistant.Project(newNodeAddress, node)
 
 		node.Header.SnapshotID = snapshotID
 		revision := atomic.AddUint64(&node.Header.RevisionHeader.Revision, 1)
@@ -52,8 +53,8 @@ func (l *List) Add(
 			return err
 		}
 
-		l.config.ListRoot.LogicalAddress = newNodeAddress
-		l.config.ListRoot.PhysicalAddress = physicalAddress
+		l.config.ListRoot.VolatileAddress = newNodeAddress
+		l.config.ListRoot.PersistentAddress = physicalAddress
 
 		l.config.StoreRequestCh <- types.StoreRequest{
 			Revision: revision,
@@ -63,7 +64,7 @@ func (l *List) Add(
 		return nil
 	}
 
-	l.config.NodeAllocator.Get(l.config.ListRoot.LogicalAddress, node)
+	l.config.NodeAssistant.Project(l.config.ListRoot.VolatileAddress, node)
 	if node.Header.NumOfPointers+node.Header.NumOfSideLists < uint64(len(node.Pointers)) {
 		if node.Header.SnapshotID != snapshotID {
 			node.Header.SnapshotID = snapshotID
@@ -73,8 +74,8 @@ func (l *List) Add(
 				return err
 			}
 
-			persistentPool.Deallocate(l.config.ListRoot.PhysicalAddress)
-			l.config.ListRoot.PhysicalAddress = physicalAddress
+			persistentPool.Deallocate(l.config.ListRoot.PersistentAddress)
+			l.config.ListRoot.PersistentAddress = physicalAddress
 		}
 		revision := atomic.AddUint64(&node.Header.RevisionHeader.Revision, 1)
 
@@ -89,10 +90,11 @@ func (l *List) Add(
 		return nil
 	}
 
-	newNodeAddress, err := l.config.NodeAllocator.Allocate(volatilePool, node)
+	newNodeAddress, err := volatilePool.Allocate()
 	if err != nil {
 		return err
 	}
+	l.config.NodeAssistant.Project(newNodeAddress, node)
 
 	node.Header.SnapshotID = snapshotID
 	revision := atomic.AddUint64(&node.Header.RevisionHeader.Revision, 1)
@@ -106,8 +108,8 @@ func (l *List) Add(
 		return err
 	}
 
-	l.config.ListRoot.LogicalAddress = newNodeAddress
-	l.config.ListRoot.PhysicalAddress = physicalAddress
+	l.config.ListRoot.VolatileAddress = newNodeAddress
+	l.config.ListRoot.PersistentAddress = physicalAddress
 
 	l.config.StoreRequestCh <- types.StoreRequest{
 		Revision: revision,
@@ -121,16 +123,16 @@ func (l *List) Add(
 func (l *List) Attach(
 	pointer types.Pointer,
 	snapshotID types.SnapshotID,
-	volatilePool *alloc.Pool[types.LogicalAddress],
-	persistentPool *alloc.Pool[types.PhysicalAddress],
+	volatilePool *alloc.Pool[types.VolatileAddress],
+	persistentPool *alloc.Pool[types.PersistentAddress],
 	node *Node,
 ) error {
-	if l.config.ListRoot.LogicalAddress == 0 {
+	if l.config.ListRoot.VolatileAddress == 0 {
 		*l.config.ListRoot = pointer
 		return nil
 	}
 
-	l.config.NodeAllocator.Get(l.config.ListRoot.LogicalAddress, node)
+	l.config.NodeAssistant.Project(l.config.ListRoot.VolatileAddress, node)
 	if node.Header.NumOfPointers+node.Header.NumOfSideLists < uint64(len(node.Pointers)) {
 		if node.Header.SnapshotID != snapshotID {
 			node.Header.SnapshotID = snapshotID
@@ -140,8 +142,8 @@ func (l *List) Attach(
 				return err
 			}
 
-			persistentPool.Deallocate(l.config.ListRoot.PhysicalAddress)
-			l.config.ListRoot.PhysicalAddress = physicalAddress
+			persistentPool.Deallocate(l.config.ListRoot.PersistentAddress)
+			l.config.ListRoot.PersistentAddress = physicalAddress
 		}
 		revision := atomic.AddUint64(&node.Header.RevisionHeader.Revision, 1)
 
@@ -156,10 +158,11 @@ func (l *List) Attach(
 		return nil
 	}
 
-	newNodeAddress, err := l.config.NodeAllocator.Allocate(volatilePool, node)
+	newNodeAddress, err := volatilePool.Allocate()
 	if err != nil {
 		return err
 	}
+	l.config.NodeAssistant.Project(newNodeAddress, node)
 
 	node.Header.SnapshotID = snapshotID
 	revision := atomic.AddUint64(&node.Header.RevisionHeader.Revision, 1)
@@ -172,8 +175,8 @@ func (l *List) Attach(
 		return err
 	}
 
-	l.config.ListRoot.LogicalAddress = newNodeAddress
-	l.config.ListRoot.PhysicalAddress = physicalAddress
+	l.config.ListRoot.VolatileAddress = newNodeAddress
+	l.config.ListRoot.PersistentAddress = physicalAddress
 
 	l.config.StoreRequestCh <- types.StoreRequest{
 		Revision: revision,
@@ -186,7 +189,7 @@ func (l *List) Attach(
 // Iterator iterates over items in the list.
 func (l *List) Iterator(node *Node) func(func(types.Pointer) bool) {
 	return func(yield func(types.Pointer) bool) {
-		if l.config.ListRoot.LogicalAddress == 0 {
+		if l.config.ListRoot.VolatileAddress == 0 {
 			return
 		}
 
@@ -199,7 +202,7 @@ func (l *List) Iterator(node *Node) func(func(types.Pointer) bool) {
 			pointer := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 
-			l.config.NodeAllocator.Get(pointer.LogicalAddress, node)
+			l.config.NodeAssistant.Project(pointer.VolatileAddress, node)
 			for i := range node.Header.NumOfPointers {
 				if !yield(node.Pointers[i]) {
 					return
@@ -212,12 +215,12 @@ func (l *List) Iterator(node *Node) func(func(types.Pointer) bool) {
 }
 
 // Nodes returns list of nodes used by the list.
-func (l *List) Nodes(node *Node) []types.LogicalAddress {
-	if l.config.ListRoot.LogicalAddress == 0 {
+func (l *List) Nodes(node *Node) []types.VolatileAddress {
+	if l.config.ListRoot.VolatileAddress == 0 {
 		return nil
 	}
 
-	nodes := []types.LogicalAddress{}
+	nodes := []types.VolatileAddress{}
 	stack := []types.Pointer{*l.config.ListRoot}
 
 	for {
@@ -231,44 +234,62 @@ func (l *List) Nodes(node *Node) []types.LogicalAddress {
 
 		pointer := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		nodes = append(nodes, pointer.LogicalAddress)
+		nodes = append(nodes, pointer.VolatileAddress)
 
-		l.config.NodeAllocator.Get(pointer.LogicalAddress, node)
+		l.config.NodeAssistant.Project(pointer.VolatileAddress, node)
 		stack = append(stack, node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists:]...)
 	}
 }
 
 // Deallocate deallocates nodes referenced by the list.
 func Deallocate(
-	state *alloc.State,
 	listRoot types.Pointer,
-	volatilePool *alloc.Pool[types.LogicalAddress],
-	persistentPool *alloc.Pool[types.PhysicalAddress],
-	nodeAllocator *NodeAllocator,
+	volatilePool *alloc.Pool[types.VolatileAddress],
+	persistentPool *alloc.Pool[types.PersistentAddress],
+	nodeAssistant *NodeAssistant,
 	node *Node,
 ) {
-	if listRoot.LogicalAddress == 0 {
+	if listRoot.VolatileAddress == 0 {
 		return
 	}
 
-	// FIXME (wojciech): Optimize heap allocations.
-	stack := []types.Pointer{listRoot}
+	const maxStackSize = 5
+
+	stack := [maxStackSize]types.Pointer{listRoot}
+	stackLen := 1
+
 	for {
-		if len(stack) == 0 {
+		if stackLen == 0 {
 			return
 		}
 
-		pointer := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
+		stackLen--
+		pointer := stack[stackLen]
 
-		nodeAllocator.Get(pointer.LogicalAddress, node)
+		nodeAssistant.Project(pointer.VolatileAddress, node)
 		for i := range node.Header.NumOfPointers {
 			// We don't deallocate from volatile pool here, because those nodes are still used by next revisions.
-			persistentPool.Deallocate(node.Pointers[i].PhysicalAddress)
+			persistentPool.Deallocate(node.Pointers[i].PersistentAddress)
 		}
 
-		stack = append(stack, node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists:]...)
-		volatilePool.Deallocate(pointer.LogicalAddress)
-		persistentPool.Deallocate(pointer.PhysicalAddress)
+		for _, p := range node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists:] {
+			if stackLen < maxStackSize {
+				stack[stackLen] = p
+				stackLen++
+
+				continue
+			}
+
+			Deallocate(
+				listRoot,
+				volatilePool,
+				persistentPool,
+				nodeAssistant,
+				node,
+			)
+		}
+
+		volatilePool.Deallocate(pointer.VolatileAddress)
+		persistentPool.Deallocate(pointer.PersistentAddress)
 	}
 }

@@ -5,7 +5,6 @@ import (
 )
 
 // NewPool creates new allocation pool.
-// FIXME (wojciech): Ensure that addresses don't leak and that sink channel is not flooded.
 func NewPool[A Address](
 	tapCh <-chan []A,
 	sinkCh chan<- []A,
@@ -34,10 +33,9 @@ func (p *Pool[A]) Allocate() (A, error) {
 	p.pool = p.pool[:len(p.pool)-1]
 
 	if len(p.pool) == 0 {
-		select {
-		case p.pool = <-p.tapCh:
-		default:
-			return 0, errors.New("out of space")
+		var ok bool
+		if p.pool, ok = <-p.tapCh; !ok {
+			return 0, errors.New("allocation failed")
 		}
 	}
 
@@ -45,7 +43,6 @@ func (p *Pool[A]) Allocate() (A, error) {
 }
 
 // Deallocate deallocates single node.
-// FIXME (wojciech): Real deallocation must be delayed until snapshot commit.
 func (p *Pool[A]) Deallocate(nodeAddress A) {
 	if nodeAddress == 0 {
 		return

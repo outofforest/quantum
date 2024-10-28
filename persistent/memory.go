@@ -10,7 +10,7 @@ import (
 
 // NewMemoryStore creates new in-memory "persistent" store.
 func NewMemoryStore(size uint64, useHugePages bool) (*MemoryStore, func(), error) {
-	opts := syscall.MAP_SHARED | syscall.MAP_ANONYMOUS | syscall.MAP_NORESERVE | syscall.MAP_POPULATE
+	opts := syscall.MAP_SHARED | syscall.MAP_ANONYMOUS | syscall.MAP_POPULATE
 	if useHugePages {
 		opts |= syscall.MAP_HUGETLB
 	}
@@ -32,7 +32,7 @@ type MemoryStore struct {
 }
 
 // Write writes data to the store.
-func (s *MemoryStore) Write(address types.PhysicalAddress, data []byte) error {
+func (s *MemoryStore) Write(address types.PersistentAddress, data []byte) error {
 	copy(s.data[address:], data)
 	return nil
 }
