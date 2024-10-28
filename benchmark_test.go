@@ -126,7 +126,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				// require.Equal(b, accountBalance(2*balance), v.Value())
 			}
 
-			fmt.Println(s.Stats(pointerNode))
+			fmt.Println(s.Stats(pointerNode, dataNode))
 			fmt.Println("===========================")
 
 			tx := 0
@@ -181,7 +181,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				b.StopTimer()
 			}()
 
-			fmt.Println(s.Stats(pointerNode))
+			fmt.Println(s.Stats(pointerNode, dataNode))
 
 			for _, addr := range accounts {
 				require.Equal(b, accountBalance(balance), s.Find(addr, pointerNode, dataNode).Value())
