@@ -238,12 +238,15 @@ func (s *Space[K, V]) Nodes(pointerNode *Node[PointerNodeHeader, types.Pointer])
 }
 
 // Stats returns stats about the space.
-func (s *Space[K, V]) Stats(pointerNode *Node[PointerNodeHeader, types.Pointer]) (uint64, uint64, uint64) {
+func (s *Space[K, V]) Stats(
+	pointerNode *Node[PointerNodeHeader, types.Pointer],
+	dataNode *Node[DataNodeHeader, types.DataItem[K, V]],
+) (uint64, uint64, uint64, float64) {
 	switch *s.config.SpaceRoot.State {
 	case types.StateFree:
-		return 0, 0, 0
+		return 0, 0, 0, 0
 	case types.StateData:
-		return 1, 0, 1
+		return 1, 0, 1, 0
 	}
 
 	stack := []types.VolatileAddress{s.config.SpaceRoot.Pointer.VolatileAddress}
@@ -251,11 +254,11 @@ func (s *Space[K, V]) Stats(pointerNode *Node[PointerNodeHeader, types.Pointer])
 	levels := map[types.VolatileAddress]uint64{
 		s.config.SpaceRoot.Pointer.VolatileAddress: 1,
 	}
-	var maxLevel, pointerNodes, dataNodes uint64
+	var maxLevel, pointerNodes, dataNodes, dataItems, dataSlots uint64
 
 	for {
 		if len(stack) == 0 {
-			return maxLevel, pointerNodes, dataNodes
+			return maxLevel, pointerNodes, dataNodes, float64(dataItems) / float64(dataSlots)
 		}
 
 		n := stack[len(stack)-1]
@@ -271,6 +274,14 @@ func (s *Space[K, V]) Stats(pointerNode *Node[PointerNodeHeader, types.Pointer])
 				dataNodes++
 				if level > maxLevel {
 					maxLevel = level
+				}
+
+				s.config.DataNodeAssistant.Project(pointer.VolatileAddress, dataNode)
+				for _, dState := range dataNode.Iterator() {
+					dataSlots++
+					if *dState == types.StateData {
+						dataItems++
+					}
 				}
 			case types.StatePointer:
 				stack = append(stack, pointer.VolatileAddress)
