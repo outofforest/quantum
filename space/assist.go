@@ -14,17 +14,9 @@ func NewNodeAssistant[T comparable](state *alloc.State) (*NodeAssistant[T], erro
 	nodeSize := uintptr(state.NodeSize())
 
 	var t T
-	itemSize := unsafe.Sizeof(t)
-	itemSize = (itemSize + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length
+	itemSize := (unsafe.Sizeof(t) + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length
 
-	numOfItems := nodeSize / (itemSize + 1) // 1 is for slot state
-	if numOfItems == 0 {
-		return nil, errors.New("node size is too small")
-	}
-	stateSize := (numOfItems + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length
-	spaceLeft := nodeSize - stateSize
-
-	numOfItems = spaceLeft / itemSize
+	numOfItems := nodeSize / itemSize
 	if numOfItems == 0 {
 		return nil, errors.New("node size is too small")
 	}
@@ -33,7 +25,6 @@ func NewNodeAssistant[T comparable](state *alloc.State) (*NodeAssistant[T], erro
 		state:      state,
 		numOfItems: numOfItems,
 		itemSize:   itemSize,
-		itemOffset: stateSize,
 	}, nil
 }
 
@@ -43,7 +34,6 @@ type NodeAssistant[T comparable] struct {
 
 	numOfItems uintptr
 	itemSize   uintptr
-	itemOffset uintptr
 }
 
 // NewNode initializes new node.
@@ -71,22 +61,14 @@ func (ns *NodeAssistant[T]) Shift(hash types.Hash) types.Hash {
 
 // Project projects node bytes to its structure.
 func (ns *NodeAssistant[T]) Project(nodeAddress types.VolatileAddress, node *Node[T]) {
-	nodeP := ns.state.Node(nodeAddress)
-	node.statesP = nodeP
-	node.itemsP = unsafe.Add(nodeP, ns.itemOffset)
+	node.itemsP = ns.state.Node(nodeAddress)
 }
 
 // Node represents data stored inside space node.
 type Node[T comparable] struct {
 	numOfItems uintptr
 	itemSize   uintptr
-	statesP    unsafe.Pointer
 	itemsP     unsafe.Pointer
-}
-
-// State returns pointer to state of an item.
-func (sn *Node[T]) State(index uintptr) *types.State {
-	return (*types.State)(unsafe.Add(sn.statesP, index))
 }
 
 // Item returns pointer to the item.
@@ -95,16 +77,14 @@ func (sn *Node[T]) Item(index uintptr) *T {
 }
 
 // Iterator iterates over items.
-func (sn *Node[T]) Iterator() func(func(*T, *types.State) bool) {
-	return func(yield func(*T, *types.State) bool) {
+func (sn *Node[T]) Iterator() func(func(*T) bool) {
+	return func(yield func(*T) bool) {
 		itemsP := sn.itemsP
-		statesP := sn.statesP
 		for range sn.numOfItems {
-			if !yield((*T)(itemsP), (*types.State)(statesP)) {
+			if !yield((*T)(itemsP)) {
 				return
 			}
 			itemsP = unsafe.Add(itemsP, sn.itemSize)
-			statesP = unsafe.Add(statesP, 1)
 		}
 	}
 }
