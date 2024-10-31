@@ -29,8 +29,8 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 1_000_000
-		txsPerCommit   = 2000
+		numOfAddresses = 10_000_000
+		txsPerCommit   = 10_000
 		balance        = 100_000
 	)
 
@@ -98,7 +98,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				}
 			}()
 
-			defer db.Close()
+			defer func() {
+				db.Close()
+			}()
 
 			volatilePool := db.NewVolatilePool()
 			persistentPool := db.NewPersistentPool()
@@ -132,7 +134,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			tx := 0
 			var snapshotID types.SnapshotID
 
-			if err := db.Commit(volatilePool, persistentPool); err != nil {
+			if err := db.Commit(volatilePool); err != nil {
 				panic(err)
 			}
 
@@ -166,13 +168,17 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 					tx++
 					if tx%txsPerCommit == 0 {
-						if err := db.Commit(volatilePool, persistentPool); err != nil {
+						if err := db.Commit(volatilePool); err != nil {
 							panic(err)
 						}
 						snapshotID++
 
 						if snapshotID > 1 {
-							if err := db.DeleteSnapshot(snapshotID-2, volatilePool, persistentPool); err != nil {
+							if err := db.DeleteSnapshot(
+								snapshotID-2,
+								volatilePool,
+								persistentPool,
+							); err != nil {
 								panic(err)
 							}
 						}
@@ -184,7 +190,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			fmt.Println(s.Stats(pointerNode, dataNode))
 
 			for _, addr := range accounts {
-				require.Equal(b, accountBalance(balance), s.Find(addr, pointerNode, dataNode).Value())
+				v := s.Find(addr, pointerNode, dataNode)
+				require.True(b, v.Exists())
+				require.Equal(b, accountBalance(balance), v.Value())
 			}
 		}()
 	}

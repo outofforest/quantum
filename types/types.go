@@ -1,6 +1,8 @@
 package types
 
-import "crypto/sha256"
+import (
+	"crypto/sha256"
+)
 
 // UInt64Length is the number of bytes taken by uint64.
 const UInt64Length = 8
@@ -20,6 +22,9 @@ const (
 
 	// StatePointer means slot contains pointer.
 	StatePointer
+
+	// StatePointerWithHashMod means slot contains pointer and key hash must be recalculated.
+	StatePointerWithHashMod
 )
 
 type (
@@ -39,14 +44,10 @@ type (
 	SpaceID uint64
 )
 
-// RevisionHeader stores information about node revision. It must be stored as first bytes in the node.
-type RevisionHeader struct {
-	Revision uint64
-}
-
 // Pointer is the pointer to another block.
 type Pointer struct {
-	Version           uint64
+	SnapshotID        SnapshotID
+	Revision          uint64
 	Checksum          [sha256.Size]byte
 	VolatileAddress   VolatileAddress
 	PersistentAddress PersistentAddress
@@ -69,7 +70,6 @@ type ParentEntry struct {
 type SpaceInfo struct {
 	State   State
 	Pointer Pointer
-	HashMod uint64
 }
 
 // SnapshotInfo stores information required to retrieve snapshot.
@@ -84,66 +84,7 @@ type SnapshotInfo struct {
 
 // SingularityNode is the root of the store.
 type SingularityNode struct {
-	RevisionHeader
 	FirstSnapshotID SnapshotID
 	LastSnapshotID  SnapshotID
 	SnapshotRoot    SpaceInfo
-}
-
-// SpacePointerNodeAllocatedEvent is emitted when new pointer node in space is allocated.
-type SpacePointerNodeAllocatedEvent struct {
-	NodeAddress           VolatileAddress
-	RootPointer           *Pointer
-	ImmediateDeallocation bool
-}
-
-// SpaceDataNodeAllocatedEvent is emitted when new data node in space is allocated.
-type SpaceDataNodeAllocatedEvent struct {
-	Pointer               *Pointer
-	PNodeAddress          VolatileAddress
-	RootPointer           *Pointer
-	ImmediateDeallocation bool
-}
-
-// SpaceDataNodeUpdatedEvent is emitted when data node is updated in space.
-type SpaceDataNodeUpdatedEvent struct {
-	Pointer               *Pointer
-	PNodeAddress          VolatileAddress
-	RootPointer           *Pointer
-	ImmediateDeallocation bool
-}
-
-// SpaceDataNodeDeallocationEvent is emitted to request space data node deallocation.
-type SpaceDataNodeDeallocationEvent struct {
-	Pointer               Pointer
-	ImmediateDeallocation bool
-}
-
-// SpaceDeallocationEvent is emitted to request space deallocation.
-type SpaceDeallocationEvent struct {
-	SpaceRoot ParentEntry
-}
-
-// ListDeallocationEvent is emitted to request list deallocation.
-type ListDeallocationEvent struct {
-	ListRoot Pointer
-}
-
-// SyncEvent is emitted to wait until all the events are processed.
-type SyncEvent struct {
-	SyncCh chan<- struct{}
-}
-
-// DBCommitEvent is emitted to wait until all the events are processed, blocks are stored in the persistent store
-// and singularity node might be stored.
-type DBCommitEvent struct {
-	SingularityNodePointer *Pointer
-	SyncCh                 chan<- error
-}
-
-// StoreRequest is used to request writing a node to the store.
-type StoreRequest struct {
-	Revision uint64
-	Pointer  *Pointer
-	SyncCh   chan<- error
 }

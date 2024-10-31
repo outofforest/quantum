@@ -56,8 +56,6 @@ func (ns *NodeAssistant) Project(nodeAddress types.VolatileAddress, node *Node) 
 
 // NodeHeader is the header of the list node.
 type NodeHeader struct {
-	RevisionHeader types.RevisionHeader
-	SnapshotID     types.SnapshotID
 	NumOfPointers  uint64
 	NumOfSideLists uint64
 }

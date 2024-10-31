@@ -5,104 +5,79 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/types"
 )
 
 // NewNodeAssistant creates new space node assistant.
-func NewNodeAssistant[H, T comparable](state *alloc.State) (*NodeAssistant[H, T], error) {
+func NewNodeAssistant[T comparable](state *alloc.State) (*NodeAssistant[T], error) {
 	nodeSize := uintptr(state.NodeSize())
-
-	var h H
-	headerSize := unsafe.Sizeof(h)
-	headerSize = (headerSize + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length // memory alignment
-	if headerSize >= nodeSize {
-		return nil, errors.New("node size is too small")
-	}
-
-	spaceLeft := nodeSize - headerSize
 
 	var t T
 	itemSize := unsafe.Sizeof(t)
 	itemSize = (itemSize + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length
 
-	numOfItems := spaceLeft / (itemSize + 1) // 1 is for slot state
+	numOfItems := nodeSize / (itemSize + 1) // 1 is for slot state
 	if numOfItems == 0 {
 		return nil, errors.New("node size is too small")
 	}
 	stateSize := (numOfItems + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length
-	spaceLeft -= stateSize
+	spaceLeft := nodeSize - stateSize
 
 	numOfItems = spaceLeft / itemSize
 	if numOfItems == 0 {
 		return nil, errors.New("node size is too small")
 	}
 
-	return &NodeAssistant[H, T]{
-		state:       state,
-		numOfItems:  numOfItems,
-		itemSize:    itemSize,
-		stateOffset: headerSize,
-		itemOffset:  headerSize + stateSize,
+	return &NodeAssistant[T]{
+		state:      state,
+		numOfItems: numOfItems,
+		itemSize:   itemSize,
+		itemOffset: stateSize,
 	}, nil
 }
 
 // NodeAssistant converts nodes from bytes to space objects.
-type NodeAssistant[H, T comparable] struct {
+type NodeAssistant[T comparable] struct {
 	state *alloc.State
 
-	numOfItems  uintptr
-	itemSize    uintptr
-	stateOffset uintptr
-	itemOffset  uintptr
+	numOfItems uintptr
+	itemSize   uintptr
+	itemOffset uintptr
 }
 
 // NewNode initializes new node.
-func (ns *NodeAssistant[H, T]) NewNode() *Node[H, T] {
-	return &Node[H, T]{
+func (ns *NodeAssistant[T]) NewNode() *Node[T] {
+	return &Node[T]{
 		numOfItems: ns.numOfItems,
 		itemSize:   ns.itemSize,
 	}
 }
 
+// NumOfItems returns number of items fitting in one node.
+func (ns *NodeAssistant[T]) NumOfItems() uint64 {
+	return uint64(ns.numOfItems)
+}
+
 // Index returns index from hash.
-func (ns *NodeAssistant[H, T]) Index(hash types.Hash) uintptr {
+func (ns *NodeAssistant[T]) Index(hash types.Hash) uintptr {
 	return uintptr(hash) % ns.numOfItems
 }
 
 // Shift shifts bits in hash.
-func (ns *NodeAssistant[H, T]) Shift(hash types.Hash) types.Hash {
+func (ns *NodeAssistant[T]) Shift(hash types.Hash) types.Hash {
 	return hash / types.Hash(ns.numOfItems)
 }
 
 // Project projects node bytes to its structure.
-func (ns *NodeAssistant[H, T]) Project(nodeAddress types.VolatileAddress, node *Node[H, T]) {
+func (ns *NodeAssistant[T]) Project(nodeAddress types.VolatileAddress, node *Node[T]) {
 	nodeP := ns.state.Node(nodeAddress)
-	node.Header = photon.FromPointer[H](nodeP)
-	node.statesP = unsafe.Add(nodeP, ns.stateOffset)
+	node.statesP = nodeP
 	node.itemsP = unsafe.Add(nodeP, ns.itemOffset)
 }
 
-// PointerNodeHeader is the header of pointer node.
-type PointerNodeHeader struct {
-	RevisionHeader    types.RevisionHeader
-	SnapshotID        types.SnapshotID
-	ParentNodeAddress types.VolatileAddress
-	ParentNodeIndex   uintptr
-	HashMod           uint64
-}
-
-// DataNodeHeader is the header of data node.
-type DataNodeHeader struct {
-	RevisionHeader types.RevisionHeader
-	SnapshotID     types.SnapshotID
-}
-
 // Node represents data stored inside space node.
-type Node[H, T comparable] struct {
-	Header *H
-
+type Node[T comparable] struct {
 	numOfItems uintptr
 	itemSize   uintptr
 	statesP    unsafe.Pointer
@@ -110,17 +85,17 @@ type Node[H, T comparable] struct {
 }
 
 // State returns pointer to state of an item.
-func (sn *Node[H, T]) State(index uintptr) *types.State {
+func (sn *Node[T]) State(index uintptr) *types.State {
 	return (*types.State)(unsafe.Add(sn.statesP, index))
 }
 
 // Item returns pointer to the item.
-func (sn *Node[H, T]) Item(index uintptr) *T {
+func (sn *Node[T]) Item(index uintptr) *T {
 	return (*T)(unsafe.Add(sn.itemsP, sn.itemSize*index))
 }
 
 // Iterator iterates over items.
-func (sn *Node[H, T]) Iterator() func(func(*T, *types.State) bool) {
+func (sn *Node[T]) Iterator() func(func(*T, *types.State) bool) {
 	return func(yield func(*T, *types.State) bool) {
 		itemsP := sn.itemsP
 		statesP := sn.statesP
