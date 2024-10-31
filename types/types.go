@@ -51,40 +51,30 @@ type Pointer struct {
 	Checksum          [sha256.Size]byte
 	VolatileAddress   VolatileAddress
 	PersistentAddress PersistentAddress
+	State             State
 }
 
 // DataItem stores single key-value pair.
 type DataItem[K, V comparable] struct {
 	Hash  Hash
 	Key   K
+	State State
 	Value V
-}
-
-// ParentEntry stores state and item of the slot used to retrieve node from parent pointer.
-type ParentEntry struct {
-	State   *State
-	Pointer *Pointer
-}
-
-// SpaceInfo stores information required to retrieve space.
-type SpaceInfo struct {
-	State   State
-	Pointer Pointer
 }
 
 // SnapshotInfo stores information required to retrieve snapshot.
 type SnapshotInfo struct {
 	PreviousSnapshotID SnapshotID
 	NextSnapshotID     SnapshotID
-	DeallocationRoot   SpaceInfo
+	DeallocationRoot   Pointer
 
 	// FIXME (wojciech): Generalize this to any number of spaces.
-	Spaces [2]SpaceInfo
+	Spaces [2]Pointer
 }
 
 // SingularityNode is the root of the store.
 type SingularityNode struct {
 	FirstSnapshotID SnapshotID
 	LastSnapshotID  SnapshotID
-	SnapshotRoot    SpaceInfo
+	SnapshotRoot    Pointer
 }

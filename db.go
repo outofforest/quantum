@@ -29,8 +29,8 @@ type Config struct {
 // SpaceToCommit represents requested space which might require to be committed.
 type SpaceToCommit struct {
 	HashMod         *uint64
-	PInfo           types.ParentEntry
-	SpaceInfoValue  *space.Entry[types.SpaceID, types.SpaceInfo]
+	Root            *types.Pointer
+	SpaceInfoValue  *space.Entry[types.SpaceID, types.Pointer]
 	OriginalPointer types.Pointer
 }
 
@@ -84,10 +84,7 @@ func New(config Config) (*DB, error) {
 
 	// Logical nodes might be deallocated immediately.
 	db.snapshots = space.New[types.SnapshotID, types.SnapshotInfo](space.Config[types.SnapshotID, types.SnapshotInfo]{
-		SpaceRoot: types.ParentEntry{
-			State:   &db.singularityNode.SnapshotRoot.State,
-			Pointer: &db.singularityNode.SnapshotRoot.Pointer,
-		},
+		SpaceRoot:             &db.singularityNode.SnapshotRoot,
 		State:                 config.State,
 		PointerNodeAssistant:  pointerNodeAssistant,
 		DataNodeAssistant:     snapshotInfoNodeAssistant,
@@ -98,10 +95,7 @@ func New(config Config) (*DB, error) {
 
 	db.deallocationLists = space.New[types.SnapshotID, types.Pointer](
 		space.Config[types.SnapshotID, types.Pointer]{
-			SpaceRoot: types.ParentEntry{
-				State:   &db.snapshotInfo.DeallocationRoot.State,
-				Pointer: &db.snapshotInfo.DeallocationRoot.Pointer,
-			},
+			SpaceRoot:             &db.snapshotInfo.DeallocationRoot,
 			State:                 config.State,
 			PointerNodeAssistant:  pointerNodeAssistant,
 			DataNodeAssistant:     snapshotToNodeNodeAssistant,
@@ -170,7 +164,7 @@ func (db *DB) DeleteSnapshot(
 	snapshotInfo := snapshotInfoValue.Value()
 
 	var nextSnapshotInfo *types.SnapshotInfo
-	var nextDeallocationListRoot types.ParentEntry
+	var nextDeallocationListRoot *types.Pointer
 	var nextDeallocationLists *space.Space[types.SnapshotID, types.Pointer]
 	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
 		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, db.pointerNode, db.snapshotInfoNode)
@@ -180,10 +174,7 @@ func (db *DB) DeleteSnapshot(
 		tmpNextSnapshotInfo := nextSnapshotInfoValue.Value()
 		nextSnapshotInfo = &tmpNextSnapshotInfo
 
-		nextDeallocationListRoot = types.ParentEntry{
-			State:   &nextSnapshotInfo.DeallocationRoot.State,
-			Pointer: &nextSnapshotInfo.DeallocationRoot.Pointer,
-		}
+		nextDeallocationListRoot = &nextSnapshotInfo.DeallocationRoot
 		nextDeallocationLists = space.New[types.SnapshotID, types.Pointer](
 			space.Config[types.SnapshotID, types.Pointer]{
 				SpaceRoot:            nextDeallocationListRoot,
@@ -196,17 +187,11 @@ func (db *DB) DeleteSnapshot(
 		)
 	} else {
 		nextSnapshotInfo = &db.snapshotInfo
-		nextDeallocationListRoot = types.ParentEntry{
-			State:   &db.snapshotInfo.DeallocationRoot.State,
-			Pointer: &db.snapshotInfo.DeallocationRoot.Pointer,
-		}
+		nextDeallocationListRoot = &db.snapshotInfo.DeallocationRoot
 		nextDeallocationLists = db.deallocationLists
 	}
 
-	deallocationListsRoot := types.ParentEntry{
-		State:   &snapshotInfo.DeallocationRoot.State,
-		Pointer: &snapshotInfo.DeallocationRoot.Pointer,
-	}
+	deallocationListsRoot := &snapshotInfo.DeallocationRoot
 	deallocationLists := space.New[types.SnapshotID, types.Pointer](
 		space.Config[types.SnapshotID, types.Pointer]{
 			SpaceRoot:            deallocationListsRoot,
@@ -675,7 +660,7 @@ func (db *DB) prepareNextSnapshot() error {
 
 	db.snapshotInfo.PreviousSnapshotID = db.singularityNode.LastSnapshotID
 	db.snapshotInfo.NextSnapshotID = snapshotID + 1
-	db.snapshotInfo.DeallocationRoot = types.SpaceInfo{}
+	db.snapshotInfo.DeallocationRoot = types.Pointer{}
 	db.singularityNode.LastSnapshotID = snapshotID
 
 	return nil
@@ -686,7 +671,6 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 	if spaceID >= types.SpaceID(len(db.snapshotInfo.Spaces)) {
 		return nil, errors.Errorf("space %d is not defined", spaceID)
 	}
-	spaceInfo := &db.snapshotInfo.Spaces[spaceID]
 
 	dataNodeAssistant, err := space.NewNodeAssistant[types.DataItem[K, V]](db.config.State)
 	if err != nil {
@@ -694,10 +678,7 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 	}
 
 	return space.New[K, V](space.Config[K, V]{
-		SpaceRoot: types.ParentEntry{
-			State:   &spaceInfo.State,
-			Pointer: &spaceInfo.Pointer,
-		},
+		SpaceRoot:            &db.snapshotInfo.Spaces[spaceID],
 		State:                db.config.State,
 		PointerNodeAssistant: db.pointerNodeAssistant,
 		DataNodeAssistant:    dataNodeAssistant,
