@@ -11,11 +11,14 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.9.0
+	github.com/zeebo/blake3 v0.2.4
 	golang.org/x/sys v0.26.0
+	lukechampine.com/blake3 v1.3.0
 )
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.8 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
