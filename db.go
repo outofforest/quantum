@@ -604,7 +604,7 @@ func (db *DB) processStoreRequests(
 				// uniqueNodes[p.VolatileAddress] = struct{}{}
 				// numOfWrites++
 
-				// https://github.com/zeebo/blake3?tab=readme-ov-file
+				// https://github.com/zeebo/blake3
 				// p.Checksum = blake3.Sum256(db.config.State.Bytes(p.VolatileAddress))
 
 				if err := store.Write(
