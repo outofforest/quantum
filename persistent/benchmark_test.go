@@ -47,11 +47,11 @@ func BenchmarkChecksumPartial(b *testing.B) {
 	for range b.N {
 		// 3 pointer nodes + data node
 		for range 4 {
-			//s := sha3.Sum256(node[:1024])
+			// s := sha3.Sum256(node[:1024])
 			blake3.Sum256(node[:1024])
-			//copy(checksums, s[:])
-			//s = blake3.Sum256(checksums)
-			//copy(node, s[:])
+			// copy(checksums, s[:])
+			// s = blake3.Sum256(checksums)
+			// copy(node, s[:])
 		}
 	}
 	b.StopTimer()
@@ -73,11 +73,11 @@ func BenchmarkChecksumPartialL(b *testing.B) {
 	for range b.N {
 		// 3 pointer nodes + data node
 		for range 4 {
-			//s := sha3.Sum256(node[:1024])
+			// s := sha3.Sum256(node[:1024])
 			blake3l.Sum256(node[:1024])
-			//copy(checksums, s[:])
-			//s = blake3.Sum256(checksums)
-			//copy(node, s[:])
+			// copy(checksums, s[:])
+			// s = blake3.Sum256(checksums)
+			// copy(node, s[:])
 		}
 	}
 	b.StopTimer()
