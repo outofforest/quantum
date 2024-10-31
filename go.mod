@@ -12,8 +12,8 @@ require (
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.9.0
 	github.com/zeebo/blake3 v0.2.4
-	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
 	golang.org/x/sys v0.26.0
+	lukechampine.com/blake3 v1.3.0
 )
 
 require (
@@ -25,5 +25,4 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	lukechampine.com/blake3 v1.3.0 // indirect
 )
