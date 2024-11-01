@@ -24,7 +24,6 @@ type Config[K, V comparable] struct {
 	PointerNodeAssistant  *NodeAssistant[types.Pointer]
 	DataNodeAssistant     *NodeAssistant[types.DataItem[K, V]]
 	MassEntry             *mass.Mass[Entry[K, V]]
-	StoreQ                *queue.Queue
 	ImmediateDeallocation bool
 }
 
@@ -40,7 +39,7 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 	defaultInit := Entry[K, V]{
 		space:   s,
 		pointer: s.config.SpaceRoot,
-		storeRequest: queue.Request{
+		storeRequest: queue.StoreRequest{
 			ImmediateDeallocation: s.config.ImmediateDeallocation,
 			PointersToStore:       1,
 			Store:                 [queue.StoreCapacity]*types.Pointer{s.config.SpaceRoot},
@@ -156,6 +155,7 @@ type pointerToAllocate struct {
 
 // AllocatePointers allocates specified levels of pointer nodes.
 func (s *Space[K, V]) AllocatePointers(
+	tx *queue.TransactionRequest,
 	levels uint64,
 	pool *alloc.Pool[types.VolatileAddress],
 	pointerNode *Node[types.Pointer],
@@ -173,7 +173,7 @@ func (s *Space[K, V]) AllocatePointers(
 		numOfPointers = numOfItems*numOfPointers + 1
 	}
 
-	sr := queue.Request{
+	sr := queue.StoreRequest{
 		Store:           [queue.StoreCapacity]*types.Pointer{s.config.SpaceRoot},
 		PointersToStore: 1,
 	}
@@ -188,7 +188,7 @@ func (s *Space[K, V]) AllocatePointers(
 	for {
 		if len(stack) == 0 {
 			if sr.PointersToStore > 0 {
-				s.config.StoreQ.Push(&sr)
+				tx.AddStoreRequest(&sr)
 			}
 			return nil
 		}
@@ -216,7 +216,7 @@ func (s *Space[K, V]) AllocatePointers(
 			sr.PointersToStore++
 
 			if sr.PointersToStore == queue.StoreCapacity {
-				s.config.StoreQ.Push(lo.ToPtr(sr))
+				tx.AddStoreRequest(lo.ToPtr(sr))
 				sr.PointersToStore = 0
 			}
 
@@ -345,6 +345,7 @@ func (s *Space[K, V]) readValue(
 }
 
 func (s *Space[K, V]) deleteValue(
+	tx *queue.TransactionRequest,
 	v *Entry[K, V],
 	pointerNode *Node[types.Pointer],
 	dataNode *Node[types.DataItem[K, V]],
@@ -364,7 +365,7 @@ func (s *Space[K, V]) deleteValue(
 		v.item.State = types.StateDeleted
 		v.itemP.State = types.StateDeleted
 
-		s.config.StoreQ.Push(&v.storeRequest)
+		tx.AddStoreRequest(&v.storeRequest)
 
 		return nil
 	}
@@ -372,6 +373,7 @@ func (s *Space[K, V]) deleteValue(
 }
 
 func (s *Space[K, V]) setValue(
+	tx *queue.TransactionRequest,
 	v *Entry[K, V],
 	value V,
 	pool *alloc.Pool[types.VolatileAddress],
@@ -390,23 +392,24 @@ func (s *Space[K, V]) setValue(
 			*v.itemP = v.item
 			v.exists = true
 
-			s.config.StoreQ.Push(&v.storeRequest)
+			tx.AddStoreRequest(&v.storeRequest)
 
 			return nil
 		}
 		if v.itemP.Hash == v.item.Hash && v.itemP.Key == v.item.Key {
 			v.itemP.Value = value
 
-			s.config.StoreQ.Push(&v.storeRequest)
+			tx.AddStoreRequest(&v.storeRequest)
 
 			return nil
 		}
 	}
 
-	return s.set(v, pool, pointerNode, dataNode)
+	return s.set(tx, v, pool, pointerNode, dataNode)
 }
 
 func (s *Space[K, V]) set(
+	tx *queue.TransactionRequest,
 	v *Entry[K, V],
 	pool *alloc.Pool[types.VolatileAddress],
 	pointerNode *Node[types.Pointer],
@@ -436,7 +439,7 @@ func (s *Space[K, V]) set(
 			v.itemP = item
 			v.exists = true
 
-			s.config.StoreQ.Push(&v.storeRequest)
+			tx.AddStoreRequest(&v.storeRequest)
 
 			return nil
 		case types.StateData:
@@ -455,7 +458,7 @@ func (s *Space[K, V]) set(
 					v.itemP = item
 					v.exists = true
 
-					s.config.StoreQ.Push(&v.storeRequest)
+					tx.AddStoreRequest(&v.storeRequest)
 
 					return nil
 				}
@@ -467,7 +470,7 @@ func (s *Space[K, V]) set(
 						v.itemP = item
 						v.exists = true
 
-						s.config.StoreQ.Push(&v.storeRequest)
+						tx.AddStoreRequest(&v.storeRequest)
 
 						return nil
 					}
@@ -477,6 +480,7 @@ func (s *Space[K, V]) set(
 			}
 
 			return s.redistributeAndSet(
+				tx,
 				v,
 				conflict,
 				pool,
@@ -503,6 +507,7 @@ func (s *Space[K, V]) set(
 }
 
 func (s *Space[K, V]) redistributeAndSet(
+	tx *queue.TransactionRequest,
 	v *Entry[K, V],
 	conflict bool,
 	pool *alloc.Pool[types.VolatileAddress],
@@ -542,15 +547,16 @@ func (s *Space[K, V]) redistributeAndSet(
 		pointer := pointerNode.Item(index)
 		item.Hash = s.config.PointerNodeAssistant.Shift(item.Hash)
 
-		if err := s.set(&Entry[K, V]{
-			space:   s,
-			pointer: pointer,
-			storeRequest: queue.Request{
-				Store:           [queue.StoreCapacity]*types.Pointer{pointer},
-				PointersToStore: 1,
-			},
-			item: *item,
-		}, pool, pointerNode, dataNode); err != nil {
+		if err := s.set(tx,
+			&Entry[K, V]{
+				space:   s,
+				pointer: pointer,
+				storeRequest: queue.StoreRequest{
+					Store:           [queue.StoreCapacity]*types.Pointer{pointer},
+					PointersToStore: 1,
+				},
+				item: *item,
+			}, pool, pointerNode, dataNode); err != nil {
 			return err
 		}
 	}
@@ -567,7 +573,7 @@ func (s *Space[K, V]) redistributeAndSet(
 	v.storeRequest.Store[v.storeRequest.PointersToStore] = v.pointer
 	v.storeRequest.PointersToStore++
 
-	return s.set(v, pool, pointerNode, dataNode)
+	return s.set(tx, v, pool, pointerNode, dataNode)
 }
 
 func (s *Space[K, V]) find(
@@ -635,7 +641,7 @@ func (s *Space[K, V]) find(
 type Entry[K, V comparable] struct {
 	space        *Space[K, V]
 	pointer      *types.Pointer
-	storeRequest queue.Request
+	storeRequest queue.StoreRequest
 
 	itemP             *types.DataItem[K, V]
 	item              types.DataItem[K, V]
@@ -667,19 +673,21 @@ func (v *Entry[K, V]) Exists(
 // Set sts value for entry.
 func (v *Entry[K, V]) Set(
 	value V,
+	tx *queue.TransactionRequest,
 	pool *alloc.Pool[types.VolatileAddress],
 	pointerNode *Node[types.Pointer],
 	dataNode *Node[types.DataItem[K, V]],
 ) error {
-	return v.space.setValue(v, value, pool, pointerNode, dataNode)
+	return v.space.setValue(tx, v, value, pool, pointerNode, dataNode)
 }
 
 // Delete deletes the entry.
 func (v *Entry[K, V]) Delete(
+	tx *queue.TransactionRequest,
 	pointerNode *Node[types.Pointer],
 	dataNode *Node[types.DataItem[K, V]],
 ) error {
-	return v.space.deleteValue(v, pointerNode, dataNode)
+	return v.space.deleteValue(tx, v, pointerNode, dataNode)
 }
 
 func hashKey[K comparable](

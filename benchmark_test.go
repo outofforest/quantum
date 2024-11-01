@@ -18,6 +18,8 @@ import (
 	"github.com/outofforest/quantum"
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/persistent"
+	"github.com/outofforest/quantum/queue"
+	"github.com/outofforest/quantum/tx"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -37,9 +39,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 	b.StopTimer()
 	b.ResetTimer()
 
-	accounts := make([]accountAddress, 0, numOfAddresses)
+	accounts := make([]tx.Account, 0, numOfAddresses)
 	for range cap(accounts) {
-		var address accountAddress
+		var address tx.Account
 		_, _ = rand.Read(address[:])
 		accounts = append(accounts, address)
 	}
@@ -105,7 +107,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			volatilePool := db.NewVolatilePool()
 			persistentPool := db.NewPersistentPool()
 
-			s, err := quantum.GetSpace[accountAddress, accountBalance](spaceID, db)
+			s, err := quantum.GetSpace[tx.Account, tx.Balance](spaceID, db)
 			if err != nil {
 				panic(err)
 			}
@@ -113,25 +115,29 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			pointerNode := s.NewPointerNode()
 			dataNode := s.NewDataNode()
 
-			if err := s.AllocatePointers(3, volatilePool, pointerNode); err != nil {
+			txRequest := queue.NewTransactionRequest()
+			if err := s.AllocatePointers(txRequest, 3, volatilePool, pointerNode); err != nil {
 				panic(err)
 			}
 
+			db.ApplyTransactionRequest(txRequest)
+
 			for i := 0; i < numOfAddresses; i += 2 {
+				txRequest := queue.NewTransactionRequest()
+
 				v := s.Find(accounts[i], pointerNode)
 
-				if err := v.Set(2*balance, volatilePool, pointerNode, dataNode); err != nil {
+				if err := v.Set(2*balance, txRequest, volatilePool, pointerNode, dataNode); err != nil {
 					panic(err)
 				}
 
-				// v = s.Find(accounts[i])
-				// require.Equal(b, accountBalance(2*balance), v.Value())
+				db.ApplyTransactionRequest(txRequest)
 			}
 
 			fmt.Println(s.Stats(pointerNode, dataNode))
 			fmt.Println("===========================")
 
-			tx := 0
+			txIndex := 0
 			var snapshotID types.SnapshotID
 
 			if err := db.Commit(volatilePool); err != nil {
@@ -143,35 +149,17 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			func() {
 				b.StartTimer()
 				for i := 0; i < numOfAddresses; i += 2 {
-					senderAddress := accounts[i]
-					recipientAddress := accounts[i+1]
+					db.ApplyTransaction(&tx.Transfer{
+						From:   accounts[i],
+						To:     accounts[i+1],
+						Amount: balance,
+					})
 
-					senderBalance := s.Find(senderAddress, pointerNode)
-					recipientBalance := s.Find(recipientAddress, pointerNode)
-
-					if err := senderBalance.Set(
-						senderBalance.Value(pointerNode, dataNode)-balance,
-						volatilePool,
-						pointerNode,
-						dataNode,
-					); err != nil {
-						panic(err)
-					}
-					if err := recipientBalance.Set(
-						recipientBalance.Value(pointerNode, dataNode)+balance,
-						volatilePool,
-						pointerNode,
-						dataNode,
-					); err != nil {
-						panic(err)
-					}
-
-					tx++
-					if tx%txsPerCommit == 0 {
+					txIndex++
+					if txIndex%txsPerCommit == 0 {
 						if err := db.Commit(volatilePool); err != nil {
 							panic(err)
 						}
-						snapshotID++
 
 						if snapshotID > 1 {
 							if err := db.DeleteSnapshot(
@@ -192,14 +180,11 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			for _, addr := range accounts {
 				v := s.Find(addr, pointerNode)
 				require.True(b, v.Exists(pointerNode, dataNode))
-				require.Equal(b, accountBalance(balance), v.Value(pointerNode, dataNode))
+				require.Equal(b, tx.Balance(balance), v.Value(pointerNode, dataNode))
 			}
 		}()
 	}
 }
-
-type accountAddress [20]byte
-type accountBalance uint64
 
 func fileStores(
 	paths []string,

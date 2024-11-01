@@ -17,6 +17,7 @@ import (
 	"github.com/outofforest/quantum/persistent"
 	"github.com/outofforest/quantum/queue"
 	"github.com/outofforest/quantum/space"
+	"github.com/outofforest/quantum/tx"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -76,9 +77,10 @@ func New(config Config) (*DB, error) {
 		snapshotInfoNode:            snapshotInfoNodeAssistant.NewNode(),
 		snapshotToNodeNode:          snapshotToNodeNodeAssistant.NewNode(),
 		listNode:                    listNodeAssistant.NewNode(),
+		massTransactionRequest:      mass.New[queue.TransactionRequest](1000),
 		massSnapshotToNodeEntry:     mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
 		deallocationListsToCommit:   map[types.SnapshotID]ListToCommit{},
-		storeQ:                      queue.New(),
+		queue:                       queue.New(),
 		closedCh:                    make(chan struct{}),
 	}
 
@@ -90,7 +92,6 @@ func New(config Config) (*DB, error) {
 		DataNodeAssistant:     snapshotInfoNodeAssistant,
 		MassEntry:             mass.New[space.Entry[types.SnapshotID, types.SnapshotInfo]](1000),
 		ImmediateDeallocation: true,
-		StoreQ:                db.storeQ,
 	})
 
 	db.deallocationLists = space.New[types.SnapshotID, types.Pointer](
@@ -101,7 +102,6 @@ func New(config Config) (*DB, error) {
 			DataNodeAssistant:     snapshotToNodeNodeAssistant,
 			MassEntry:             mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
 			ImmediateDeallocation: true,
-			StoreQ:                db.storeQ,
 		},
 	)
 
@@ -128,11 +128,12 @@ type DB struct {
 	snapshotToNodeNode *space.Node[types.DataItem[types.SnapshotID, types.Pointer]]
 	listNode           *list.Node
 
+	massTransactionRequest  *mass.Mass[queue.TransactionRequest]
 	massSnapshotToNodeEntry *mass.Mass[space.Entry[types.SnapshotID, types.Pointer]]
 
 	deallocationListsToCommit map[types.SnapshotID]ListToCommit
 
-	storeQ   *queue.Queue
+	queue    *queue.Queue
 	closedCh chan struct{}
 }
 
@@ -146,18 +147,33 @@ func (db *DB) NewPersistentPool() *alloc.Pool[types.PersistentAddress] {
 	return db.config.State.NewPersistentPool()
 }
 
+// ApplyTransaction adds transaction to the queue.
+func (db *DB) ApplyTransaction(tx any) {
+	txRequest := db.massTransactionRequest.New()
+	txRequest.LastStoreRequest = &txRequest.StoreRequest
+	txRequest.Transaction = tx
+	db.queue.Push(txRequest)
+}
+
+// ApplyTransactionRequest adds transaction request to the queue.
+func (db *DB) ApplyTransactionRequest(txRequest *queue.TransactionRequest) {
+	db.queue.Push(txRequest)
+}
+
 // DeleteSnapshot deletes snapshot.
 func (db *DB) DeleteSnapshot(
 	snapshotID types.SnapshotID,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
 ) error {
+	tx := queue.NewTransactionRequest()
+
 	snapshotInfoValue := db.snapshots.Find(snapshotID, db.pointerNode)
 	if !snapshotInfoValue.Exists(db.pointerNode, db.snapshotInfoNode) {
 		return errors.Errorf("snapshot %d does not exist", snapshotID)
 	}
 
-	if err := snapshotInfoValue.Delete(db.pointerNode, db.snapshotInfoNode); err != nil {
+	if err := snapshotInfoValue.Delete(tx, db.pointerNode, db.snapshotInfoNode); err != nil {
 		return err
 	}
 
@@ -182,7 +198,6 @@ func (db *DB) DeleteSnapshot(
 				PointerNodeAssistant: db.pointerNodeAssistant,
 				DataNodeAssistant:    db.snapshotToNodeNodeAssistant,
 				MassEntry:            db.massSnapshotToNodeEntry,
-				StoreQ:               db.storeQ,
 			},
 		)
 	} else {
@@ -199,7 +214,6 @@ func (db *DB) DeleteSnapshot(
 			PointerNodeAssistant: db.pointerNodeAssistant,
 			DataNodeAssistant:    db.snapshotToNodeNodeAssistant,
 			MassEntry:            db.massSnapshotToNodeEntry,
-			StoreQ:               db.storeQ,
 		},
 	)
 
@@ -235,7 +249,7 @@ func (db *DB) DeleteSnapshot(
 			return err
 		}
 		if pointerToStore != nil {
-			db.storeQ.Push(&queue.Request{
+			tx.AddStoreRequest(&queue.StoreRequest{
 				Store:                 [queue.StoreCapacity]*types.Pointer{pointerToStore},
 				PointersToStore:       1,
 				ImmediateDeallocation: true,
@@ -244,6 +258,7 @@ func (db *DB) DeleteSnapshot(
 		if newListNodeAddress != listNodeAddress {
 			if err := deallocationListValue.Set(
 				newListNodeAddress,
+				tx,
 				volatilePool,
 				db.pointerNode,
 				db.snapshotToNodeNode,
@@ -273,6 +288,7 @@ func (db *DB) DeleteSnapshot(
 		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, db.pointerNode)
 		if err := nextSnapshotInfoValue.Set(
 			*nextSnapshotInfo,
+			tx,
 			volatilePool,
 			db.pointerNode,
 			db.snapshotInfoNode,
@@ -292,6 +308,7 @@ func (db *DB) DeleteSnapshot(
 
 		if err := previousSnapshotInfoValue.Set(
 			previousSnapshotInfo,
+			tx,
 			volatilePool,
 			db.pointerNode,
 			db.snapshotInfoNode,
@@ -307,18 +324,22 @@ func (db *DB) DeleteSnapshot(
 		db.snapshotInfo.PreviousSnapshotID = db.singularityNode.LastSnapshotID
 	}
 
+	db.queue.Push(tx)
+
 	return nil
 }
 
 // Commit commits current snapshot and returns next one.
 func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
+	commitTx := queue.NewTransactionRequest()
+
 	//nolint:nestif
 	if len(db.deallocationListsToCommit) > 0 {
 		syncCh := make(chan error, len(db.config.Stores))
-		db.storeQ.Push(&queue.Request{
-			Type:   queue.Sync,
-			SyncCh: syncCh,
-		})
+		tx := queue.NewTransactionRequest()
+		tx.Type = queue.Sync
+		tx.SyncCh = syncCh
+		db.queue.Push(tx)
 
 		for range cap(syncCh) {
 			<-syncCh
@@ -330,7 +351,7 @@ func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
 		}
 		sort.Slice(lists, func(i, j int) bool { return lists[i] < lists[j] })
 
-		var sr queue.Request
+		var sr queue.StoreRequest
 		for _, snapshotID := range lists {
 			deallocationListValue := db.deallocationLists.Find(snapshotID, db.pointerNode)
 			if deallocationListValue.Exists(db.pointerNode, db.snapshotToNodeNode) {
@@ -349,6 +370,7 @@ func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
 			}
 			if err := deallocationListValue.Set(
 				*db.deallocationListsToCommit[snapshotID].ListRoot,
+				tx,
 				volatilePool,
 				db.pointerNode,
 				db.snapshotToNodeNode,
@@ -357,7 +379,7 @@ func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
 			}
 		}
 		if sr.PointersToStore > 0 {
-			db.storeQ.Push(&sr)
+			commitTx.AddStoreRequest(&sr)
 		}
 
 		clear(db.deallocationListsToCommit)
@@ -366,6 +388,7 @@ func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
 	nextSnapshotInfoValue := db.snapshots.Find(db.singularityNode.LastSnapshotID, db.pointerNode)
 	if err := nextSnapshotInfoValue.Set(
 		db.snapshotInfo,
+		commitTx,
 		volatilePool,
 		db.pointerNode,
 		db.snapshotInfoNode,
@@ -375,12 +398,13 @@ func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
 
 	pointer := db.config.State.SingularityNodePointer(db.singularityNode.LastSnapshotID)
 	syncCh := make(chan error, len(db.config.Stores))
-	db.storeQ.Push(&queue.Request{
+	commitTx.SyncCh = syncCh
+	commitTx.AddStoreRequest(&queue.StoreRequest{
 		RequestedRevision: pointer.Revision,
 		Store:             [queue.StoreCapacity]*types.Pointer{pointer},
 		PointersToStore:   1,
-		SyncCh:            syncCh,
 	})
+	db.queue.Push(commitTx)
 
 	for range cap(syncCh) {
 		if err := <-syncCh; err != nil {
@@ -398,7 +422,9 @@ func (db *DB) Close() {
 	select {
 	case <-db.closedCh:
 	default:
-		db.storeQ.Push(&queue.Request{Type: queue.Close})
+		tx := queue.NewTransactionRequest()
+		tx.Type = queue.Close
+		db.queue.Push(tx)
 
 		close(db.closedCh)
 		db.config.State.Close()
@@ -409,7 +435,9 @@ func (db *DB) Close() {
 // FIXME (wojciech): Commit should return error if any goroutine fails.
 func (db *DB) Run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-		revisionQReader := db.storeQ.NewReader()
+		prepareTxQReader := db.queue.NewReader()
+		executeTxQReader := prepareTxQReader.NewReader()
+		revisionQReader := executeTxQReader.NewReader()
 		allocateQReader := revisionQReader.NewReader()
 		deallocateQReader := allocateQReader.NewReader()
 		storeQReaders := make([]*queue.Reader, 0, len(db.config.Stores))
@@ -430,6 +458,12 @@ func (db *DB) Run(ctx context.Context) error {
 			}
 		})
 		spawn("state", parallel.Continue, db.config.State.Run)
+		spawn("prepareTx", parallel.Continue, func(ctx context.Context) error {
+			return db.prepareTransactions(ctx, prepareTxQReader)
+		})
+		spawn("executeTx", parallel.Continue, func(ctx context.Context) error {
+			return db.executeTransactions(ctx, executeTxQReader)
+		})
 		spawn("revision", parallel.Continue, func(ctx context.Context) error {
 			return db.processRevisionRequests(ctx, revisionQReader)
 		})
@@ -449,15 +483,23 @@ func (db *DB) Run(ctx context.Context) error {
 	})
 }
 
-func (db *DB) processRevisionRequests(
+func (db *DB) prepareTransactions(
 	ctx context.Context,
 	storeQReader *queue.Reader,
 ) error {
-	var revision uint64
+	s, err := GetSpace[tx.Account, tx.Balance](tx.BalanceSpaceID, db)
+	if err != nil {
+		return err
+	}
+	pointerNode := s.NewPointerNode()
 
 	var count uint64
 	for {
 		count = storeQReader.Count(count)
+		if count > 10 {
+			count = 10
+		}
+
 		for range count {
 			req := storeQReader.Read()
 			if req.Type == queue.Close {
@@ -465,10 +507,78 @@ func (db *DB) processRevisionRequests(
 				return errors.WithStack(ctx.Err())
 			}
 
-			revision++
-			req.RequestedRevision = revision
-			for i := range req.PointersToStore {
-				atomic.StoreUint64(&req.Store[i].Revision, revision)
+			if req.Transaction != nil {
+				transferTx, ok := req.Transaction.(*tx.Transfer)
+				if !ok {
+					return errors.New("unknown transaction type")
+				}
+				transferTx.Prepare(s, pointerNode)
+			}
+		}
+	}
+}
+
+func (db *DB) executeTransactions(
+	ctx context.Context,
+	storeQReader *queue.Reader,
+) error {
+	volatilePool := db.NewVolatilePool()
+
+	s, err := GetSpace[tx.Account, tx.Balance](tx.BalanceSpaceID, db)
+	if err != nil {
+		return err
+	}
+	pointerNode := s.NewPointerNode()
+	dataNode := s.NewDataNode()
+
+	var count uint64
+	for {
+		count = storeQReader.Count(count)
+
+		for range count {
+			req := storeQReader.Read()
+			if req.Type == queue.Close {
+				storeQReader.Acknowledge(count)
+				return errors.WithStack(ctx.Err())
+			}
+
+			if req.Transaction != nil {
+				transferTx, ok := req.Transaction.(*tx.Transfer)
+				if !ok {
+					return errors.New("unknown transaction type")
+				}
+				if err := transferTx.Execute(req, volatilePool, pointerNode, dataNode); err != nil {
+					return err
+				}
+			}
+		}
+	}
+}
+
+func (db *DB) processRevisionRequests(
+	ctx context.Context,
+	storeQReader *queue.Reader,
+) error {
+	// FIXME (wojciech): Set to 0 on commit.
+	var revision uint64
+
+	var count uint64
+	for {
+		count = storeQReader.Count(count)
+
+		for range count {
+			req := storeQReader.Read()
+			if req.Type == queue.Close {
+				storeQReader.Acknowledge(count)
+				return errors.WithStack(ctx.Err())
+			}
+
+			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+				revision++
+				sr.RequestedRevision = revision
+				for i := range sr.PointersToStore {
+					atomic.StoreUint64(&sr.Store[i].Revision, revision)
+				}
 			}
 		}
 	}
@@ -491,16 +601,19 @@ func (db *DB) processAllocationRequests(
 				return errors.WithStack(ctx.Err())
 			}
 
-			//nolint:nestif
-			if req.PointersToStore > 0 {
+			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+				if sr.PointersToStore == 0 {
+					continue
+				}
+
 				// FIXME (wojciech): I believe not all the requests require deallocation.
-				req.Deallocate = massPointer.NewSlice(req.PointersToStore)
+				sr.Deallocate = massPointer.NewSlice(sr.PointersToStore)
 				var numOfPointersToDeallocate uint
-				for i := range req.PointersToStore {
-					p := req.Store[i]
+				for i := range sr.PointersToStore {
+					p := sr.Store[i]
 					if p.SnapshotID != db.singularityNode.LastSnapshotID {
 						if p.PersistentAddress != 0 {
-							req.Deallocate[numOfPointersToDeallocate] = *p
+							sr.Deallocate[numOfPointersToDeallocate] = *p
 							numOfPointersToDeallocate++
 						}
 						p.SnapshotID = db.singularityNode.LastSnapshotID
@@ -513,7 +626,7 @@ func (db *DB) processAllocationRequests(
 					}
 				}
 
-				req.Deallocate = req.Deallocate[:numOfPointersToDeallocate]
+				sr.Deallocate = sr.Deallocate[:numOfPointersToDeallocate]
 			}
 		}
 	}
@@ -538,21 +651,23 @@ func (db *DB) processDeallocationRequests(
 				return errors.WithStack(ctx.Err())
 			}
 
-			for _, p := range req.Deallocate {
-				pointerToStore, err := db.deallocateNode(
-					&p,
-					req.ImmediateDeallocation,
-					volatilePool,
-					persistentPool,
-					listNode,
-				)
-				if err != nil {
-					return err
-				}
+			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+				for _, p := range sr.Deallocate {
+					pointerToStore, err := db.deallocateNode(
+						&p,
+						sr.ImmediateDeallocation,
+						volatilePool,
+						persistentPool,
+						listNode,
+					)
+					if err != nil {
+						return err
+					}
 
-				//nolint:staticcheck
-				if pointerToStore != nil {
-					// FIXME (wojciech): This must be handled somehow
+					//nolint:staticcheck
+					if pointerToStore != nil {
+						// FIXME (wojciech): This must be handled somehow
+					}
 				}
 			}
 		}
@@ -579,23 +694,26 @@ func (db *DB) processStoreRequests(
 			if req.Type == queue.Close {
 				return errors.WithStack(ctx.Err())
 			}
-			for i := range req.PointersToStore {
-				p := req.Store[i]
-				if atomic.LoadUint64(&p.Revision) != req.RequestedRevision {
-					continue
-				}
 
-				// uniqueNodes[p.VolatileAddress] = struct{}{}
-				// numOfWrites++
+			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+				for i := range sr.PointersToStore {
+					p := sr.Store[i]
+					if atomic.LoadUint64(&p.Revision) != sr.RequestedRevision {
+						continue
+					}
 
-				// https://github.com/zeebo/blake3
-				// p.Checksum = blake3.Sum256(db.config.State.Bytes(p.VolatileAddress))
+					// uniqueNodes[p.VolatileAddress] = struct{}{}
+					// numOfWrites++
 
-				if err := store.Write(
-					p.PersistentAddress,
-					db.config.State.Bytes(p.VolatileAddress),
-				); err != nil {
-					return err
+					// https://github.com/zeebo/blake3
+					// p.Checksum = blake3.Sum256(db.config.State.Bytes(p.VolatileAddress))
+
+					if err := store.Write(
+						p.PersistentAddress,
+						db.config.State.Bytes(p.VolatileAddress),
+					); err != nil {
+						return err
+					}
 				}
 			}
 
@@ -682,6 +800,5 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 		PointerNodeAssistant: db.pointerNodeAssistant,
 		DataNodeAssistant:    dataNodeAssistant,
 		MassEntry:            mass.New[space.Entry[K, V]](1000),
-		StoreQ:               db.storeQ,
 	}), nil
 }
