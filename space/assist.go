@@ -46,7 +46,7 @@ func (ns *NodeAssistant[T]) NewNode() *Node[T] {
 
 // NumOfItems returns number of items fitting in one node.
 func (ns *NodeAssistant[T]) NumOfItems() uint64 {
-	return uint64(ns.numOfItems)
+	return ns.numOfItems
 }
 
 // Index returns index from hash.

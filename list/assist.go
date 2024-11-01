@@ -28,7 +28,7 @@ func NewNodeAssistant(state *alloc.State) (*NodeAssistant, error) {
 
 	return &NodeAssistant{
 		state:         state,
-		numOfPointers: uint64(numOfPointers),
+		numOfPointers: numOfPointers,
 		pointerOffset: headerSize,
 	}, nil
 }
