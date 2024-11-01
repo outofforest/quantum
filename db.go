@@ -15,7 +15,7 @@ import (
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/list"
 	"github.com/outofforest/quantum/persistent"
-	"github.com/outofforest/quantum/queue"
+	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space"
 	"github.com/outofforest/quantum/tx"
 	"github.com/outofforest/quantum/types"
@@ -77,10 +77,10 @@ func New(config Config) (*DB, error) {
 		snapshotInfoNode:            snapshotInfoNodeAssistant.NewNode(),
 		snapshotToNodeNode:          snapshotToNodeNodeAssistant.NewNode(),
 		listNode:                    listNodeAssistant.NewNode(),
-		massTransactionRequest:      mass.New[queue.TransactionRequest](1000),
+		massTransactionRequest:      mass.New[pipeline.TransactionRequest](1000),
 		massSnapshotToNodeEntry:     mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
 		deallocationListsToCommit:   map[types.SnapshotID]ListToCommit{},
-		queue:                       queue.New(),
+		queue:                       pipeline.New(),
 		closedCh:                    make(chan struct{}),
 	}
 
@@ -128,12 +128,12 @@ type DB struct {
 	snapshotToNodeNode *space.Node[types.DataItem[types.SnapshotID, types.Pointer]]
 	listNode           *list.Node
 
-	massTransactionRequest  *mass.Mass[queue.TransactionRequest]
+	massTransactionRequest  *mass.Mass[pipeline.TransactionRequest]
 	massSnapshotToNodeEntry *mass.Mass[space.Entry[types.SnapshotID, types.Pointer]]
 
 	deallocationListsToCommit map[types.SnapshotID]ListToCommit
 
-	queue    *queue.Queue
+	queue    *pipeline.Pipeline
 	closedCh chan struct{}
 }
 
@@ -149,13 +149,13 @@ func (db *DB) NewPersistentPool() *alloc.Pool[types.PersistentAddress] {
 
 // ApplyTransaction adds transaction to the queue.
 func (db *DB) ApplyTransaction(tx any) {
-	txRequest := queue.NewTransactionRequest(db.massTransactionRequest)
+	txRequest := pipeline.NewTransactionRequest(db.massTransactionRequest)
 	txRequest.Transaction = tx
 	db.queue.Push(txRequest)
 }
 
 // ApplyTransactionRequest adds transaction request to the queue.
-func (db *DB) ApplyTransactionRequest(txRequest *queue.TransactionRequest) {
+func (db *DB) ApplyTransactionRequest(txRequest *pipeline.TransactionRequest) {
 	db.queue.Push(txRequest)
 }
 
@@ -165,7 +165,7 @@ func (db *DB) DeleteSnapshot(
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
 ) error {
-	tx := queue.NewTransactionRequest(db.massTransactionRequest)
+	tx := pipeline.NewTransactionRequest(db.massTransactionRequest)
 
 	snapshotInfoValue := db.snapshots.Find(snapshotID, db.pointerNode)
 	if !snapshotInfoValue.Exists(db.pointerNode, db.snapshotInfoNode) {
@@ -248,8 +248,8 @@ func (db *DB) DeleteSnapshot(
 			return err
 		}
 		if pointerToStore != nil {
-			tx.AddStoreRequest(&queue.StoreRequest{
-				Store:                 [queue.StoreCapacity]*types.Pointer{pointerToStore},
+			tx.AddStoreRequest(&pipeline.StoreRequest{
+				Store:                 [pipeline.StoreCapacity]*types.Pointer{pointerToStore},
 				PointersToStore:       1,
 				ImmediateDeallocation: true,
 			})
@@ -330,13 +330,13 @@ func (db *DB) DeleteSnapshot(
 
 // Commit commits current snapshot and returns next one.
 func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
-	commitTx := queue.NewTransactionRequest(db.massTransactionRequest)
+	commitTx := pipeline.NewTransactionRequest(db.massTransactionRequest)
 
 	//nolint:nestif
 	if len(db.deallocationListsToCommit) > 0 {
 		syncCh := make(chan error, len(db.config.Stores))
-		tx := queue.NewTransactionRequest(db.massTransactionRequest)
-		tx.Type = queue.Sync
+		tx := pipeline.NewTransactionRequest(db.massTransactionRequest)
+		tx.Type = pipeline.Sync
 		tx.SyncCh = syncCh
 		db.queue.Push(tx)
 
@@ -350,7 +350,7 @@ func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
 		}
 		sort.Slice(lists, func(i, j int) bool { return lists[i] < lists[j] })
 
-		var sr queue.StoreRequest
+		var sr pipeline.StoreRequest
 		for _, snapshotID := range lists {
 			deallocationListValue := db.deallocationLists.Find(snapshotID, db.pointerNode)
 			if deallocationListValue.Exists(db.pointerNode, db.snapshotToNodeNode) {
@@ -398,9 +398,9 @@ func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
 	pointer := db.config.State.SingularityNodePointer(db.singularityNode.LastSnapshotID)
 	syncCh := make(chan error, len(db.config.Stores))
 	commitTx.SyncCh = syncCh
-	commitTx.AddStoreRequest(&queue.StoreRequest{
+	commitTx.AddStoreRequest(&pipeline.StoreRequest{
 		RequestedRevision: pointer.Revision,
-		Store:             [queue.StoreCapacity]*types.Pointer{pointer},
+		Store:             [pipeline.StoreCapacity]*types.Pointer{pointer},
 		PointersToStore:   1,
 	})
 	db.queue.Push(commitTx)
@@ -421,8 +421,8 @@ func (db *DB) Close() {
 	select {
 	case <-db.closedCh:
 	default:
-		tx := queue.NewTransactionRequest(db.massTransactionRequest)
-		tx.Type = queue.Close
+		tx := pipeline.NewTransactionRequest(db.massTransactionRequest)
+		tx.Type = pipeline.Close
 		db.queue.Push(tx)
 
 		close(db.closedCh)
@@ -439,9 +439,9 @@ func (db *DB) Run(ctx context.Context) error {
 		revisionQReader := executeTxQReader.NewReader()
 		allocateQReader := revisionQReader.NewReader()
 		deallocateQReader := allocateQReader.NewReader()
-		storeQReaders := make([]*queue.Reader, 0, len(db.config.Stores))
-		for range cap(storeQReaders) {
-			storeQReaders = append(storeQReaders, deallocateQReader.NewReader())
+		pipeReaders := make([]*pipeline.Reader, 0, len(db.config.Stores))
+		for range cap(pipeReaders) {
+			pipeReaders = append(pipeReaders, deallocateQReader.NewReader())
 		}
 
 		spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
@@ -474,7 +474,7 @@ func (db *DB) Run(ctx context.Context) error {
 		})
 		for i, store := range db.config.Stores {
 			spawn(fmt.Sprintf("store-%02d", i), parallel.Continue, func(ctx context.Context) error {
-				return db.processStoreRequests(ctx, store, storeQReaders[i])
+				return db.processStoreRequests(ctx, store, pipeReaders[i])
 			})
 		}
 
@@ -484,7 +484,7 @@ func (db *DB) Run(ctx context.Context) error {
 
 func (db *DB) prepareTransactions(
 	ctx context.Context,
-	storeQReader *queue.Reader,
+	pipeReader *pipeline.Reader,
 ) error {
 	s, err := GetSpace[tx.Account, tx.Balance](tx.BalanceSpaceID, db)
 	if err != nil {
@@ -492,17 +492,11 @@ func (db *DB) prepareTransactions(
 	}
 	pointerNode := s.NewPointerNode()
 
-	var count uint64
 	for {
-		count = storeQReader.Count(count)
-		if count > 10 {
-			count = 10
-		}
-
-		for range count {
-			req := storeQReader.Read()
-			if req.Type == queue.Close {
-				storeQReader.Acknowledge(count)
+		for range pipeReader.Count() {
+			req := pipeReader.Read()
+			if req.Type == pipeline.Close {
+				pipeReader.Acknowledge()
 				return errors.WithStack(ctx.Err())
 			}
 
@@ -519,7 +513,7 @@ func (db *DB) prepareTransactions(
 
 func (db *DB) executeTransactions(
 	ctx context.Context,
-	storeQReader *queue.Reader,
+	pipeReader *pipeline.Reader,
 ) error {
 	volatilePool := db.NewVolatilePool()
 
@@ -530,14 +524,11 @@ func (db *DB) executeTransactions(
 	pointerNode := s.NewPointerNode()
 	dataNode := s.NewDataNode()
 
-	var count uint64
 	for {
-		count = storeQReader.Count(count)
-
-		for range count {
-			req := storeQReader.Read()
-			if req.Type == queue.Close {
-				storeQReader.Acknowledge(count)
+		for range pipeReader.Count() {
+			req := pipeReader.Read()
+			if req.Type == pipeline.Close {
+				pipeReader.Acknowledge()
 				return errors.WithStack(ctx.Err())
 			}
 
@@ -556,19 +547,16 @@ func (db *DB) executeTransactions(
 
 func (db *DB) processRevisionRequests(
 	ctx context.Context,
-	storeQReader *queue.Reader,
+	pipeReader *pipeline.Reader,
 ) error {
 	// FIXME (wojciech): Set to 0 on commit.
 	var revision uint64
 
-	var count uint64
 	for {
-		count = storeQReader.Count(count)
-
-		for range count {
-			req := storeQReader.Read()
-			if req.Type == queue.Close {
-				storeQReader.Acknowledge(count)
+		for range pipeReader.Count() {
+			req := pipeReader.Read()
+			if req.Type == pipeline.Close {
+				pipeReader.Acknowledge()
 				return errors.WithStack(ctx.Err())
 			}
 
@@ -585,18 +573,16 @@ func (db *DB) processRevisionRequests(
 
 func (db *DB) processAllocationRequests(
 	ctx context.Context,
-	storeQReader *queue.Reader,
+	pipeReader *pipeline.Reader,
 ) error {
 	massPointer := mass.New[types.Pointer](1000)
 	persistentPool := db.NewPersistentPool()
 
-	var count uint64
 	for {
-		count = storeQReader.Count(count)
-		for range count {
-			req := storeQReader.Read()
-			if req.Type == queue.Close {
-				storeQReader.Acknowledge(count)
+		for range pipeReader.Count() {
+			req := pipeReader.Read()
+			if req.Type == pipeline.Close {
+				pipeReader.Acknowledge()
 				return errors.WithStack(ctx.Err())
 			}
 
@@ -633,20 +619,18 @@ func (db *DB) processAllocationRequests(
 
 func (db *DB) processDeallocationRequests(
 	ctx context.Context,
-	storeQReader *queue.Reader,
+	pipeReader *pipeline.Reader,
 ) error {
 	volatilePool := db.NewVolatilePool()
 	persistentPool := db.NewPersistentPool()
 
 	listNode := db.listNodeAssistant.NewNode()
 
-	var count uint64
 	for {
-		count = storeQReader.Count(count)
-		for range count {
-			req := storeQReader.Read()
-			if req.Type == queue.Close {
-				storeQReader.Acknowledge(count)
+		for range pipeReader.Count() {
+			req := pipeReader.Read()
+			if req.Type == pipeline.Close {
+				pipeReader.Acknowledge()
 				return errors.WithStack(ctx.Err())
 			}
 
@@ -676,21 +660,20 @@ func (db *DB) processDeallocationRequests(
 func (db *DB) processStoreRequests(
 	ctx context.Context,
 	store persistent.Store,
-	storeQReader *queue.Reader,
+	pipeReader *pipeline.Reader,
 ) error {
 	// uniqueNodes := map[types.VolatileAddress]struct{}{}
 	// var numOfWrites uint
 
-	var count uint64
 	for {
-		count = storeQReader.Count(count)
-		for range count {
-			req := storeQReader.Read()
-			if req.Type == queue.Sync {
+		for range pipeReader.Count() {
+			req := pipeReader.Read()
+			if req.Type == pipeline.Sync {
 				req.SyncCh <- nil
 				continue
 			}
-			if req.Type == queue.Close {
+			if req.Type == pipeline.Close {
+				pipeReader.Acknowledge()
 				return errors.WithStack(ctx.Err())
 			}
 

@@ -1,4 +1,4 @@
-package queue
+package pipeline
 
 import (
 	"sync/atomic"
@@ -57,61 +57,71 @@ type StoreRequest struct {
 	Next              *StoreRequest
 }
 
-// New creates new queue.
-func New() *Queue {
+// New creates new pipeline.
+func New() *Pipeline {
 	head := &TransactionRequest{}
-	return &Queue{
+	return &Pipeline{
 		tail:           &head,
 		availableCount: lo.ToPtr[uint64](0),
 	}
 }
 
-// Queue is the polling queue for persistent store.
-type Queue struct {
+// Pipeline is the pipeline processing transactions.
+type Pipeline struct {
 	tail           **TransactionRequest
 	availableCount *uint64
 	count          uint64
 }
 
-// Push pushes new request into the queue.
-func (q *Queue) Push(item *TransactionRequest) {
-	*q.tail = item
-	q.tail = &item.Next
+// Push pushes new request into the pipeline.
+func (p *Pipeline) Push(item *TransactionRequest) {
+	*p.tail = item
+	p.tail = &item.Next
 
-	q.count++
+	p.count++
 
-	if q.count == 100 || item.SyncCh != nil || item.Type == Close {
-		atomic.AddUint64(q.availableCount, q.count)
-		q.count = 0
+	if p.count == 100 || item.SyncCh != nil || item.Type == Close {
+		atomic.AddUint64(p.availableCount, p.count)
+		p.count = 0
 	}
 }
 
-// NewReader creates new queue reader.
-func (q *Queue) NewReader() *Reader {
+// NewReader creates new pipeline reader.
+func (p *Pipeline) NewReader() *Reader {
 	return &Reader{
-		head:           q.tail,
-		availableCount: q.availableCount,
+		head:           p.tail,
+		availableCount: p.availableCount,
 		processedCount: lo.ToPtr[uint64](0),
 	}
 }
 
-// Reader reads requests from the queue.
+// Reader reads requests from the pipeline.
 type Reader struct {
 	head           **TransactionRequest
 	availableCount *uint64
 	processedCount *uint64
+
+	currentAvailableCount uint64
+	currentProcessedCount uint64
 }
 
-const maxProcessChunkSize = 5
-
 // Count returns the number of available requests to process.
-func (qr *Reader) Count(processedCount uint64) uint64 {
-	processed := atomic.AddUint64(qr.processedCount, processedCount)
+func (qr *Reader) Count() uint64 {
+	const maxChunkSize = 100
+
+	atomic.StoreUint64(qr.processedCount, qr.currentProcessedCount)
+	if toProcess := qr.currentAvailableCount - qr.currentProcessedCount; toProcess > 0 {
+		if toProcess > maxChunkSize {
+			return maxChunkSize
+		}
+		return toProcess
+	}
+
 	for {
-		available := atomic.LoadUint64(qr.availableCount)
-		if toProcess := available - processed; toProcess > 0 {
-			if toProcess > maxProcessChunkSize {
-				return maxProcessChunkSize
+		qr.currentAvailableCount = atomic.LoadUint64(qr.availableCount)
+		if toProcess := qr.currentAvailableCount - qr.currentProcessedCount; toProcess > 0 {
+			if toProcess > maxChunkSize {
+				return maxChunkSize
 			}
 			return toProcess
 		}
@@ -121,14 +131,15 @@ func (qr *Reader) Count(processedCount uint64) uint64 {
 }
 
 // Acknowledge acknowledges processing of previously read requests.
-func (qr *Reader) Acknowledge(processedCount uint64) {
-	atomic.AddUint64(qr.processedCount, processedCount)
+func (qr *Reader) Acknowledge() {
+	atomic.StoreUint64(qr.processedCount, qr.currentProcessedCount)
 }
 
-// Read reads next request from the queue.
+// Read reads next request from the pipeline.
 func (qr *Reader) Read() *TransactionRequest {
 	h := *qr.head
 	qr.head = &h.Next
+	qr.currentProcessedCount++
 	return h
 }
 

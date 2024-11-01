@@ -2,7 +2,7 @@ package tx
 
 import (
 	"github.com/outofforest/quantum/alloc"
-	"github.com/outofforest/quantum/queue"
+	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space"
 	"github.com/outofforest/quantum/types"
 )
@@ -37,7 +37,7 @@ func (t *Transfer) Prepare(
 
 // Execute executes transaction.
 func (t *Transfer) Execute(
-	tx *queue.TransactionRequest,
+	tx *pipeline.TransactionRequest,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	pointerNode *space.Node[types.Pointer],
 	dataNode *space.Node[types.DataItem[Account, Balance]],
