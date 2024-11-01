@@ -57,7 +57,7 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 	s.trials = make([][trials]uint64, 0, numOfItems)
 	for startIndex := range uint64(cap(s.trials)) {
 		var indexes [trials]uint64
-		for i := uint64(0); i < trials; i++ {
+		for i := range uint64(trials) {
 			indexes[i] = (startIndex + 1<<i + i) % numOfItems
 		}
 		s.trials = append(s.trials, indexes)
@@ -419,7 +419,8 @@ func (s *Space[K, V]) set(
 
 			var conflict bool
 			startIndex := s.config.DataNodeAssistant.Index(v.item.Hash)
-			for i, indexP := 0, unsafe.Pointer(&s.trials[startIndex]); i < trials; i, indexP = i+1, unsafe.Add(indexP, types.UInt64Length) {
+			for i, indexP := 0, unsafe.Pointer(&s.trials[startIndex]); i < trials; i, indexP = i+1,
+				unsafe.Add(indexP, types.UInt64Length) {
 				item := dataNode.Item(*(*uint64)(indexP))
 
 				if item.State <= types.StateDeleted {
@@ -567,7 +568,8 @@ func (s *Space[K, V]) find(
 		case types.StateData:
 			s.config.DataNodeAssistant.Project(v.pointer.VolatileAddress, dataNode)
 			startIndex := s.config.DataNodeAssistant.Index(v.item.Hash)
-			for i, indexP := 0, unsafe.Pointer(&s.trials[startIndex]); i < trials; i, indexP = i+1, unsafe.Add(indexP, types.UInt64Length) {
+			for i, indexP := 0, unsafe.Pointer(&s.trials[startIndex]); i < trials; i, indexP = i+1,
+				unsafe.Add(indexP, types.UInt64Length) {
 				item := dataNode.Item(*(*uint64)(indexP))
 
 				switch item.State {
