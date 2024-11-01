@@ -53,6 +53,16 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 	s.defaultInit = make([]byte, s.initSize)
 	copy(s.defaultInit, unsafe.Slice((*byte)(unsafe.Pointer(&defaultInit)), s.initSize))
 
+	numOfItems := config.DataNodeAssistant.NumOfItems()
+	s.trials = make([][trials]uint64, 0, numOfItems)
+	for startIndex := range uint64(cap(s.trials)) {
+		var indexes [trials]uint64
+		for i := range uint64(trials) {
+			indexes[i] = (startIndex + 1<<i + i) % numOfItems
+		}
+		s.trials = append(s.trials, indexes)
+	}
+
 	return s
 }
 
@@ -63,6 +73,7 @@ type Space[K, V comparable] struct {
 	massPointer *mass.Mass[*types.Pointer]
 	initSize    uint64
 	defaultInit []byte
+	trials      [][trials]uint64
 }
 
 // NewPointerNode creates new pointer node representation.
@@ -407,9 +418,10 @@ func (s *Space[K, V]) set(
 			s.config.DataNodeAssistant.Project(v.pointer.VolatileAddress, dataNode)
 
 			var conflict bool
-			for i := types.Hash(0); i < trials; i++ {
-				index := s.config.DataNodeAssistant.Index(v.item.Hash + 1<<i + i)
-				item := dataNode.Item(index)
+			startIndex := s.config.DataNodeAssistant.Index(v.item.Hash)
+			for i, indexP := 0, unsafe.Pointer(&s.trials[startIndex]); i < trials; i, indexP = i+1,
+				unsafe.Add(indexP, types.UInt64Length) {
+				item := dataNode.Item(*(*uint64)(indexP))
 
 				if item.State <= types.StateDeleted {
 					v.item.State = types.StateData
@@ -555,9 +567,10 @@ func (s *Space[K, V]) find(
 			v.storeRequest.PointersToStore++
 		case types.StateData:
 			s.config.DataNodeAssistant.Project(v.pointer.VolatileAddress, dataNode)
-			for i := types.Hash(0); i < trials; i++ {
-				index := s.config.DataNodeAssistant.Index(v.item.Hash + 1<<i + i)
-				item := dataNode.Item(index)
+			startIndex := s.config.DataNodeAssistant.Index(v.item.Hash)
+			for i, indexP := 0, unsafe.Pointer(&s.trials[startIndex]); i < trials; i, indexP = i+1,
+				unsafe.Add(indexP, types.UInt64Length) {
+				item := dataNode.Item(*(*uint64)(indexP))
 
 				switch item.State {
 				case types.StateFree:
