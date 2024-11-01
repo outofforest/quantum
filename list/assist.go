@@ -12,15 +12,15 @@ import (
 
 // NewNodeAssistant creates new list node assistant.
 func NewNodeAssistant(state *alloc.State) (*NodeAssistant, error) {
-	nodeSize := uintptr(state.NodeSize())
+	nodeSize := state.NodeSize()
 
-	headerSize := unsafe.Sizeof(NodeHeader{})
-	headerSize = (headerSize + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length // memory alignment
+	// memory alignment
+	headerSize := uint64(unsafe.Sizeof(NodeHeader{})+types.UInt64Length-1) / types.UInt64Length * types.UInt64Length
 	if headerSize >= nodeSize {
 		return nil, errors.New("node size is too small")
 	}
 
-	pointerSize := unsafe.Sizeof(types.Pointer{})
+	pointerSize := uint64(unsafe.Sizeof(types.Pointer{}))
 	numOfPointers := (nodeSize - headerSize) / pointerSize
 	if numOfPointers < 2 {
 		return nil, errors.New("node size is too small")
@@ -38,7 +38,7 @@ type NodeAssistant struct {
 	state *alloc.State
 
 	numOfPointers uint64
-	pointerOffset uintptr
+	pointerOffset uint64
 }
 
 // NewNode initializes new node.
