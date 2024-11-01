@@ -21,7 +21,7 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-// echo 70 | sudo tee /proc/sys/vm/nr_hugepages
+// echo 120 | sudo tee /proc/sys/vm/nr_hugepages
 // go test -benchtime=1x -bench=. -run=^$ -cpuprofile profile.out
 // go tool pprof -http="localhost:8000" pprofbin ./profile.out
 // go test -c -o bench ./benchmark_test.go
@@ -46,8 +46,8 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 	for bi := 0; bi < b.N; bi++ {
 		func() {
-			var size uint64 = 70 * 1024 * 1024 * 1024
-			var nodeSize uint64 = 4 * 1024
+			var size uint64 = 120 * 1024 * 1024 * 1024
+			var nodeSize uint64 = 8 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size,
 				nodeSize,

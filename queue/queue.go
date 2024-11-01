@@ -39,15 +39,13 @@ type Request struct {
 func New() *Queue {
 	head := &Request{}
 	return &Queue{
-		head:           head,
-		tail:           &head.Next,
+		tail:           &head,
 		availableCount: lo.ToPtr[uint64](0),
 	}
 }
 
 // Queue is the polling queue for persistent store.
 type Queue struct {
-	head           *Request
 	tail           **Request
 	availableCount *uint64
 	count          uint64
@@ -69,7 +67,7 @@ func (q *Queue) Push(item *Request) {
 // NewReader creates new queue reader.
 func (q *Queue) NewReader() *Reader {
 	return &Reader{
-		head:           q.head,
+		head:           q.tail,
 		availableCount: q.availableCount,
 		processedCount: lo.ToPtr[uint64](0),
 	}
@@ -77,7 +75,7 @@ func (q *Queue) NewReader() *Reader {
 
 // Reader reads requests from the queue.
 type Reader struct {
-	head           *Request
+	head           **Request
 	availableCount *uint64
 	processedCount *uint64
 }
@@ -105,8 +103,9 @@ func (qr *Reader) Acknowledge(processedCount uint64) {
 
 // Read reads next request from the queue.
 func (qr *Reader) Read() *Request {
-	qr.head = qr.head.Next
-	return qr.head
+	h := *qr.head
+	qr.head = &h.Next
+	return h
 }
 
 // NewReader returns new dependant reader.
