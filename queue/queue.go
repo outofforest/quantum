@@ -9,12 +9,12 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-// StoreRequestType defines special types of requests.
-type StoreRequestType uint64
+// TransactionRequestType defines special types of transaction requests.
+type TransactionRequestType uint64
 
-// Request type constants.
+// TransactionRequest type constants.
 const (
-	None StoreRequestType = iota
+	None TransactionRequestType = iota
 	Sync
 	Close
 )
@@ -22,22 +22,43 @@ const (
 // StoreCapacity is the maximum capacity of store array in store request.
 const StoreCapacity = 10
 
-// Request is used to request writing a node to the store.
-type Request struct {
+// NewTransactionRequest returns new transaction request.
+func NewTransactionRequest() *TransactionRequest {
+	t := &TransactionRequest{}
+	t.LastStoreRequest = &t.StoreRequest
+	return t
+}
+
+// TransactionRequest is used to request transaction execution.
+type TransactionRequest struct {
+	Transaction      any
+	StoreRequest     *StoreRequest
+	LastStoreRequest **StoreRequest
+	SyncCh           chan<- error
+	Next             *TransactionRequest
+	Type             TransactionRequestType
+}
+
+// AddStoreRequest adds store request to the transaction.
+func (t *TransactionRequest) AddStoreRequest(sr *StoreRequest) {
+	*t.LastStoreRequest = sr
+	t.LastStoreRequest = &sr.Next
+}
+
+// StoreRequest is used to request writing nodes to the store.
+type StoreRequest struct {
 	ImmediateDeallocation bool
 	PointersToStore       uint64
 	Store                 [StoreCapacity]*types.Pointer
 
 	RequestedRevision uint64
 	Deallocate        []types.Pointer
-	SyncCh            chan<- error
-	Next              *Request
-	Type              StoreRequestType
+	Next              *StoreRequest
 }
 
 // New creates new queue.
 func New() *Queue {
-	head := &Request{}
+	head := &TransactionRequest{}
 	return &Queue{
 		tail:           &head,
 		availableCount: lo.ToPtr[uint64](0),
@@ -46,13 +67,13 @@ func New() *Queue {
 
 // Queue is the polling queue for persistent store.
 type Queue struct {
-	tail           **Request
+	tail           **TransactionRequest
 	availableCount *uint64
 	count          uint64
 }
 
 // Push pushes new request into the queue.
-func (q *Queue) Push(item *Request) {
+func (q *Queue) Push(item *TransactionRequest) {
 	*q.tail = item
 	q.tail = &item.Next
 
@@ -75,24 +96,26 @@ func (q *Queue) NewReader() *Reader {
 
 // Reader reads requests from the queue.
 type Reader struct {
-	head           **Request
+	head           **TransactionRequest
 	availableCount *uint64
 	processedCount *uint64
 }
 
+const maxProcessChunkSize = 5
+
 // Count returns the number of available requests to process.
 func (qr *Reader) Count(processedCount uint64) uint64 {
-	available := atomic.LoadUint64(qr.availableCount)
 	processed := atomic.AddUint64(qr.processedCount, processedCount)
-	if toProcess := available - processed; toProcess > 0 {
-		return toProcess
-	}
 	for {
-		runtime.Gosched()
-		available2 := atomic.LoadUint64(qr.availableCount)
-		if available2 > available {
-			return available2 - processed
+		available := atomic.LoadUint64(qr.availableCount)
+		if toProcess := available - processed; toProcess > 0 {
+			if toProcess > maxProcessChunkSize {
+				return maxProcessChunkSize
+			}
+			return toProcess
 		}
+
+		runtime.Gosched()
 	}
 }
 
@@ -102,7 +125,7 @@ func (qr *Reader) Acknowledge(processedCount uint64) {
 }
 
 // Read reads next request from the queue.
-func (qr *Reader) Read() *Request {
+func (qr *Reader) Read() *TransactionRequest {
 	h := *qr.head
 	qr.head = &h.Next
 	return h
