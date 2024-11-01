@@ -152,8 +152,8 @@ func (db *DB) DeleteSnapshot(
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
 ) error {
-	snapshotInfoValue := db.snapshots.Find(snapshotID, db.pointerNode, db.snapshotInfoNode)
-	if !snapshotInfoValue.Exists() {
+	snapshotInfoValue := db.snapshots.Find(snapshotID, db.pointerNode)
+	if !snapshotInfoValue.Exists(db.pointerNode, db.snapshotInfoNode) {
 		return errors.Errorf("snapshot %d does not exist", snapshotID)
 	}
 
@@ -161,17 +161,17 @@ func (db *DB) DeleteSnapshot(
 		return err
 	}
 
-	snapshotInfo := snapshotInfoValue.Value()
+	snapshotInfo := snapshotInfoValue.Value(db.pointerNode, db.snapshotInfoNode)
 
 	var nextSnapshotInfo *types.SnapshotInfo
 	var nextDeallocationListRoot *types.Pointer
 	var nextDeallocationLists *space.Space[types.SnapshotID, types.Pointer]
 	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
-		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, db.pointerNode, db.snapshotInfoNode)
-		if !nextSnapshotInfoValue.Exists() {
+		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, db.pointerNode)
+		if !nextSnapshotInfoValue.Exists(db.pointerNode, db.snapshotInfoNode) {
 			return errors.Errorf("snapshot %d does not exist", snapshotID)
 		}
-		tmpNextSnapshotInfo := nextSnapshotInfoValue.Value()
+		tmpNextSnapshotInfo := nextSnapshotInfoValue.Value(db.pointerNode, db.snapshotInfoNode)
 		nextSnapshotInfo = &tmpNextSnapshotInfo
 
 		nextDeallocationListRoot = &nextSnapshotInfo.DeallocationRoot
@@ -221,8 +221,8 @@ func (db *DB) DeleteSnapshot(
 			continue
 		}
 
-		deallocationListValue := deallocationLists.Find(nextDeallocSnapshot.Key, db.pointerNode, db.snapshotToNodeNode)
-		listNodeAddress := deallocationListValue.Value()
+		deallocationListValue := deallocationLists.Find(nextDeallocSnapshot.Key, db.pointerNode)
+		listNodeAddress := deallocationListValue.Value(db.pointerNode, db.snapshotToNodeNode)
 		newListNodeAddress := listNodeAddress
 		list := list.New(list.Config{
 			ListRoot:      &newListNodeAddress,
@@ -270,7 +270,7 @@ func (db *DB) DeleteSnapshot(
 	}
 
 	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
-		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, db.pointerNode, db.snapshotInfoNode)
+		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, db.pointerNode)
 		if err := nextSnapshotInfoValue.Set(
 			*nextSnapshotInfo,
 			volatilePool,
@@ -282,13 +282,12 @@ func (db *DB) DeleteSnapshot(
 	}
 
 	if snapshotID > db.singularityNode.FirstSnapshotID {
-		previousSnapshotInfoValue := db.snapshots.Find(snapshotInfo.PreviousSnapshotID, db.pointerNode,
-			db.snapshotInfoNode)
-		if !previousSnapshotInfoValue.Exists() {
+		previousSnapshotInfoValue := db.snapshots.Find(snapshotInfo.PreviousSnapshotID, db.pointerNode)
+		if !previousSnapshotInfoValue.Exists(db.pointerNode, db.snapshotInfoNode) {
 			return errors.Errorf("snapshot %d does not exist", snapshotID)
 		}
 
-		previousSnapshotInfo := previousSnapshotInfoValue.Value()
+		previousSnapshotInfo := previousSnapshotInfoValue.Value(db.pointerNode, db.snapshotInfoNode)
 		previousSnapshotInfo.NextSnapshotID = snapshotInfo.NextSnapshotID
 
 		if err := previousSnapshotInfoValue.Set(
@@ -333,10 +332,10 @@ func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
 
 		var sr queue.Request
 		for _, snapshotID := range lists {
-			deallocationListValue := db.deallocationLists.Find(snapshotID, db.pointerNode, db.snapshotToNodeNode)
-			if deallocationListValue.Exists() {
+			deallocationListValue := db.deallocationLists.Find(snapshotID, db.pointerNode)
+			if deallocationListValue.Exists(db.pointerNode, db.snapshotToNodeNode) {
 				pointerToStore, err := db.deallocationListsToCommit[snapshotID].List.Attach(
-					lo.ToPtr(deallocationListValue.Value()),
+					lo.ToPtr(deallocationListValue.Value(db.pointerNode, db.snapshotToNodeNode)),
 					volatilePool,
 					db.listNode,
 				)
@@ -364,7 +363,7 @@ func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
 		clear(db.deallocationListsToCommit)
 	}
 
-	nextSnapshotInfoValue := db.snapshots.Find(db.singularityNode.LastSnapshotID, db.pointerNode, db.snapshotInfoNode)
+	nextSnapshotInfoValue := db.snapshots.Find(db.singularityNode.LastSnapshotID, db.pointerNode)
 	if err := nextSnapshotInfoValue.Set(
 		db.snapshotInfo,
 		volatilePool,

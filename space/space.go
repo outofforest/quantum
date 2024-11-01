@@ -90,7 +90,6 @@ func (s *Space[K, V]) NewDataNode() *Node[types.DataItem[K, V]] {
 func (s *Space[K, V]) Find(
 	key K,
 	pointerNode *Node[types.Pointer],
-	dataNode *Node[types.DataItem[K, V]],
 ) *Entry[K, V] {
 	v := s.config.MassEntry.New()
 	initBytes := unsafe.Slice((*byte)(unsafe.Pointer(v)), s.initSize)
@@ -98,7 +97,7 @@ func (s *Space[K, V]) Find(
 	v.item.Hash = hashKey(&key, s.hashBuff, 0)
 	v.item.Key = key
 
-	s.find(v, pointerNode, dataNode)
+	s.find(v, pointerNode, nil)
 	return v
 }
 
@@ -321,12 +320,36 @@ func (s *Space[K, V]) Stats(
 	}
 }
 
+func (s *Space[K, V]) valueExists(
+	v *Entry[K, V],
+	pointerNode *Node[types.Pointer],
+	dataNode *Node[types.DataItem[K, V]],
+) bool {
+	if !v.dataNodeProcessed {
+		s.find(v, pointerNode, dataNode)
+	}
+
+	return v.exists
+}
+
+func (s *Space[K, V]) readValue(
+	v *Entry[K, V],
+	pointerNode *Node[types.Pointer],
+	dataNode *Node[types.DataItem[K, V]],
+) V {
+	if !v.dataNodeProcessed {
+		s.find(v, pointerNode, dataNode)
+	}
+
+	return v.item.Value
+}
+
 func (s *Space[K, V]) deleteValue(
 	v *Entry[K, V],
 	pointerNode *Node[types.Pointer],
 	dataNode *Node[types.DataItem[K, V]],
 ) error {
-	if v.pointer.State == types.StatePointer || v.pointer.State == types.StatePointerWithHashMod {
+	if v.pointer.State == types.StatePointer || v.pointer.State == types.StatePointerWithHashMod || !v.dataNodeProcessed {
 		s.find(v, pointerNode, dataNode)
 	}
 
@@ -355,7 +378,7 @@ func (s *Space[K, V]) setValue(
 	pointerNode *Node[types.Pointer],
 	dataNode *Node[types.DataItem[K, V]],
 ) error {
-	if v.pointer.State == types.StatePointer || v.pointer.State == types.StatePointerWithHashMod {
+	if v.pointer.State == types.StatePointer || v.pointer.State == types.StatePointerWithHashMod || !v.dataNodeProcessed {
 		s.find(v, pointerNode, dataNode)
 	}
 
@@ -389,6 +412,8 @@ func (s *Space[K, V]) set(
 	pointerNode *Node[types.Pointer],
 	dataNode *Node[types.DataItem[K, V]],
 ) error {
+	v.dataNodeProcessed = true
+
 	for {
 		switch v.pointer.State {
 		case types.StateFree:
@@ -399,8 +424,8 @@ func (s *Space[K, V]) set(
 
 			s.config.DataNodeAssistant.Project(dataNodeAddress, dataNode)
 
-			v.pointer.State = types.StateData
 			v.pointer.VolatileAddress = dataNodeAddress
+			v.pointer.State = types.StateData
 
 			index := s.config.DataNodeAssistant.Index(v.item.Hash + 1)
 			item := dataNode.Item(index)
@@ -492,12 +517,12 @@ func (s *Space[K, V]) redistributeAndSet(
 	}
 	s.config.PointerNodeAssistant.Project(pointerNodeAddress, pointerNode)
 
+	v.pointer.VolatileAddress = pointerNodeAddress
 	if conflict {
 		v.pointer.State = types.StatePointerWithHashMod
 	} else {
 		v.pointer.State = types.StatePointer
 	}
-	v.pointer.VolatileAddress = pointerNodeAddress
 
 	// Persistent address stays the same, so data node will be reused for pointer node if both are
 	// created in the same snapshot, or data node will be deallocated otherwise.
@@ -566,6 +591,12 @@ func (s *Space[K, V]) find(
 			v.storeRequest.Store[v.storeRequest.PointersToStore] = pointer
 			v.storeRequest.PointersToStore++
 		case types.StateData:
+			if dataNode == nil {
+				return
+			}
+
+			v.dataNodeProcessed = true
+
 			s.config.DataNodeAssistant.Project(v.pointer.VolatileAddress, dataNode)
 			startIndex := s.config.DataNodeAssistant.Index(v.item.Hash)
 			for i, indexP := 0, unsafe.Pointer(&s.trials[startIndex]); i < trials; i, indexP = i+1,
@@ -594,6 +625,7 @@ func (s *Space[K, V]) find(
 			}
 			return
 		default:
+			v.dataNodeProcessed = true
 			return
 		}
 	}
@@ -605,14 +637,18 @@ type Entry[K, V comparable] struct {
 	pointer      *types.Pointer
 	storeRequest queue.Request
 
-	itemP  *types.DataItem[K, V]
-	item   types.DataItem[K, V]
-	exists bool
+	itemP             *types.DataItem[K, V]
+	item              types.DataItem[K, V]
+	exists            bool
+	dataNodeProcessed bool
 }
 
 // Value returns the value from entry.
-func (v *Entry[K, V]) Value() V {
-	return v.item.Value
+func (v *Entry[K, V]) Value(
+	pointerNode *Node[types.Pointer],
+	dataNode *Node[types.DataItem[K, V]],
+) V {
+	return v.space.readValue(v, pointerNode, dataNode)
 }
 
 // Key returns the key from entry.
@@ -621,8 +657,11 @@ func (v *Entry[K, V]) Key() K {
 }
 
 // Exists returns true if entry exists in the space.
-func (v *Entry[K, V]) Exists() bool {
-	return v.exists
+func (v *Entry[K, V]) Exists(
+	pointerNode *Node[types.Pointer],
+	dataNode *Node[types.DataItem[K, V]],
+) bool {
+	return v.space.valueExists(v, pointerNode, dataNode)
 }
 
 // Set sts value for entry.
