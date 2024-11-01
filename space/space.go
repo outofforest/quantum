@@ -630,8 +630,14 @@ func (s *Space[K, V]) find(
 				}
 			}
 			return
-		default:
+		case types.StateFree:
 			v.dataNodeProcessed = true
+			return
+		default:
+			// When `Find` method tries to read the state while the other goroutine changes it from free to data
+			// (new allocation) or from data to pointer (redistribution), it might happen that we read a value which is
+			// temporarily illegal. It's not a problem. We just return with `dataNodeProcessed = false` and the rest of
+			// the job will be done in the other goroutine when it tries to read or set the value.
 			return
 		}
 	}

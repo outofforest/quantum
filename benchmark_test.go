@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/outofforest/logger"
+	"github.com/outofforest/mass"
 	"github.com/outofforest/parallel"
 	"github.com/outofforest/quantum"
 	"github.com/outofforest/quantum/alloc"
@@ -32,7 +33,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
 		numOfAddresses = 10_000_000
-		txsPerCommit   = 10_000
+		txsPerCommit   = 20_000
 		balance        = 100_000
 	)
 
@@ -47,6 +48,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 	}
 
 	for bi := 0; bi < b.N; bi++ {
+		func() {
+			fmt.Print("")
+		}()
 		func() {
 			var size uint64 = 120 * 1024 * 1024 * 1024
 			var nodeSize uint64 = 8 * 1024
@@ -115,36 +119,38 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			pointerNode := s.NewPointerNode()
 			dataNode := s.NewDataNode()
 
-			txRequest := queue.NewTransactionRequest()
-			if err := s.AllocatePointers(txRequest, 3, volatilePool, pointerNode); err != nil {
-				panic(err)
-			}
+			func() {
+				massTR := mass.New[queue.TransactionRequest](10)
 
-			db.ApplyTransactionRequest(txRequest)
-
-			for i := 0; i < numOfAddresses; i += 2 {
-				txRequest := queue.NewTransactionRequest()
-
-				v := s.Find(accounts[i], pointerNode)
-
-				if err := v.Set(2*balance, txRequest, volatilePool, pointerNode, dataNode); err != nil {
+				txRequest := queue.NewTransactionRequest(massTR)
+				if err := s.AllocatePointers(txRequest, 3, volatilePool, pointerNode); err != nil {
 					panic(err)
 				}
 
 				db.ApplyTransactionRequest(txRequest)
-			}
 
-			fmt.Println(s.Stats(pointerNode, dataNode))
-			fmt.Println("===========================")
+				for i := 0; i < numOfAddresses; i += 2 {
+					txRequest := queue.NewTransactionRequest(massTR)
+
+					v := s.Find(accounts[i], pointerNode)
+
+					if err := v.Set(2*balance, txRequest, volatilePool, pointerNode, dataNode); err != nil {
+						panic(err)
+					}
+
+					db.ApplyTransactionRequest(txRequest)
+				}
+
+				fmt.Println(s.Stats(pointerNode, dataNode))
+				fmt.Println("===========================")
+
+				if err := db.Commit(volatilePool); err != nil {
+					panic(err)
+				}
+			}()
 
 			txIndex := 0
-			var snapshotID types.SnapshotID
-
-			if err := db.Commit(volatilePool); err != nil {
-				panic(err)
-			}
-
-			snapshotID++
+			var snapshotID types.SnapshotID = 1
 
 			func() {
 				b.StartTimer()
@@ -175,13 +181,15 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				b.StopTimer()
 			}()
 
-			fmt.Println(s.Stats(pointerNode, dataNode))
+			func() {
+				fmt.Println(s.Stats(pointerNode, dataNode))
 
-			for _, addr := range accounts {
-				v := s.Find(addr, pointerNode)
-				require.True(b, v.Exists(pointerNode, dataNode))
-				require.Equal(b, tx.Balance(balance), v.Value(pointerNode, dataNode))
-			}
+				for _, addr := range accounts {
+					v := s.Find(addr, pointerNode)
+					require.True(b, v.Exists(pointerNode, dataNode))
+					require.Equal(b, tx.Balance(balance), v.Value(pointerNode, dataNode))
+				}
+			}()
 		}()
 	}
 }

@@ -149,8 +149,7 @@ func (db *DB) NewPersistentPool() *alloc.Pool[types.PersistentAddress] {
 
 // ApplyTransaction adds transaction to the queue.
 func (db *DB) ApplyTransaction(tx any) {
-	txRequest := db.massTransactionRequest.New()
-	txRequest.LastStoreRequest = &txRequest.StoreRequest
+	txRequest := queue.NewTransactionRequest(db.massTransactionRequest)
 	txRequest.Transaction = tx
 	db.queue.Push(txRequest)
 }
@@ -166,7 +165,7 @@ func (db *DB) DeleteSnapshot(
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
 ) error {
-	tx := queue.NewTransactionRequest()
+	tx := queue.NewTransactionRequest(db.massTransactionRequest)
 
 	snapshotInfoValue := db.snapshots.Find(snapshotID, db.pointerNode)
 	if !snapshotInfoValue.Exists(db.pointerNode, db.snapshotInfoNode) {
@@ -331,12 +330,12 @@ func (db *DB) DeleteSnapshot(
 
 // Commit commits current snapshot and returns next one.
 func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
-	commitTx := queue.NewTransactionRequest()
+	commitTx := queue.NewTransactionRequest(db.massTransactionRequest)
 
 	//nolint:nestif
 	if len(db.deallocationListsToCommit) > 0 {
 		syncCh := make(chan error, len(db.config.Stores))
-		tx := queue.NewTransactionRequest()
+		tx := queue.NewTransactionRequest(db.massTransactionRequest)
 		tx.Type = queue.Sync
 		tx.SyncCh = syncCh
 		db.queue.Push(tx)
@@ -422,7 +421,7 @@ func (db *DB) Close() {
 	select {
 	case <-db.closedCh:
 	default:
-		tx := queue.NewTransactionRequest()
+		tx := queue.NewTransactionRequest(db.massTransactionRequest)
 		tx.Type = queue.Close
 		db.queue.Push(tx)
 

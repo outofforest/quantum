@@ -1,11 +1,12 @@
 package queue
 
 import (
-	"runtime"
 	"sync/atomic"
+	"time"
 
 	"github.com/samber/lo"
 
+	"github.com/outofforest/mass"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -23,8 +24,8 @@ const (
 const StoreCapacity = 10
 
 // NewTransactionRequest returns new transaction request.
-func NewTransactionRequest() *TransactionRequest {
-	t := &TransactionRequest{}
+func NewTransactionRequest(massTR *mass.Mass[TransactionRequest]) *TransactionRequest {
+	t := massTR.New()
 	t.LastStoreRequest = &t.StoreRequest
 	return t
 }
@@ -115,7 +116,7 @@ func (qr *Reader) Count(processedCount uint64) uint64 {
 			return toProcess
 		}
 
-		runtime.Gosched()
+		time.Sleep(10 * time.Microsecond)
 	}
 }
 
