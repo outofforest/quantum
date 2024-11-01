@@ -11,7 +11,7 @@ import (
 	"github.com/outofforest/mass"
 	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/alloc"
-	"github.com/outofforest/quantum/queue"
+	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -39,10 +39,10 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 	defaultInit := Entry[K, V]{
 		space:   s,
 		pointer: s.config.SpaceRoot,
-		storeRequest: queue.StoreRequest{
+		storeRequest: pipeline.StoreRequest{
 			ImmediateDeallocation: s.config.ImmediateDeallocation,
 			PointersToStore:       1,
-			Store:                 [queue.StoreCapacity]*types.Pointer{s.config.SpaceRoot},
+			Store:                 [pipeline.StoreCapacity]*types.Pointer{s.config.SpaceRoot},
 		},
 	}
 
@@ -155,7 +155,7 @@ type pointerToAllocate struct {
 
 // AllocatePointers allocates specified levels of pointer nodes.
 func (s *Space[K, V]) AllocatePointers(
-	tx *queue.TransactionRequest,
+	tx *pipeline.TransactionRequest,
 	levels uint64,
 	pool *alloc.Pool[types.VolatileAddress],
 	pointerNode *Node[types.Pointer],
@@ -173,8 +173,8 @@ func (s *Space[K, V]) AllocatePointers(
 		numOfPointers = numOfItems*numOfPointers + 1
 	}
 
-	sr := queue.StoreRequest{
-		Store:           [queue.StoreCapacity]*types.Pointer{s.config.SpaceRoot},
+	sr := pipeline.StoreRequest{
+		Store:           [pipeline.StoreCapacity]*types.Pointer{s.config.SpaceRoot},
 		PointersToStore: 1,
 	}
 
@@ -215,7 +215,7 @@ func (s *Space[K, V]) AllocatePointers(
 			sr.Store[sr.PointersToStore] = item
 			sr.PointersToStore++
 
-			if sr.PointersToStore == queue.StoreCapacity {
+			if sr.PointersToStore == pipeline.StoreCapacity {
 				tx.AddStoreRequest(lo.ToPtr(sr))
 				sr.PointersToStore = 0
 			}
@@ -345,7 +345,7 @@ func (s *Space[K, V]) readValue(
 }
 
 func (s *Space[K, V]) deleteValue(
-	tx *queue.TransactionRequest,
+	tx *pipeline.TransactionRequest,
 	v *Entry[K, V],
 	pointerNode *Node[types.Pointer],
 	dataNode *Node[types.DataItem[K, V]],
@@ -373,7 +373,7 @@ func (s *Space[K, V]) deleteValue(
 }
 
 func (s *Space[K, V]) setValue(
-	tx *queue.TransactionRequest,
+	tx *pipeline.TransactionRequest,
 	v *Entry[K, V],
 	value V,
 	pool *alloc.Pool[types.VolatileAddress],
@@ -409,7 +409,7 @@ func (s *Space[K, V]) setValue(
 }
 
 func (s *Space[K, V]) set(
-	tx *queue.TransactionRequest,
+	tx *pipeline.TransactionRequest,
 	v *Entry[K, V],
 	pool *alloc.Pool[types.VolatileAddress],
 	pointerNode *Node[types.Pointer],
@@ -507,7 +507,7 @@ func (s *Space[K, V]) set(
 }
 
 func (s *Space[K, V]) redistributeAndSet(
-	tx *queue.TransactionRequest,
+	tx *pipeline.TransactionRequest,
 	v *Entry[K, V],
 	conflict bool,
 	pool *alloc.Pool[types.VolatileAddress],
@@ -551,8 +551,8 @@ func (s *Space[K, V]) redistributeAndSet(
 			&Entry[K, V]{
 				space:   s,
 				pointer: pointer,
-				storeRequest: queue.StoreRequest{
-					Store:           [queue.StoreCapacity]*types.Pointer{pointer},
+				storeRequest: pipeline.StoreRequest{
+					Store:           [pipeline.StoreCapacity]*types.Pointer{pointer},
 					PointersToStore: 1,
 				},
 				item: *item,
@@ -647,7 +647,7 @@ func (s *Space[K, V]) find(
 type Entry[K, V comparable] struct {
 	space        *Space[K, V]
 	pointer      *types.Pointer
-	storeRequest queue.StoreRequest
+	storeRequest pipeline.StoreRequest
 
 	itemP             *types.DataItem[K, V]
 	item              types.DataItem[K, V]
@@ -679,7 +679,7 @@ func (v *Entry[K, V]) Exists(
 // Set sts value for entry.
 func (v *Entry[K, V]) Set(
 	value V,
-	tx *queue.TransactionRequest,
+	tx *pipeline.TransactionRequest,
 	pool *alloc.Pool[types.VolatileAddress],
 	pointerNode *Node[types.Pointer],
 	dataNode *Node[types.DataItem[K, V]],
@@ -689,7 +689,7 @@ func (v *Entry[K, V]) Set(
 
 // Delete deletes the entry.
 func (v *Entry[K, V]) Delete(
-	tx *queue.TransactionRequest,
+	tx *pipeline.TransactionRequest,
 	pointerNode *Node[types.Pointer],
 	dataNode *Node[types.DataItem[K, V]],
 ) error {

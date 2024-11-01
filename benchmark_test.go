@@ -19,7 +19,7 @@ import (
 	"github.com/outofforest/quantum"
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/persistent"
-	"github.com/outofforest/quantum/queue"
+	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/tx"
 	"github.com/outofforest/quantum/types"
 )
@@ -120,9 +120,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			dataNode := s.NewDataNode()
 
 			func() {
-				massTR := mass.New[queue.TransactionRequest](10)
+				massTR := mass.New[pipeline.TransactionRequest](10)
 
-				txRequest := queue.NewTransactionRequest(massTR)
+				txRequest := pipeline.NewTransactionRequest(massTR)
 				if err := s.AllocatePointers(txRequest, 3, volatilePool, pointerNode); err != nil {
 					panic(err)
 				}
@@ -130,7 +130,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				db.ApplyTransactionRequest(txRequest)
 
 				for i := 0; i < numOfAddresses; i += 2 {
-					txRequest := queue.NewTransactionRequest(massTR)
+					txRequest := pipeline.NewTransactionRequest(massTR)
 
 					v := s.Find(accounts[i], pointerNode)
 
