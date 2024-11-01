@@ -11,10 +11,10 @@ import (
 
 // NewNodeAssistant creates new space node assistant.
 func NewNodeAssistant[T comparable](state *alloc.State) (*NodeAssistant[T], error) {
-	nodeSize := uintptr(state.NodeSize())
+	nodeSize := state.NodeSize()
 
 	var t T
-	itemSize := (unsafe.Sizeof(t) + types.UInt64Length - 1) / types.UInt64Length * types.UInt64Length
+	itemSize := uint64(unsafe.Sizeof(t)+types.UInt64Length-1) / types.UInt64Length * types.UInt64Length
 
 	numOfItems := nodeSize / itemSize
 	if numOfItems == 0 {
@@ -32,8 +32,8 @@ func NewNodeAssistant[T comparable](state *alloc.State) (*NodeAssistant[T], erro
 type NodeAssistant[T comparable] struct {
 	state *alloc.State
 
-	numOfItems uintptr
-	itemSize   uintptr
+	numOfItems uint64
+	itemSize   uint64
 }
 
 // NewNode initializes new node.
@@ -46,12 +46,12 @@ func (ns *NodeAssistant[T]) NewNode() *Node[T] {
 
 // NumOfItems returns number of items fitting in one node.
 func (ns *NodeAssistant[T]) NumOfItems() uint64 {
-	return uint64(ns.numOfItems)
+	return ns.numOfItems
 }
 
 // Index returns index from hash.
-func (ns *NodeAssistant[T]) Index(hash types.Hash) uintptr {
-	return uintptr(hash) % ns.numOfItems
+func (ns *NodeAssistant[T]) Index(hash types.Hash) uint64 {
+	return uint64(hash) % ns.numOfItems
 }
 
 // Shift shifts bits in hash.
@@ -66,13 +66,13 @@ func (ns *NodeAssistant[T]) Project(nodeAddress types.VolatileAddress, node *Nod
 
 // Node represents data stored inside space node.
 type Node[T comparable] struct {
-	numOfItems uintptr
-	itemSize   uintptr
+	numOfItems uint64
+	itemSize   uint64
 	itemsP     unsafe.Pointer
 }
 
 // Item returns pointer to the item.
-func (sn *Node[T]) Item(index uintptr) *T {
+func (sn *Node[T]) Item(index uint64) *T {
 	return (*T)(unsafe.Add(sn.itemsP, sn.itemSize*index))
 }
 
