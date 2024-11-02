@@ -2,10 +2,14 @@
 
 #include "textflag.h"
 
-// func Add(x uint64, y uint64) uint64
+// func Add(x *[8]uint32, y *[8]uint32, z *[8]uint32)
+// Requires: AVX, AVX2
 TEXT ·Add(SB), NOSPLIT, $0-24
-	MOVQ x+0(FP), AX
-	MOVQ y+8(FP), CX
-	ADDQ AX, CX
-	MOVQ CX, ret+16(FP)
+	MOVQ    x+0(FP), AX
+	VMOVDQU (AX), Y0
+	MOVQ    y+8(FP), AX
+	VMOVDQU (AX), Y1
+	VPADDD  Y0, Y1, Y0
+	MOVQ    z+16(FP), AX
+	VMOVDQU Y0, (AX)
 	RET
