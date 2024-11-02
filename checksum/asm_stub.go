@@ -3,4 +3,4 @@
 package checksum
 
 // Add adds x and y vectors. Result is stored in vector z.
-func Add(x *[8]uint32, y *[8]uint32, z *[8]uint32)
+func Add(x *[16]uint32, y *[16]uint32, z *[16]uint32)

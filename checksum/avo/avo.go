@@ -8,23 +8,23 @@ import (
 )
 
 func main() {
-	TEXT("Add", NOSPLIT, "func(x, y, z *[8]uint32)")
+	TEXT("Add", NOSPLIT, "func(x, y, z *[16]uint32)")
 	Doc("Add adds x and y vectors. Result is stored in vector z.")
 
 	r := GP64()
 
-	x := YMM()
+	x := ZMM()
 	mem := Mem{Base: Load(Param("x"), r)}
-	VMOVDQU(mem, x)
+	VMOVDQU64(mem, x)
 
-	y := YMM()
+	y := ZMM()
 	mem.Base = Load(Param("y"), r)
-	VMOVDQU(mem, y)
+	VMOVDQU64(mem, y)
 
 	VPADDD(x, y, x)
 
 	mem.Base = Load(Param("z"), r)
-	VMOVDQU(x, mem)
+	VMOVDQU64(x, mem)
 
 	RET()
 	Generate()
