@@ -2,5 +2,20 @@
 
 package checksum
 
-// Add adds x and y vectors. Result is stored in vector z.
+// Add computes z = x + y.
 func Add(x *[16]uint32, y *[16]uint32, z *[16]uint32)
+
+// // Xor computes z = x ^ y.
+func Xor(x *[16]uint32, y *[16]uint32, z *[16]uint32)
+
+// // RotateRight computes z = x >>> 7.
+func RotateRight7(x *[16]uint32, z *[16]uint32)
+
+// // RotateRight computes z = x >>> 8.
+func RotateRight8(x *[16]uint32, z *[16]uint32)
+
+// // RotateRight computes z = x >>> 12.
+func RotateRight12(x *[16]uint32, z *[16]uint32)
+
+// // RotateRight computes z = x >>> 16.
+func RotateRight16(x *[16]uint32, z *[16]uint32)
