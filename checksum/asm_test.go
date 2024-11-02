@@ -7,15 +7,18 @@ import (
 )
 
 func TestASM(t *testing.T) {
-	x := [8]uint32{1, 2, 3, 4, 5, 6, 7, 8}
-	y := [8]uint32{17, 18, 19, 20, 21, 22, 23, 24}
-	var z [8]uint32
+	// GitHub action runners don't support AVX512 instruction set.
+	t.Skip()
+
+	x := [16]uint32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	y := [16]uint32{17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
+	var z [16]uint32
 
 	Add(&x, &y, &z)
 
-	expectedX := [8]uint32{1, 2, 3, 4, 5, 6, 7, 8}
-	expectedY := [8]uint32{17, 18, 19, 20, 21, 22, 23, 24}
-	expectedZ := [8]uint32{18, 20, 22, 24, 26, 28, 30, 32}
+	expectedX := [16]uint32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	expectedY := [16]uint32{17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
+	expectedZ := [16]uint32{18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48}
 
 	assert.Equal(t, expectedX, x)
 	assert.Equal(t, expectedY, y)
