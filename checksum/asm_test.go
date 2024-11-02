@@ -1,26 +1,119 @@
+// Github actions run on machines not supporting AVX-512 instructions.
+//go:build nogithub
+
 package checksum
 
 import (
+	"math/bits"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestASM(t *testing.T) {
-	// GitHub action runners don't support AVX512 instruction set.
-	t.Skip()
-
-	x := [16]uint32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-	y := [16]uint32{17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
+func TestAdd(t *testing.T) {
+	x := x
+	y := y
 	var z [16]uint32
+
+	expectedX := x
+	expectedY := y
+	var expectedZ [16]uint32
+
+	for i := range z {
+		expectedZ[i] = expectedX[i] + expectedY[i]
+	}
 
 	Add(&x, &y, &z)
 
-	expectedX := [16]uint32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-	expectedY := [16]uint32{17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
-	expectedZ := [16]uint32{18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48}
+	assert.Equal(t, expectedX, x)
+	assert.Equal(t, expectedY, y)
+	assert.Equal(t, expectedZ, z)
+}
+
+func TestXor(t *testing.T) {
+	x := x
+	y := y
+	var z [16]uint32
+
+	expectedX := x
+	expectedY := y
+	var expectedZ [16]uint32
+
+	for i := range z {
+		expectedZ[i] = expectedX[i] ^ expectedY[i]
+	}
+
+	Xor(&x, &y, &z)
 
 	assert.Equal(t, expectedX, x)
 	assert.Equal(t, expectedY, y)
+	assert.Equal(t, expectedZ, z)
+}
+
+func TestRotateRight7(t *testing.T) {
+	x := x
+	var z [16]uint32
+
+	expectedX := x
+	var expectedZ [16]uint32
+
+	for i := range z {
+		expectedZ[i] = bits.RotateLeft32(expectedX[i], -7)
+	}
+
+	RotateRight7(&x, &z)
+
+	assert.Equal(t, expectedX, x)
+	assert.Equal(t, expectedZ, z)
+}
+
+func TestRotateRight8(t *testing.T) {
+	x := x
+	var z [16]uint32
+
+	expectedX := x
+	var expectedZ [16]uint32
+
+	for i := range z {
+		expectedZ[i] = bits.RotateLeft32(expectedX[i], -8)
+	}
+
+	RotateRight8(&x, &z)
+
+	assert.Equal(t, expectedX, x)
+	assert.Equal(t, expectedZ, z)
+}
+
+func TestRotateRight12(t *testing.T) {
+	x := x
+	var z [16]uint32
+
+	expectedX := x
+	var expectedZ [16]uint32
+
+	for i := range z {
+		expectedZ[i] = bits.RotateLeft32(expectedX[i], -12)
+	}
+
+	RotateRight12(&x, &z)
+
+	assert.Equal(t, expectedX, x)
+	assert.Equal(t, expectedZ, z)
+}
+
+func TestRotateRight16(t *testing.T) {
+	x := x
+	var z [16]uint32
+
+	expectedX := x
+	var expectedZ [16]uint32
+
+	for i := range z {
+		expectedZ[i] = bits.RotateLeft32(expectedX[i], -16)
+	}
+
+	RotateRight16(&x, &z)
+
+	assert.Equal(t, expectedX, x)
 	assert.Equal(t, expectedZ, z)
 }
