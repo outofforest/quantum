@@ -88,6 +88,33 @@ TEXT ·RotateRight107(SB), NOSPLIT, $0-16
 	VPSRLD    $0x07, Z0, Z1
 	VPSLLD    $0x19, Z0, Z0
 	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
 	MOVQ      z+8(FP), AX
 	VMOVDQA64 Z0, (AX)
 	RET
@@ -109,6 +136,33 @@ TEXT ·RotateRight8(SB), NOSPLIT, $0-16
 TEXT ·RotateRight108(SB), NOSPLIT, $0-16
 	MOVQ      x+0(FP), AX
 	VMOVDQA64 (AX), Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
 	VPSRLD    $0x08, Z0, Z1
 	VPSLLD    $0x18, Z0, Z0
 	VPORD     Z0, Z1, Z0
@@ -136,6 +190,33 @@ TEXT ·RotateRight1012(SB), NOSPLIT, $0-16
 	VPSRLD    $0x0c, Z0, Z1
 	VPSLLD    $0x14, Z0, Z0
 	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
 	MOVQ      z+8(FP), AX
 	VMOVDQA64 Z0, (AX)
 	RET
@@ -157,6 +238,33 @@ TEXT ·RotateRight16(SB), NOSPLIT, $0-16
 TEXT ·RotateRight1016(SB), NOSPLIT, $0-16
 	MOVQ      x+0(FP), AX
 	VMOVDQA64 (AX), Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
 	VPSRLD    $0x10, Z0, Z1
 	VPSLLD    $0x10, Z0, Z0
 	VPORD     Z0, Z1, Z0

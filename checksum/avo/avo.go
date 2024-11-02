@@ -146,9 +146,12 @@ func RotateRight10(numOfBits uint8) {
 	VMOVDQA64(mem, x)
 
 	x2 := ZMM()
-	VPSRLD(U8(numOfBits), x, x2)
-	VPSLLD(U8(uint32Length-numOfBits), x, x)
-	VPORD(x, x2, x)
+
+	for range 10 {
+		VPSRLD(U8(numOfBits), x, x2)
+		VPSLLD(U8(uint32Length-numOfBits), x, x)
+		VPORD(x, x2, x)
+	}
 
 	mem.Base = Load(Param("z"), r)
 	VMOVDQA64(x, mem)
