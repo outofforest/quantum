@@ -9,6 +9,68 @@ import (
 	. "github.com/mmcloughlin/avo/operand"
 )
 
+// G implements g function of blake3.
+func G() {
+	TEXT("G", NOSPLIT, "func(a, b, c, d, mx, my *[16]uint32)")
+	Doc("G implements g function of blake3.")
+
+	a, b, c, d, mx, my := ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM()
+
+	r := GP64()
+	mem := Mem{Base: Load(Param("mx"), r)}
+	VMOVDQA64(mem, mx)
+
+	mem.Base = Load(Param("my"), r)
+	VMOVDQA64(mem, my)
+
+	memA := Mem{Base: Load(Param("a"), r)}
+	memB := Mem{Base: Load(Param("b"), GP64())}
+	memC := Mem{Base: Load(Param("c"), GP64())}
+	memD := Mem{Base: Load(Param("d"), GP64())}
+
+	VMOVDQA64(memA, a)
+	VMOVDQA64(memB, b)
+	VMOVDQA64(memC, c)
+	VMOVDQA64(memD, d)
+
+	// a += b + mx
+	VPADDD(a, b, a)
+	VPADDD(a, mx, a)
+
+	// d = bits.RotateLeft32(d^a, -16)
+	VPXORD(d, a, d)
+	VPRORD(U8(16), d, d)
+
+	// c += d
+	VPADDD(c, d, c)
+
+	// b = bits.RotateLeft32(b^c, -12)
+	VPXORD(b, c, b)
+	VPRORD(U8(12), b, b)
+
+	// a += b + my
+	VPADDD(a, b, a)
+	VPADDD(a, my, a)
+
+	// d = bits.RotateLeft32(d^a, -8)
+	VPXORD(d, a, d)
+	VPRORD(U8(8), d, d)
+
+	// c += d
+	VPADDD(c, d, c)
+
+	// b = bits.RotateLeft32(b^c, -7)
+	VPXORD(b, c, b)
+	VPRORD(U8(7), b, b)
+
+	VMOVDQA64(a, memA)
+	VMOVDQA64(b, memB)
+	VMOVDQA64(c, memC)
+	VMOVDQA64(d, memD)
+
+	RET()
+}
+
 // Add computes z = x + y.
 func Add() {
 	TEXT("Add", NOSPLIT, "func(x, y, z *[16]uint32)")
@@ -149,6 +211,7 @@ func RotateRight10(numOfBits uint8) {
 }
 
 func main() {
+	G()
 	Add()
 	Add10()
 	Xor()

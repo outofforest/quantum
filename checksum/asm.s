@@ -2,6 +2,41 @@
 
 #include "textflag.h"
 
+// func G(a *[16]uint32, b *[16]uint32, c *[16]uint32, d *[16]uint32, mx *[16]uint32, my *[16]uint32)
+// Requires: AVX512F
+TEXT ·G(SB), NOSPLIT, $0-48
+	MOVQ      mx+32(FP), AX
+	VMOVDQA64 (AX), Z4
+	MOVQ      my+40(FP), AX
+	VMOVDQA64 (AX), Z5
+	MOVQ      a+0(FP), AX
+	MOVQ      b+8(FP), CX
+	MOVQ      c+16(FP), DX
+	MOVQ      d+24(FP), BX
+	VMOVDQA64 (AX), Z0
+	VMOVDQA64 (CX), Z1
+	VMOVDQA64 (DX), Z2
+	VMOVDQA64 (BX), Z3
+	VPADDD    Z0, Z1, Z0
+	VPADDD    Z0, Z4, Z0
+	VPXORD    Z3, Z0, Z3
+	VPRORD    $0x10, Z3, Z3
+	VPADDD    Z2, Z3, Z2
+	VPXORD    Z1, Z2, Z1
+	VPRORD    $0x0c, Z1, Z1
+	VPADDD    Z0, Z1, Z0
+	VPADDD    Z0, Z5, Z0
+	VPXORD    Z3, Z0, Z3
+	VPRORD    $0x08, Z3, Z3
+	VPADDD    Z2, Z3, Z2
+	VPXORD    Z1, Z2, Z1
+	VPRORD    $0x07, Z1, Z1
+	VMOVDQA64 Z0, (AX)
+	VMOVDQA64 Z1, (CX)
+	VMOVDQA64 Z2, (DX)
+	VMOVDQA64 Z3, (BX)
+	RET
+
 // func Add(x *[16]uint32, y *[16]uint32, z *[16]uint32)
 // Requires: AVX512F
 TEXT ·Add(SB), NOSPLIT, $0-24
