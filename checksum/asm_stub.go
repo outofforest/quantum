@@ -2,6 +2,9 @@
 
 package checksum
 
+// G implements g function of blake3.
+func G(a *[16]uint32, b *[16]uint32, c *[16]uint32, d *[16]uint32, mx *[16]uint32, my *[16]uint32)
+
 // Add computes z = x + y.
 func Add(x *[16]uint32, y *[16]uint32, z *[16]uint32)
 

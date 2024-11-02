@@ -10,6 +10,32 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestG(t *testing.T) {
+	for range 100 {
+		var a, b, c, d, mx, my [16]uint32
+
+		randUint32Array(&a)
+		randUint32Array(&b)
+		randUint32Array(&c)
+		randUint32Array(&d)
+		randUint32Array(&mx)
+		randUint32Array(&my)
+
+		aGo, bGo, cGo, dGo := a, b, c, d
+
+		for i := range a {
+			aGo[i], bGo[i], cGo[i], dGo[i] = g(aGo[i], bGo[i], cGo[i], dGo[i], mx[i], my[i])
+		}
+
+		G(&a, &b, &c, &d, &mx, &my)
+
+		assert.Equal(t, aGo, a)
+		assert.Equal(t, bGo, b)
+		assert.Equal(t, cGo, c)
+		assert.Equal(t, dGo, d)
+	}
+}
+
 func TestAdd(t *testing.T) {
 	x := x
 	y := y

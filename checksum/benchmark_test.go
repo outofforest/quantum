@@ -1,12 +1,70 @@
 package checksum
 
 import (
+	"crypto/rand"
 	"math/bits"
 	"testing"
+	"unsafe"
 )
 
 var x = [16]uint32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 var y = [16]uint32{17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
+
+func BenchmarkGGo(b *testing.B) {
+	b.StopTimer()
+	b.ResetTimer()
+
+	var va, vb, vc, vd, vmx, vmy [16]uint32
+
+	randUint32Array(&va)
+	randUint32Array(&vb)
+	randUint32Array(&vc)
+	randUint32Array(&vd)
+	randUint32Array(&vmx)
+	randUint32Array(&vmy)
+
+	b.StartTimer()
+	for range b.N {
+		va[0], va[0], va[0], va[0] = g(va[0], va[0], va[0], va[0], va[0], va[0])
+		va[1], va[1], va[1], va[1] = g(va[1], va[1], va[1], va[1], va[1], va[1])
+		va[2], va[2], va[2], va[2] = g(va[2], va[2], va[2], va[2], va[2], va[2])
+		va[3], va[3], va[3], va[3] = g(va[3], va[3], va[3], va[3], va[3], va[3])
+		va[4], va[4], va[4], va[4] = g(va[4], va[4], va[4], va[4], va[4], va[4])
+		va[5], va[5], va[5], va[5] = g(va[5], va[5], va[5], va[5], va[5], va[5])
+		va[6], va[6], va[6], va[6] = g(va[6], va[6], va[6], va[6], va[6], va[6])
+		va[7], va[7], va[7], va[7] = g(va[7], va[7], va[7], va[7], va[7], va[7])
+		va[8], va[8], va[8], va[8] = g(va[8], va[8], va[8], va[8], va[8], va[8])
+		va[9], va[9], va[9], va[9] = g(va[9], va[9], va[9], va[9], va[9], va[9])
+		va[10], va[10], va[10], va[10] = g(va[10], va[10], va[10], va[10], va[10], va[10])
+		va[11], va[11], va[11], va[11] = g(va[11], va[11], va[11], va[11], va[11], va[11])
+		va[12], va[12], va[12], va[12] = g(va[12], va[12], va[12], va[12], va[12], va[12])
+		va[13], va[13], va[13], va[13] = g(va[13], va[13], va[13], va[13], va[13], va[13])
+		va[14], va[14], va[14], va[14] = g(va[14], va[14], va[14], va[14], va[14], va[14])
+		va[15], va[15], va[15], va[15] = g(va[15], va[15], va[15], va[15], va[15], va[15])
+	}
+	b.StopTimer()
+}
+
+func BenchmarkGAVX(b *testing.B) {
+	b.StopTimer()
+	b.ResetTimer()
+
+	var va, vb, vc, vd, vmx, vmy [16]uint32
+
+	randUint32Array(&va)
+	randUint32Array(&vb)
+	randUint32Array(&vc)
+	randUint32Array(&vd)
+	randUint32Array(&vmx)
+	randUint32Array(&vmy)
+
+	b.StartTimer()
+	for range b.N {
+		G(&va, &vb, &vc, &vd, &vmx, &vmy)
+	}
+
+	b.StopTimer()
+}
 
 func BenchmarkAddGo(b *testing.B) {
 	x := x
@@ -1225,5 +1283,24 @@ func BenchmarkRotateRight16AVX10(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		RotateRight1016(&x, &x)
+	}
+}
+
+func g(a, b, c, d, mx, my uint32) (uint32, uint32, uint32, uint32) {
+	a += b + mx
+	d = bits.RotateLeft32(d^a, -16)
+	c += d
+	b = bits.RotateLeft32(b^c, -12)
+	a += b + my
+	d = bits.RotateLeft32(d^a, -8)
+	c += d
+	b = bits.RotateLeft32(b^c, -7)
+	return a, b, c, d
+}
+
+func randUint32Array(arr *[16]uint32) {
+	_, err := rand.Read(unsafe.Slice((*byte)(unsafe.Pointer(&arr[0])), int(unsafe.Sizeof(arr[0]))*len(arr)))
+	if err != nil {
+		panic(err)
 	}
 }
