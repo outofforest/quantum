@@ -32,6 +32,31 @@ func Add() {
 	RET()
 }
 
+// Add10 computes z = x + y + y + y + y + y + y + y + y + y + y.
+func Add10() {
+	TEXT("Add10", NOSPLIT, "func(x, y, z *[16]uint32)")
+	Doc("Add computes z = x + y + y + y + y + y + y + y + y + y + y.")
+
+	r := GP64()
+
+	x := ZMM()
+	mem := Mem{Base: Load(Param("x"), r)}
+	VMOVDQA64(mem, x)
+
+	y := ZMM()
+	mem.Base = Load(Param("y"), r)
+	VMOVDQA64(mem, y)
+
+	for range 10 {
+		VPADDD(x, y, x)
+	}
+
+	mem.Base = Load(Param("z"), r)
+	VMOVDQA64(x, mem)
+
+	RET()
+}
+
 // Xor computes z = x ^ y.
 func Xor() {
 	TEXT("Xor", NOSPLIT, "func(x, y, z *[16]uint32)")
@@ -55,18 +80,64 @@ func Xor() {
 	RET()
 }
 
-// RotateRight generates functions RightRotationN computing z = x >>> N for N = 7, 8, 12, and 16.
-func RotateRight() {
-	for _, numOfBits := range []uint8{7, 8, 12, 16} {
-		rotateRight(numOfBits)
+// Xor10 computes z = x ^ y ^ y ^ y ^ y ^ y ^ y ^ y ^ y ^ y ^ y.
+func Xor10() {
+	TEXT("Xor10", NOSPLIT, "func(x, y, z *[16]uint32)")
+	Doc("// Xor10 computes z = x ^ y ^ y ^ y ^ y ^ y ^ y ^ y ^ y ^ y ^ y.")
+
+	r := GP64()
+
+	x := ZMM()
+	mem := Mem{Base: Load(Param("x"), r)}
+	VMOVDQA64(mem, x)
+
+	y := ZMM()
+	mem.Base = Load(Param("y"), r)
+	VMOVDQA64(mem, y)
+
+	for range 10 {
+		VPXORD(x, y, x)
 	}
+
+	mem.Base = Load(Param("z"), r)
+	VMOVDQA64(x, mem)
+
+	RET()
 }
 
-func rotateRight(numOfBits uint8) {
+// RotateRight generates functions RightRotationN computing z = x >>> N for N = 7, 8, 12, and 16.
+func RotateRight(numOfBits uint8) {
 	const uint32Length = 32
 
 	TEXT(fmt.Sprintf("RotateRight%d", numOfBits), NOSPLIT, "func(x *[16]uint32, z *[16]uint32)")
-	Doc(fmt.Sprintf("// RotateRight computes z = x >>> %d.", numOfBits))
+	Doc(fmt.Sprintf("// RotateRight%[1]d computes z = x >>> %[1]d.", numOfBits))
+
+	r := GP64()
+
+	x := ZMM()
+	mem := Mem{Base: Load(Param("x"), r)}
+	VMOVDQA64(mem, x)
+
+	x2 := ZMM()
+	VPSRLD(U8(numOfBits), x, x2)
+	VPSLLD(U8(uint32Length-numOfBits), x, x)
+	VPORD(x, x2, x)
+
+	mem.Base = Load(Param("z"), r)
+	VMOVDQA64(x, mem)
+
+	RET()
+}
+
+// RotateRight10 generates functions RightRotationN computing z = x >>> N >>> N >>> N >>> N >>> N >>> N >>> N >>> N >>> N >>> N
+// for N = 7, 8, 12, and 16.
+//
+//nolint:lll
+func RotateRight10(numOfBits uint8) {
+	const uint32Length = 32
+
+	TEXT(fmt.Sprintf("RotateRight10%d", numOfBits), NOSPLIT, "func(x *[16]uint32, z *[16]uint32)")
+	Doc(fmt.Sprintf("// RotateRight10%[1]d computes z = x >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d.", numOfBits))
 
 	r := GP64()
 
@@ -87,8 +158,13 @@ func rotateRight(numOfBits uint8) {
 
 func main() {
 	Add()
+	Add10()
 	Xor()
-	RotateRight()
+	Xor10()
+	for _, numOfBits := range []uint8{7, 8, 12, 16} {
+		RotateRight(numOfBits)
+		RotateRight10(numOfBits)
+	}
 
 	Generate()
 }
