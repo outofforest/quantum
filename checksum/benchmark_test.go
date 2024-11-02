@@ -203,6 +203,15 @@ func BenchmarkAddAVX(b *testing.B) {
 	}
 }
 
+func BenchmarkAddAVX10(b *testing.B) {
+	x := x
+	y := y
+
+	for i := 0; i < b.N; i++ {
+		Add10(&x, &y, &x)
+	}
+}
+
 func BenchmarkXorGo(b *testing.B) {
 	x := x
 	y := y
@@ -395,6 +404,15 @@ func BenchmarkXorAVX(b *testing.B) {
 		Xor(&x, &y, &x)
 		Xor(&x, &y, &x)
 		Xor(&x, &y, &x)
+	}
+}
+
+func BenchmarkXorAVX10(b *testing.B) {
+	x := x
+	y := y
+
+	for i := 0; i < b.N; i++ {
+		Xor10(&x, &y, &x)
 	}
 }
 
@@ -593,6 +611,14 @@ func BenchmarkRotateRight7AVX(b *testing.B) {
 	}
 }
 
+func BenchmarkRotateRight7AVX10(b *testing.B) {
+	x := x
+
+	for i := 0; i < b.N; i++ {
+		RotateRight107(&x, &x)
+	}
+}
+
 func BenchmarkRotateRight8Go(b *testing.B) {
 	const numOfBits = 8
 
@@ -785,6 +811,14 @@ func BenchmarkRotateRight8AVX(b *testing.B) {
 		RotateRight8(&x, &x)
 		RotateRight8(&x, &x)
 		RotateRight8(&x, &x)
+	}
+}
+
+func BenchmarkRotateRight8AVX10(b *testing.B) {
+	x := x
+
+	for i := 0; i < b.N; i++ {
+		RotateRight108(&x, &x)
 	}
 }
 
@@ -983,6 +1017,14 @@ func BenchmarkRotateRight12AVX(b *testing.B) {
 	}
 }
 
+func BenchmarkRotateRight12AVX10(b *testing.B) {
+	x := x
+
+	for i := 0; i < b.N; i++ {
+		RotateRight1012(&x, &x)
+	}
+}
+
 func BenchmarkRotateRight16Go(b *testing.B) {
 	const numOfBits = 16
 
@@ -1175,5 +1217,13 @@ func BenchmarkRotateRight16AVX(b *testing.B) {
 		RotateRight16(&x, &x)
 		RotateRight16(&x, &x)
 		RotateRight16(&x, &x)
+	}
+}
+
+func BenchmarkRotateRight16AVX10(b *testing.B) {
+	x := x
+
+	for i := 0; i < b.N; i++ {
+		RotateRight1016(&x, &x)
 	}
 }

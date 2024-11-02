@@ -14,6 +14,27 @@ TEXT ·Add(SB), NOSPLIT, $0-24
 	VMOVDQA64 Z0, (AX)
 	RET
 
+// func Add10(x *[16]uint32, y *[16]uint32, z *[16]uint32)
+// Requires: AVX512F
+TEXT ·Add10(SB), NOSPLIT, $0-24
+	MOVQ      x+0(FP), AX
+	VMOVDQA64 (AX), Z0
+	MOVQ      y+8(FP), AX
+	VMOVDQA64 (AX), Z1
+	VPADDD    Z0, Z1, Z0
+	VPADDD    Z0, Z1, Z0
+	VPADDD    Z0, Z1, Z0
+	VPADDD    Z0, Z1, Z0
+	VPADDD    Z0, Z1, Z0
+	VPADDD    Z0, Z1, Z0
+	VPADDD    Z0, Z1, Z0
+	VPADDD    Z0, Z1, Z0
+	VPADDD    Z0, Z1, Z0
+	VPADDD    Z0, Z1, Z0
+	MOVQ      z+16(FP), AX
+	VMOVDQA64 Z0, (AX)
+	RET
+
 // func Xor(x *[16]uint32, y *[16]uint32, z *[16]uint32)
 // Requires: AVX512F
 TEXT ·Xor(SB), NOSPLIT, $0-24
@@ -26,11 +47,71 @@ TEXT ·Xor(SB), NOSPLIT, $0-24
 	VMOVDQA64 Z0, (AX)
 	RET
 
+// func Xor10(x *[16]uint32, y *[16]uint32, z *[16]uint32)
+// Requires: AVX512F
+TEXT ·Xor10(SB), NOSPLIT, $0-24
+	MOVQ      x+0(FP), AX
+	VMOVDQA64 (AX), Z0
+	MOVQ      y+8(FP), AX
+	VMOVDQA64 (AX), Z1
+	VPXORD    Z0, Z1, Z0
+	VPXORD    Z0, Z1, Z0
+	VPXORD    Z0, Z1, Z0
+	VPXORD    Z0, Z1, Z0
+	VPXORD    Z0, Z1, Z0
+	VPXORD    Z0, Z1, Z0
+	VPXORD    Z0, Z1, Z0
+	VPXORD    Z0, Z1, Z0
+	VPXORD    Z0, Z1, Z0
+	VPXORD    Z0, Z1, Z0
+	MOVQ      z+16(FP), AX
+	VMOVDQA64 Z0, (AX)
+	RET
+
 // func RotateRight7(x *[16]uint32, z *[16]uint32)
 // Requires: AVX512F
 TEXT ·RotateRight7(SB), NOSPLIT, $0-16
 	MOVQ      x+0(FP), AX
 	VMOVDQA64 (AX), Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	MOVQ      z+8(FP), AX
+	VMOVDQA64 Z0, (AX)
+	RET
+
+// func RotateRight107(x *[16]uint32, z *[16]uint32)
+// Requires: AVX512F
+TEXT ·RotateRight107(SB), NOSPLIT, $0-16
+	MOVQ      x+0(FP), AX
+	VMOVDQA64 (AX), Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x07, Z0, Z1
+	VPSLLD    $0x19, Z0, Z0
+	VPORD     Z0, Z1, Z0
 	VPSRLD    $0x07, Z0, Z1
 	VPSLLD    $0x19, Z0, Z0
 	VPORD     Z0, Z1, Z0
@@ -50,6 +131,45 @@ TEXT ·RotateRight8(SB), NOSPLIT, $0-16
 	VMOVDQA64 Z0, (AX)
 	RET
 
+// func RotateRight108(x *[16]uint32, z *[16]uint32)
+// Requires: AVX512F
+TEXT ·RotateRight108(SB), NOSPLIT, $0-16
+	MOVQ      x+0(FP), AX
+	VMOVDQA64 (AX), Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x08, Z0, Z1
+	VPSLLD    $0x18, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	MOVQ      z+8(FP), AX
+	VMOVDQA64 Z0, (AX)
+	RET
+
 // func RotateRight12(x *[16]uint32, z *[16]uint32)
 // Requires: AVX512F
 TEXT ·RotateRight12(SB), NOSPLIT, $0-16
@@ -62,11 +182,89 @@ TEXT ·RotateRight12(SB), NOSPLIT, $0-16
 	VMOVDQA64 Z0, (AX)
 	RET
 
+// func RotateRight1012(x *[16]uint32, z *[16]uint32)
+// Requires: AVX512F
+TEXT ·RotateRight1012(SB), NOSPLIT, $0-16
+	MOVQ      x+0(FP), AX
+	VMOVDQA64 (AX), Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x0c, Z0, Z1
+	VPSLLD    $0x14, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	MOVQ      z+8(FP), AX
+	VMOVDQA64 Z0, (AX)
+	RET
+
 // func RotateRight16(x *[16]uint32, z *[16]uint32)
 // Requires: AVX512F
 TEXT ·RotateRight16(SB), NOSPLIT, $0-16
 	MOVQ      x+0(FP), AX
 	VMOVDQA64 (AX), Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	MOVQ      z+8(FP), AX
+	VMOVDQA64 Z0, (AX)
+	RET
+
+// func RotateRight1016(x *[16]uint32, z *[16]uint32)
+// Requires: AVX512F
+TEXT ·RotateRight1016(SB), NOSPLIT, $0-16
+	MOVQ      x+0(FP), AX
+	VMOVDQA64 (AX), Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
+	VPSRLD    $0x10, Z0, Z1
+	VPSLLD    $0x10, Z0, Z0
+	VPORD     Z0, Z1, Z0
 	VPSRLD    $0x10, Z0, Z1
 	VPSLLD    $0x10, Z0, Z0
 	VPORD     Z0, Z1, Z0
