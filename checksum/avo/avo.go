@@ -107,8 +107,6 @@ func Xor10() {
 
 // RotateRight generates functions RightRotationN computing z = x >>> N for N = 7, 8, 12, and 16.
 func RotateRight(numOfBits uint8) {
-	const uint32Length = 32
-
 	TEXT(fmt.Sprintf("RotateRight%d", numOfBits), NOSPLIT, "func(x *[16]uint32, z *[16]uint32)")
 	Doc(fmt.Sprintf("// RotateRight%[1]d computes z = x >>> %[1]d.", numOfBits))
 
@@ -118,10 +116,7 @@ func RotateRight(numOfBits uint8) {
 	mem := Mem{Base: Load(Param("x"), r)}
 	VMOVDQA64(mem, x)
 
-	x2 := ZMM()
-	VPSRLD(U8(numOfBits), x, x2)
-	VPSLLD(U8(uint32Length-numOfBits), x, x)
-	VPORD(x, x2, x)
+	VPRORD(U8(numOfBits), x, x)
 
 	mem.Base = Load(Param("z"), r)
 	VMOVDQA64(x, mem)
@@ -134,8 +129,6 @@ func RotateRight(numOfBits uint8) {
 //
 //nolint:lll
 func RotateRight10(numOfBits uint8) {
-	const uint32Length = 32
-
 	TEXT(fmt.Sprintf("RotateRight10%d", numOfBits), NOSPLIT, "func(x *[16]uint32, z *[16]uint32)")
 	Doc(fmt.Sprintf("// RotateRight10%[1]d computes z = x >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d.", numOfBits))
 
@@ -145,12 +138,8 @@ func RotateRight10(numOfBits uint8) {
 	mem := Mem{Base: Load(Param("x"), r)}
 	VMOVDQA64(mem, x)
 
-	x2 := ZMM()
-
 	for range 10 {
-		VPSRLD(U8(numOfBits), x, x2)
-		VPSLLD(U8(uint32Length-numOfBits), x, x)
-		VPORD(x, x2, x)
+		VPRORD(U8(numOfBits), x, x)
 	}
 
 	mem.Base = Load(Param("z"), r)
