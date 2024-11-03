@@ -13,16 +13,18 @@ import (
 // Transpose transposes 16x16 matrix made of vectors x0..xf and stores the results in z0..zf.
 func Transpose() {
 	const (
-		chunkSize = 16 * 4 // 512 bits or 16 uint32
-		a         = 0xa
-		b         = 0xb
-		c         = 0xc
-		d         = 0xd
-		e         = 0xe
-		f         = 0xf
+		uint64Size = 8
+		uint32Size = 4
+		chunkSize  = 16 * uint32Size
+		a          = 0xa
+		b          = 0xb
+		c          = 0xc
+		d          = 0xd
+		e          = 0xe
+		f          = 0xf
 	)
 
-	TEXT("Transpose", NOSPLIT, "func(x, z *uint32)")
+	TEXT("Transpose", NOSPLIT, "func(x *[16]*[16]uint32, z *[16][16]uint32)")
 	Doc("Transpose transposes 16x16 matrix made of vectors x0..xf and stores the results in z0..zf.")
 
 	/*
@@ -131,7 +133,9 @@ func Transpose() {
 
 	mem := Mem{Base: Load(Param("x"), GP64())}
 	for i := range rA {
-		VMOVDQA64(mem.Offset(i*chunkSize), rA[i])
+		r := GP64()
+		MOVQ(mem.Offset(i*uint64Size), r)
+		VMOVDQA64(Mem{Base: r}, rA[i])
 	}
 
 	// 10..1f
