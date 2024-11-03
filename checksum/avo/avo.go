@@ -13,18 +13,19 @@ import (
 // Transpose transposes 16x16 matrix made of vectors x0..xf and stores the results in z0..zf.
 func Transpose() {
 	const (
-		uint64Size = 8
-		uint32Size = 4
-		chunkSize  = 16 * uint32Size
-		a          = 0xa
-		b          = 0xb
-		c          = 0xc
-		d          = 0xd
-		e          = 0xe
-		f          = 0xf
+		uint64Size  = 8
+		uint32Size  = 4
+		numOfBlocks = 16
+		blockSize   = 16 * uint32Size
+		a           = 0xa
+		b           = 0xb
+		c           = 0xc
+		d           = 0xd
+		e           = 0xe
+		f           = 0xf
 	)
 
-	TEXT("Transpose", NOSPLIT, "func(x *[16]*[16]uint32, z *[16][16]uint32)")
+	TEXT("Transpose", NOSPLIT, "func(x **uint32, z *uint32)")
 	Doc("Transpose transposes 16x16 matrix made of vectors x0..xf and stores the results in z0..zf.")
 
 	/*
@@ -122,105 +123,108 @@ func Transpose() {
 		4f: 3e,3f,(dd): 0f 1f 2f 3f 4f 5f 6f 7f 8f 9f af bf cf df ef ff
 	*/
 
-	rA := [16]reg.VecVirtual{
+	rA := [numOfBlocks]reg.VecVirtual{
 		ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(),
 	}
-	rB := [16]reg.VecVirtual{
+	rB := [numOfBlocks]reg.VecVirtual{
 		ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(),
 	}
 
 	// Load matrix to registers
 
-	mem := Mem{Base: Load(Param("x"), GP64())}
-	for i := range rA {
-		r := GP64()
-		MOVQ(mem.Offset(i*uint64Size), r)
-		VMOVDQA64(Mem{Base: r}, rA[i])
-	}
+	memX := Mem{Base: Load(Param("x"), GP64())}
+	memZ := Mem{Base: Load(Param("z"), GP64())}
+	r := GP64()
 
-	// 10..1f
-	VSHUFPS(U8(0x44), rA[1], rA[0], rB[0])
-	VSHUFPS(U8(0xee), rA[1], rA[0], rB[2])
-	VSHUFPS(U8(0x44), rA[3], rA[2], rB[1])
-	VSHUFPS(U8(0xee), rA[3], rA[2], rB[3])
-	VSHUFPS(U8(0x44), rA[5], rA[4], rB[4])
-	VSHUFPS(U8(0xee), rA[5], rA[4], rB[6])
-	VSHUFPS(U8(0x44), rA[7], rA[6], rB[5])
-	VSHUFPS(U8(0xee), rA[7], rA[6], rB[7])
-	VSHUFPS(U8(0x44), rA[9], rA[8], rB[8])
-	VSHUFPS(U8(0xee), rA[9], rA[8], rB[a])
-	VSHUFPS(U8(0x44), rA[b], rA[a], rB[9])
-	VSHUFPS(U8(0xee), rA[b], rA[a], rB[b])
-	VSHUFPS(U8(0x44), rA[d], rA[c], rB[c])
-	VSHUFPS(U8(0xee), rA[d], rA[c], rB[e])
-	VSHUFPS(U8(0x44), rA[f], rA[e], rB[d])
-	VSHUFPS(U8(0xee), rA[f], rA[e], rB[f])
+	for i := range numOfBlocks {
+		for j := range numOfBlocks {
+			MOVQ(memX.Offset(j*uint64Size), r)
+			VMOVDQA64(Mem{Base: r}.Offset(i*blockSize), rA[j])
+		}
 
-	rA, rB = rB, rA
+		// 10..1f
+		VSHUFPS(U8(0x44), rA[1], rA[0], rB[0])
+		VSHUFPS(U8(0xee), rA[1], rA[0], rB[2])
+		VSHUFPS(U8(0x44), rA[3], rA[2], rB[1])
+		VSHUFPS(U8(0xee), rA[3], rA[2], rB[3])
+		VSHUFPS(U8(0x44), rA[5], rA[4], rB[4])
+		VSHUFPS(U8(0xee), rA[5], rA[4], rB[6])
+		VSHUFPS(U8(0x44), rA[7], rA[6], rB[5])
+		VSHUFPS(U8(0xee), rA[7], rA[6], rB[7])
+		VSHUFPS(U8(0x44), rA[9], rA[8], rB[8])
+		VSHUFPS(U8(0xee), rA[9], rA[8], rB[a])
+		VSHUFPS(U8(0x44), rA[b], rA[a], rB[9])
+		VSHUFPS(U8(0xee), rA[b], rA[a], rB[b])
+		VSHUFPS(U8(0x44), rA[d], rA[c], rB[c])
+		VSHUFPS(U8(0xee), rA[d], rA[c], rB[e])
+		VSHUFPS(U8(0x44), rA[f], rA[e], rB[d])
+		VSHUFPS(U8(0xee), rA[f], rA[e], rB[f])
 
-	// 20..2f
-	VSHUFPS(U8(0x88), rA[1], rA[0], rB[0])
-	VSHUFPS(U8(0xdd), rA[1], rA[0], rB[2])
-	VSHUFPS(U8(0x88), rA[3], rA[2], rB[4])
-	VSHUFPS(U8(0xdd), rA[3], rA[2], rB[6])
-	VSHUFPS(U8(0x88), rA[5], rA[4], rB[1])
-	VSHUFPS(U8(0xdd), rA[5], rA[4], rB[3])
-	VSHUFPS(U8(0x88), rA[7], rA[6], rB[5])
-	VSHUFPS(U8(0xdd), rA[7], rA[6], rB[7])
-	VSHUFPS(U8(0x88), rA[9], rA[8], rB[8])
-	VSHUFPS(U8(0xdd), rA[9], rA[8], rB[a])
-	VSHUFPS(U8(0x88), rA[b], rA[a], rB[c])
-	VSHUFPS(U8(0xdd), rA[b], rA[a], rB[e])
-	VSHUFPS(U8(0x88), rA[d], rA[c], rB[9])
-	VSHUFPS(U8(0xdd), rA[d], rA[c], rB[b])
-	VSHUFPS(U8(0x88), rA[f], rA[e], rB[d])
-	VSHUFPS(U8(0xdd), rA[f], rA[e], rB[f])
+		rA, rB = rB, rA
 
-	rA, rB = rB, rA
+		// 20..2f
+		VSHUFPS(U8(0x88), rA[1], rA[0], rB[0])
+		VSHUFPS(U8(0xdd), rA[1], rA[0], rB[2])
+		VSHUFPS(U8(0x88), rA[3], rA[2], rB[4])
+		VSHUFPS(U8(0xdd), rA[3], rA[2], rB[6])
+		VSHUFPS(U8(0x88), rA[5], rA[4], rB[1])
+		VSHUFPS(U8(0xdd), rA[5], rA[4], rB[3])
+		VSHUFPS(U8(0x88), rA[7], rA[6], rB[5])
+		VSHUFPS(U8(0xdd), rA[7], rA[6], rB[7])
+		VSHUFPS(U8(0x88), rA[9], rA[8], rB[8])
+		VSHUFPS(U8(0xdd), rA[9], rA[8], rB[a])
+		VSHUFPS(U8(0x88), rA[b], rA[a], rB[c])
+		VSHUFPS(U8(0xdd), rA[b], rA[a], rB[e])
+		VSHUFPS(U8(0x88), rA[d], rA[c], rB[9])
+		VSHUFPS(U8(0xdd), rA[d], rA[c], rB[b])
+		VSHUFPS(U8(0x88), rA[f], rA[e], rB[d])
+		VSHUFPS(U8(0xdd), rA[f], rA[e], rB[f])
 
-	// 30..3f
-	VSHUFI32X4(U8(0x44), rA[1], rA[0], rB[0])
-	VSHUFI32X4(U8(0xee), rA[1], rA[0], rB[8])
-	VSHUFI32X4(U8(0x44), rA[3], rA[2], rB[2])
-	VSHUFI32X4(U8(0xee), rA[3], rA[2], rB[a])
-	VSHUFI32X4(U8(0x44), rA[5], rA[4], rB[4])
-	VSHUFI32X4(U8(0xee), rA[5], rA[4], rB[c])
-	VSHUFI32X4(U8(0x44), rA[7], rA[6], rB[6])
-	VSHUFI32X4(U8(0xee), rA[7], rA[6], rB[e])
-	VSHUFI32X4(U8(0x44), rA[9], rA[8], rB[1])
-	VSHUFI32X4(U8(0xee), rA[9], rA[8], rB[9])
-	VSHUFI32X4(U8(0x44), rA[b], rA[a], rB[3])
-	VSHUFI32X4(U8(0xee), rA[b], rA[a], rB[b])
-	VSHUFI32X4(U8(0x44), rA[d], rA[c], rB[5])
-	VSHUFI32X4(U8(0xee), rA[d], rA[c], rB[d])
-	VSHUFI32X4(U8(0x44), rA[f], rA[e], rB[7])
-	VSHUFI32X4(U8(0xee), rA[f], rA[e], rB[f])
+		rA, rB = rB, rA
 
-	rA, rB = rB, rA
+		// 30..3f
+		VSHUFI32X4(U8(0x44), rA[1], rA[0], rB[0])
+		VSHUFI32X4(U8(0xee), rA[1], rA[0], rB[8])
+		VSHUFI32X4(U8(0x44), rA[3], rA[2], rB[2])
+		VSHUFI32X4(U8(0xee), rA[3], rA[2], rB[a])
+		VSHUFI32X4(U8(0x44), rA[5], rA[4], rB[4])
+		VSHUFI32X4(U8(0xee), rA[5], rA[4], rB[c])
+		VSHUFI32X4(U8(0x44), rA[7], rA[6], rB[6])
+		VSHUFI32X4(U8(0xee), rA[7], rA[6], rB[e])
+		VSHUFI32X4(U8(0x44), rA[9], rA[8], rB[1])
+		VSHUFI32X4(U8(0xee), rA[9], rA[8], rB[9])
+		VSHUFI32X4(U8(0x44), rA[b], rA[a], rB[3])
+		VSHUFI32X4(U8(0xee), rA[b], rA[a], rB[b])
+		VSHUFI32X4(U8(0x44), rA[d], rA[c], rB[5])
+		VSHUFI32X4(U8(0xee), rA[d], rA[c], rB[d])
+		VSHUFI32X4(U8(0x44), rA[f], rA[e], rB[7])
+		VSHUFI32X4(U8(0xee), rA[f], rA[e], rB[f])
 
-	// 40..4f
-	VSHUFI32X4(U8(0x88), rA[1], rA[0], rB[0])
-	VSHUFI32X4(U8(0xdd), rA[1], rA[0], rB[4])
-	VSHUFI32X4(U8(0x88), rA[3], rA[2], rB[1])
-	VSHUFI32X4(U8(0xdd), rA[3], rA[2], rB[5])
-	VSHUFI32X4(U8(0x88), rA[5], rA[4], rB[2])
-	VSHUFI32X4(U8(0xdd), rA[5], rA[4], rB[6])
-	VSHUFI32X4(U8(0x88), rA[7], rA[6], rB[3])
-	VSHUFI32X4(U8(0xdd), rA[7], rA[6], rB[7])
-	VSHUFI32X4(U8(0x88), rA[9], rA[8], rB[8])
-	VSHUFI32X4(U8(0xdd), rA[9], rA[8], rB[c])
-	VSHUFI32X4(U8(0x88), rA[b], rA[a], rB[9])
-	VSHUFI32X4(U8(0xdd), rA[b], rA[a], rB[d])
-	VSHUFI32X4(U8(0x88), rA[d], rA[c], rB[a])
-	VSHUFI32X4(U8(0xdd), rA[d], rA[c], rB[e])
-	VSHUFI32X4(U8(0x88), rA[f], rA[e], rB[b])
-	VSHUFI32X4(U8(0xdd), rA[f], rA[e], rB[f])
+		rA, rB = rB, rA
 
-	// Store results
+		// 40..4f
+		VSHUFI32X4(U8(0x88), rA[1], rA[0], rB[0])
+		VSHUFI32X4(U8(0xdd), rA[1], rA[0], rB[4])
+		VSHUFI32X4(U8(0x88), rA[3], rA[2], rB[1])
+		VSHUFI32X4(U8(0xdd), rA[3], rA[2], rB[5])
+		VSHUFI32X4(U8(0x88), rA[5], rA[4], rB[2])
+		VSHUFI32X4(U8(0xdd), rA[5], rA[4], rB[6])
+		VSHUFI32X4(U8(0x88), rA[7], rA[6], rB[3])
+		VSHUFI32X4(U8(0xdd), rA[7], rA[6], rB[7])
+		VSHUFI32X4(U8(0x88), rA[9], rA[8], rB[8])
+		VSHUFI32X4(U8(0xdd), rA[9], rA[8], rB[c])
+		VSHUFI32X4(U8(0x88), rA[b], rA[a], rB[9])
+		VSHUFI32X4(U8(0xdd), rA[b], rA[a], rB[d])
+		VSHUFI32X4(U8(0x88), rA[d], rA[c], rB[a])
+		VSHUFI32X4(U8(0xdd), rA[d], rA[c], rB[e])
+		VSHUFI32X4(U8(0x88), rA[f], rA[e], rB[b])
+		VSHUFI32X4(U8(0xdd), rA[f], rA[e], rB[f])
 
-	mem = Mem{Base: Load(Param("z"), GP64())}
-	for i := range rB {
-		VMOVDQA64(rB[i], mem.Offset(i*chunkSize))
+		// Store results
+
+		for j := range numOfBlocks {
+			VMOVDQA64(rB[j], memZ.Offset(i*numOfBlocks*blockSize+j*blockSize))
+		}
 	}
 
 	RET()

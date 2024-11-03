@@ -3,7 +3,7 @@
 package checksum
 
 // Transpose transposes 16x16 matrix made of vectors x0..xf and stores the results in z0..zf.
-func Transpose(x *[16]*[16]uint32, z *[16][16]uint32)
+func Transpose(x **uint32, z *uint32)
 
 // G implements g function of blake3.
 func G(a *[16]uint32, b *[16]uint32, c *[16]uint32, d *[16]uint32, mx *[16]uint32, my *[16]uint32)
