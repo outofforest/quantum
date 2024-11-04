@@ -608,7 +608,7 @@ func BenchmarkTransposeGo(b *testing.B) {
 	_, _ = fmt.Fprint(io.Discard, z)
 }
 
-func BenchmarkTransposeAVXChunks(b *testing.B) {
+func BenchmarkTransposeAVX(b *testing.B) {
 	b.StopTimer()
 	b.ResetTimer()
 
