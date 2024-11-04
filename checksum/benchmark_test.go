@@ -613,7 +613,7 @@ func BenchmarkTransposeAVXChunks(b *testing.B) {
 	b.ResetTimer()
 
 	chunks := chunks
-	var z [256][16]uint32
+	var z [16][16]uint32
 
 	ch := [16]*uint32{
 		&chunks[0][0], &chunks[1][0], &chunks[2][0], &chunks[3][0],
