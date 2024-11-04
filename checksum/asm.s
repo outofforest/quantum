@@ -2,9 +2,14591 @@
 
 #include "textflag.h"
 
-// func Transpose(x **uint32, z *uint32)
+// func Blake3(b **byte, z *byte)
 // Requires: AVX512F
-TEXT ·Transpose(SB), NOSPLIT, $0-16
+TEXT ·Blake3(SB), NOSPLIT, $0-16
+	MOVD         $0x6a09e667, AX
+	VPBROADCASTD AX, Z0
+	MOVD         $0xbb67ae85, AX
+	VPBROADCASTD AX, Z1
+	MOVD         $0x3c6ef372, AX
+	VPBROADCASTD AX, Z2
+	MOVD         $0xa54ff53a, AX
+	VPBROADCASTD AX, Z3
+	MOVD         $0x510e527f, AX
+	VPBROADCASTD AX, Z4
+	MOVD         $0x9b05688c, AX
+	VPBROADCASTD AX, Z5
+	MOVD         $0x1f83d9ab, AX
+	VPBROADCASTD AX, Z6
+	MOVD         $0x5be0cd19, AX
+	VPBROADCASTD AX, Z7
+	MOVQ         b+0(FP), CX
+	MOVQ         (CX), AX
+	VMOVDQA64    (AX), Z8
+	MOVQ         8(CX), AX
+	VMOVDQA64    (AX), Z9
+	MOVQ         16(CX), AX
+	VMOVDQA64    (AX), Z10
+	MOVQ         24(CX), AX
+	VMOVDQA64    (AX), Z11
+	MOVQ         32(CX), AX
+	VMOVDQA64    (AX), Z12
+	MOVQ         40(CX), AX
+	VMOVDQA64    (AX), Z13
+	MOVQ         48(CX), AX
+	VMOVDQA64    (AX), Z14
+	MOVQ         56(CX), AX
+	VMOVDQA64    (AX), Z15
+	MOVQ         64(CX), AX
+	VMOVDQA64    (AX), Z16
+	MOVQ         72(CX), AX
+	VMOVDQA64    (AX), Z17
+	MOVQ         80(CX), AX
+	VMOVDQA64    (AX), Z18
+	MOVQ         88(CX), AX
+	VMOVDQA64    (AX), Z19
+	MOVQ         96(CX), AX
+	VMOVDQA64    (AX), Z20
+	MOVQ         104(CX), AX
+	VMOVDQA64    (AX), Z21
+	MOVQ         112(CX), AX
+	VMOVDQA64    (AX), Z22
+	MOVQ         120(CX), AX
+	VMOVDQA64    (AX), Z23
+	VSHUFPS      $0x44, Z9, Z8, Z24
+	VSHUFPS      $0xee, Z9, Z8, Z8
+	VSHUFPS      $0x44, Z11, Z10, Z9
+	VSHUFPS      $0xee, Z11, Z10, Z10
+	VSHUFPS      $0x44, Z13, Z12, Z11
+	VSHUFPS      $0xee, Z13, Z12, Z12
+	VSHUFPS      $0x44, Z15, Z14, Z13
+	VSHUFPS      $0xee, Z15, Z14, Z14
+	VSHUFPS      $0x44, Z17, Z16, Z15
+	VSHUFPS      $0xee, Z17, Z16, Z16
+	VSHUFPS      $0x44, Z19, Z18, Z17
+	VSHUFPS      $0xee, Z19, Z18, Z18
+	VSHUFPS      $0x44, Z21, Z20, Z19
+	VSHUFPS      $0xee, Z21, Z20, Z20
+	VSHUFPS      $0x44, Z23, Z22, Z21
+	VSHUFPS      $0xee, Z23, Z22, Z22
+	VSHUFPS      $0x88, Z9, Z24, Z23
+	VSHUFPS      $0xdd, Z9, Z24, Z24
+	VSHUFPS      $0x88, Z10, Z8, Z9
+	VSHUFPS      $0xdd, Z10, Z8, Z8
+	VSHUFPS      $0x88, Z13, Z11, Z10
+	VSHUFPS      $0xdd, Z13, Z11, Z11
+	VSHUFPS      $0x88, Z14, Z12, Z13
+	VSHUFPS      $0xdd, Z14, Z12, Z12
+	VSHUFPS      $0x88, Z17, Z15, Z14
+	VSHUFPS      $0xdd, Z17, Z15, Z15
+	VSHUFPS      $0x88, Z18, Z16, Z17
+	VSHUFPS      $0xdd, Z18, Z16, Z16
+	VSHUFPS      $0x88, Z21, Z19, Z18
+	VSHUFPS      $0xdd, Z21, Z19, Z19
+	VSHUFPS      $0x88, Z22, Z20, Z21
+	VSHUFPS      $0xdd, Z22, Z20, Z20
+	VSHUFI32X4   $0x44, Z10, Z23, Z22
+	VSHUFI32X4   $0xee, Z10, Z23, Z23
+	VSHUFI32X4   $0x44, Z11, Z24, Z10
+	VSHUFI32X4   $0xee, Z11, Z24, Z24
+	VSHUFI32X4   $0x44, Z13, Z9, Z11
+	VSHUFI32X4   $0xee, Z13, Z9, Z9
+	VSHUFI32X4   $0x44, Z12, Z8, Z13
+	VSHUFI32X4   $0xee, Z12, Z8, Z8
+	VSHUFI32X4   $0x44, Z18, Z14, Z12
+	VSHUFI32X4   $0xee, Z18, Z14, Z14
+	VSHUFI32X4   $0x44, Z19, Z15, Z18
+	VSHUFI32X4   $0xee, Z19, Z15, Z15
+	VSHUFI32X4   $0x44, Z21, Z17, Z19
+	VSHUFI32X4   $0xee, Z21, Z17, Z17
+	VSHUFI32X4   $0x44, Z20, Z16, Z21
+	VSHUFI32X4   $0xee, Z20, Z16, Z16
+	VSHUFI32X4   $0x88, Z12, Z22, Z20
+	VSHUFI32X4   $0xdd, Z12, Z22, Z22
+	VSHUFI32X4   $0x88, Z18, Z10, Z12
+	VSHUFI32X4   $0xdd, Z18, Z10, Z10
+	VSHUFI32X4   $0x88, Z19, Z11, Z18
+	VSHUFI32X4   $0xdd, Z19, Z11, Z11
+	VSHUFI32X4   $0x88, Z21, Z13, Z19
+	VSHUFI32X4   $0xdd, Z21, Z13, Z13
+	VSHUFI32X4   $0x88, Z14, Z23, Z21
+	VSHUFI32X4   $0xdd, Z14, Z23, Z23
+	VSHUFI32X4   $0x88, Z15, Z24, Z14
+	VSHUFI32X4   $0xdd, Z15, Z24, Z24
+	VSHUFI32X4   $0x88, Z17, Z9, Z15
+	VSHUFI32X4   $0xdd, Z17, Z9, Z9
+	VSHUFI32X4   $0x88, Z16, Z8, Z17
+	VSHUFI32X4   $0xdd, Z16, Z8, Z8
+	MOVD         $0x6a09e667, AX
+	VPBROADCASTD AX, Z16
+	MOVD         $0xbb67ae85, AX
+	VPBROADCASTD AX, Z25
+	MOVD         $0x3c6ef372, AX
+	VPBROADCASTD AX, Z26
+	MOVD         $0xa54ff53a, AX
+	VPBROADCASTD AX, Z27
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z28
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z29
+	MOVD         $0x00000040, AX
+	VPBROADCASTD AX, Z30
+	MOVD         $0x00000001, AX
+	VPBROADCASTD AX, Z31
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z11, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z13, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z21, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z13, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z11, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z24, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z11, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z24, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z13, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z11, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z13, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPXORD       Z0, Z16, Z0
+	VPXORD       Z1, Z25, Z1
+	VPXORD       Z2, Z26, Z2
+	VPXORD       Z3, Z27, Z3
+	VPXORD       Z4, Z28, Z4
+	VPXORD       Z5, Z29, Z5
+	VPXORD       Z6, Z30, Z6
+	VPXORD       Z7, Z31, Z7
+	MOVQ         (CX), AX
+	VMOVDQA64    64(AX), Z20
+	MOVQ         8(CX), AX
+	VMOVDQA64    64(AX), Z12
+	MOVQ         16(CX), AX
+	VMOVDQA64    64(AX), Z18
+	MOVQ         24(CX), AX
+	VMOVDQA64    64(AX), Z19
+	MOVQ         32(CX), AX
+	VMOVDQA64    64(AX), Z22
+	MOVQ         40(CX), AX
+	VMOVDQA64    64(AX), Z10
+	MOVQ         48(CX), AX
+	VMOVDQA64    64(AX), Z11
+	MOVQ         56(CX), AX
+	VMOVDQA64    64(AX), Z13
+	MOVQ         64(CX), AX
+	VMOVDQA64    64(AX), Z21
+	MOVQ         72(CX), AX
+	VMOVDQA64    64(AX), Z14
+	MOVQ         80(CX), AX
+	VMOVDQA64    64(AX), Z15
+	MOVQ         88(CX), AX
+	VMOVDQA64    64(AX), Z17
+	MOVQ         96(CX), AX
+	VMOVDQA64    64(AX), Z23
+	MOVQ         104(CX), AX
+	VMOVDQA64    64(AX), Z24
+	MOVQ         112(CX), AX
+	VMOVDQA64    64(AX), Z9
+	MOVQ         120(CX), AX
+	VMOVDQA64    64(AX), Z8
+	VSHUFPS      $0x44, Z12, Z20, Z16
+	VSHUFPS      $0xee, Z12, Z20, Z20
+	VSHUFPS      $0x44, Z19, Z18, Z12
+	VSHUFPS      $0xee, Z19, Z18, Z18
+	VSHUFPS      $0x44, Z10, Z22, Z19
+	VSHUFPS      $0xee, Z10, Z22, Z22
+	VSHUFPS      $0x44, Z13, Z11, Z10
+	VSHUFPS      $0xee, Z13, Z11, Z11
+	VSHUFPS      $0x44, Z14, Z21, Z13
+	VSHUFPS      $0xee, Z14, Z21, Z21
+	VSHUFPS      $0x44, Z17, Z15, Z14
+	VSHUFPS      $0xee, Z17, Z15, Z15
+	VSHUFPS      $0x44, Z24, Z23, Z17
+	VSHUFPS      $0xee, Z24, Z23, Z23
+	VSHUFPS      $0x44, Z8, Z9, Z24
+	VSHUFPS      $0xee, Z8, Z9, Z9
+	VSHUFPS      $0x88, Z12, Z16, Z8
+	VSHUFPS      $0xdd, Z12, Z16, Z16
+	VSHUFPS      $0x88, Z18, Z20, Z12
+	VSHUFPS      $0xdd, Z18, Z20, Z20
+	VSHUFPS      $0x88, Z10, Z19, Z18
+	VSHUFPS      $0xdd, Z10, Z19, Z19
+	VSHUFPS      $0x88, Z11, Z22, Z10
+	VSHUFPS      $0xdd, Z11, Z22, Z22
+	VSHUFPS      $0x88, Z14, Z13, Z11
+	VSHUFPS      $0xdd, Z14, Z13, Z13
+	VSHUFPS      $0x88, Z15, Z21, Z14
+	VSHUFPS      $0xdd, Z15, Z21, Z21
+	VSHUFPS      $0x88, Z24, Z17, Z15
+	VSHUFPS      $0xdd, Z24, Z17, Z17
+	VSHUFPS      $0x88, Z9, Z23, Z24
+	VSHUFPS      $0xdd, Z9, Z23, Z23
+	VSHUFI32X4   $0x44, Z18, Z8, Z9
+	VSHUFI32X4   $0xee, Z18, Z8, Z8
+	VSHUFI32X4   $0x44, Z19, Z16, Z18
+	VSHUFI32X4   $0xee, Z19, Z16, Z16
+	VSHUFI32X4   $0x44, Z10, Z12, Z19
+	VSHUFI32X4   $0xee, Z10, Z12, Z12
+	VSHUFI32X4   $0x44, Z22, Z20, Z10
+	VSHUFI32X4   $0xee, Z22, Z20, Z20
+	VSHUFI32X4   $0x44, Z15, Z11, Z22
+	VSHUFI32X4   $0xee, Z15, Z11, Z11
+	VSHUFI32X4   $0x44, Z17, Z13, Z15
+	VSHUFI32X4   $0xee, Z17, Z13, Z13
+	VSHUFI32X4   $0x44, Z24, Z14, Z17
+	VSHUFI32X4   $0xee, Z24, Z14, Z14
+	VSHUFI32X4   $0x44, Z23, Z21, Z24
+	VSHUFI32X4   $0xee, Z23, Z21, Z21
+	VSHUFI32X4   $0x88, Z22, Z9, Z23
+	VSHUFI32X4   $0xdd, Z22, Z9, Z9
+	VSHUFI32X4   $0x88, Z15, Z18, Z22
+	VSHUFI32X4   $0xdd, Z15, Z18, Z18
+	VSHUFI32X4   $0x88, Z17, Z19, Z15
+	VSHUFI32X4   $0xdd, Z17, Z19, Z19
+	VSHUFI32X4   $0x88, Z24, Z10, Z17
+	VSHUFI32X4   $0xdd, Z24, Z10, Z10
+	VSHUFI32X4   $0x88, Z11, Z8, Z24
+	VSHUFI32X4   $0xdd, Z11, Z8, Z8
+	VSHUFI32X4   $0x88, Z13, Z16, Z11
+	VSHUFI32X4   $0xdd, Z13, Z16, Z16
+	VSHUFI32X4   $0x88, Z14, Z12, Z13
+	VSHUFI32X4   $0xdd, Z14, Z12, Z12
+	VSHUFI32X4   $0x88, Z21, Z20, Z14
+	VSHUFI32X4   $0xdd, Z21, Z20, Z20
+	MOVD         $0x6a09e667, AX
+	VPBROADCASTD AX, Z21
+	MOVD         $0xbb67ae85, AX
+	VPBROADCASTD AX, Z25
+	MOVD         $0x3c6ef372, AX
+	VPBROADCASTD AX, Z26
+	MOVD         $0xa54ff53a, AX
+	VPBROADCASTD AX, Z27
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z28
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z29
+	MOVD         $0x00000040, AX
+	VPBROADCASTD AX, Z30
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z31
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z19, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z10, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z24, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z10, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z19, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z16, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z19, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z16, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z10, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z19, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z10, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPXORD       Z0, Z21, Z0
+	VPXORD       Z1, Z25, Z1
+	VPXORD       Z2, Z26, Z2
+	VPXORD       Z3, Z27, Z3
+	VPXORD       Z4, Z28, Z4
+	VPXORD       Z5, Z29, Z5
+	VPXORD       Z6, Z30, Z6
+	VPXORD       Z7, Z31, Z7
+	MOVQ         (CX), AX
+	VMOVDQA64    128(AX), Z23
+	MOVQ         8(CX), AX
+	VMOVDQA64    128(AX), Z22
+	MOVQ         16(CX), AX
+	VMOVDQA64    128(AX), Z15
+	MOVQ         24(CX), AX
+	VMOVDQA64    128(AX), Z17
+	MOVQ         32(CX), AX
+	VMOVDQA64    128(AX), Z9
+	MOVQ         40(CX), AX
+	VMOVDQA64    128(AX), Z18
+	MOVQ         48(CX), AX
+	VMOVDQA64    128(AX), Z19
+	MOVQ         56(CX), AX
+	VMOVDQA64    128(AX), Z10
+	MOVQ         64(CX), AX
+	VMOVDQA64    128(AX), Z24
+	MOVQ         72(CX), AX
+	VMOVDQA64    128(AX), Z11
+	MOVQ         80(CX), AX
+	VMOVDQA64    128(AX), Z13
+	MOVQ         88(CX), AX
+	VMOVDQA64    128(AX), Z14
+	MOVQ         96(CX), AX
+	VMOVDQA64    128(AX), Z8
+	MOVQ         104(CX), AX
+	VMOVDQA64    128(AX), Z16
+	MOVQ         112(CX), AX
+	VMOVDQA64    128(AX), Z12
+	MOVQ         120(CX), AX
+	VMOVDQA64    128(AX), Z20
+	VSHUFPS      $0x44, Z22, Z23, Z21
+	VSHUFPS      $0xee, Z22, Z23, Z23
+	VSHUFPS      $0x44, Z17, Z15, Z22
+	VSHUFPS      $0xee, Z17, Z15, Z15
+	VSHUFPS      $0x44, Z18, Z9, Z17
+	VSHUFPS      $0xee, Z18, Z9, Z9
+	VSHUFPS      $0x44, Z10, Z19, Z18
+	VSHUFPS      $0xee, Z10, Z19, Z19
+	VSHUFPS      $0x44, Z11, Z24, Z10
+	VSHUFPS      $0xee, Z11, Z24, Z24
+	VSHUFPS      $0x44, Z14, Z13, Z11
+	VSHUFPS      $0xee, Z14, Z13, Z13
+	VSHUFPS      $0x44, Z16, Z8, Z14
+	VSHUFPS      $0xee, Z16, Z8, Z8
+	VSHUFPS      $0x44, Z20, Z12, Z16
+	VSHUFPS      $0xee, Z20, Z12, Z12
+	VSHUFPS      $0x88, Z22, Z21, Z20
+	VSHUFPS      $0xdd, Z22, Z21, Z21
+	VSHUFPS      $0x88, Z15, Z23, Z22
+	VSHUFPS      $0xdd, Z15, Z23, Z23
+	VSHUFPS      $0x88, Z18, Z17, Z15
+	VSHUFPS      $0xdd, Z18, Z17, Z17
+	VSHUFPS      $0x88, Z19, Z9, Z18
+	VSHUFPS      $0xdd, Z19, Z9, Z9
+	VSHUFPS      $0x88, Z11, Z10, Z19
+	VSHUFPS      $0xdd, Z11, Z10, Z10
+	VSHUFPS      $0x88, Z13, Z24, Z11
+	VSHUFPS      $0xdd, Z13, Z24, Z24
+	VSHUFPS      $0x88, Z16, Z14, Z13
+	VSHUFPS      $0xdd, Z16, Z14, Z14
+	VSHUFPS      $0x88, Z12, Z8, Z16
+	VSHUFPS      $0xdd, Z12, Z8, Z8
+	VSHUFI32X4   $0x44, Z15, Z20, Z12
+	VSHUFI32X4   $0xee, Z15, Z20, Z20
+	VSHUFI32X4   $0x44, Z17, Z21, Z15
+	VSHUFI32X4   $0xee, Z17, Z21, Z21
+	VSHUFI32X4   $0x44, Z18, Z22, Z17
+	VSHUFI32X4   $0xee, Z18, Z22, Z22
+	VSHUFI32X4   $0x44, Z9, Z23, Z18
+	VSHUFI32X4   $0xee, Z9, Z23, Z23
+	VSHUFI32X4   $0x44, Z13, Z19, Z9
+	VSHUFI32X4   $0xee, Z13, Z19, Z19
+	VSHUFI32X4   $0x44, Z14, Z10, Z13
+	VSHUFI32X4   $0xee, Z14, Z10, Z10
+	VSHUFI32X4   $0x44, Z16, Z11, Z14
+	VSHUFI32X4   $0xee, Z16, Z11, Z11
+	VSHUFI32X4   $0x44, Z8, Z24, Z16
+	VSHUFI32X4   $0xee, Z8, Z24, Z24
+	VSHUFI32X4   $0x88, Z9, Z12, Z8
+	VSHUFI32X4   $0xdd, Z9, Z12, Z12
+	VSHUFI32X4   $0x88, Z13, Z15, Z9
+	VSHUFI32X4   $0xdd, Z13, Z15, Z15
+	VSHUFI32X4   $0x88, Z14, Z17, Z13
+	VSHUFI32X4   $0xdd, Z14, Z17, Z17
+	VSHUFI32X4   $0x88, Z16, Z18, Z14
+	VSHUFI32X4   $0xdd, Z16, Z18, Z18
+	VSHUFI32X4   $0x88, Z19, Z20, Z16
+	VSHUFI32X4   $0xdd, Z19, Z20, Z20
+	VSHUFI32X4   $0x88, Z10, Z21, Z19
+	VSHUFI32X4   $0xdd, Z10, Z21, Z21
+	VSHUFI32X4   $0x88, Z11, Z22, Z10
+	VSHUFI32X4   $0xdd, Z11, Z22, Z22
+	VSHUFI32X4   $0x88, Z24, Z23, Z11
+	VSHUFI32X4   $0xdd, Z24, Z23, Z23
+	MOVD         $0x6a09e667, AX
+	VPBROADCASTD AX, Z24
+	MOVD         $0xbb67ae85, AX
+	VPBROADCASTD AX, Z25
+	MOVD         $0x3c6ef372, AX
+	VPBROADCASTD AX, Z26
+	MOVD         $0xa54ff53a, AX
+	VPBROADCASTD AX, Z27
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z28
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z29
+	MOVD         $0x00000040, AX
+	VPBROADCASTD AX, Z30
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z31
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z17, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z18, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z16, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z18, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z17, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z21, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z17, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z21, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z18, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z17, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z18, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPXORD       Z0, Z24, Z0
+	VPXORD       Z1, Z25, Z1
+	VPXORD       Z2, Z26, Z2
+	VPXORD       Z3, Z27, Z3
+	VPXORD       Z4, Z28, Z4
+	VPXORD       Z5, Z29, Z5
+	VPXORD       Z6, Z30, Z6
+	VPXORD       Z7, Z31, Z7
+	MOVQ         (CX), AX
+	VMOVDQA64    192(AX), Z8
+	MOVQ         8(CX), AX
+	VMOVDQA64    192(AX), Z9
+	MOVQ         16(CX), AX
+	VMOVDQA64    192(AX), Z13
+	MOVQ         24(CX), AX
+	VMOVDQA64    192(AX), Z14
+	MOVQ         32(CX), AX
+	VMOVDQA64    192(AX), Z12
+	MOVQ         40(CX), AX
+	VMOVDQA64    192(AX), Z15
+	MOVQ         48(CX), AX
+	VMOVDQA64    192(AX), Z17
+	MOVQ         56(CX), AX
+	VMOVDQA64    192(AX), Z18
+	MOVQ         64(CX), AX
+	VMOVDQA64    192(AX), Z16
+	MOVQ         72(CX), AX
+	VMOVDQA64    192(AX), Z19
+	MOVQ         80(CX), AX
+	VMOVDQA64    192(AX), Z10
+	MOVQ         88(CX), AX
+	VMOVDQA64    192(AX), Z11
+	MOVQ         96(CX), AX
+	VMOVDQA64    192(AX), Z20
+	MOVQ         104(CX), AX
+	VMOVDQA64    192(AX), Z21
+	MOVQ         112(CX), AX
+	VMOVDQA64    192(AX), Z22
+	MOVQ         120(CX), AX
+	VMOVDQA64    192(AX), Z23
+	VSHUFPS      $0x44, Z9, Z8, Z24
+	VSHUFPS      $0xee, Z9, Z8, Z8
+	VSHUFPS      $0x44, Z14, Z13, Z9
+	VSHUFPS      $0xee, Z14, Z13, Z13
+	VSHUFPS      $0x44, Z15, Z12, Z14
+	VSHUFPS      $0xee, Z15, Z12, Z12
+	VSHUFPS      $0x44, Z18, Z17, Z15
+	VSHUFPS      $0xee, Z18, Z17, Z17
+	VSHUFPS      $0x44, Z19, Z16, Z18
+	VSHUFPS      $0xee, Z19, Z16, Z16
+	VSHUFPS      $0x44, Z11, Z10, Z19
+	VSHUFPS      $0xee, Z11, Z10, Z10
+	VSHUFPS      $0x44, Z21, Z20, Z11
+	VSHUFPS      $0xee, Z21, Z20, Z20
+	VSHUFPS      $0x44, Z23, Z22, Z21
+	VSHUFPS      $0xee, Z23, Z22, Z22
+	VSHUFPS      $0x88, Z9, Z24, Z23
+	VSHUFPS      $0xdd, Z9, Z24, Z24
+	VSHUFPS      $0x88, Z13, Z8, Z9
+	VSHUFPS      $0xdd, Z13, Z8, Z8
+	VSHUFPS      $0x88, Z15, Z14, Z13
+	VSHUFPS      $0xdd, Z15, Z14, Z14
+	VSHUFPS      $0x88, Z17, Z12, Z15
+	VSHUFPS      $0xdd, Z17, Z12, Z12
+	VSHUFPS      $0x88, Z19, Z18, Z17
+	VSHUFPS      $0xdd, Z19, Z18, Z18
+	VSHUFPS      $0x88, Z10, Z16, Z19
+	VSHUFPS      $0xdd, Z10, Z16, Z16
+	VSHUFPS      $0x88, Z21, Z11, Z10
+	VSHUFPS      $0xdd, Z21, Z11, Z11
+	VSHUFPS      $0x88, Z22, Z20, Z21
+	VSHUFPS      $0xdd, Z22, Z20, Z20
+	VSHUFI32X4   $0x44, Z13, Z23, Z22
+	VSHUFI32X4   $0xee, Z13, Z23, Z23
+	VSHUFI32X4   $0x44, Z14, Z24, Z13
+	VSHUFI32X4   $0xee, Z14, Z24, Z24
+	VSHUFI32X4   $0x44, Z15, Z9, Z14
+	VSHUFI32X4   $0xee, Z15, Z9, Z9
+	VSHUFI32X4   $0x44, Z12, Z8, Z15
+	VSHUFI32X4   $0xee, Z12, Z8, Z8
+	VSHUFI32X4   $0x44, Z10, Z17, Z12
+	VSHUFI32X4   $0xee, Z10, Z17, Z17
+	VSHUFI32X4   $0x44, Z11, Z18, Z10
+	VSHUFI32X4   $0xee, Z11, Z18, Z18
+	VSHUFI32X4   $0x44, Z21, Z19, Z11
+	VSHUFI32X4   $0xee, Z21, Z19, Z19
+	VSHUFI32X4   $0x44, Z20, Z16, Z21
+	VSHUFI32X4   $0xee, Z20, Z16, Z16
+	VSHUFI32X4   $0x88, Z12, Z22, Z20
+	VSHUFI32X4   $0xdd, Z12, Z22, Z22
+	VSHUFI32X4   $0x88, Z10, Z13, Z12
+	VSHUFI32X4   $0xdd, Z10, Z13, Z13
+	VSHUFI32X4   $0x88, Z11, Z14, Z10
+	VSHUFI32X4   $0xdd, Z11, Z14, Z14
+	VSHUFI32X4   $0x88, Z21, Z15, Z11
+	VSHUFI32X4   $0xdd, Z21, Z15, Z15
+	VSHUFI32X4   $0x88, Z17, Z23, Z21
+	VSHUFI32X4   $0xdd, Z17, Z23, Z23
+	VSHUFI32X4   $0x88, Z18, Z24, Z17
+	VSHUFI32X4   $0xdd, Z18, Z24, Z24
+	VSHUFI32X4   $0x88, Z19, Z9, Z18
+	VSHUFI32X4   $0xdd, Z19, Z9, Z9
+	VSHUFI32X4   $0x88, Z16, Z8, Z19
+	VSHUFI32X4   $0xdd, Z16, Z8, Z8
+	MOVD         $0x6a09e667, AX
+	VPBROADCASTD AX, Z16
+	MOVD         $0xbb67ae85, AX
+	VPBROADCASTD AX, Z25
+	MOVD         $0x3c6ef372, AX
+	VPBROADCASTD AX, Z26
+	MOVD         $0xa54ff53a, AX
+	VPBROADCASTD AX, Z27
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z28
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z29
+	MOVD         $0x00000040, AX
+	VPBROADCASTD AX, Z30
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z31
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z14, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z15, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z21, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z15, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z14, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z24, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z14, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z24, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z15, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z14, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z15, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPXORD       Z0, Z16, Z0
+	VPXORD       Z1, Z25, Z1
+	VPXORD       Z2, Z26, Z2
+	VPXORD       Z3, Z27, Z3
+	VPXORD       Z4, Z28, Z4
+	VPXORD       Z5, Z29, Z5
+	VPXORD       Z6, Z30, Z6
+	VPXORD       Z7, Z31, Z7
+	MOVQ         (CX), AX
+	VMOVDQA64    256(AX), Z20
+	MOVQ         8(CX), AX
+	VMOVDQA64    256(AX), Z12
+	MOVQ         16(CX), AX
+	VMOVDQA64    256(AX), Z10
+	MOVQ         24(CX), AX
+	VMOVDQA64    256(AX), Z11
+	MOVQ         32(CX), AX
+	VMOVDQA64    256(AX), Z22
+	MOVQ         40(CX), AX
+	VMOVDQA64    256(AX), Z13
+	MOVQ         48(CX), AX
+	VMOVDQA64    256(AX), Z14
+	MOVQ         56(CX), AX
+	VMOVDQA64    256(AX), Z15
+	MOVQ         64(CX), AX
+	VMOVDQA64    256(AX), Z21
+	MOVQ         72(CX), AX
+	VMOVDQA64    256(AX), Z17
+	MOVQ         80(CX), AX
+	VMOVDQA64    256(AX), Z18
+	MOVQ         88(CX), AX
+	VMOVDQA64    256(AX), Z19
+	MOVQ         96(CX), AX
+	VMOVDQA64    256(AX), Z23
+	MOVQ         104(CX), AX
+	VMOVDQA64    256(AX), Z24
+	MOVQ         112(CX), AX
+	VMOVDQA64    256(AX), Z9
+	MOVQ         120(CX), AX
+	VMOVDQA64    256(AX), Z8
+	VSHUFPS      $0x44, Z12, Z20, Z16
+	VSHUFPS      $0xee, Z12, Z20, Z20
+	VSHUFPS      $0x44, Z11, Z10, Z12
+	VSHUFPS      $0xee, Z11, Z10, Z10
+	VSHUFPS      $0x44, Z13, Z22, Z11
+	VSHUFPS      $0xee, Z13, Z22, Z22
+	VSHUFPS      $0x44, Z15, Z14, Z13
+	VSHUFPS      $0xee, Z15, Z14, Z14
+	VSHUFPS      $0x44, Z17, Z21, Z15
+	VSHUFPS      $0xee, Z17, Z21, Z21
+	VSHUFPS      $0x44, Z19, Z18, Z17
+	VSHUFPS      $0xee, Z19, Z18, Z18
+	VSHUFPS      $0x44, Z24, Z23, Z19
+	VSHUFPS      $0xee, Z24, Z23, Z23
+	VSHUFPS      $0x44, Z8, Z9, Z24
+	VSHUFPS      $0xee, Z8, Z9, Z9
+	VSHUFPS      $0x88, Z12, Z16, Z8
+	VSHUFPS      $0xdd, Z12, Z16, Z16
+	VSHUFPS      $0x88, Z10, Z20, Z12
+	VSHUFPS      $0xdd, Z10, Z20, Z20
+	VSHUFPS      $0x88, Z13, Z11, Z10
+	VSHUFPS      $0xdd, Z13, Z11, Z11
+	VSHUFPS      $0x88, Z14, Z22, Z13
+	VSHUFPS      $0xdd, Z14, Z22, Z22
+	VSHUFPS      $0x88, Z17, Z15, Z14
+	VSHUFPS      $0xdd, Z17, Z15, Z15
+	VSHUFPS      $0x88, Z18, Z21, Z17
+	VSHUFPS      $0xdd, Z18, Z21, Z21
+	VSHUFPS      $0x88, Z24, Z19, Z18
+	VSHUFPS      $0xdd, Z24, Z19, Z19
+	VSHUFPS      $0x88, Z9, Z23, Z24
+	VSHUFPS      $0xdd, Z9, Z23, Z23
+	VSHUFI32X4   $0x44, Z10, Z8, Z9
+	VSHUFI32X4   $0xee, Z10, Z8, Z8
+	VSHUFI32X4   $0x44, Z11, Z16, Z10
+	VSHUFI32X4   $0xee, Z11, Z16, Z16
+	VSHUFI32X4   $0x44, Z13, Z12, Z11
+	VSHUFI32X4   $0xee, Z13, Z12, Z12
+	VSHUFI32X4   $0x44, Z22, Z20, Z13
+	VSHUFI32X4   $0xee, Z22, Z20, Z20
+	VSHUFI32X4   $0x44, Z18, Z14, Z22
+	VSHUFI32X4   $0xee, Z18, Z14, Z14
+	VSHUFI32X4   $0x44, Z19, Z15, Z18
+	VSHUFI32X4   $0xee, Z19, Z15, Z15
+	VSHUFI32X4   $0x44, Z24, Z17, Z19
+	VSHUFI32X4   $0xee, Z24, Z17, Z17
+	VSHUFI32X4   $0x44, Z23, Z21, Z24
+	VSHUFI32X4   $0xee, Z23, Z21, Z21
+	VSHUFI32X4   $0x88, Z22, Z9, Z23
+	VSHUFI32X4   $0xdd, Z22, Z9, Z9
+	VSHUFI32X4   $0x88, Z18, Z10, Z22
+	VSHUFI32X4   $0xdd, Z18, Z10, Z10
+	VSHUFI32X4   $0x88, Z19, Z11, Z18
+	VSHUFI32X4   $0xdd, Z19, Z11, Z11
+	VSHUFI32X4   $0x88, Z24, Z13, Z19
+	VSHUFI32X4   $0xdd, Z24, Z13, Z13
+	VSHUFI32X4   $0x88, Z14, Z8, Z24
+	VSHUFI32X4   $0xdd, Z14, Z8, Z8
+	VSHUFI32X4   $0x88, Z15, Z16, Z14
+	VSHUFI32X4   $0xdd, Z15, Z16, Z16
+	VSHUFI32X4   $0x88, Z17, Z12, Z15
+	VSHUFI32X4   $0xdd, Z17, Z12, Z12
+	VSHUFI32X4   $0x88, Z21, Z20, Z17
+	VSHUFI32X4   $0xdd, Z21, Z20, Z20
+	MOVD         $0x6a09e667, AX
+	VPBROADCASTD AX, Z21
+	MOVD         $0xbb67ae85, AX
+	VPBROADCASTD AX, Z25
+	MOVD         $0x3c6ef372, AX
+	VPBROADCASTD AX, Z26
+	MOVD         $0xa54ff53a, AX
+	VPBROADCASTD AX, Z27
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z28
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z29
+	MOVD         $0x00000040, AX
+	VPBROADCASTD AX, Z30
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z31
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z11, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z13, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z24, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z13, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z11, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z16, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z11, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z16, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z13, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z11, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z13, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPXORD       Z0, Z21, Z0
+	VPXORD       Z1, Z25, Z1
+	VPXORD       Z2, Z26, Z2
+	VPXORD       Z3, Z27, Z3
+	VPXORD       Z4, Z28, Z4
+	VPXORD       Z5, Z29, Z5
+	VPXORD       Z6, Z30, Z6
+	VPXORD       Z7, Z31, Z7
+	MOVQ         (CX), AX
+	VMOVDQA64    320(AX), Z23
+	MOVQ         8(CX), AX
+	VMOVDQA64    320(AX), Z22
+	MOVQ         16(CX), AX
+	VMOVDQA64    320(AX), Z18
+	MOVQ         24(CX), AX
+	VMOVDQA64    320(AX), Z19
+	MOVQ         32(CX), AX
+	VMOVDQA64    320(AX), Z9
+	MOVQ         40(CX), AX
+	VMOVDQA64    320(AX), Z10
+	MOVQ         48(CX), AX
+	VMOVDQA64    320(AX), Z11
+	MOVQ         56(CX), AX
+	VMOVDQA64    320(AX), Z13
+	MOVQ         64(CX), AX
+	VMOVDQA64    320(AX), Z24
+	MOVQ         72(CX), AX
+	VMOVDQA64    320(AX), Z14
+	MOVQ         80(CX), AX
+	VMOVDQA64    320(AX), Z15
+	MOVQ         88(CX), AX
+	VMOVDQA64    320(AX), Z17
+	MOVQ         96(CX), AX
+	VMOVDQA64    320(AX), Z8
+	MOVQ         104(CX), AX
+	VMOVDQA64    320(AX), Z16
+	MOVQ         112(CX), AX
+	VMOVDQA64    320(AX), Z12
+	MOVQ         120(CX), AX
+	VMOVDQA64    320(AX), Z20
+	VSHUFPS      $0x44, Z22, Z23, Z21
+	VSHUFPS      $0xee, Z22, Z23, Z23
+	VSHUFPS      $0x44, Z19, Z18, Z22
+	VSHUFPS      $0xee, Z19, Z18, Z18
+	VSHUFPS      $0x44, Z10, Z9, Z19
+	VSHUFPS      $0xee, Z10, Z9, Z9
+	VSHUFPS      $0x44, Z13, Z11, Z10
+	VSHUFPS      $0xee, Z13, Z11, Z11
+	VSHUFPS      $0x44, Z14, Z24, Z13
+	VSHUFPS      $0xee, Z14, Z24, Z24
+	VSHUFPS      $0x44, Z17, Z15, Z14
+	VSHUFPS      $0xee, Z17, Z15, Z15
+	VSHUFPS      $0x44, Z16, Z8, Z17
+	VSHUFPS      $0xee, Z16, Z8, Z8
+	VSHUFPS      $0x44, Z20, Z12, Z16
+	VSHUFPS      $0xee, Z20, Z12, Z12
+	VSHUFPS      $0x88, Z22, Z21, Z20
+	VSHUFPS      $0xdd, Z22, Z21, Z21
+	VSHUFPS      $0x88, Z18, Z23, Z22
+	VSHUFPS      $0xdd, Z18, Z23, Z23
+	VSHUFPS      $0x88, Z10, Z19, Z18
+	VSHUFPS      $0xdd, Z10, Z19, Z19
+	VSHUFPS      $0x88, Z11, Z9, Z10
+	VSHUFPS      $0xdd, Z11, Z9, Z9
+	VSHUFPS      $0x88, Z14, Z13, Z11
+	VSHUFPS      $0xdd, Z14, Z13, Z13
+	VSHUFPS      $0x88, Z15, Z24, Z14
+	VSHUFPS      $0xdd, Z15, Z24, Z24
+	VSHUFPS      $0x88, Z16, Z17, Z15
+	VSHUFPS      $0xdd, Z16, Z17, Z17
+	VSHUFPS      $0x88, Z12, Z8, Z16
+	VSHUFPS      $0xdd, Z12, Z8, Z8
+	VSHUFI32X4   $0x44, Z18, Z20, Z12
+	VSHUFI32X4   $0xee, Z18, Z20, Z20
+	VSHUFI32X4   $0x44, Z19, Z21, Z18
+	VSHUFI32X4   $0xee, Z19, Z21, Z21
+	VSHUFI32X4   $0x44, Z10, Z22, Z19
+	VSHUFI32X4   $0xee, Z10, Z22, Z22
+	VSHUFI32X4   $0x44, Z9, Z23, Z10
+	VSHUFI32X4   $0xee, Z9, Z23, Z23
+	VSHUFI32X4   $0x44, Z15, Z11, Z9
+	VSHUFI32X4   $0xee, Z15, Z11, Z11
+	VSHUFI32X4   $0x44, Z17, Z13, Z15
+	VSHUFI32X4   $0xee, Z17, Z13, Z13
+	VSHUFI32X4   $0x44, Z16, Z14, Z17
+	VSHUFI32X4   $0xee, Z16, Z14, Z14
+	VSHUFI32X4   $0x44, Z8, Z24, Z16
+	VSHUFI32X4   $0xee, Z8, Z24, Z24
+	VSHUFI32X4   $0x88, Z9, Z12, Z8
+	VSHUFI32X4   $0xdd, Z9, Z12, Z12
+	VSHUFI32X4   $0x88, Z15, Z18, Z9
+	VSHUFI32X4   $0xdd, Z15, Z18, Z18
+	VSHUFI32X4   $0x88, Z17, Z19, Z15
+	VSHUFI32X4   $0xdd, Z17, Z19, Z19
+	VSHUFI32X4   $0x88, Z16, Z10, Z17
+	VSHUFI32X4   $0xdd, Z16, Z10, Z10
+	VSHUFI32X4   $0x88, Z11, Z20, Z16
+	VSHUFI32X4   $0xdd, Z11, Z20, Z20
+	VSHUFI32X4   $0x88, Z13, Z21, Z11
+	VSHUFI32X4   $0xdd, Z13, Z21, Z21
+	VSHUFI32X4   $0x88, Z14, Z22, Z13
+	VSHUFI32X4   $0xdd, Z14, Z22, Z22
+	VSHUFI32X4   $0x88, Z24, Z23, Z14
+	VSHUFI32X4   $0xdd, Z24, Z23, Z23
+	MOVD         $0x6a09e667, AX
+	VPBROADCASTD AX, Z24
+	MOVD         $0xbb67ae85, AX
+	VPBROADCASTD AX, Z25
+	MOVD         $0x3c6ef372, AX
+	VPBROADCASTD AX, Z26
+	MOVD         $0xa54ff53a, AX
+	VPBROADCASTD AX, Z27
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z28
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z29
+	MOVD         $0x00000040, AX
+	VPBROADCASTD AX, Z30
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z31
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z19, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z10, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z16, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z10, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z19, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z21, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z19, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z21, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z10, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z19, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z10, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPXORD       Z0, Z24, Z0
+	VPXORD       Z1, Z25, Z1
+	VPXORD       Z2, Z26, Z2
+	VPXORD       Z3, Z27, Z3
+	VPXORD       Z4, Z28, Z4
+	VPXORD       Z5, Z29, Z5
+	VPXORD       Z6, Z30, Z6
+	VPXORD       Z7, Z31, Z7
+	MOVQ         (CX), AX
+	VMOVDQA64    384(AX), Z8
+	MOVQ         8(CX), AX
+	VMOVDQA64    384(AX), Z9
+	MOVQ         16(CX), AX
+	VMOVDQA64    384(AX), Z15
+	MOVQ         24(CX), AX
+	VMOVDQA64    384(AX), Z17
+	MOVQ         32(CX), AX
+	VMOVDQA64    384(AX), Z12
+	MOVQ         40(CX), AX
+	VMOVDQA64    384(AX), Z18
+	MOVQ         48(CX), AX
+	VMOVDQA64    384(AX), Z19
+	MOVQ         56(CX), AX
+	VMOVDQA64    384(AX), Z10
+	MOVQ         64(CX), AX
+	VMOVDQA64    384(AX), Z16
+	MOVQ         72(CX), AX
+	VMOVDQA64    384(AX), Z11
+	MOVQ         80(CX), AX
+	VMOVDQA64    384(AX), Z13
+	MOVQ         88(CX), AX
+	VMOVDQA64    384(AX), Z14
+	MOVQ         96(CX), AX
+	VMOVDQA64    384(AX), Z20
+	MOVQ         104(CX), AX
+	VMOVDQA64    384(AX), Z21
+	MOVQ         112(CX), AX
+	VMOVDQA64    384(AX), Z22
+	MOVQ         120(CX), AX
+	VMOVDQA64    384(AX), Z23
+	VSHUFPS      $0x44, Z9, Z8, Z24
+	VSHUFPS      $0xee, Z9, Z8, Z8
+	VSHUFPS      $0x44, Z17, Z15, Z9
+	VSHUFPS      $0xee, Z17, Z15, Z15
+	VSHUFPS      $0x44, Z18, Z12, Z17
+	VSHUFPS      $0xee, Z18, Z12, Z12
+	VSHUFPS      $0x44, Z10, Z19, Z18
+	VSHUFPS      $0xee, Z10, Z19, Z19
+	VSHUFPS      $0x44, Z11, Z16, Z10
+	VSHUFPS      $0xee, Z11, Z16, Z16
+	VSHUFPS      $0x44, Z14, Z13, Z11
+	VSHUFPS      $0xee, Z14, Z13, Z13
+	VSHUFPS      $0x44, Z21, Z20, Z14
+	VSHUFPS      $0xee, Z21, Z20, Z20
+	VSHUFPS      $0x44, Z23, Z22, Z21
+	VSHUFPS      $0xee, Z23, Z22, Z22
+	VSHUFPS      $0x88, Z9, Z24, Z23
+	VSHUFPS      $0xdd, Z9, Z24, Z24
+	VSHUFPS      $0x88, Z15, Z8, Z9
+	VSHUFPS      $0xdd, Z15, Z8, Z8
+	VSHUFPS      $0x88, Z18, Z17, Z15
+	VSHUFPS      $0xdd, Z18, Z17, Z17
+	VSHUFPS      $0x88, Z19, Z12, Z18
+	VSHUFPS      $0xdd, Z19, Z12, Z12
+	VSHUFPS      $0x88, Z11, Z10, Z19
+	VSHUFPS      $0xdd, Z11, Z10, Z10
+	VSHUFPS      $0x88, Z13, Z16, Z11
+	VSHUFPS      $0xdd, Z13, Z16, Z16
+	VSHUFPS      $0x88, Z21, Z14, Z13
+	VSHUFPS      $0xdd, Z21, Z14, Z14
+	VSHUFPS      $0x88, Z22, Z20, Z21
+	VSHUFPS      $0xdd, Z22, Z20, Z20
+	VSHUFI32X4   $0x44, Z15, Z23, Z22
+	VSHUFI32X4   $0xee, Z15, Z23, Z23
+	VSHUFI32X4   $0x44, Z17, Z24, Z15
+	VSHUFI32X4   $0xee, Z17, Z24, Z24
+	VSHUFI32X4   $0x44, Z18, Z9, Z17
+	VSHUFI32X4   $0xee, Z18, Z9, Z9
+	VSHUFI32X4   $0x44, Z12, Z8, Z18
+	VSHUFI32X4   $0xee, Z12, Z8, Z8
+	VSHUFI32X4   $0x44, Z13, Z19, Z12
+	VSHUFI32X4   $0xee, Z13, Z19, Z19
+	VSHUFI32X4   $0x44, Z14, Z10, Z13
+	VSHUFI32X4   $0xee, Z14, Z10, Z10
+	VSHUFI32X4   $0x44, Z21, Z11, Z14
+	VSHUFI32X4   $0xee, Z21, Z11, Z11
+	VSHUFI32X4   $0x44, Z20, Z16, Z21
+	VSHUFI32X4   $0xee, Z20, Z16, Z16
+	VSHUFI32X4   $0x88, Z12, Z22, Z20
+	VSHUFI32X4   $0xdd, Z12, Z22, Z22
+	VSHUFI32X4   $0x88, Z13, Z15, Z12
+	VSHUFI32X4   $0xdd, Z13, Z15, Z15
+	VSHUFI32X4   $0x88, Z14, Z17, Z13
+	VSHUFI32X4   $0xdd, Z14, Z17, Z17
+	VSHUFI32X4   $0x88, Z21, Z18, Z14
+	VSHUFI32X4   $0xdd, Z21, Z18, Z18
+	VSHUFI32X4   $0x88, Z19, Z23, Z21
+	VSHUFI32X4   $0xdd, Z19, Z23, Z23
+	VSHUFI32X4   $0x88, Z10, Z24, Z19
+	VSHUFI32X4   $0xdd, Z10, Z24, Z24
+	VSHUFI32X4   $0x88, Z11, Z9, Z10
+	VSHUFI32X4   $0xdd, Z11, Z9, Z9
+	VSHUFI32X4   $0x88, Z16, Z8, Z11
+	VSHUFI32X4   $0xdd, Z16, Z8, Z8
+	MOVD         $0x6a09e667, AX
+	VPBROADCASTD AX, Z16
+	MOVD         $0xbb67ae85, AX
+	VPBROADCASTD AX, Z25
+	MOVD         $0x3c6ef372, AX
+	VPBROADCASTD AX, Z26
+	MOVD         $0xa54ff53a, AX
+	VPBROADCASTD AX, Z27
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z28
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z29
+	MOVD         $0x00000040, AX
+	VPBROADCASTD AX, Z30
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z31
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z17, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z18, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z21, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z18, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z17, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z24, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z17, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z24, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z18, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z17, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z18, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPXORD       Z0, Z16, Z0
+	VPXORD       Z1, Z25, Z1
+	VPXORD       Z2, Z26, Z2
+	VPXORD       Z3, Z27, Z3
+	VPXORD       Z4, Z28, Z4
+	VPXORD       Z5, Z29, Z5
+	VPXORD       Z6, Z30, Z6
+	VPXORD       Z7, Z31, Z7
+	MOVQ         (CX), AX
+	VMOVDQA64    448(AX), Z20
+	MOVQ         8(CX), AX
+	VMOVDQA64    448(AX), Z12
+	MOVQ         16(CX), AX
+	VMOVDQA64    448(AX), Z13
+	MOVQ         24(CX), AX
+	VMOVDQA64    448(AX), Z14
+	MOVQ         32(CX), AX
+	VMOVDQA64    448(AX), Z22
+	MOVQ         40(CX), AX
+	VMOVDQA64    448(AX), Z15
+	MOVQ         48(CX), AX
+	VMOVDQA64    448(AX), Z17
+	MOVQ         56(CX), AX
+	VMOVDQA64    448(AX), Z18
+	MOVQ         64(CX), AX
+	VMOVDQA64    448(AX), Z21
+	MOVQ         72(CX), AX
+	VMOVDQA64    448(AX), Z19
+	MOVQ         80(CX), AX
+	VMOVDQA64    448(AX), Z10
+	MOVQ         88(CX), AX
+	VMOVDQA64    448(AX), Z11
+	MOVQ         96(CX), AX
+	VMOVDQA64    448(AX), Z23
+	MOVQ         104(CX), AX
+	VMOVDQA64    448(AX), Z24
+	MOVQ         112(CX), AX
+	VMOVDQA64    448(AX), Z9
+	MOVQ         120(CX), AX
+	VMOVDQA64    448(AX), Z8
+	VSHUFPS      $0x44, Z12, Z20, Z16
+	VSHUFPS      $0xee, Z12, Z20, Z20
+	VSHUFPS      $0x44, Z14, Z13, Z12
+	VSHUFPS      $0xee, Z14, Z13, Z13
+	VSHUFPS      $0x44, Z15, Z22, Z14
+	VSHUFPS      $0xee, Z15, Z22, Z22
+	VSHUFPS      $0x44, Z18, Z17, Z15
+	VSHUFPS      $0xee, Z18, Z17, Z17
+	VSHUFPS      $0x44, Z19, Z21, Z18
+	VSHUFPS      $0xee, Z19, Z21, Z21
+	VSHUFPS      $0x44, Z11, Z10, Z19
+	VSHUFPS      $0xee, Z11, Z10, Z10
+	VSHUFPS      $0x44, Z24, Z23, Z11
+	VSHUFPS      $0xee, Z24, Z23, Z23
+	VSHUFPS      $0x44, Z8, Z9, Z24
+	VSHUFPS      $0xee, Z8, Z9, Z9
+	VSHUFPS      $0x88, Z12, Z16, Z8
+	VSHUFPS      $0xdd, Z12, Z16, Z16
+	VSHUFPS      $0x88, Z13, Z20, Z12
+	VSHUFPS      $0xdd, Z13, Z20, Z20
+	VSHUFPS      $0x88, Z15, Z14, Z13
+	VSHUFPS      $0xdd, Z15, Z14, Z14
+	VSHUFPS      $0x88, Z17, Z22, Z15
+	VSHUFPS      $0xdd, Z17, Z22, Z22
+	VSHUFPS      $0x88, Z19, Z18, Z17
+	VSHUFPS      $0xdd, Z19, Z18, Z18
+	VSHUFPS      $0x88, Z10, Z21, Z19
+	VSHUFPS      $0xdd, Z10, Z21, Z21
+	VSHUFPS      $0x88, Z24, Z11, Z10
+	VSHUFPS      $0xdd, Z24, Z11, Z11
+	VSHUFPS      $0x88, Z9, Z23, Z24
+	VSHUFPS      $0xdd, Z9, Z23, Z23
+	VSHUFI32X4   $0x44, Z13, Z8, Z9
+	VSHUFI32X4   $0xee, Z13, Z8, Z8
+	VSHUFI32X4   $0x44, Z14, Z16, Z13
+	VSHUFI32X4   $0xee, Z14, Z16, Z16
+	VSHUFI32X4   $0x44, Z15, Z12, Z14
+	VSHUFI32X4   $0xee, Z15, Z12, Z12
+	VSHUFI32X4   $0x44, Z22, Z20, Z15
+	VSHUFI32X4   $0xee, Z22, Z20, Z20
+	VSHUFI32X4   $0x44, Z10, Z17, Z22
+	VSHUFI32X4   $0xee, Z10, Z17, Z17
+	VSHUFI32X4   $0x44, Z11, Z18, Z10
+	VSHUFI32X4   $0xee, Z11, Z18, Z18
+	VSHUFI32X4   $0x44, Z24, Z19, Z11
+	VSHUFI32X4   $0xee, Z24, Z19, Z19
+	VSHUFI32X4   $0x44, Z23, Z21, Z24
+	VSHUFI32X4   $0xee, Z23, Z21, Z21
+	VSHUFI32X4   $0x88, Z22, Z9, Z23
+	VSHUFI32X4   $0xdd, Z22, Z9, Z9
+	VSHUFI32X4   $0x88, Z10, Z13, Z22
+	VSHUFI32X4   $0xdd, Z10, Z13, Z13
+	VSHUFI32X4   $0x88, Z11, Z14, Z10
+	VSHUFI32X4   $0xdd, Z11, Z14, Z14
+	VSHUFI32X4   $0x88, Z24, Z15, Z11
+	VSHUFI32X4   $0xdd, Z24, Z15, Z15
+	VSHUFI32X4   $0x88, Z17, Z8, Z24
+	VSHUFI32X4   $0xdd, Z17, Z8, Z8
+	VSHUFI32X4   $0x88, Z18, Z16, Z17
+	VSHUFI32X4   $0xdd, Z18, Z16, Z16
+	VSHUFI32X4   $0x88, Z19, Z12, Z18
+	VSHUFI32X4   $0xdd, Z19, Z12, Z12
+	VSHUFI32X4   $0x88, Z21, Z20, Z19
+	VSHUFI32X4   $0xdd, Z21, Z20, Z20
+	MOVD         $0x6a09e667, AX
+	VPBROADCASTD AX, Z21
+	MOVD         $0xbb67ae85, AX
+	VPBROADCASTD AX, Z25
+	MOVD         $0x3c6ef372, AX
+	VPBROADCASTD AX, Z26
+	MOVD         $0xa54ff53a, AX
+	VPBROADCASTD AX, Z27
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z28
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z29
+	MOVD         $0x00000040, AX
+	VPBROADCASTD AX, Z30
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z31
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z14, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z15, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z24, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z15, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z14, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z16, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z14, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z16, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z15, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z14, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z15, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPXORD       Z0, Z21, Z0
+	VPXORD       Z1, Z25, Z1
+	VPXORD       Z2, Z26, Z2
+	VPXORD       Z3, Z27, Z3
+	VPXORD       Z4, Z28, Z4
+	VPXORD       Z5, Z29, Z5
+	VPXORD       Z6, Z30, Z6
+	VPXORD       Z7, Z31, Z7
+	MOVQ         (CX), AX
+	VMOVDQA64    512(AX), Z23
+	MOVQ         8(CX), AX
+	VMOVDQA64    512(AX), Z22
+	MOVQ         16(CX), AX
+	VMOVDQA64    512(AX), Z10
+	MOVQ         24(CX), AX
+	VMOVDQA64    512(AX), Z11
+	MOVQ         32(CX), AX
+	VMOVDQA64    512(AX), Z9
+	MOVQ         40(CX), AX
+	VMOVDQA64    512(AX), Z13
+	MOVQ         48(CX), AX
+	VMOVDQA64    512(AX), Z14
+	MOVQ         56(CX), AX
+	VMOVDQA64    512(AX), Z15
+	MOVQ         64(CX), AX
+	VMOVDQA64    512(AX), Z24
+	MOVQ         72(CX), AX
+	VMOVDQA64    512(AX), Z17
+	MOVQ         80(CX), AX
+	VMOVDQA64    512(AX), Z18
+	MOVQ         88(CX), AX
+	VMOVDQA64    512(AX), Z19
+	MOVQ         96(CX), AX
+	VMOVDQA64    512(AX), Z8
+	MOVQ         104(CX), AX
+	VMOVDQA64    512(AX), Z16
+	MOVQ         112(CX), AX
+	VMOVDQA64    512(AX), Z12
+	MOVQ         120(CX), AX
+	VMOVDQA64    512(AX), Z20
+	VSHUFPS      $0x44, Z22, Z23, Z21
+	VSHUFPS      $0xee, Z22, Z23, Z23
+	VSHUFPS      $0x44, Z11, Z10, Z22
+	VSHUFPS      $0xee, Z11, Z10, Z10
+	VSHUFPS      $0x44, Z13, Z9, Z11
+	VSHUFPS      $0xee, Z13, Z9, Z9
+	VSHUFPS      $0x44, Z15, Z14, Z13
+	VSHUFPS      $0xee, Z15, Z14, Z14
+	VSHUFPS      $0x44, Z17, Z24, Z15
+	VSHUFPS      $0xee, Z17, Z24, Z24
+	VSHUFPS      $0x44, Z19, Z18, Z17
+	VSHUFPS      $0xee, Z19, Z18, Z18
+	VSHUFPS      $0x44, Z16, Z8, Z19
+	VSHUFPS      $0xee, Z16, Z8, Z8
+	VSHUFPS      $0x44, Z20, Z12, Z16
+	VSHUFPS      $0xee, Z20, Z12, Z12
+	VSHUFPS      $0x88, Z22, Z21, Z20
+	VSHUFPS      $0xdd, Z22, Z21, Z21
+	VSHUFPS      $0x88, Z10, Z23, Z22
+	VSHUFPS      $0xdd, Z10, Z23, Z23
+	VSHUFPS      $0x88, Z13, Z11, Z10
+	VSHUFPS      $0xdd, Z13, Z11, Z11
+	VSHUFPS      $0x88, Z14, Z9, Z13
+	VSHUFPS      $0xdd, Z14, Z9, Z9
+	VSHUFPS      $0x88, Z17, Z15, Z14
+	VSHUFPS      $0xdd, Z17, Z15, Z15
+	VSHUFPS      $0x88, Z18, Z24, Z17
+	VSHUFPS      $0xdd, Z18, Z24, Z24
+	VSHUFPS      $0x88, Z16, Z19, Z18
+	VSHUFPS      $0xdd, Z16, Z19, Z19
+	VSHUFPS      $0x88, Z12, Z8, Z16
+	VSHUFPS      $0xdd, Z12, Z8, Z8
+	VSHUFI32X4   $0x44, Z10, Z20, Z12
+	VSHUFI32X4   $0xee, Z10, Z20, Z20
+	VSHUFI32X4   $0x44, Z11, Z21, Z10
+	VSHUFI32X4   $0xee, Z11, Z21, Z21
+	VSHUFI32X4   $0x44, Z13, Z22, Z11
+	VSHUFI32X4   $0xee, Z13, Z22, Z22
+	VSHUFI32X4   $0x44, Z9, Z23, Z13
+	VSHUFI32X4   $0xee, Z9, Z23, Z23
+	VSHUFI32X4   $0x44, Z18, Z14, Z9
+	VSHUFI32X4   $0xee, Z18, Z14, Z14
+	VSHUFI32X4   $0x44, Z19, Z15, Z18
+	VSHUFI32X4   $0xee, Z19, Z15, Z15
+	VSHUFI32X4   $0x44, Z16, Z17, Z19
+	VSHUFI32X4   $0xee, Z16, Z17, Z17
+	VSHUFI32X4   $0x44, Z8, Z24, Z16
+	VSHUFI32X4   $0xee, Z8, Z24, Z24
+	VSHUFI32X4   $0x88, Z9, Z12, Z8
+	VSHUFI32X4   $0xdd, Z9, Z12, Z12
+	VSHUFI32X4   $0x88, Z18, Z10, Z9
+	VSHUFI32X4   $0xdd, Z18, Z10, Z10
+	VSHUFI32X4   $0x88, Z19, Z11, Z18
+	VSHUFI32X4   $0xdd, Z19, Z11, Z11
+	VSHUFI32X4   $0x88, Z16, Z13, Z19
+	VSHUFI32X4   $0xdd, Z16, Z13, Z13
+	VSHUFI32X4   $0x88, Z14, Z20, Z16
+	VSHUFI32X4   $0xdd, Z14, Z20, Z20
+	VSHUFI32X4   $0x88, Z15, Z21, Z14
+	VSHUFI32X4   $0xdd, Z15, Z21, Z21
+	VSHUFI32X4   $0x88, Z17, Z22, Z15
+	VSHUFI32X4   $0xdd, Z17, Z22, Z22
+	VSHUFI32X4   $0x88, Z24, Z23, Z17
+	VSHUFI32X4   $0xdd, Z24, Z23, Z23
+	MOVD         $0x6a09e667, AX
+	VPBROADCASTD AX, Z24
+	MOVD         $0xbb67ae85, AX
+	VPBROADCASTD AX, Z25
+	MOVD         $0x3c6ef372, AX
+	VPBROADCASTD AX, Z26
+	MOVD         $0xa54ff53a, AX
+	VPBROADCASTD AX, Z27
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z28
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z29
+	MOVD         $0x00000040, AX
+	VPBROADCASTD AX, Z30
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z31
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z11, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z13, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z16, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z13, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z11, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z21, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z11, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z21, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z13, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z11, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z13, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPXORD       Z0, Z24, Z0
+	VPXORD       Z1, Z25, Z1
+	VPXORD       Z2, Z26, Z2
+	VPXORD       Z3, Z27, Z3
+	VPXORD       Z4, Z28, Z4
+	VPXORD       Z5, Z29, Z5
+	VPXORD       Z6, Z30, Z6
+	VPXORD       Z7, Z31, Z7
+	MOVQ         (CX), AX
+	VMOVDQA64    576(AX), Z8
+	MOVQ         8(CX), AX
+	VMOVDQA64    576(AX), Z9
+	MOVQ         16(CX), AX
+	VMOVDQA64    576(AX), Z18
+	MOVQ         24(CX), AX
+	VMOVDQA64    576(AX), Z19
+	MOVQ         32(CX), AX
+	VMOVDQA64    576(AX), Z12
+	MOVQ         40(CX), AX
+	VMOVDQA64    576(AX), Z10
+	MOVQ         48(CX), AX
+	VMOVDQA64    576(AX), Z11
+	MOVQ         56(CX), AX
+	VMOVDQA64    576(AX), Z13
+	MOVQ         64(CX), AX
+	VMOVDQA64    576(AX), Z16
+	MOVQ         72(CX), AX
+	VMOVDQA64    576(AX), Z14
+	MOVQ         80(CX), AX
+	VMOVDQA64    576(AX), Z15
+	MOVQ         88(CX), AX
+	VMOVDQA64    576(AX), Z17
+	MOVQ         96(CX), AX
+	VMOVDQA64    576(AX), Z20
+	MOVQ         104(CX), AX
+	VMOVDQA64    576(AX), Z21
+	MOVQ         112(CX), AX
+	VMOVDQA64    576(AX), Z22
+	MOVQ         120(CX), AX
+	VMOVDQA64    576(AX), Z23
+	VSHUFPS      $0x44, Z9, Z8, Z24
+	VSHUFPS      $0xee, Z9, Z8, Z8
+	VSHUFPS      $0x44, Z19, Z18, Z9
+	VSHUFPS      $0xee, Z19, Z18, Z18
+	VSHUFPS      $0x44, Z10, Z12, Z19
+	VSHUFPS      $0xee, Z10, Z12, Z12
+	VSHUFPS      $0x44, Z13, Z11, Z10
+	VSHUFPS      $0xee, Z13, Z11, Z11
+	VSHUFPS      $0x44, Z14, Z16, Z13
+	VSHUFPS      $0xee, Z14, Z16, Z16
+	VSHUFPS      $0x44, Z17, Z15, Z14
+	VSHUFPS      $0xee, Z17, Z15, Z15
+	VSHUFPS      $0x44, Z21, Z20, Z17
+	VSHUFPS      $0xee, Z21, Z20, Z20
+	VSHUFPS      $0x44, Z23, Z22, Z21
+	VSHUFPS      $0xee, Z23, Z22, Z22
+	VSHUFPS      $0x88, Z9, Z24, Z23
+	VSHUFPS      $0xdd, Z9, Z24, Z24
+	VSHUFPS      $0x88, Z18, Z8, Z9
+	VSHUFPS      $0xdd, Z18, Z8, Z8
+	VSHUFPS      $0x88, Z10, Z19, Z18
+	VSHUFPS      $0xdd, Z10, Z19, Z19
+	VSHUFPS      $0x88, Z11, Z12, Z10
+	VSHUFPS      $0xdd, Z11, Z12, Z12
+	VSHUFPS      $0x88, Z14, Z13, Z11
+	VSHUFPS      $0xdd, Z14, Z13, Z13
+	VSHUFPS      $0x88, Z15, Z16, Z14
+	VSHUFPS      $0xdd, Z15, Z16, Z16
+	VSHUFPS      $0x88, Z21, Z17, Z15
+	VSHUFPS      $0xdd, Z21, Z17, Z17
+	VSHUFPS      $0x88, Z22, Z20, Z21
+	VSHUFPS      $0xdd, Z22, Z20, Z20
+	VSHUFI32X4   $0x44, Z18, Z23, Z22
+	VSHUFI32X4   $0xee, Z18, Z23, Z23
+	VSHUFI32X4   $0x44, Z19, Z24, Z18
+	VSHUFI32X4   $0xee, Z19, Z24, Z24
+	VSHUFI32X4   $0x44, Z10, Z9, Z19
+	VSHUFI32X4   $0xee, Z10, Z9, Z9
+	VSHUFI32X4   $0x44, Z12, Z8, Z10
+	VSHUFI32X4   $0xee, Z12, Z8, Z8
+	VSHUFI32X4   $0x44, Z15, Z11, Z12
+	VSHUFI32X4   $0xee, Z15, Z11, Z11
+	VSHUFI32X4   $0x44, Z17, Z13, Z15
+	VSHUFI32X4   $0xee, Z17, Z13, Z13
+	VSHUFI32X4   $0x44, Z21, Z14, Z17
+	VSHUFI32X4   $0xee, Z21, Z14, Z14
+	VSHUFI32X4   $0x44, Z20, Z16, Z21
+	VSHUFI32X4   $0xee, Z20, Z16, Z16
+	VSHUFI32X4   $0x88, Z12, Z22, Z20
+	VSHUFI32X4   $0xdd, Z12, Z22, Z22
+	VSHUFI32X4   $0x88, Z15, Z18, Z12
+	VSHUFI32X4   $0xdd, Z15, Z18, Z18
+	VSHUFI32X4   $0x88, Z17, Z19, Z15
+	VSHUFI32X4   $0xdd, Z17, Z19, Z19
+	VSHUFI32X4   $0x88, Z21, Z10, Z17
+	VSHUFI32X4   $0xdd, Z21, Z10, Z10
+	VSHUFI32X4   $0x88, Z11, Z23, Z21
+	VSHUFI32X4   $0xdd, Z11, Z23, Z23
+	VSHUFI32X4   $0x88, Z13, Z24, Z11
+	VSHUFI32X4   $0xdd, Z13, Z24, Z24
+	VSHUFI32X4   $0x88, Z14, Z9, Z13
+	VSHUFI32X4   $0xdd, Z14, Z9, Z9
+	VSHUFI32X4   $0x88, Z16, Z8, Z14
+	VSHUFI32X4   $0xdd, Z16, Z8, Z8
+	MOVD         $0x6a09e667, AX
+	VPBROADCASTD AX, Z16
+	MOVD         $0xbb67ae85, AX
+	VPBROADCASTD AX, Z25
+	MOVD         $0x3c6ef372, AX
+	VPBROADCASTD AX, Z26
+	MOVD         $0xa54ff53a, AX
+	VPBROADCASTD AX, Z27
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z28
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z29
+	MOVD         $0x00000040, AX
+	VPBROADCASTD AX, Z30
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z31
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z19, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z10, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z21, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z10, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z19, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z24, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z19, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z24, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z10, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z19, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z10, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPXORD       Z0, Z16, Z0
+	VPXORD       Z1, Z25, Z1
+	VPXORD       Z2, Z26, Z2
+	VPXORD       Z3, Z27, Z3
+	VPXORD       Z4, Z28, Z4
+	VPXORD       Z5, Z29, Z5
+	VPXORD       Z6, Z30, Z6
+	VPXORD       Z7, Z31, Z7
+	MOVQ         (CX), AX
+	VMOVDQA64    640(AX), Z20
+	MOVQ         8(CX), AX
+	VMOVDQA64    640(AX), Z12
+	MOVQ         16(CX), AX
+	VMOVDQA64    640(AX), Z15
+	MOVQ         24(CX), AX
+	VMOVDQA64    640(AX), Z17
+	MOVQ         32(CX), AX
+	VMOVDQA64    640(AX), Z22
+	MOVQ         40(CX), AX
+	VMOVDQA64    640(AX), Z18
+	MOVQ         48(CX), AX
+	VMOVDQA64    640(AX), Z19
+	MOVQ         56(CX), AX
+	VMOVDQA64    640(AX), Z10
+	MOVQ         64(CX), AX
+	VMOVDQA64    640(AX), Z21
+	MOVQ         72(CX), AX
+	VMOVDQA64    640(AX), Z11
+	MOVQ         80(CX), AX
+	VMOVDQA64    640(AX), Z13
+	MOVQ         88(CX), AX
+	VMOVDQA64    640(AX), Z14
+	MOVQ         96(CX), AX
+	VMOVDQA64    640(AX), Z23
+	MOVQ         104(CX), AX
+	VMOVDQA64    640(AX), Z24
+	MOVQ         112(CX), AX
+	VMOVDQA64    640(AX), Z9
+	MOVQ         120(CX), AX
+	VMOVDQA64    640(AX), Z8
+	VSHUFPS      $0x44, Z12, Z20, Z16
+	VSHUFPS      $0xee, Z12, Z20, Z20
+	VSHUFPS      $0x44, Z17, Z15, Z12
+	VSHUFPS      $0xee, Z17, Z15, Z15
+	VSHUFPS      $0x44, Z18, Z22, Z17
+	VSHUFPS      $0xee, Z18, Z22, Z22
+	VSHUFPS      $0x44, Z10, Z19, Z18
+	VSHUFPS      $0xee, Z10, Z19, Z19
+	VSHUFPS      $0x44, Z11, Z21, Z10
+	VSHUFPS      $0xee, Z11, Z21, Z21
+	VSHUFPS      $0x44, Z14, Z13, Z11
+	VSHUFPS      $0xee, Z14, Z13, Z13
+	VSHUFPS      $0x44, Z24, Z23, Z14
+	VSHUFPS      $0xee, Z24, Z23, Z23
+	VSHUFPS      $0x44, Z8, Z9, Z24
+	VSHUFPS      $0xee, Z8, Z9, Z9
+	VSHUFPS      $0x88, Z12, Z16, Z8
+	VSHUFPS      $0xdd, Z12, Z16, Z16
+	VSHUFPS      $0x88, Z15, Z20, Z12
+	VSHUFPS      $0xdd, Z15, Z20, Z20
+	VSHUFPS      $0x88, Z18, Z17, Z15
+	VSHUFPS      $0xdd, Z18, Z17, Z17
+	VSHUFPS      $0x88, Z19, Z22, Z18
+	VSHUFPS      $0xdd, Z19, Z22, Z22
+	VSHUFPS      $0x88, Z11, Z10, Z19
+	VSHUFPS      $0xdd, Z11, Z10, Z10
+	VSHUFPS      $0x88, Z13, Z21, Z11
+	VSHUFPS      $0xdd, Z13, Z21, Z21
+	VSHUFPS      $0x88, Z24, Z14, Z13
+	VSHUFPS      $0xdd, Z24, Z14, Z14
+	VSHUFPS      $0x88, Z9, Z23, Z24
+	VSHUFPS      $0xdd, Z9, Z23, Z23
+	VSHUFI32X4   $0x44, Z15, Z8, Z9
+	VSHUFI32X4   $0xee, Z15, Z8, Z8
+	VSHUFI32X4   $0x44, Z17, Z16, Z15
+	VSHUFI32X4   $0xee, Z17, Z16, Z16
+	VSHUFI32X4   $0x44, Z18, Z12, Z17
+	VSHUFI32X4   $0xee, Z18, Z12, Z12
+	VSHUFI32X4   $0x44, Z22, Z20, Z18
+	VSHUFI32X4   $0xee, Z22, Z20, Z20
+	VSHUFI32X4   $0x44, Z13, Z19, Z22
+	VSHUFI32X4   $0xee, Z13, Z19, Z19
+	VSHUFI32X4   $0x44, Z14, Z10, Z13
+	VSHUFI32X4   $0xee, Z14, Z10, Z10
+	VSHUFI32X4   $0x44, Z24, Z11, Z14
+	VSHUFI32X4   $0xee, Z24, Z11, Z11
+	VSHUFI32X4   $0x44, Z23, Z21, Z24
+	VSHUFI32X4   $0xee, Z23, Z21, Z21
+	VSHUFI32X4   $0x88, Z22, Z9, Z23
+	VSHUFI32X4   $0xdd, Z22, Z9, Z9
+	VSHUFI32X4   $0x88, Z13, Z15, Z22
+	VSHUFI32X4   $0xdd, Z13, Z15, Z15
+	VSHUFI32X4   $0x88, Z14, Z17, Z13
+	VSHUFI32X4   $0xdd, Z14, Z17, Z17
+	VSHUFI32X4   $0x88, Z24, Z18, Z14
+	VSHUFI32X4   $0xdd, Z24, Z18, Z18
+	VSHUFI32X4   $0x88, Z19, Z8, Z24
+	VSHUFI32X4   $0xdd, Z19, Z8, Z8
+	VSHUFI32X4   $0x88, Z10, Z16, Z19
+	VSHUFI32X4   $0xdd, Z10, Z16, Z16
+	VSHUFI32X4   $0x88, Z11, Z12, Z10
+	VSHUFI32X4   $0xdd, Z11, Z12, Z12
+	VSHUFI32X4   $0x88, Z21, Z20, Z11
+	VSHUFI32X4   $0xdd, Z21, Z20, Z20
+	MOVD         $0x6a09e667, AX
+	VPBROADCASTD AX, Z21
+	MOVD         $0xbb67ae85, AX
+	VPBROADCASTD AX, Z25
+	MOVD         $0x3c6ef372, AX
+	VPBROADCASTD AX, Z26
+	MOVD         $0xa54ff53a, AX
+	VPBROADCASTD AX, Z27
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z28
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z29
+	MOVD         $0x00000040, AX
+	VPBROADCASTD AX, Z30
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z31
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z17, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z18, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z24, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z18, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z17, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z16, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z17, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z16, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z18, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z17, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z18, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPXORD       Z0, Z21, Z0
+	VPXORD       Z1, Z25, Z1
+	VPXORD       Z2, Z26, Z2
+	VPXORD       Z3, Z27, Z3
+	VPXORD       Z4, Z28, Z4
+	VPXORD       Z5, Z29, Z5
+	VPXORD       Z6, Z30, Z6
+	VPXORD       Z7, Z31, Z7
+	MOVQ         (CX), AX
+	VMOVDQA64    704(AX), Z23
+	MOVQ         8(CX), AX
+	VMOVDQA64    704(AX), Z22
+	MOVQ         16(CX), AX
+	VMOVDQA64    704(AX), Z13
+	MOVQ         24(CX), AX
+	VMOVDQA64    704(AX), Z14
+	MOVQ         32(CX), AX
+	VMOVDQA64    704(AX), Z9
+	MOVQ         40(CX), AX
+	VMOVDQA64    704(AX), Z15
+	MOVQ         48(CX), AX
+	VMOVDQA64    704(AX), Z17
+	MOVQ         56(CX), AX
+	VMOVDQA64    704(AX), Z18
+	MOVQ         64(CX), AX
+	VMOVDQA64    704(AX), Z24
+	MOVQ         72(CX), AX
+	VMOVDQA64    704(AX), Z19
+	MOVQ         80(CX), AX
+	VMOVDQA64    704(AX), Z10
+	MOVQ         88(CX), AX
+	VMOVDQA64    704(AX), Z11
+	MOVQ         96(CX), AX
+	VMOVDQA64    704(AX), Z8
+	MOVQ         104(CX), AX
+	VMOVDQA64    704(AX), Z16
+	MOVQ         112(CX), AX
+	VMOVDQA64    704(AX), Z12
+	MOVQ         120(CX), AX
+	VMOVDQA64    704(AX), Z20
+	VSHUFPS      $0x44, Z22, Z23, Z21
+	VSHUFPS      $0xee, Z22, Z23, Z23
+	VSHUFPS      $0x44, Z14, Z13, Z22
+	VSHUFPS      $0xee, Z14, Z13, Z13
+	VSHUFPS      $0x44, Z15, Z9, Z14
+	VSHUFPS      $0xee, Z15, Z9, Z9
+	VSHUFPS      $0x44, Z18, Z17, Z15
+	VSHUFPS      $0xee, Z18, Z17, Z17
+	VSHUFPS      $0x44, Z19, Z24, Z18
+	VSHUFPS      $0xee, Z19, Z24, Z24
+	VSHUFPS      $0x44, Z11, Z10, Z19
+	VSHUFPS      $0xee, Z11, Z10, Z10
+	VSHUFPS      $0x44, Z16, Z8, Z11
+	VSHUFPS      $0xee, Z16, Z8, Z8
+	VSHUFPS      $0x44, Z20, Z12, Z16
+	VSHUFPS      $0xee, Z20, Z12, Z12
+	VSHUFPS      $0x88, Z22, Z21, Z20
+	VSHUFPS      $0xdd, Z22, Z21, Z21
+	VSHUFPS      $0x88, Z13, Z23, Z22
+	VSHUFPS      $0xdd, Z13, Z23, Z23
+	VSHUFPS      $0x88, Z15, Z14, Z13
+	VSHUFPS      $0xdd, Z15, Z14, Z14
+	VSHUFPS      $0x88, Z17, Z9, Z15
+	VSHUFPS      $0xdd, Z17, Z9, Z9
+	VSHUFPS      $0x88, Z19, Z18, Z17
+	VSHUFPS      $0xdd, Z19, Z18, Z18
+	VSHUFPS      $0x88, Z10, Z24, Z19
+	VSHUFPS      $0xdd, Z10, Z24, Z24
+	VSHUFPS      $0x88, Z16, Z11, Z10
+	VSHUFPS      $0xdd, Z16, Z11, Z11
+	VSHUFPS      $0x88, Z12, Z8, Z16
+	VSHUFPS      $0xdd, Z12, Z8, Z8
+	VSHUFI32X4   $0x44, Z13, Z20, Z12
+	VSHUFI32X4   $0xee, Z13, Z20, Z20
+	VSHUFI32X4   $0x44, Z14, Z21, Z13
+	VSHUFI32X4   $0xee, Z14, Z21, Z21
+	VSHUFI32X4   $0x44, Z15, Z22, Z14
+	VSHUFI32X4   $0xee, Z15, Z22, Z22
+	VSHUFI32X4   $0x44, Z9, Z23, Z15
+	VSHUFI32X4   $0xee, Z9, Z23, Z23
+	VSHUFI32X4   $0x44, Z10, Z17, Z9
+	VSHUFI32X4   $0xee, Z10, Z17, Z17
+	VSHUFI32X4   $0x44, Z11, Z18, Z10
+	VSHUFI32X4   $0xee, Z11, Z18, Z18
+	VSHUFI32X4   $0x44, Z16, Z19, Z11
+	VSHUFI32X4   $0xee, Z16, Z19, Z19
+	VSHUFI32X4   $0x44, Z8, Z24, Z16
+	VSHUFI32X4   $0xee, Z8, Z24, Z24
+	VSHUFI32X4   $0x88, Z9, Z12, Z8
+	VSHUFI32X4   $0xdd, Z9, Z12, Z12
+	VSHUFI32X4   $0x88, Z10, Z13, Z9
+	VSHUFI32X4   $0xdd, Z10, Z13, Z13
+	VSHUFI32X4   $0x88, Z11, Z14, Z10
+	VSHUFI32X4   $0xdd, Z11, Z14, Z14
+	VSHUFI32X4   $0x88, Z16, Z15, Z11
+	VSHUFI32X4   $0xdd, Z16, Z15, Z15
+	VSHUFI32X4   $0x88, Z17, Z20, Z16
+	VSHUFI32X4   $0xdd, Z17, Z20, Z20
+	VSHUFI32X4   $0x88, Z18, Z21, Z17
+	VSHUFI32X4   $0xdd, Z18, Z21, Z21
+	VSHUFI32X4   $0x88, Z19, Z22, Z18
+	VSHUFI32X4   $0xdd, Z19, Z22, Z22
+	VSHUFI32X4   $0x88, Z24, Z23, Z19
+	VSHUFI32X4   $0xdd, Z24, Z23, Z23
+	MOVD         $0x6a09e667, AX
+	VPBROADCASTD AX, Z24
+	MOVD         $0xbb67ae85, AX
+	VPBROADCASTD AX, Z25
+	MOVD         $0x3c6ef372, AX
+	VPBROADCASTD AX, Z26
+	MOVD         $0xa54ff53a, AX
+	VPBROADCASTD AX, Z27
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z28
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z29
+	MOVD         $0x00000040, AX
+	VPBROADCASTD AX, Z30
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z31
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z14, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z15, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z16, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z15, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z14, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z21, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z14, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z21, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z15, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z14, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z15, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPXORD       Z0, Z24, Z0
+	VPXORD       Z1, Z25, Z1
+	VPXORD       Z2, Z26, Z2
+	VPXORD       Z3, Z27, Z3
+	VPXORD       Z4, Z28, Z4
+	VPXORD       Z5, Z29, Z5
+	VPXORD       Z6, Z30, Z6
+	VPXORD       Z7, Z31, Z7
+	MOVQ         (CX), AX
+	VMOVDQA64    768(AX), Z8
+	MOVQ         8(CX), AX
+	VMOVDQA64    768(AX), Z9
+	MOVQ         16(CX), AX
+	VMOVDQA64    768(AX), Z10
+	MOVQ         24(CX), AX
+	VMOVDQA64    768(AX), Z11
+	MOVQ         32(CX), AX
+	VMOVDQA64    768(AX), Z12
+	MOVQ         40(CX), AX
+	VMOVDQA64    768(AX), Z13
+	MOVQ         48(CX), AX
+	VMOVDQA64    768(AX), Z14
+	MOVQ         56(CX), AX
+	VMOVDQA64    768(AX), Z15
+	MOVQ         64(CX), AX
+	VMOVDQA64    768(AX), Z16
+	MOVQ         72(CX), AX
+	VMOVDQA64    768(AX), Z17
+	MOVQ         80(CX), AX
+	VMOVDQA64    768(AX), Z18
+	MOVQ         88(CX), AX
+	VMOVDQA64    768(AX), Z19
+	MOVQ         96(CX), AX
+	VMOVDQA64    768(AX), Z20
+	MOVQ         104(CX), AX
+	VMOVDQA64    768(AX), Z21
+	MOVQ         112(CX), AX
+	VMOVDQA64    768(AX), Z22
+	MOVQ         120(CX), AX
+	VMOVDQA64    768(AX), Z23
+	VSHUFPS      $0x44, Z9, Z8, Z24
+	VSHUFPS      $0xee, Z9, Z8, Z8
+	VSHUFPS      $0x44, Z11, Z10, Z9
+	VSHUFPS      $0xee, Z11, Z10, Z10
+	VSHUFPS      $0x44, Z13, Z12, Z11
+	VSHUFPS      $0xee, Z13, Z12, Z12
+	VSHUFPS      $0x44, Z15, Z14, Z13
+	VSHUFPS      $0xee, Z15, Z14, Z14
+	VSHUFPS      $0x44, Z17, Z16, Z15
+	VSHUFPS      $0xee, Z17, Z16, Z16
+	VSHUFPS      $0x44, Z19, Z18, Z17
+	VSHUFPS      $0xee, Z19, Z18, Z18
+	VSHUFPS      $0x44, Z21, Z20, Z19
+	VSHUFPS      $0xee, Z21, Z20, Z20
+	VSHUFPS      $0x44, Z23, Z22, Z21
+	VSHUFPS      $0xee, Z23, Z22, Z22
+	VSHUFPS      $0x88, Z9, Z24, Z23
+	VSHUFPS      $0xdd, Z9, Z24, Z24
+	VSHUFPS      $0x88, Z10, Z8, Z9
+	VSHUFPS      $0xdd, Z10, Z8, Z8
+	VSHUFPS      $0x88, Z13, Z11, Z10
+	VSHUFPS      $0xdd, Z13, Z11, Z11
+	VSHUFPS      $0x88, Z14, Z12, Z13
+	VSHUFPS      $0xdd, Z14, Z12, Z12
+	VSHUFPS      $0x88, Z17, Z15, Z14
+	VSHUFPS      $0xdd, Z17, Z15, Z15
+	VSHUFPS      $0x88, Z18, Z16, Z17
+	VSHUFPS      $0xdd, Z18, Z16, Z16
+	VSHUFPS      $0x88, Z21, Z19, Z18
+	VSHUFPS      $0xdd, Z21, Z19, Z19
+	VSHUFPS      $0x88, Z22, Z20, Z21
+	VSHUFPS      $0xdd, Z22, Z20, Z20
+	VSHUFI32X4   $0x44, Z10, Z23, Z22
+	VSHUFI32X4   $0xee, Z10, Z23, Z23
+	VSHUFI32X4   $0x44, Z11, Z24, Z10
+	VSHUFI32X4   $0xee, Z11, Z24, Z24
+	VSHUFI32X4   $0x44, Z13, Z9, Z11
+	VSHUFI32X4   $0xee, Z13, Z9, Z9
+	VSHUFI32X4   $0x44, Z12, Z8, Z13
+	VSHUFI32X4   $0xee, Z12, Z8, Z8
+	VSHUFI32X4   $0x44, Z18, Z14, Z12
+	VSHUFI32X4   $0xee, Z18, Z14, Z14
+	VSHUFI32X4   $0x44, Z19, Z15, Z18
+	VSHUFI32X4   $0xee, Z19, Z15, Z15
+	VSHUFI32X4   $0x44, Z21, Z17, Z19
+	VSHUFI32X4   $0xee, Z21, Z17, Z17
+	VSHUFI32X4   $0x44, Z20, Z16, Z21
+	VSHUFI32X4   $0xee, Z20, Z16, Z16
+	VSHUFI32X4   $0x88, Z12, Z22, Z20
+	VSHUFI32X4   $0xdd, Z12, Z22, Z22
+	VSHUFI32X4   $0x88, Z18, Z10, Z12
+	VSHUFI32X4   $0xdd, Z18, Z10, Z10
+	VSHUFI32X4   $0x88, Z19, Z11, Z18
+	VSHUFI32X4   $0xdd, Z19, Z11, Z11
+	VSHUFI32X4   $0x88, Z21, Z13, Z19
+	VSHUFI32X4   $0xdd, Z21, Z13, Z13
+	VSHUFI32X4   $0x88, Z14, Z23, Z21
+	VSHUFI32X4   $0xdd, Z14, Z23, Z23
+	VSHUFI32X4   $0x88, Z15, Z24, Z14
+	VSHUFI32X4   $0xdd, Z15, Z24, Z24
+	VSHUFI32X4   $0x88, Z17, Z9, Z15
+	VSHUFI32X4   $0xdd, Z17, Z9, Z9
+	VSHUFI32X4   $0x88, Z16, Z8, Z17
+	VSHUFI32X4   $0xdd, Z16, Z8, Z8
+	MOVD         $0x6a09e667, AX
+	VPBROADCASTD AX, Z16
+	MOVD         $0xbb67ae85, AX
+	VPBROADCASTD AX, Z25
+	MOVD         $0x3c6ef372, AX
+	VPBROADCASTD AX, Z26
+	MOVD         $0xa54ff53a, AX
+	VPBROADCASTD AX, Z27
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z28
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z29
+	MOVD         $0x00000040, AX
+	VPBROADCASTD AX, Z30
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z31
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z11, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z13, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z21, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z13, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z11, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z24, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z11, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z24, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z13, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z11, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z13, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPXORD       Z0, Z16, Z0
+	VPXORD       Z1, Z25, Z1
+	VPXORD       Z2, Z26, Z2
+	VPXORD       Z3, Z27, Z3
+	VPXORD       Z4, Z28, Z4
+	VPXORD       Z5, Z29, Z5
+	VPXORD       Z6, Z30, Z6
+	VPXORD       Z7, Z31, Z7
+	MOVQ         (CX), AX
+	VMOVDQA64    832(AX), Z20
+	MOVQ         8(CX), AX
+	VMOVDQA64    832(AX), Z12
+	MOVQ         16(CX), AX
+	VMOVDQA64    832(AX), Z18
+	MOVQ         24(CX), AX
+	VMOVDQA64    832(AX), Z19
+	MOVQ         32(CX), AX
+	VMOVDQA64    832(AX), Z22
+	MOVQ         40(CX), AX
+	VMOVDQA64    832(AX), Z10
+	MOVQ         48(CX), AX
+	VMOVDQA64    832(AX), Z11
+	MOVQ         56(CX), AX
+	VMOVDQA64    832(AX), Z13
+	MOVQ         64(CX), AX
+	VMOVDQA64    832(AX), Z21
+	MOVQ         72(CX), AX
+	VMOVDQA64    832(AX), Z14
+	MOVQ         80(CX), AX
+	VMOVDQA64    832(AX), Z15
+	MOVQ         88(CX), AX
+	VMOVDQA64    832(AX), Z17
+	MOVQ         96(CX), AX
+	VMOVDQA64    832(AX), Z23
+	MOVQ         104(CX), AX
+	VMOVDQA64    832(AX), Z24
+	MOVQ         112(CX), AX
+	VMOVDQA64    832(AX), Z9
+	MOVQ         120(CX), AX
+	VMOVDQA64    832(AX), Z8
+	VSHUFPS      $0x44, Z12, Z20, Z16
+	VSHUFPS      $0xee, Z12, Z20, Z20
+	VSHUFPS      $0x44, Z19, Z18, Z12
+	VSHUFPS      $0xee, Z19, Z18, Z18
+	VSHUFPS      $0x44, Z10, Z22, Z19
+	VSHUFPS      $0xee, Z10, Z22, Z22
+	VSHUFPS      $0x44, Z13, Z11, Z10
+	VSHUFPS      $0xee, Z13, Z11, Z11
+	VSHUFPS      $0x44, Z14, Z21, Z13
+	VSHUFPS      $0xee, Z14, Z21, Z21
+	VSHUFPS      $0x44, Z17, Z15, Z14
+	VSHUFPS      $0xee, Z17, Z15, Z15
+	VSHUFPS      $0x44, Z24, Z23, Z17
+	VSHUFPS      $0xee, Z24, Z23, Z23
+	VSHUFPS      $0x44, Z8, Z9, Z24
+	VSHUFPS      $0xee, Z8, Z9, Z9
+	VSHUFPS      $0x88, Z12, Z16, Z8
+	VSHUFPS      $0xdd, Z12, Z16, Z16
+	VSHUFPS      $0x88, Z18, Z20, Z12
+	VSHUFPS      $0xdd, Z18, Z20, Z20
+	VSHUFPS      $0x88, Z10, Z19, Z18
+	VSHUFPS      $0xdd, Z10, Z19, Z19
+	VSHUFPS      $0x88, Z11, Z22, Z10
+	VSHUFPS      $0xdd, Z11, Z22, Z22
+	VSHUFPS      $0x88, Z14, Z13, Z11
+	VSHUFPS      $0xdd, Z14, Z13, Z13
+	VSHUFPS      $0x88, Z15, Z21, Z14
+	VSHUFPS      $0xdd, Z15, Z21, Z21
+	VSHUFPS      $0x88, Z24, Z17, Z15
+	VSHUFPS      $0xdd, Z24, Z17, Z17
+	VSHUFPS      $0x88, Z9, Z23, Z24
+	VSHUFPS      $0xdd, Z9, Z23, Z23
+	VSHUFI32X4   $0x44, Z18, Z8, Z9
+	VSHUFI32X4   $0xee, Z18, Z8, Z8
+	VSHUFI32X4   $0x44, Z19, Z16, Z18
+	VSHUFI32X4   $0xee, Z19, Z16, Z16
+	VSHUFI32X4   $0x44, Z10, Z12, Z19
+	VSHUFI32X4   $0xee, Z10, Z12, Z12
+	VSHUFI32X4   $0x44, Z22, Z20, Z10
+	VSHUFI32X4   $0xee, Z22, Z20, Z20
+	VSHUFI32X4   $0x44, Z15, Z11, Z22
+	VSHUFI32X4   $0xee, Z15, Z11, Z11
+	VSHUFI32X4   $0x44, Z17, Z13, Z15
+	VSHUFI32X4   $0xee, Z17, Z13, Z13
+	VSHUFI32X4   $0x44, Z24, Z14, Z17
+	VSHUFI32X4   $0xee, Z24, Z14, Z14
+	VSHUFI32X4   $0x44, Z23, Z21, Z24
+	VSHUFI32X4   $0xee, Z23, Z21, Z21
+	VSHUFI32X4   $0x88, Z22, Z9, Z23
+	VSHUFI32X4   $0xdd, Z22, Z9, Z9
+	VSHUFI32X4   $0x88, Z15, Z18, Z22
+	VSHUFI32X4   $0xdd, Z15, Z18, Z18
+	VSHUFI32X4   $0x88, Z17, Z19, Z15
+	VSHUFI32X4   $0xdd, Z17, Z19, Z19
+	VSHUFI32X4   $0x88, Z24, Z10, Z17
+	VSHUFI32X4   $0xdd, Z24, Z10, Z10
+	VSHUFI32X4   $0x88, Z11, Z8, Z24
+	VSHUFI32X4   $0xdd, Z11, Z8, Z8
+	VSHUFI32X4   $0x88, Z13, Z16, Z11
+	VSHUFI32X4   $0xdd, Z13, Z16, Z16
+	VSHUFI32X4   $0x88, Z14, Z12, Z13
+	VSHUFI32X4   $0xdd, Z14, Z12, Z12
+	VSHUFI32X4   $0x88, Z21, Z20, Z14
+	VSHUFI32X4   $0xdd, Z21, Z20, Z20
+	MOVD         $0x6a09e667, AX
+	VPBROADCASTD AX, Z21
+	MOVD         $0xbb67ae85, AX
+	VPBROADCASTD AX, Z25
+	MOVD         $0x3c6ef372, AX
+	VPBROADCASTD AX, Z26
+	MOVD         $0xa54ff53a, AX
+	VPBROADCASTD AX, Z27
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z28
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z29
+	MOVD         $0x00000040, AX
+	VPBROADCASTD AX, Z30
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z31
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z19, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z10, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z24, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z10, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z19, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z16, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z19, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z20, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z16, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z10, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z21, Z28, Z21
+	VPXORD       Z4, Z21, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z19, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z21, Z29, Z21
+	VPXORD       Z7, Z21, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z10, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPXORD       Z0, Z21, Z0
+	VPXORD       Z1, Z25, Z1
+	VPXORD       Z2, Z26, Z2
+	VPXORD       Z3, Z27, Z3
+	VPXORD       Z4, Z28, Z4
+	VPXORD       Z5, Z29, Z5
+	VPXORD       Z6, Z30, Z6
+	VPXORD       Z7, Z31, Z7
+	MOVQ         (CX), AX
+	VMOVDQA64    896(AX), Z23
+	MOVQ         8(CX), AX
+	VMOVDQA64    896(AX), Z22
+	MOVQ         16(CX), AX
+	VMOVDQA64    896(AX), Z15
+	MOVQ         24(CX), AX
+	VMOVDQA64    896(AX), Z17
+	MOVQ         32(CX), AX
+	VMOVDQA64    896(AX), Z9
+	MOVQ         40(CX), AX
+	VMOVDQA64    896(AX), Z18
+	MOVQ         48(CX), AX
+	VMOVDQA64    896(AX), Z19
+	MOVQ         56(CX), AX
+	VMOVDQA64    896(AX), Z10
+	MOVQ         64(CX), AX
+	VMOVDQA64    896(AX), Z24
+	MOVQ         72(CX), AX
+	VMOVDQA64    896(AX), Z11
+	MOVQ         80(CX), AX
+	VMOVDQA64    896(AX), Z13
+	MOVQ         88(CX), AX
+	VMOVDQA64    896(AX), Z14
+	MOVQ         96(CX), AX
+	VMOVDQA64    896(AX), Z8
+	MOVQ         104(CX), AX
+	VMOVDQA64    896(AX), Z16
+	MOVQ         112(CX), AX
+	VMOVDQA64    896(AX), Z12
+	MOVQ         120(CX), AX
+	VMOVDQA64    896(AX), Z20
+	VSHUFPS      $0x44, Z22, Z23, Z21
+	VSHUFPS      $0xee, Z22, Z23, Z23
+	VSHUFPS      $0x44, Z17, Z15, Z22
+	VSHUFPS      $0xee, Z17, Z15, Z15
+	VSHUFPS      $0x44, Z18, Z9, Z17
+	VSHUFPS      $0xee, Z18, Z9, Z9
+	VSHUFPS      $0x44, Z10, Z19, Z18
+	VSHUFPS      $0xee, Z10, Z19, Z19
+	VSHUFPS      $0x44, Z11, Z24, Z10
+	VSHUFPS      $0xee, Z11, Z24, Z24
+	VSHUFPS      $0x44, Z14, Z13, Z11
+	VSHUFPS      $0xee, Z14, Z13, Z13
+	VSHUFPS      $0x44, Z16, Z8, Z14
+	VSHUFPS      $0xee, Z16, Z8, Z8
+	VSHUFPS      $0x44, Z20, Z12, Z16
+	VSHUFPS      $0xee, Z20, Z12, Z12
+	VSHUFPS      $0x88, Z22, Z21, Z20
+	VSHUFPS      $0xdd, Z22, Z21, Z21
+	VSHUFPS      $0x88, Z15, Z23, Z22
+	VSHUFPS      $0xdd, Z15, Z23, Z23
+	VSHUFPS      $0x88, Z18, Z17, Z15
+	VSHUFPS      $0xdd, Z18, Z17, Z17
+	VSHUFPS      $0x88, Z19, Z9, Z18
+	VSHUFPS      $0xdd, Z19, Z9, Z9
+	VSHUFPS      $0x88, Z11, Z10, Z19
+	VSHUFPS      $0xdd, Z11, Z10, Z10
+	VSHUFPS      $0x88, Z13, Z24, Z11
+	VSHUFPS      $0xdd, Z13, Z24, Z24
+	VSHUFPS      $0x88, Z16, Z14, Z13
+	VSHUFPS      $0xdd, Z16, Z14, Z14
+	VSHUFPS      $0x88, Z12, Z8, Z16
+	VSHUFPS      $0xdd, Z12, Z8, Z8
+	VSHUFI32X4   $0x44, Z15, Z20, Z12
+	VSHUFI32X4   $0xee, Z15, Z20, Z20
+	VSHUFI32X4   $0x44, Z17, Z21, Z15
+	VSHUFI32X4   $0xee, Z17, Z21, Z21
+	VSHUFI32X4   $0x44, Z18, Z22, Z17
+	VSHUFI32X4   $0xee, Z18, Z22, Z22
+	VSHUFI32X4   $0x44, Z9, Z23, Z18
+	VSHUFI32X4   $0xee, Z9, Z23, Z23
+	VSHUFI32X4   $0x44, Z13, Z19, Z9
+	VSHUFI32X4   $0xee, Z13, Z19, Z19
+	VSHUFI32X4   $0x44, Z14, Z10, Z13
+	VSHUFI32X4   $0xee, Z14, Z10, Z10
+	VSHUFI32X4   $0x44, Z16, Z11, Z14
+	VSHUFI32X4   $0xee, Z16, Z11, Z11
+	VSHUFI32X4   $0x44, Z8, Z24, Z16
+	VSHUFI32X4   $0xee, Z8, Z24, Z24
+	VSHUFI32X4   $0x88, Z9, Z12, Z8
+	VSHUFI32X4   $0xdd, Z9, Z12, Z12
+	VSHUFI32X4   $0x88, Z13, Z15, Z9
+	VSHUFI32X4   $0xdd, Z13, Z15, Z15
+	VSHUFI32X4   $0x88, Z14, Z17, Z13
+	VSHUFI32X4   $0xdd, Z14, Z17, Z17
+	VSHUFI32X4   $0x88, Z16, Z18, Z14
+	VSHUFI32X4   $0xdd, Z16, Z18, Z18
+	VSHUFI32X4   $0x88, Z19, Z20, Z16
+	VSHUFI32X4   $0xdd, Z19, Z20, Z20
+	VSHUFI32X4   $0x88, Z10, Z21, Z19
+	VSHUFI32X4   $0xdd, Z10, Z21, Z21
+	VSHUFI32X4   $0x88, Z11, Z22, Z10
+	VSHUFI32X4   $0xdd, Z11, Z22, Z22
+	VSHUFI32X4   $0x88, Z24, Z23, Z11
+	VSHUFI32X4   $0xdd, Z24, Z23, Z23
+	MOVD         $0x6a09e667, AX
+	VPBROADCASTD AX, Z24
+	MOVD         $0xbb67ae85, AX
+	VPBROADCASTD AX, Z25
+	MOVD         $0x3c6ef372, AX
+	VPBROADCASTD AX, Z26
+	MOVD         $0xa54ff53a, AX
+	VPBROADCASTD AX, Z27
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z28
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z29
+	MOVD         $0x00000040, AX
+	VPBROADCASTD AX, Z30
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z31
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z17, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z18, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z16, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z18, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z17, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z21, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z14, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z17, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z16, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z23, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z21, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z18, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z24, Z28, Z24
+	VPXORD       Z4, Z24, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z15, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z8, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z16, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z17, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z24, Z29, Z24
+	VPXORD       Z7, Z24, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z18, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPXORD       Z0, Z24, Z0
+	VPXORD       Z1, Z25, Z1
+	VPXORD       Z2, Z26, Z2
+	VPXORD       Z3, Z27, Z3
+	VPXORD       Z4, Z28, Z4
+	VPXORD       Z5, Z29, Z5
+	VPXORD       Z6, Z30, Z6
+	VPXORD       Z7, Z31, Z7
+	MOVQ         (CX), AX
+	VMOVDQA64    960(AX), Z8
+	MOVQ         8(CX), AX
+	VMOVDQA64    960(AX), Z9
+	MOVQ         16(CX), AX
+	VMOVDQA64    960(AX), Z13
+	MOVQ         24(CX), AX
+	VMOVDQA64    960(AX), Z14
+	MOVQ         32(CX), AX
+	VMOVDQA64    960(AX), Z12
+	MOVQ         40(CX), AX
+	VMOVDQA64    960(AX), Z15
+	MOVQ         48(CX), AX
+	VMOVDQA64    960(AX), Z17
+	MOVQ         56(CX), AX
+	VMOVDQA64    960(AX), Z18
+	MOVQ         64(CX), AX
+	VMOVDQA64    960(AX), Z16
+	MOVQ         72(CX), AX
+	VMOVDQA64    960(AX), Z19
+	MOVQ         80(CX), AX
+	VMOVDQA64    960(AX), Z10
+	MOVQ         88(CX), AX
+	VMOVDQA64    960(AX), Z11
+	MOVQ         96(CX), AX
+	VMOVDQA64    960(AX), Z20
+	MOVQ         104(CX), AX
+	VMOVDQA64    960(AX), Z21
+	MOVQ         112(CX), AX
+	VMOVDQA64    960(AX), Z22
+	MOVQ         120(CX), AX
+	VMOVDQA64    960(AX), Z23
+	VSHUFPS      $0x44, Z9, Z8, Z24
+	VSHUFPS      $0xee, Z9, Z8, Z8
+	VSHUFPS      $0x44, Z14, Z13, Z9
+	VSHUFPS      $0xee, Z14, Z13, Z13
+	VSHUFPS      $0x44, Z15, Z12, Z14
+	VSHUFPS      $0xee, Z15, Z12, Z12
+	VSHUFPS      $0x44, Z18, Z17, Z15
+	VSHUFPS      $0xee, Z18, Z17, Z17
+	VSHUFPS      $0x44, Z19, Z16, Z18
+	VSHUFPS      $0xee, Z19, Z16, Z16
+	VSHUFPS      $0x44, Z11, Z10, Z19
+	VSHUFPS      $0xee, Z11, Z10, Z10
+	VSHUFPS      $0x44, Z21, Z20, Z11
+	VSHUFPS      $0xee, Z21, Z20, Z20
+	VSHUFPS      $0x44, Z23, Z22, Z21
+	VSHUFPS      $0xee, Z23, Z22, Z22
+	VSHUFPS      $0x88, Z9, Z24, Z23
+	VSHUFPS      $0xdd, Z9, Z24, Z24
+	VSHUFPS      $0x88, Z13, Z8, Z9
+	VSHUFPS      $0xdd, Z13, Z8, Z8
+	VSHUFPS      $0x88, Z15, Z14, Z13
+	VSHUFPS      $0xdd, Z15, Z14, Z14
+	VSHUFPS      $0x88, Z17, Z12, Z15
+	VSHUFPS      $0xdd, Z17, Z12, Z12
+	VSHUFPS      $0x88, Z19, Z18, Z17
+	VSHUFPS      $0xdd, Z19, Z18, Z18
+	VSHUFPS      $0x88, Z10, Z16, Z19
+	VSHUFPS      $0xdd, Z10, Z16, Z16
+	VSHUFPS      $0x88, Z21, Z11, Z10
+	VSHUFPS      $0xdd, Z21, Z11, Z11
+	VSHUFPS      $0x88, Z22, Z20, Z21
+	VSHUFPS      $0xdd, Z22, Z20, Z20
+	VSHUFI32X4   $0x44, Z13, Z23, Z22
+	VSHUFI32X4   $0xee, Z13, Z23, Z23
+	VSHUFI32X4   $0x44, Z14, Z24, Z13
+	VSHUFI32X4   $0xee, Z14, Z24, Z24
+	VSHUFI32X4   $0x44, Z15, Z9, Z14
+	VSHUFI32X4   $0xee, Z15, Z9, Z9
+	VSHUFI32X4   $0x44, Z12, Z8, Z15
+	VSHUFI32X4   $0xee, Z12, Z8, Z8
+	VSHUFI32X4   $0x44, Z10, Z17, Z12
+	VSHUFI32X4   $0xee, Z10, Z17, Z17
+	VSHUFI32X4   $0x44, Z11, Z18, Z10
+	VSHUFI32X4   $0xee, Z11, Z18, Z18
+	VSHUFI32X4   $0x44, Z21, Z19, Z11
+	VSHUFI32X4   $0xee, Z21, Z19, Z19
+	VSHUFI32X4   $0x44, Z20, Z16, Z21
+	VSHUFI32X4   $0xee, Z20, Z16, Z16
+	VSHUFI32X4   $0x88, Z12, Z22, Z20
+	VSHUFI32X4   $0xdd, Z12, Z22, Z22
+	VSHUFI32X4   $0x88, Z10, Z13, Z12
+	VSHUFI32X4   $0xdd, Z10, Z13, Z13
+	VSHUFI32X4   $0x88, Z11, Z14, Z10
+	VSHUFI32X4   $0xdd, Z11, Z14, Z14
+	VSHUFI32X4   $0x88, Z21, Z15, Z11
+	VSHUFI32X4   $0xdd, Z21, Z15, Z15
+	VSHUFI32X4   $0x88, Z17, Z23, Z21
+	VSHUFI32X4   $0xdd, Z17, Z23, Z23
+	VSHUFI32X4   $0x88, Z18, Z24, Z17
+	VSHUFI32X4   $0xdd, Z18, Z24, Z24
+	VSHUFI32X4   $0x88, Z19, Z9, Z18
+	VSHUFI32X4   $0xdd, Z19, Z9, Z9
+	VSHUFI32X4   $0x88, Z16, Z8, Z19
+	VSHUFI32X4   $0xdd, Z16, Z8, Z8
+	MOVD         $0x6a09e667, AX
+	VPBROADCASTD AX, Z16
+	MOVD         $0xbb67ae85, AX
+	VPBROADCASTD AX, Z25
+	MOVD         $0x3c6ef372, AX
+	VPBROADCASTD AX, Z26
+	MOVD         $0xa54ff53a, AX
+	VPBROADCASTD AX, Z27
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z28
+	MOVD         $0x00000000, AX
+	VPBROADCASTD AX, Z29
+	MOVD         $0x00000040, AX
+	VPBROADCASTD AX, Z30
+	MOVD         $0x0000000a, AX
+	VPBROADCASTD AX, Z31
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z14, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z15, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z21, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z15, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z12, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z24, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z15, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z14, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z13, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z19, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z9, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z22, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z20, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z13, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z14, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z23, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z24, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z17, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z8, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z18, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z9, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z15, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z10, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z11, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z20, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z14, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z17, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z19, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z21, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z23, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z8, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z12, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z24, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z11, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z18, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z10, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z14, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z22, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z15, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z19, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z0, Z4, Z0
+	VPADDD       Z0, Z8, Z0
+	VPXORD       Z28, Z0, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z16, Z28, Z16
+	VPXORD       Z4, Z16, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z13, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z1, Z5, Z1
+	VPADDD       Z1, Z20, Z1
+	VPXORD       Z29, Z1, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z25, Z29, Z25
+	VPXORD       Z5, Z25, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z12, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z2, Z6, Z2
+	VPADDD       Z2, Z17, Z2
+	VPXORD       Z30, Z2, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z26, Z30, Z26
+	VPXORD       Z6, Z26, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z21, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z3, Z7, Z3
+	VPADDD       Z3, Z14, Z3
+	VPXORD       Z31, Z3, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z27, Z31, Z27
+	VPXORD       Z7, Z27, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z9, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x10, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x0c, Z5, Z5
+	VPADDD       Z0, Z5, Z0
+	VPADDD       Z0, Z18, Z0
+	VPXORD       Z31, Z0, Z31
+	VPRORD       $0x08, Z31, Z31
+	VPADDD       Z26, Z31, Z26
+	VPXORD       Z5, Z26, Z5
+	VPRORD       $0x07, Z5, Z5
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z10, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x10, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x0c, Z6, Z6
+	VPADDD       Z1, Z6, Z1
+	VPADDD       Z1, Z23, Z1
+	VPXORD       Z28, Z1, Z28
+	VPRORD       $0x08, Z28, Z28
+	VPADDD       Z27, Z28, Z27
+	VPXORD       Z6, Z27, Z6
+	VPRORD       $0x07, Z6, Z6
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z11, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x10, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x0c, Z7, Z7
+	VPADDD       Z2, Z7, Z2
+	VPADDD       Z2, Z22, Z2
+	VPXORD       Z29, Z2, Z29
+	VPRORD       $0x08, Z29, Z29
+	VPADDD       Z16, Z29, Z16
+	VPXORD       Z7, Z16, Z7
+	VPRORD       $0x07, Z7, Z7
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z15, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x10, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x0c, Z4, Z4
+	VPADDD       Z3, Z4, Z3
+	VPADDD       Z3, Z24, Z3
+	VPXORD       Z30, Z3, Z30
+	VPRORD       $0x08, Z30, Z30
+	VPADDD       Z25, Z30, Z25
+	VPXORD       Z4, Z25, Z4
+	VPRORD       $0x07, Z4, Z4
+	VPXORD       Z0, Z16, Z0
+	VPXORD       Z1, Z25, Z1
+	VPXORD       Z2, Z26, Z2
+	VPXORD       Z3, Z27, Z3
+	VPXORD       Z4, Z28, Z4
+	VPXORD       Z5, Z29, Z5
+	VPXORD       Z6, Z30, Z6
+	VPXORD       Z7, Z31, Z7
+	VSHUFPS      $0x44, Z1, Z0, Z8
+	VSHUFPS      $0xee, Z1, Z0, Z0
+	VSHUFPS      $0x44, Z3, Z2, Z1
+	VSHUFPS      $0xee, Z3, Z2, Z2
+	VSHUFPS      $0x44, Z5, Z4, Z3
+	VSHUFPS      $0xee, Z5, Z4, Z4
+	VSHUFPS      $0x44, Z7, Z6, Z5
+	VSHUFPS      $0xee, Z7, Z6, Z6
+	VSHUFPS      $0x88, Z1, Z8, Z7
+	VSHUFPS      $0xdd, Z1, Z8, Z8
+	VSHUFPS      $0x88, Z2, Z0, Z1
+	VSHUFPS      $0xdd, Z2, Z0, Z0
+	VSHUFPS      $0x88, Z5, Z3, Z2
+	VSHUFPS      $0xdd, Z5, Z3, Z3
+	VSHUFPS      $0x88, Z6, Z4, Z5
+	VSHUFPS      $0xdd, Z6, Z4, Z4
+	VSHUFI32X4   $0x44, Z2, Z7, Z6
+	VSHUFI32X4   $0xee, Z2, Z7, Z7
+	VSHUFI32X4   $0x44, Z3, Z8, Z2
+	VSHUFI32X4   $0xee, Z3, Z8, Z8
+	VSHUFI32X4   $0x44, Z5, Z1, Z3
+	VSHUFI32X4   $0xee, Z5, Z1, Z1
+	VSHUFI32X4   $0x44, Z4, Z0, Z5
+	VSHUFI32X4   $0xee, Z4, Z0, Z0
+	VSHUFI32X4   $0x88, Z2, Z6, Z4
+	VSHUFI32X4   $0xdd, Z2, Z6, Z6
+	VSHUFI32X4   $0x88, Z5, Z3, Z2
+	VSHUFI32X4   $0xdd, Z5, Z3, Z3
+	VSHUFI32X4   $0x88, Z8, Z7, Z5
+	VSHUFI32X4   $0xdd, Z8, Z7, Z7
+	VSHUFI32X4   $0x88, Z0, Z1, Z8
+	VSHUFI32X4   $0xdd, Z0, Z1, Z1
+	MOVQ         z+8(FP), AX
+	VMOVDQA64    Z4, (AX)
+	VMOVDQA64    Z2, 64(AX)
+	VMOVDQA64    Z6, 128(AX)
+	VMOVDQA64    Z3, 192(AX)
+	VMOVDQA64    Z5, 256(AX)
+	VMOVDQA64    Z8, 320(AX)
+	VMOVDQA64    Z7, 384(AX)
+	VMOVDQA64    Z1, 448(AX)
+	RET
+
+// func Transpose8x16(x *uint32, z *uint32)
+// Requires: AVX512F
+TEXT ·Transpose8x16(SB), NOSPLIT, $0-16
+	MOVQ       x+0(FP), AX
+	VMOVDQA64  (AX), Z0
+	VMOVDQA64  64(AX), Z1
+	VMOVDQA64  128(AX), Z2
+	VMOVDQA64  192(AX), Z3
+	VMOVDQA64  256(AX), Z4
+	VMOVDQA64  320(AX), Z5
+	VMOVDQA64  384(AX), Z6
+	VMOVDQA64  448(AX), Z7
+	VSHUFPS    $0x44, Z1, Z0, Z8
+	VSHUFPS    $0xee, Z1, Z0, Z0
+	VSHUFPS    $0x44, Z3, Z2, Z1
+	VSHUFPS    $0xee, Z3, Z2, Z2
+	VSHUFPS    $0x44, Z5, Z4, Z3
+	VSHUFPS    $0xee, Z5, Z4, Z4
+	VSHUFPS    $0x44, Z7, Z6, Z5
+	VSHUFPS    $0xee, Z7, Z6, Z6
+	VSHUFPS    $0x88, Z1, Z8, Z7
+	VSHUFPS    $0xdd, Z1, Z8, Z8
+	VSHUFPS    $0x88, Z2, Z0, Z1
+	VSHUFPS    $0xdd, Z2, Z0, Z0
+	VSHUFPS    $0x88, Z5, Z3, Z2
+	VSHUFPS    $0xdd, Z5, Z3, Z3
+	VSHUFPS    $0x88, Z6, Z4, Z5
+	VSHUFPS    $0xdd, Z6, Z4, Z4
+	VSHUFI32X4 $0x44, Z2, Z7, Z6
+	VSHUFI32X4 $0xee, Z2, Z7, Z7
+	VSHUFI32X4 $0x44, Z3, Z8, Z2
+	VSHUFI32X4 $0xee, Z3, Z8, Z8
+	VSHUFI32X4 $0x44, Z5, Z1, Z3
+	VSHUFI32X4 $0xee, Z5, Z1, Z1
+	VSHUFI32X4 $0x44, Z4, Z0, Z5
+	VSHUFI32X4 $0xee, Z4, Z0, Z0
+	VSHUFI32X4 $0x88, Z2, Z6, Z4
+	VSHUFI32X4 $0xdd, Z2, Z6, Z6
+	VSHUFI32X4 $0x88, Z5, Z3, Z2
+	VSHUFI32X4 $0xdd, Z5, Z3, Z3
+	VSHUFI32X4 $0x88, Z8, Z7, Z5
+	VSHUFI32X4 $0xdd, Z8, Z7, Z7
+	VSHUFI32X4 $0x88, Z0, Z1, Z8
+	VSHUFI32X4 $0xdd, Z0, Z1, Z1
+	MOVQ       z+8(FP), AX
+	VMOVDQA64  Z4, (AX)
+	VMOVDQA64  Z2, 64(AX)
+	VMOVDQA64  Z6, 128(AX)
+	VMOVDQA64  Z3, 192(AX)
+	VMOVDQA64  Z5, 256(AX)
+	VMOVDQA64  Z8, 320(AX)
+	VMOVDQA64  Z7, 384(AX)
+	VMOVDQA64  Z1, 448(AX)
+	RET
+
+// func Transpose16x16(x **uint32, z *uint32)
+// Requires: AVX512F
+TEXT ·Transpose16x16(SB), NOSPLIT, $0-16
 	MOVQ       x+0(FP), AX
 	MOVQ       (AX), CX
 	VMOVDQA64  (CX), Z0
@@ -39,86 +14621,86 @@ TEXT ·Transpose(SB), NOSPLIT, $0-16
 	MOVQ       120(AX), CX
 	VMOVDQA64  (CX), Z15
 	VSHUFPS    $0x44, Z1, Z0, Z16
-	VSHUFPS    $0xee, Z1, Z0, Z17
+	VSHUFPS    $0xee, Z1, Z0, Z0
 	VSHUFPS    $0x44, Z3, Z2, Z1
-	VSHUFPS    $0xee, Z3, Z2, Z3
-	VSHUFPS    $0x44, Z5, Z4, Z23
-	VSHUFPS    $0xee, Z5, Z4, Z18
-	VSHUFPS    $0x44, Z7, Z6, Z24
-	VSHUFPS    $0xee, Z7, Z6, Z7
-	VSHUFPS    $0x44, Z9, Z8, Z19
-	VSHUFPS    $0xee, Z9, Z8, Z20
+	VSHUFPS    $0xee, Z3, Z2, Z2
+	VSHUFPS    $0x44, Z5, Z4, Z3
+	VSHUFPS    $0xee, Z5, Z4, Z4
+	VSHUFPS    $0x44, Z7, Z6, Z5
+	VSHUFPS    $0xee, Z7, Z6, Z6
+	VSHUFPS    $0x44, Z9, Z8, Z7
+	VSHUFPS    $0xee, Z9, Z8, Z8
 	VSHUFPS    $0x44, Z11, Z10, Z9
-	VSHUFPS    $0xee, Z11, Z10, Z11
-	VSHUFPS    $0x44, Z13, Z12, Z21
-	VSHUFPS    $0xee, Z13, Z12, Z22
-	VSHUFPS    $0x44, Z15, Z14, Z25
-	VSHUFPS    $0xee, Z15, Z14, Z15
-	VSHUFPS    $0x88, Z1, Z16, Z0
-	VSHUFPS    $0xdd, Z1, Z16, Z2
-	VSHUFPS    $0x88, Z3, Z17, Z4
-	VSHUFPS    $0xdd, Z3, Z17, Z6
-	VSHUFPS    $0x88, Z24, Z23, Z1
-	VSHUFPS    $0xdd, Z24, Z23, Z3
-	VSHUFPS    $0x88, Z7, Z18, Z5
-	VSHUFPS    $0xdd, Z7, Z18, Z7
-	VSHUFPS    $0x88, Z9, Z19, Z8
-	VSHUFPS    $0xdd, Z9, Z19, Z10
-	VSHUFPS    $0x88, Z11, Z20, Z12
-	VSHUFPS    $0xdd, Z11, Z20, Z14
-	VSHUFPS    $0x88, Z25, Z21, Z9
-	VSHUFPS    $0xdd, Z25, Z21, Z11
-	VSHUFPS    $0x88, Z15, Z22, Z13
-	VSHUFPS    $0xdd, Z15, Z22, Z15
-	VSHUFI32X4 $0x44, Z1, Z0, Z16
-	VSHUFI32X4 $0xee, Z1, Z0, Z19
-	VSHUFI32X4 $0x44, Z3, Z2, Z17
-	VSHUFI32X4 $0xee, Z3, Z2, Z20
-	VSHUFI32X4 $0x44, Z5, Z4, Z23
-	VSHUFI32X4 $0xee, Z5, Z4, Z21
-	VSHUFI32X4 $0x44, Z7, Z6, Z18
-	VSHUFI32X4 $0xee, Z7, Z6, Z22
-	VSHUFI32X4 $0x44, Z9, Z8, Z1
-	VSHUFI32X4 $0xee, Z9, Z8, Z9
-	VSHUFI32X4 $0x44, Z11, Z10, Z3
-	VSHUFI32X4 $0xee, Z11, Z10, Z11
-	VSHUFI32X4 $0x44, Z13, Z12, Z24
-	VSHUFI32X4 $0xee, Z13, Z12, Z25
-	VSHUFI32X4 $0x44, Z15, Z14, Z7
-	VSHUFI32X4 $0xee, Z15, Z14, Z15
-	VSHUFI32X4 $0x88, Z1, Z16, Z0
-	VSHUFI32X4 $0xdd, Z1, Z16, Z4
-	VSHUFI32X4 $0x88, Z3, Z17, Z1
-	VSHUFI32X4 $0xdd, Z3, Z17, Z5
-	VSHUFI32X4 $0x88, Z24, Z23, Z2
-	VSHUFI32X4 $0xdd, Z24, Z23, Z6
-	VSHUFI32X4 $0x88, Z7, Z18, Z3
-	VSHUFI32X4 $0xdd, Z7, Z18, Z7
-	VSHUFI32X4 $0x88, Z9, Z19, Z8
-	VSHUFI32X4 $0xdd, Z9, Z19, Z12
-	VSHUFI32X4 $0x88, Z11, Z20, Z9
-	VSHUFI32X4 $0xdd, Z11, Z20, Z13
-	VSHUFI32X4 $0x88, Z25, Z21, Z10
-	VSHUFI32X4 $0xdd, Z25, Z21, Z14
-	VSHUFI32X4 $0x88, Z15, Z22, Z11
-	VSHUFI32X4 $0xdd, Z15, Z22, Z15
+	VSHUFPS    $0xee, Z11, Z10, Z10
+	VSHUFPS    $0x44, Z13, Z12, Z11
+	VSHUFPS    $0xee, Z13, Z12, Z12
+	VSHUFPS    $0x44, Z15, Z14, Z13
+	VSHUFPS    $0xee, Z15, Z14, Z14
+	VSHUFPS    $0x88, Z1, Z16, Z15
+	VSHUFPS    $0xdd, Z1, Z16, Z16
+	VSHUFPS    $0x88, Z2, Z0, Z1
+	VSHUFPS    $0xdd, Z2, Z0, Z0
+	VSHUFPS    $0x88, Z5, Z3, Z2
+	VSHUFPS    $0xdd, Z5, Z3, Z3
+	VSHUFPS    $0x88, Z6, Z4, Z5
+	VSHUFPS    $0xdd, Z6, Z4, Z4
+	VSHUFPS    $0x88, Z9, Z7, Z6
+	VSHUFPS    $0xdd, Z9, Z7, Z7
+	VSHUFPS    $0x88, Z10, Z8, Z9
+	VSHUFPS    $0xdd, Z10, Z8, Z8
+	VSHUFPS    $0x88, Z13, Z11, Z10
+	VSHUFPS    $0xdd, Z13, Z11, Z11
+	VSHUFPS    $0x88, Z14, Z12, Z13
+	VSHUFPS    $0xdd, Z14, Z12, Z12
+	VSHUFI32X4 $0x44, Z2, Z15, Z14
+	VSHUFI32X4 $0xee, Z2, Z15, Z15
+	VSHUFI32X4 $0x44, Z3, Z16, Z2
+	VSHUFI32X4 $0xee, Z3, Z16, Z16
+	VSHUFI32X4 $0x44, Z5, Z1, Z3
+	VSHUFI32X4 $0xee, Z5, Z1, Z1
+	VSHUFI32X4 $0x44, Z4, Z0, Z5
+	VSHUFI32X4 $0xee, Z4, Z0, Z0
+	VSHUFI32X4 $0x44, Z10, Z6, Z4
+	VSHUFI32X4 $0xee, Z10, Z6, Z6
+	VSHUFI32X4 $0x44, Z11, Z7, Z10
+	VSHUFI32X4 $0xee, Z11, Z7, Z7
+	VSHUFI32X4 $0x44, Z13, Z9, Z11
+	VSHUFI32X4 $0xee, Z13, Z9, Z9
+	VSHUFI32X4 $0x44, Z12, Z8, Z13
+	VSHUFI32X4 $0xee, Z12, Z8, Z8
+	VSHUFI32X4 $0x88, Z4, Z14, Z12
+	VSHUFI32X4 $0xdd, Z4, Z14, Z14
+	VSHUFI32X4 $0x88, Z10, Z2, Z4
+	VSHUFI32X4 $0xdd, Z10, Z2, Z2
+	VSHUFI32X4 $0x88, Z11, Z3, Z10
+	VSHUFI32X4 $0xdd, Z11, Z3, Z3
+	VSHUFI32X4 $0x88, Z13, Z5, Z11
+	VSHUFI32X4 $0xdd, Z13, Z5, Z5
+	VSHUFI32X4 $0x88, Z6, Z15, Z13
+	VSHUFI32X4 $0xdd, Z6, Z15, Z15
+	VSHUFI32X4 $0x88, Z7, Z16, Z6
+	VSHUFI32X4 $0xdd, Z7, Z16, Z16
+	VSHUFI32X4 $0x88, Z9, Z1, Z7
+	VSHUFI32X4 $0xdd, Z9, Z1, Z1
+	VSHUFI32X4 $0x88, Z8, Z0, Z9
+	VSHUFI32X4 $0xdd, Z8, Z0, Z0
 	MOVQ       z+8(FP), AX
-	VMOVDQA64  Z0, (AX)
-	VMOVDQA64  Z1, 64(AX)
-	VMOVDQA64  Z2, 128(AX)
-	VMOVDQA64  Z3, 192(AX)
-	VMOVDQA64  Z4, 256(AX)
-	VMOVDQA64  Z5, 320(AX)
-	VMOVDQA64  Z6, 384(AX)
-	VMOVDQA64  Z7, 448(AX)
-	VMOVDQA64  Z8, 512(AX)
-	VMOVDQA64  Z9, 576(AX)
-	VMOVDQA64  Z10, 640(AX)
-	VMOVDQA64  Z11, 704(AX)
-	VMOVDQA64  Z12, 768(AX)
-	VMOVDQA64  Z13, 832(AX)
-	VMOVDQA64  Z14, 896(AX)
-	VMOVDQA64  Z15, 960(AX)
+	VMOVDQA64  Z12, (AX)
+	VMOVDQA64  Z4, 64(AX)
+	VMOVDQA64  Z10, 128(AX)
+	VMOVDQA64  Z11, 192(AX)
+	VMOVDQA64  Z14, 256(AX)
+	VMOVDQA64  Z2, 320(AX)
+	VMOVDQA64  Z3, 384(AX)
+	VMOVDQA64  Z5, 448(AX)
+	VMOVDQA64  Z13, 512(AX)
+	VMOVDQA64  Z6, 576(AX)
+	VMOVDQA64  Z7, 640(AX)
+	VMOVDQA64  Z9, 704(AX)
+	VMOVDQA64  Z15, 768(AX)
+	VMOVDQA64  Z16, 832(AX)
+	VMOVDQA64  Z1, 896(AX)
+	VMOVDQA64  Z0, 960(AX)
 	RET
 
 // func G(a *[16]uint32, b *[16]uint32, c *[16]uint32, d *[16]uint32, mx *[16]uint32, my *[16]uint32)
