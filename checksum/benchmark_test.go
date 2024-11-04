@@ -646,11 +646,11 @@ func BenchmarkTranspose8x16AVX(b *testing.B) {
 	b.ResetTimer()
 
 	matrix := matrix8x16
-	var z [8][2][8]uint32
+	var z [16][8]uint32
 
 	b.StartTimer()
 	for range b.N {
-		Transpose8x16(&matrix[0][0], &z[0][0][0])
+		Transpose8x16(&matrix[0][0], &z[0][0])
 	}
 	b.StopTimer()
 
