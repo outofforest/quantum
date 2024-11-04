@@ -133,7 +133,6 @@ func Transpose() {
 	// Load matrix to registers
 
 	memX := Mem{Base: Load(Param("x"), GP64())}
-	memZ := Mem{Base: Load(Param("z"), GP64())}
 	r := GP64()
 
 	for i := range numOfBlocks {
@@ -221,6 +220,7 @@ func Transpose() {
 
 	// Store results
 
+	memZ := Mem{Base: Load(Param("z"), GP64())}
 	for i := range numOfBlocks {
 		VMOVDQA64(rB[i], memZ.Offset(i*blockSize))
 	}
@@ -247,37 +247,35 @@ func G() {
 	VMOVDQA64(Mem{Base: Load(Param("mx"), GP64())}, mx)
 	VMOVDQA64(Mem{Base: Load(Param("my"), GP64())}, my)
 
-	for range 7 {
-		// a += b + mx
-		VPADDD(a, b, a)
-		VPADDD(a, mx, a)
+	// a += b + mx
+	VPADDD(a, b, a)
+	VPADDD(a, mx, a)
 
-		// d = bits.RotateLeft32(d^a, -16)
-		VPXORD(d, a, d)
-		VPRORD(U8(16), d, d)
+	// d = bits.RotateLeft32(d^a, -16)
+	VPXORD(d, a, d)
+	VPRORD(U8(16), d, d)
 
-		// c += d
-		VPADDD(c, d, c)
+	// c += d
+	VPADDD(c, d, c)
 
-		// b = bits.RotateLeft32(b^c, -12)
-		VPXORD(b, c, b)
-		VPRORD(U8(12), b, b)
+	// b = bits.RotateLeft32(b^c, -12)
+	VPXORD(b, c, b)
+	VPRORD(U8(12), b, b)
 
-		// a += b + my
-		VPADDD(a, b, a)
-		VPADDD(a, my, a)
+	// a += b + my
+	VPADDD(a, b, a)
+	VPADDD(a, my, a)
 
-		// d = bits.RotateLeft32(d^a, -8)
-		VPXORD(d, a, d)
-		VPRORD(U8(8), d, d)
+	// d = bits.RotateLeft32(d^a, -8)
+	VPXORD(d, a, d)
+	VPRORD(U8(8), d, d)
 
-		// c += d
-		VPADDD(c, d, c)
+	// c += d
+	VPADDD(c, d, c)
 
-		// b = bits.RotateLeft32(b^c, -7)
-		VPXORD(b, c, b)
-		VPRORD(U8(7), b, b)
-	}
+	// b = bits.RotateLeft32(b^c, -7)
+	VPXORD(b, c, b)
+	VPRORD(U8(7), b, b)
 
 	VMOVDQA64(a, memA)
 	VMOVDQA64(b, memB)
