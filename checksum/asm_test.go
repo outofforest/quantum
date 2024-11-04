@@ -292,13 +292,15 @@ func TestTransposeChunks(t *testing.T) {
 
 	var z [256][16]uint32
 
-	ch := [16]*uint32{
-		&chunks[0][0], &chunks[1][0], &chunks[2][0], &chunks[3][0],
-		&chunks[4][0], &chunks[5][0], &chunks[6][0], &chunks[7][0],
-		&chunks[8][0], &chunks[9][0], &chunks[10][0], &chunks[11][0],
-		&chunks[12][0], &chunks[13][0], &chunks[14][0], &chunks[15][0],
+	for i := 0; i < 256; i += 16 {
+		ch := [16]*uint32{
+			&chunks[0][i], &chunks[1][i], &chunks[2][i], &chunks[3][i],
+			&chunks[4][i], &chunks[5][i], &chunks[6][i], &chunks[7][i],
+			&chunks[8][i], &chunks[9][i], &chunks[10][i], &chunks[11][i],
+			&chunks[12][i], &chunks[13][i], &chunks[14][i], &chunks[15][i],
+		}
+		Transpose(&ch[0], &z[i][0])
 	}
-	Transpose(&ch[0], &z[0][0])
 
 	require.Equal(t, expectedZ, z)
 }
