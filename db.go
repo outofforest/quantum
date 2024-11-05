@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -13,6 +14,7 @@ import (
 	"github.com/outofforest/parallel"
 	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/alloc"
+	"github.com/outofforest/quantum/checksum"
 	"github.com/outofforest/quantum/list"
 	"github.com/outofforest/quantum/persistent"
 	"github.com/outofforest/quantum/pipeline"
@@ -439,9 +441,12 @@ func (db *DB) Run(ctx context.Context) error {
 		revisionQReader := executeTxQReader.NewReader()
 		allocateQReader := revisionQReader.NewReader()
 		deallocateQReader := allocateQReader.NewReader()
-		pipeReaders := make([]*pipeline.Reader, 0, len(db.config.Stores))
-		for range cap(pipeReaders) {
-			pipeReaders = append(pipeReaders, deallocateQReader.NewReader())
+		checksumQReader1 := deallocateQReader.NewReader()
+		checksumQReader2 := checksumQReader1.NewReader()
+		checksumQReader3 := checksumQReader2.NewReader()
+		storeQReaders := make([]*pipeline.Reader, 0, len(db.config.Stores))
+		for range cap(storeQReaders) {
+			storeQReaders = append(storeQReaders, checksumQReader3.NewReader())
 		}
 
 		spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
@@ -472,9 +477,18 @@ func (db *DB) Run(ctx context.Context) error {
 		spawn("deallocate", parallel.Continue, func(ctx context.Context) error {
 			return db.processDeallocationRequests(ctx, deallocateQReader)
 		})
+		spawn("checksum1", parallel.Continue, func(ctx context.Context) error {
+			return db.updateChecksums(ctx, checksumQReader1, 3, 2)
+		})
+		spawn("checksum2", parallel.Continue, func(ctx context.Context) error {
+			return db.updateChecksums(ctx, checksumQReader2, 3, 1)
+		})
+		spawn("checksum3", parallel.Continue, func(ctx context.Context) error {
+			return db.updateChecksums(ctx, checksumQReader3, 0, 0)
+		})
 		for i, store := range db.config.Stores {
 			spawn(fmt.Sprintf("store-%02d", i), parallel.Continue, func(ctx context.Context) error {
-				return db.processStoreRequests(ctx, store, pipeReaders[i])
+				return db.processStoreRequests(ctx, store, storeQReaders[i])
 			})
 		}
 
@@ -650,6 +664,97 @@ func (db *DB) processDeallocationRequests(
 					//nolint:staticcheck
 					if pointerToStore != nil {
 						// FIXME (wojciech): This must be handled somehow
+					}
+				}
+			}
+		}
+	}
+}
+
+func (db *DB) updateChecksums(
+	ctx context.Context,
+	pipeReader *pipeline.Reader,
+	divider uint64,
+	mod uint64,
+) error {
+	zeroBlock := make([]byte, 64)
+	zp := &zeroBlock[0]
+	zeroMatrix := [16][16]*byte{
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
+	}
+
+	matrix := [16][16]*byte{}
+	matrixP := &matrix[0][0]
+	checksums := [16]*[32]byte{{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}}
+	checksumsP := (**byte)(unsafe.Pointer(&checksums[0]))
+
+	matrix = zeroMatrix
+	var nodesWaiting int
+	var ri uint64
+	for {
+		if nodesWaiting > 0 {
+			checksum.Blake3(matrixP, checksumsP)
+			matrix = zeroMatrix
+			nodesWaiting = 0
+		}
+
+		for range pipeReader.Count() {
+			ri++
+			req := pipeReader.Read()
+
+			if req.SyncCh != nil {
+				ri = 0
+				if nodesWaiting > 0 {
+					checksum.Blake3(matrixP, checksumsP)
+					matrix = zeroMatrix
+					nodesWaiting = 0
+				}
+			}
+			if req.Type == pipeline.Close {
+				pipeReader.Acknowledge()
+				return errors.WithStack(ctx.Err())
+			}
+
+			if req.ChecksumProcessed {
+				continue
+			}
+
+			if divider > 0 && (ri/16)%divider != mod {
+				continue
+			}
+
+			req.ChecksumProcessed = true
+			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+				for i := range sr.PointersToStore {
+					p := sr.Store[i]
+					if atomic.LoadUint64(&p.Revision) != sr.RequestedRevision {
+						continue
+					}
+					node := db.config.State.Node(p.VolatileAddress)
+					for bi := range 16 {
+						matrix[nodesWaiting][bi] = (*byte)(unsafe.Add(node, bi*64))
+					}
+					nodesWaiting++
+
+					if nodesWaiting == 16 {
+						checksum.Blake3(matrixP, checksumsP)
+						matrix = zeroMatrix
+						nodesWaiting = 0
 					}
 				}
 			}
