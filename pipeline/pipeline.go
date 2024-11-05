@@ -32,12 +32,13 @@ func NewTransactionRequest(massTR *mass.Mass[TransactionRequest]) *TransactionRe
 
 // TransactionRequest is used to request transaction execution.
 type TransactionRequest struct {
-	Transaction      any
-	StoreRequest     *StoreRequest
-	LastStoreRequest **StoreRequest
-	SyncCh           chan<- error
-	Next             *TransactionRequest
-	Type             TransactionRequestType
+	Transaction       any
+	StoreRequest      *StoreRequest
+	LastStoreRequest  **StoreRequest
+	SyncCh            chan<- error
+	Next              *TransactionRequest
+	Type              TransactionRequestType
+	ChecksumProcessed bool
 }
 
 // AddStoreRequest adds store request to the transaction.
@@ -80,7 +81,7 @@ func (p *Pipeline) Push(item *TransactionRequest) {
 
 	p.count++
 
-	if p.count == 100 || item.SyncCh != nil || item.Type == Close {
+	if p.count == 96 || item.SyncCh != nil || item.Type == Close {
 		atomic.AddUint64(p.availableCount, p.count)
 		p.count = 0
 	}
@@ -107,7 +108,7 @@ type Reader struct {
 
 // Count returns the number of available requests to process.
 func (qr *Reader) Count() uint64 {
-	const maxChunkSize = 100
+	const maxChunkSize = 96
 
 	atomic.StoreUint64(qr.processedCount, qr.currentProcessedCount)
 	if toProcess := qr.currentAvailableCount - qr.currentProcessedCount; toProcess > 0 {
