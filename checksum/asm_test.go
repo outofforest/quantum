@@ -18,7 +18,7 @@ import (
 func TestBlake3(t *testing.T) {
 	chunks := chunks
 
-	ch := [16]*byte{
+	chP := [16]*byte{
 		(*byte)(unsafe.Pointer(&chunks[0][0])),
 		(*byte)(unsafe.Pointer(&chunks[1][0])),
 		(*byte)(unsafe.Pointer(&chunks[2][0])),
@@ -38,9 +38,14 @@ func TestBlake3(t *testing.T) {
 	}
 
 	var z [16][32]byte
-	Blake3(&ch[0], &z[0][0])
+	zP := [16]*byte{
+		&z[0][0], &z[1][0], &z[2][0], &z[3][0], &z[4][0], &z[5][0], &z[6][0], &z[7][0],
+		&z[8][0], &z[9][0], &z[10][0], &z[11][0], &z[12][0], &z[13][0], &z[14][0], &z[15][0],
+	}
 
-	for i := range ch {
+	Blake3(&chP[0], &zP[0])
+
+	for i := range chP {
 		ch := &chunks[i][0]
 		b3 := blake3zeebo.Sum256(unsafe.Slice((*byte)(unsafe.Pointer(ch)), len(chunks[0])*4))
 		assert.Equal(t, b3, z[i])

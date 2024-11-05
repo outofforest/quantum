@@ -107,7 +107,7 @@ func BenchmarkChecksum1KAVX(b *testing.B) {
 
 	chunks := chunks
 
-	ch := [16]*byte{
+	chP := [16]*byte{
 		(*byte)(unsafe.Pointer(&chunks[0][0])),
 		(*byte)(unsafe.Pointer(&chunks[1][0])),
 		(*byte)(unsafe.Pointer(&chunks[2][0])),
@@ -127,10 +127,14 @@ func BenchmarkChecksum1KAVX(b *testing.B) {
 	}
 
 	var z [16][32]byte
+	zP := [16]*byte{
+		&z[0][0], &z[1][0], &z[2][0], &z[3][0], &z[4][0], &z[5][0], &z[6][0], &z[7][0],
+		&z[8][0], &z[9][0], &z[10][0], &z[11][0], &z[12][0], &z[13][0], &z[14][0], &z[15][0],
+	}
 
 	b.StartTimer()
 	for range b.N {
-		Blake3(&ch[0], &z[0][0])
+		Blake3(&chP[0], &zP[0])
 	}
 	b.StopTimer()
 }

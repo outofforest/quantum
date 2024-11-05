@@ -2,8 +2,8 @@
 
 #include "textflag.h"
 
-// func Blake3(b **byte, z *byte)
-// Requires: AVX512F
+// func Blake3(b **byte, z **byte)
+// Requires: AVX512F, AVX512VL
 TEXT ·Blake3(SB), NOSPLIT, $0-16
 	MOVD         $0x6a09e667, AX
 	VPBROADCASTD AX, Z0
@@ -14519,14 +14519,46 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VSHUFI32X4   $0x88, Z0, Z1, Z8
 	VSHUFI32X4   $0xdd, Z0, Z1, Z1
 	MOVQ         z+8(FP), AX
-	VMOVDQA64    Z4, (AX)
-	VMOVDQA64    Z2, 64(AX)
-	VMOVDQA64    Z6, 128(AX)
-	VMOVDQA64    Z3, 192(AX)
-	VMOVDQA64    Z5, 256(AX)
-	VMOVDQA64    Z8, 320(AX)
-	VMOVDQA64    Z7, 384(AX)
-	VMOVDQA64    Z1, 448(AX)
+	MOVQ         (AX), CX
+	VMOVDQA64    Y4, (CX)
+	MOVQ         8(AX), CX
+	VSHUFI32X4   $0xee, Z4, Z4, Z4
+	VMOVDQA64    Y4, (CX)
+	MOVQ         16(AX), CX
+	VMOVDQA64    Y2, (CX)
+	MOVQ         24(AX), CX
+	VSHUFI32X4   $0xee, Z2, Z2, Z2
+	VMOVDQA64    Y2, (CX)
+	MOVQ         32(AX), CX
+	VMOVDQA64    Y6, (CX)
+	MOVQ         40(AX), CX
+	VSHUFI32X4   $0xee, Z6, Z6, Z6
+	VMOVDQA64    Y6, (CX)
+	MOVQ         48(AX), CX
+	VMOVDQA64    Y3, (CX)
+	MOVQ         56(AX), CX
+	VSHUFI32X4   $0xee, Z3, Z3, Z3
+	VMOVDQA64    Y3, (CX)
+	MOVQ         64(AX), CX
+	VMOVDQA64    Y5, (CX)
+	MOVQ         72(AX), CX
+	VSHUFI32X4   $0xee, Z5, Z5, Z5
+	VMOVDQA64    Y5, (CX)
+	MOVQ         80(AX), CX
+	VMOVDQA64    Y8, (CX)
+	MOVQ         88(AX), CX
+	VSHUFI32X4   $0xee, Z8, Z8, Z8
+	VMOVDQA64    Y8, (CX)
+	MOVQ         96(AX), CX
+	VMOVDQA64    Y7, (CX)
+	MOVQ         104(AX), CX
+	VSHUFI32X4   $0xee, Z7, Z7, Z7
+	VMOVDQA64    Y7, (CX)
+	MOVQ         112(AX), CX
+	VMOVDQA64    Y1, (CX)
+	MOVQ         120(AX), CX
+	VSHUFI32X4   $0xee, Z1, Z1, Z1
+	VMOVDQA64    Y1, (CX)
 	RET
 
 // func Transpose8x16(x *uint32, z *uint32)
