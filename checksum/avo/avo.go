@@ -3,8 +3,6 @@ package main
 //go:generate go run . -out ../asm.s -stubs ../asm_stub.go -pkg checksum
 
 import (
-	"fmt"
-
 	. "github.com/mmcloughlin/avo/build"
 	. "github.com/mmcloughlin/avo/operand"
 	"github.com/mmcloughlin/avo/reg"
@@ -167,27 +165,21 @@ func Blake3() {
 
 // Transpose16x16 transposes 16x16 matrix made of vectors x0..xf and stores the results in z0..zf.
 func Transpose16x16() {
-	TEXT("Transpose16x16", NOSPLIT, "func(x **uint32, z *uint32)")
+	TEXT("Transpose16x16", NOSPLIT, "func(x *uint32, z *uint32)")
 	Doc("Transpose16x16 transposes 16x16 matrix made of vectors x0..xf and stores the results in z0..zf.")
 
+	// Load matrix to registers
 	rX := [numOfBlocks]reg.VecVirtual{
 		ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(),
 	}
-
-	// Load matrix to registers
-
 	memX := Mem{Base: Load(Param("x"), GP64())}
-	r := GP64()
-
 	for i := range numOfBlocks {
-		MOVQ(memX.Offset(i*uint64Size), r)
-		VMOVDQA64(Mem{Base: r}, rX[i])
+		VMOVDQA64(memX.Offset(i*blockSize), rX[i])
 	}
 
 	rB := transpose16x16(rX)
 
 	// Store results
-
 	memZ := Mem{Base: Load(Param("z"), GP64())}
 	for i := range numOfBlocks {
 		VMOVDQA64(rB[i], memZ.Offset(i*blockSize))
@@ -201,12 +193,10 @@ func Transpose8x16() {
 	TEXT("Transpose8x16", NOSPLIT, "func(x *uint32, z *uint32)")
 	Doc("Transpose8x16 transposes 8x16 matrix made of vectors x0..x7 and stores the results in z0..z7.")
 
+	// Load matrix to registers
 	rX := [numOfBlocks / 2]reg.VecVirtual{
 		ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(),
 	}
-
-	// Load matrix to registers
-
 	memX := Mem{Base: Load(Param("x"), GP64())}
 	for i := range numOfBlocks / 2 {
 		VMOVDQA64(memX.Offset(i*blockSize), rX[i])
@@ -215,7 +205,6 @@ func Transpose8x16() {
 	rB := transpose8x16(rX)
 
 	// Store results
-
 	memZ := Mem{Base: Load(Param("z"), GP64())}
 	for i := range numOfBlocks / 2 {
 		VMOVDQA64(rB[i], memZ.Offset(i*blockSize))
@@ -575,158 +564,11 @@ func g(a, b, c, d, mx, my reg.VecVirtual) {
 	VPRORD(U8(7), b, b)
 }
 
-// Add computes z = x + y.
-func Add() {
-	TEXT("Add", NOSPLIT, "func(x, y, z *[16]uint32)")
-	Doc("Add computes z = x + y.")
-
-	r := GP64()
-
-	x := ZMM()
-	mem := Mem{Base: Load(Param("x"), r)}
-	VMOVDQA64(mem, x)
-
-	y := ZMM()
-	mem.Base = Load(Param("y"), r)
-	VMOVDQA64(mem, y)
-
-	VPADDD(x, y, x)
-
-	mem.Base = Load(Param("z"), r)
-	VMOVDQA64(x, mem)
-
-	RET()
-}
-
-// Add10 computes z = x + y + y + y + y + y + y + y + y + y + y.
-func Add10() {
-	TEXT("Add10", NOSPLIT, "func(x, y, z *[16]uint32)")
-	Doc("Add computes z = x + y + y + y + y + y + y + y + y + y + y.")
-
-	r := GP64()
-
-	x := ZMM()
-	mem := Mem{Base: Load(Param("x"), r)}
-	VMOVDQA64(mem, x)
-
-	y := ZMM()
-	mem.Base = Load(Param("y"), r)
-	VMOVDQA64(mem, y)
-
-	for range 10 {
-		VPADDD(x, y, x)
-	}
-
-	mem.Base = Load(Param("z"), r)
-	VMOVDQA64(x, mem)
-
-	RET()
-}
-
-// Xor computes z = x ^ y.
-func Xor() {
-	TEXT("Xor", NOSPLIT, "func(x, y, z *[16]uint32)")
-	Doc("// Xor computes z = x ^ y.")
-
-	r := GP64()
-
-	x := ZMM()
-	mem := Mem{Base: Load(Param("x"), r)}
-	VMOVDQA64(mem, x)
-
-	y := ZMM()
-	mem.Base = Load(Param("y"), r)
-	VMOVDQA64(mem, y)
-
-	VPXORD(x, y, x)
-
-	mem.Base = Load(Param("z"), r)
-	VMOVDQA64(x, mem)
-
-	RET()
-}
-
-// Xor10 computes z = x ^ y ^ y ^ y ^ y ^ y ^ y ^ y ^ y ^ y ^ y.
-func Xor10() {
-	TEXT("Xor10", NOSPLIT, "func(x, y, z *[16]uint32)")
-	Doc("// Xor10 computes z = x ^ y ^ y ^ y ^ y ^ y ^ y ^ y ^ y ^ y ^ y.")
-
-	r := GP64()
-
-	x := ZMM()
-	mem := Mem{Base: Load(Param("x"), r)}
-	VMOVDQA64(mem, x)
-
-	y := ZMM()
-	mem.Base = Load(Param("y"), r)
-	VMOVDQA64(mem, y)
-
-	for range 10 {
-		VPXORD(x, y, x)
-	}
-
-	mem.Base = Load(Param("z"), r)
-	VMOVDQA64(x, mem)
-
-	RET()
-}
-
-// RotateRight generates functions RightRotationN computing z = x >>> N for N = 7, 8, 12, and 16.
-func RotateRight(numOfBits uint8) {
-	TEXT(fmt.Sprintf("RotateRight%d", numOfBits), NOSPLIT, "func(x *[16]uint32, z *[16]uint32)")
-	Doc(fmt.Sprintf("// RotateRight%[1]d computes z = x >>> %[1]d.", numOfBits))
-
-	r := GP64()
-
-	x := ZMM()
-	mem := Mem{Base: Load(Param("x"), r)}
-	VMOVDQA64(mem, x)
-
-	VPRORD(U8(numOfBits), x, x)
-
-	mem.Base = Load(Param("z"), r)
-	VMOVDQA64(x, mem)
-
-	RET()
-}
-
-// RotateRight10 generates functions RightRotationN computing z = x >>> N >>> N >>> N >>> N >>> N >>> N >>> N >>> N >>> N >>> N
-// for N = 7, 8, 12, and 16.
-//
-//nolint:lll
-func RotateRight10(numOfBits uint8) {
-	TEXT(fmt.Sprintf("RotateRight10%d", numOfBits), NOSPLIT, "func(x *[16]uint32, z *[16]uint32)")
-	Doc(fmt.Sprintf("// RotateRight10%[1]d computes z = x >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d >>> %[1]d.", numOfBits))
-
-	r := GP64()
-
-	x := ZMM()
-	mem := Mem{Base: Load(Param("x"), r)}
-	VMOVDQA64(mem, x)
-
-	for range 10 {
-		VPRORD(U8(numOfBits), x, x)
-	}
-
-	mem.Base = Load(Param("z"), r)
-	VMOVDQA64(x, mem)
-
-	RET()
-}
-
 func main() {
 	Blake3()
 	Transpose8x16()
 	Transpose16x16()
 	G()
-	Add()
-	Add10()
-	Xor()
-	Xor10()
-	for _, numOfBits := range []uint8{7, 8, 12, 16} {
-		RotateRight(numOfBits)
-		RotateRight10(numOfBits)
-	}
 
 	Generate()
 }
