@@ -34,7 +34,7 @@ const (
 
 // Blake3 implements blake3 for 16 1KB messages.
 func Blake3() {
-	TEXT("Blake3", NOSPLIT, "func(b **byte, z *byte)")
+	TEXT("Blake3", NOSPLIT, "func(b **byte, z **byte)")
 	Doc("Blake3 implements blake3 for 16 1KB messages.")
 
 	sInit := [16]uint32{
@@ -157,7 +157,13 @@ func Blake3() {
 
 	memZ := Mem{Base: Load(Param("z"), GP64())}
 	for i := range numOfBlocks / 2 {
-		VMOVDQA64(rS1[i], memZ.Offset(i*blockSize))
+		m := Mem{Base: GP64()}
+		MOVQ(memZ.Offset((2*i)*uint64Size), m.Base)
+		VMOVDQA64(rS1[i].AsY(), m)
+
+		MOVQ(memZ.Offset((2*i+1)*uint64Size), m.Base)
+		VSHUFI32X4(U8(0xee), rS1[i], rS1[i], rS1[i])
+		VMOVDQA64(rS1[i].AsY(), m)
 	}
 
 	RET()
