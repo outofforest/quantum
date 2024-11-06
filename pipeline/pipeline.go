@@ -54,7 +54,8 @@ func (t *TransactionRequest) AddStoreRequest(sr *StoreRequest) {
 type StoreRequest struct {
 	ImmediateDeallocation bool
 	PointersToStore       uint64
-	Store                 [StoreCapacity]*types.Pointer
+	// FIXME (wojciech): Pointer is modified during redistribution. We need to copy pointers here.
+	Store [StoreCapacity]*types.Pointer
 
 	RequestedRevision uint64
 	Deallocate        []types.Pointer

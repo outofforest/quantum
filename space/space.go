@@ -31,9 +31,8 @@ type Config[K, V comparable] struct {
 func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 	var k K
 	s := &Space[K, V]{
-		config:      config,
-		hashBuff:    make([]byte, unsafe.Sizeof(k)+1),
-		massPointer: mass.New[*types.Pointer](10000),
+		config:   config,
+		hashBuff: make([]byte, unsafe.Sizeof(k)+1),
 	}
 
 	defaultInit := Entry[K, V]{
@@ -68,7 +67,6 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 type Space[K, V comparable] struct {
 	config      Config[K, V]
 	hashBuff    []byte
-	massPointer *mass.Mass[*types.Pointer]
 	initSize    uint64
 	defaultInit []byte
 	trials      [][trials]uint64
@@ -324,7 +322,8 @@ func (s *Space[K, V]) valueExists(
 	pointerNode *Node[types.Pointer],
 	dataNode *Node[types.DataItem[K, V]],
 ) bool {
-	if !v.dataNodeProcessed {
+	if !v.fullyRouted {
+		v.fullyRouted = true
 		s.find(v, pointerNode, dataNode)
 	}
 
@@ -336,7 +335,8 @@ func (s *Space[K, V]) readValue(
 	pointerNode *Node[types.Pointer],
 	dataNode *Node[types.DataItem[K, V]],
 ) V {
-	if !v.dataNodeProcessed {
+	if !v.fullyRouted {
+		v.fullyRouted = true
 		s.find(v, pointerNode, dataNode)
 	}
 
@@ -349,7 +349,8 @@ func (s *Space[K, V]) deleteValue(
 	pointerNode *Node[types.Pointer],
 	dataNode *Node[types.DataItem[K, V]],
 ) error {
-	if v.pointer.State == types.StatePointer || v.pointer.State == types.StatePointerWithHashMod || !v.dataNodeProcessed {
+	if !v.fullyRouted {
+		v.fullyRouted = true
 		s.find(v, pointerNode, dataNode)
 	}
 
@@ -379,7 +380,8 @@ func (s *Space[K, V]) setValue(
 	pointerNode *Node[types.Pointer],
 	dataNode *Node[types.DataItem[K, V]],
 ) error {
-	if v.pointer.State == types.StatePointer || v.pointer.State == types.StatePointerWithHashMod || !v.dataNodeProcessed {
+	if !v.fullyRouted {
+		v.fullyRouted = true
 		s.find(v, pointerNode, dataNode)
 	}
 
@@ -414,8 +416,6 @@ func (s *Space[K, V]) set(
 	pointerNode *Node[types.Pointer],
 	dataNode *Node[types.DataItem[K, V]],
 ) error {
-	v.dataNodeProcessed = true
-
 	for {
 		switch v.pointer.State {
 		case types.StateFree:
@@ -523,13 +523,6 @@ func (s *Space[K, V]) redistributeAndSet(
 	}
 	s.config.PointerNodeAssistant.Project(pointerNodeAddress, pointerNode)
 
-	v.pointer.VolatileAddress = pointerNodeAddress
-	if conflict {
-		v.pointer.State = types.StatePointerWithHashMod
-	} else {
-		v.pointer.State = types.StatePointer
-	}
-
 	// Persistent address stays the same, so data node will be reused for pointer node if both are
 	// created in the same snapshot, or data node will be deallocated otherwise.
 
@@ -563,6 +556,8 @@ func (s *Space[K, V]) redistributeAndSet(
 		}
 	}
 
+	pointer := v.pointer
+
 	if conflict {
 		v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
 	}
@@ -575,7 +570,18 @@ func (s *Space[K, V]) redistributeAndSet(
 	v.storeRequest.Store[v.storeRequest.PointersToStore] = v.pointer
 	v.storeRequest.PointersToStore++
 
-	return s.set(tx, v, pool, pointerNode, dataNode)
+	if err := s.set(tx, v, pool, pointerNode, dataNode); err != nil {
+		return err
+	}
+
+	pointer.VolatileAddress = pointerNodeAddress
+	if conflict {
+		pointer.State = types.StatePointerWithHashMod
+	} else {
+		pointer.State = types.StatePointer
+	}
+
+	return nil
 }
 
 func (s *Space[K, V]) find(
@@ -604,8 +610,6 @@ func (s *Space[K, V]) find(
 				return
 			}
 
-			v.dataNodeProcessed = true
-
 			s.config.DataNodeAssistant.Project(v.pointer.VolatileAddress, dataNode)
 			startIndex := s.config.DataNodeAssistant.Index(v.item.Hash)
 			for i, indexP := 0, unsafe.Pointer(&s.trials[startIndex]); i < trials; i, indexP = i+1,
@@ -633,14 +637,7 @@ func (s *Space[K, V]) find(
 				}
 			}
 			return
-		case types.StateFree:
-			v.dataNodeProcessed = true
-			return
 		default:
-			// When `Find` method tries to read the state while the other goroutine changes it from free to data
-			// (new allocation) or from data to pointer (redistribution), it might happen that we read a value which is
-			// temporarily illegal. It's not a problem. We just return with `dataNodeProcessed = false` and the rest of
-			// the job will be done in the other goroutine when it tries to read or set the value.
 			return
 		}
 	}
@@ -652,11 +649,11 @@ type Entry[K, V comparable] struct {
 	pointer      *types.Pointer
 	storeRequest pipeline.StoreRequest
 
-	itemP             *types.DataItem[K, V]
-	item              types.DataItem[K, V]
-	exists            bool
-	dataNodeProcessed bool
-	level             uint8
+	itemP       *types.DataItem[K, V]
+	item        types.DataItem[K, V]
+	exists      bool
+	fullyRouted bool
+	level       uint8
 }
 
 // Value returns the value from entry.
