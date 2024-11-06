@@ -1,6 +1,10 @@
 package tx
 
 import (
+	"math"
+
+	"github.com/pkg/errors"
+
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space"
@@ -42,10 +46,20 @@ func (t *Transfer) Execute(
 	pointerNode *space.Node[types.Pointer],
 	dataNode *space.Node[types.DataItem[Account, Balance]],
 ) error {
-	// FIXME (wojciech): handle balance overflow.
+	fromBalance := t.from.Value(pointerNode, dataNode)
+	if fromBalance < t.Amount {
+		return errors.Errorf("sender's balance is too low, balance: %d, amount to send: %d", fromBalance, t.Amount)
+	}
+
+	toBalance := t.to.Value(pointerNode, dataNode)
+	if math.MaxUint64-toBalance < t.Amount {
+		return errors.Errorf(
+			"transfer cannot be executed because it would cause an overflow on the recipient's balance, balance: %d, amount to send: %d", //nolint:lll
+			toBalance, t.Amount)
+	}
 
 	if err := t.from.Set(
-		t.from.Value(pointerNode, dataNode)-t.Amount,
+		fromBalance-t.Amount,
 		tx,
 		volatilePool,
 		pointerNode,
@@ -55,7 +69,7 @@ func (t *Transfer) Execute(
 	}
 
 	return t.to.Set(
-		t.to.Value(pointerNode, dataNode)+t.Amount,
+		toBalance+t.Amount,
 		tx,
 		volatilePool,
 		pointerNode,
