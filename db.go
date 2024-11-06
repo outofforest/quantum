@@ -430,7 +430,7 @@ func (db *DB) Close() {
 func (db *DB) Run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		spawn("state", parallel.Fail, db.config.State.Run)
-		spawn("pipeline", parallel.Fail, func(ctx context.Context) error {
+		spawn("pipeline", parallel.Exit, func(ctx context.Context) error {
 			defer db.config.State.Close()
 
 			return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {

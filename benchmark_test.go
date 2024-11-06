@@ -141,12 +141,12 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 					db.ApplyTransactionRequest(txRequest)
 				}
 
-				fmt.Println(s.Stats(pointerNode, dataNode))
-				fmt.Println("===========================")
-
 				if err := db.Commit(volatilePool); err != nil {
 					panic(err)
 				}
+
+				fmt.Println(s.Stats(pointerNode, dataNode))
+				fmt.Println("===========================")
 
 				for i := 0; i < numOfAddresses; i += 2 {
 					v := s.Find(accounts[i], pointerNode)
@@ -184,6 +184,11 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 						}
 					}
 				}
+
+				if err := db.Commit(volatilePool); err != nil {
+					panic(err)
+				}
+
 				b.StopTimer()
 			}()
 
