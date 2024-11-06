@@ -333,6 +333,7 @@ func (db *DB) DeleteSnapshot(
 // Commit commits current snapshot and returns next one.
 func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
 	commitTx := pipeline.NewTransactionRequest(db.massTransactionRequest)
+	commitTx.Type = pipeline.Commit
 
 	//nolint:nestif
 	if len(db.deallocationListsToCommit) > 0 {
@@ -563,7 +564,6 @@ func (db *DB) processRevisionRequests(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
 ) error {
-	// FIXME (wojciech): Set to 0 on commit.
 	var revision uint64
 
 	for {
@@ -580,6 +580,10 @@ func (db *DB) processRevisionRequests(
 				for i := range sr.PointersToStore {
 					atomic.StoreUint64(&sr.Store[i].Revision, revision)
 				}
+			}
+
+			if req.Type == pipeline.Commit {
+				revision = 0
 			}
 		}
 	}
@@ -705,7 +709,7 @@ func (db *DB) updateChecksums(
 
 	matrix = zeroMatrix
 	var nodesWaiting int
-	var ri uint64
+	var reqIndex uint64
 	for {
 		if nodesWaiting > 0 {
 			checksum.Blake3(matrixP, checksumsP)
@@ -714,49 +718,44 @@ func (db *DB) updateChecksums(
 		}
 
 		for range pipeReader.Count() {
-			ri++
+			reqIndex++
 			req := pipeReader.Read()
 
-			if req.SyncCh != nil {
-				ri = 0
-				if nodesWaiting > 0 {
-					checksum.Blake3(matrixP, checksumsP)
-					matrix = zeroMatrix
-					nodesWaiting = 0
-				}
-			}
 			if req.Type == pipeline.Close {
 				pipeReader.Acknowledge()
 				return errors.WithStack(ctx.Err())
 			}
 
-			if req.ChecksumProcessed {
-				continue
-			}
+			if !req.ChecksumProcessed && (divider == 0 || (reqIndex/16)%divider == mod) {
+				req.ChecksumProcessed = true
+				for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+					for i := range sr.PointersToStore {
+						p := sr.Store[i]
+						if atomic.LoadUint64(&p.Revision) != sr.RequestedRevision {
+							continue
+						}
+						node := db.config.State.Node(p.VolatileAddress)
+						for bi := range 16 {
+							matrix[nodesWaiting][bi] = (*byte)(unsafe.Add(node, bi*64))
+						}
+						nodesWaiting++
 
-			if divider > 0 && (ri/16)%divider != mod {
-				continue
-			}
-
-			req.ChecksumProcessed = true
-			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-				for i := range sr.PointersToStore {
-					p := sr.Store[i]
-					if atomic.LoadUint64(&p.Revision) != sr.RequestedRevision {
-						continue
-					}
-					node := db.config.State.Node(p.VolatileAddress)
-					for bi := range 16 {
-						matrix[nodesWaiting][bi] = (*byte)(unsafe.Add(node, bi*64))
-					}
-					nodesWaiting++
-
-					if nodesWaiting == 16 {
-						checksum.Blake3(matrixP, checksumsP)
-						matrix = zeroMatrix
-						nodesWaiting = 0
+						if nodesWaiting == 16 {
+							checksum.Blake3(matrixP, checksumsP)
+							matrix = zeroMatrix
+							nodesWaiting = 0
+						}
 					}
 				}
+			}
+
+			if (req.Type == pipeline.Sync || req.Type == pipeline.Commit) && nodesWaiting > 0 {
+				checksum.Blake3(matrixP, checksumsP)
+				matrix = zeroMatrix
+				nodesWaiting = 0
+			}
+			if req.Type == pipeline.Commit {
+				reqIndex = 0
 			}
 		}
 	}

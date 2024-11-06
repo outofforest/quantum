@@ -17,6 +17,7 @@ type TransactionRequestType uint64
 const (
 	None TransactionRequestType = iota
 	Sync
+	Commit
 	Close
 )
 
