@@ -46,9 +46,7 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 		},
 	}
 
-	s.initSize = uint64(unsafe.Sizeof(defaultInit))
-	// FIXME (wojciech): Calculate this number automatically
-	s.initSize = 40
+	s.initSize = uint64(uintptr(unsafe.Pointer(&defaultInit.storeRequest.Store[1])) - uintptr(unsafe.Pointer(&defaultInit)))
 	s.defaultInit = make([]byte, s.initSize)
 	copy(s.defaultInit, unsafe.Slice((*byte)(unsafe.Pointer(&defaultInit)), s.initSize))
 
