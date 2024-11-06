@@ -83,7 +83,6 @@ func New(config Config) (*DB, error) {
 		massSnapshotToNodeEntry:     mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
 		deallocationListsToCommit:   map[types.SnapshotID]ListToCommit{},
 		queue:                       pipeline.New(),
-		closedCh:                    make(chan struct{}),
 	}
 
 	// Logical nodes might be deallocated immediately.
@@ -135,8 +134,7 @@ type DB struct {
 
 	deallocationListsToCommit map[types.SnapshotID]ListToCommit
 
-	queue    *pipeline.Pipeline
-	closedCh chan struct{}
+	queue *pipeline.Pipeline
 }
 
 // NewVolatilePool creates new volatile allocation pool.
@@ -337,14 +335,16 @@ func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
 
 	//nolint:nestif
 	if len(db.deallocationListsToCommit) > 0 {
-		syncCh := make(chan error, len(db.config.Stores))
+		syncCh := make(chan error, len(db.config.Stores)+1) // 1 is for supervisor
 		tx := pipeline.NewTransactionRequest(db.massTransactionRequest)
 		tx.Type = pipeline.Sync
 		tx.SyncCh = syncCh
 		db.queue.Push(tx)
 
-		for range cap(syncCh) {
-			<-syncCh
+		for range len(db.config.Stores) {
+			if err := <-syncCh; err != nil {
+				return err
+			}
 		}
 
 		lists := make([]types.SnapshotID, 0, len(db.deallocationListsToCommit))
@@ -399,7 +399,7 @@ func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
 	}
 
 	pointer := db.config.State.SingularityNodePointer(db.singularityNode.LastSnapshotID)
-	syncCh := make(chan error, len(db.config.Stores))
+	syncCh := make(chan error, len(db.config.Stores)+1) // 1 is for supervisor
 	commitTx.SyncCh = syncCh
 	commitTx.AddStoreRequest(&pipeline.StoreRequest{
 		RequestedRevision: pointer.Revision,
@@ -408,7 +408,7 @@ func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
 	})
 	db.queue.Push(commitTx)
 
-	for range cap(syncCh) {
+	for range len(db.config.Stores) {
 		if err := <-syncCh; err != nil {
 			return err
 		}
@@ -421,77 +421,87 @@ func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
 
 // Close tells that there will be no more operations done.
 func (db *DB) Close() {
-	select {
-	case <-db.closedCh:
-	default:
-		tx := pipeline.NewTransactionRequest(db.massTransactionRequest)
-		tx.Type = pipeline.Close
-		db.queue.Push(tx)
-
-		close(db.closedCh)
-		db.config.State.Close()
-	}
+	tx := pipeline.NewTransactionRequest(db.massTransactionRequest)
+	tx.Type = pipeline.Close
+	db.queue.Push(tx)
 }
 
 // Run runs db goroutines.
-// FIXME (wojciech): Commit should return error if any goroutine fails.
 func (db *DB) Run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-		prepareTxQReader := db.queue.NewReader()
-		executeTxQReader := prepareTxQReader.NewReader()
-		revisionQReader := executeTxQReader.NewReader()
-		allocateQReader := revisionQReader.NewReader()
-		deallocateQReader := allocateQReader.NewReader()
-		checksumQReader1 := deallocateQReader.NewReader()
-		checksumQReader2 := checksumQReader1.NewReader()
-		checksumQReader3 := checksumQReader2.NewReader()
-		storeQReaders := make([]*pipeline.Reader, 0, len(db.config.Stores))
-		for range cap(storeQReaders) {
-			storeQReaders = append(storeQReaders, checksumQReader3.NewReader())
-		}
+		spawn("state", parallel.Fail, db.config.State.Run)
+		spawn("pipeline", parallel.Fail, func(ctx context.Context) error {
+			defer db.config.State.Close()
 
-		spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
-			ctxDone := ctx.Done()
-			for {
-				select {
-				case <-ctxDone:
-					ctxDone = nil
-				case <-db.closedCh:
-					// FIXME (wojciech): Read items from store q reader
-					return errors.WithStack(ctx.Err())
+			return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
+				supervisorQReader := db.queue.NewReader()
+				prepareTxQReader := supervisorQReader.NewReader()
+				executeTxQReader := prepareTxQReader.NewReader()
+				revisionQReader := executeTxQReader.NewReader()
+				allocateQReader := revisionQReader.NewReader()
+				deallocateQReader := allocateQReader.NewReader()
+				checksumQReader1 := deallocateQReader.NewReader()
+				checksumQReader2 := checksumQReader1.NewReader()
+				checksumQReader3 := checksumQReader2.NewReader()
+				storeQReaders := make([]*pipeline.Reader, 0, len(db.config.Stores))
+				for range cap(storeQReaders) {
+					storeQReaders = append(storeQReaders, checksumQReader3.NewReader())
 				}
-			}
-		})
-		spawn("state", parallel.Continue, db.config.State.Run)
-		spawn("prepareTx", parallel.Continue, func(ctx context.Context) error {
-			return db.prepareTransactions(ctx, prepareTxQReader)
-		})
-		spawn("executeTx", parallel.Continue, func(ctx context.Context) error {
-			return db.executeTransactions(ctx, executeTxQReader)
-		})
-		spawn("revision", parallel.Continue, func(ctx context.Context) error {
-			return db.processRevisionRequests(ctx, revisionQReader)
-		})
-		spawn("allocate", parallel.Continue, func(ctx context.Context) error {
-			return db.processAllocationRequests(ctx, allocateQReader)
-		})
-		spawn("deallocate", parallel.Continue, func(ctx context.Context) error {
-			return db.processDeallocationRequests(ctx, deallocateQReader)
-		})
-		spawn("checksum1", parallel.Continue, func(ctx context.Context) error {
-			return db.updateChecksums(ctx, checksumQReader1, 3, 2)
-		})
-		spawn("checksum2", parallel.Continue, func(ctx context.Context) error {
-			return db.updateChecksums(ctx, checksumQReader2, 3, 1)
-		})
-		spawn("checksum3", parallel.Continue, func(ctx context.Context) error {
-			return db.updateChecksums(ctx, checksumQReader3, 0, 0)
-		})
-		for i, store := range db.config.Stores {
-			spawn(fmt.Sprintf("store-%02d", i), parallel.Continue, func(ctx context.Context) error {
-				return db.processStoreRequests(ctx, store, storeQReaders[i])
+
+				spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
+					var lastSyncCh chan<- error
+
+					for {
+						count, err := supervisorQReader.Count(ctx)
+						if err != nil && lastSyncCh != nil {
+							lastSyncCh <- err
+							lastSyncCh = nil
+						}
+
+						for range count {
+							req := supervisorQReader.Read()
+							if req.SyncCh != nil {
+								lastSyncCh = req.SyncCh
+								continue
+							}
+							if req.Type == pipeline.Close {
+								return errors.WithStack(ctx.Err())
+							}
+						}
+					}
+				})
+				spawn("prepareTx", parallel.Fail, func(ctx context.Context) error {
+					return db.prepareTransactions(ctx, prepareTxQReader)
+				})
+				spawn("executeTx", parallel.Fail, func(ctx context.Context) error {
+					return db.executeTransactions(ctx, executeTxQReader)
+				})
+				spawn("revision", parallel.Fail, func(ctx context.Context) error {
+					return db.processRevisionRequests(ctx, revisionQReader)
+				})
+				spawn("allocate", parallel.Fail, func(ctx context.Context) error {
+					return db.processAllocationRequests(ctx, allocateQReader)
+				})
+				spawn("deallocate", parallel.Fail, func(ctx context.Context) error {
+					return db.processDeallocationRequests(ctx, deallocateQReader)
+				})
+				spawn("checksum1", parallel.Fail, func(ctx context.Context) error {
+					return db.updateChecksums(ctx, checksumQReader1, 3, 2)
+				})
+				spawn("checksum2", parallel.Fail, func(ctx context.Context) error {
+					return db.updateChecksums(ctx, checksumQReader2, 3, 1)
+				})
+				spawn("checksum3", parallel.Fail, func(ctx context.Context) error {
+					return db.updateChecksums(ctx, checksumQReader3, 0, 0)
+				})
+				for i, store := range db.config.Stores {
+					spawn(fmt.Sprintf("store-%02d", i), parallel.Fail, func(ctx context.Context) error {
+						return db.processStoreRequests(ctx, store, storeQReaders[i])
+					})
+				}
+				return nil
 			})
-		}
+		})
 
 		return nil
 	})
@@ -508,20 +518,21 @@ func (db *DB) prepareTransactions(
 	pointerNode := s.NewPointerNode()
 
 	for {
-		for range pipeReader.Count() {
+		count, err := pipeReader.Count(ctx)
+		if err != nil {
+			return err
+		}
+		for range count {
 			req := pipeReader.Read()
-			if req.Type == pipeline.Close {
-				pipeReader.Acknowledge()
-				return errors.WithStack(ctx.Err())
+			if req.Transaction == nil {
+				continue
 			}
 
-			if req.Transaction != nil {
-				transferTx, ok := req.Transaction.(*tx.Transfer)
-				if !ok {
-					return errors.New("unknown transaction type")
-				}
-				transferTx.Prepare(s, pointerNode)
+			transferTx, ok := req.Transaction.(*tx.Transfer)
+			if !ok {
+				return errors.New("unknown transaction type")
 			}
+			transferTx.Prepare(s, pointerNode)
 		}
 	}
 }
@@ -540,21 +551,22 @@ func (db *DB) executeTransactions(
 	dataNode := s.NewDataNode()
 
 	for {
-		for range pipeReader.Count() {
+		count, err := pipeReader.Count(ctx)
+		if err != nil {
+			return err
+		}
+		for range count {
 			req := pipeReader.Read()
-			if req.Type == pipeline.Close {
-				pipeReader.Acknowledge()
-				return errors.WithStack(ctx.Err())
+			if req.Transaction == nil {
+				continue
 			}
 
-			if req.Transaction != nil {
-				transferTx, ok := req.Transaction.(*tx.Transfer)
-				if !ok {
-					return errors.New("unknown transaction type")
-				}
-				if err := transferTx.Execute(req, volatilePool, pointerNode, dataNode); err != nil {
-					return err
-				}
+			transferTx, ok := req.Transaction.(*tx.Transfer)
+			if !ok {
+				return errors.New("unknown transaction type")
+			}
+			if err := transferTx.Execute(req, volatilePool, pointerNode, dataNode); err != nil {
+				return err
 			}
 		}
 	}
@@ -567,13 +579,12 @@ func (db *DB) processRevisionRequests(
 	var revision uint64
 
 	for {
-		for range pipeReader.Count() {
+		count, err := pipeReader.Count(ctx)
+		if err != nil {
+			return err
+		}
+		for range count {
 			req := pipeReader.Read()
-			if req.Type == pipeline.Close {
-				pipeReader.Acknowledge()
-				return errors.WithStack(ctx.Err())
-			}
-
 			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
 				revision++
 				sr.RequestedRevision = revision
@@ -597,13 +608,12 @@ func (db *DB) processAllocationRequests(
 	persistentPool := db.NewPersistentPool()
 
 	for {
-		for range pipeReader.Count() {
+		count, err := pipeReader.Count(ctx)
+		if err != nil {
+			return err
+		}
+		for range count {
 			req := pipeReader.Read()
-			if req.Type == pipeline.Close {
-				pipeReader.Acknowledge()
-				return errors.WithStack(ctx.Err())
-			}
-
 			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
 				if sr.PointersToStore == 0 {
 					continue
@@ -645,13 +655,12 @@ func (db *DB) processDeallocationRequests(
 	listNode := db.listNodeAssistant.NewNode()
 
 	for {
-		for range pipeReader.Count() {
+		count, err := pipeReader.Count(ctx)
+		if err != nil {
+			return err
+		}
+		for range count {
 			req := pipeReader.Read()
-			if req.Type == pipeline.Close {
-				pipeReader.Acknowledge()
-				return errors.WithStack(ctx.Err())
-			}
-
 			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
 				for _, p := range sr.Deallocate {
 					pointerToStore, err := db.deallocateNode(
@@ -717,14 +726,13 @@ func (db *DB) updateChecksums(
 			nodesWaiting = 0
 		}
 
-		for range pipeReader.Count() {
+		count, err := pipeReader.Count(ctx)
+		if err != nil {
+			return err
+		}
+		for range count {
 			reqIndex++
 			req := pipeReader.Read()
-
-			if req.Type == pipeline.Close {
-				pipeReader.Acknowledge()
-				return errors.WithStack(ctx.Err())
-			}
 
 			if !req.ChecksumProcessed && (divider == 0 || (reqIndex/16)%divider == mod) {
 				req.ChecksumProcessed = true
@@ -770,15 +778,15 @@ func (db *DB) processStoreRequests(
 	// var numOfWrites uint
 
 	for {
-		for range pipeReader.Count() {
+		count, err := pipeReader.Count(ctx)
+		if err != nil {
+			return err
+		}
+		for range count {
 			req := pipeReader.Read()
 			if req.Type == pipeline.Sync {
 				req.SyncCh <- nil
 				continue
-			}
-			if req.Type == pipeline.Close {
-				pipeReader.Acknowledge()
-				return errors.WithStack(ctx.Err())
 			}
 
 			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
