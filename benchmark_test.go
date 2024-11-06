@@ -53,7 +53,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 		}()
 		func() {
 			var size uint64 = 120 * 1024 * 1024 * 1024
-			var nodeSize uint64 = 8 * 1024
+			var nodeSize uint64 = 4 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size,
 				nodeSize,

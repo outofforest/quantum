@@ -32,7 +32,7 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 	var k K
 	s := &Space[K, V]{
 		config:      config,
-		hashBuff:    make([]byte, unsafe.Sizeof(k)+types.UInt64Length),
+		hashBuff:    make([]byte, unsafe.Sizeof(k)+1),
 		massPointer: mass.New[*types.Pointer](10000),
 	}
 
@@ -488,10 +488,11 @@ func (s *Space[K, V]) set(
 				dataNode,
 			)
 		default:
+			v.level++
 			s.config.PointerNodeAssistant.Project(v.pointer.VolatileAddress,
 				pointerNode)
 			if v.pointer.State == types.StatePointerWithHashMod {
-				v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.pointer.VolatileAddress)
+				v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
 			}
 
 			index := s.config.PointerNodeAssistant.Index(v.item.Hash)
@@ -514,6 +515,7 @@ func (s *Space[K, V]) redistributeAndSet(
 	pointerNode *Node[types.Pointer],
 	dataNode *Node[types.DataItem[K, V]],
 ) error {
+	v.level++
 	s.config.DataNodeAssistant.Project(v.pointer.VolatileAddress, dataNode)
 
 	pointerNodeAddress, err := pool.Allocate()
@@ -540,7 +542,7 @@ func (s *Space[K, V]) redistributeAndSet(
 		}
 
 		if conflict {
-			item.Hash = hashKey(&item.Key, s.hashBuff, pointerNodeAddress)
+			item.Hash = hashKey(&item.Key, s.hashBuff, v.level)
 		}
 
 		index := s.config.PointerNodeAssistant.Index(item.Hash)
@@ -555,14 +557,15 @@ func (s *Space[K, V]) redistributeAndSet(
 					Store:           [pipeline.StoreCapacity]*types.Pointer{pointer},
 					PointersToStore: 1,
 				},
-				item: *item,
+				item:  *item,
+				level: v.level,
 			}, pool, pointerNode, dataNode); err != nil {
 			return err
 		}
 	}
 
 	if conflict {
-		v.item.Hash = hashKey(&v.item.Key, s.hashBuff, pointerNodeAddress)
+		v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
 	}
 
 	index := s.config.PointerNodeAssistant.Index(v.item.Hash)
@@ -584,9 +587,10 @@ func (s *Space[K, V]) find(
 	for {
 		switch v.pointer.State {
 		case types.StatePointer, types.StatePointerWithHashMod:
+			v.level++
 			s.config.PointerNodeAssistant.Project(v.pointer.VolatileAddress, pointerNode)
 			if v.pointer.State == types.StatePointerWithHashMod {
-				v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.pointer.VolatileAddress)
+				v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
 			}
 
 			index := s.config.PointerNodeAssistant.Index(v.item.Hash)
@@ -653,6 +657,7 @@ type Entry[K, V comparable] struct {
 	item              types.DataItem[K, V]
 	exists            bool
 	dataNodeProcessed bool
+	level             uint8
 }
 
 // Value returns the value from entry.
@@ -699,16 +704,15 @@ func (v *Entry[K, V]) Delete(
 func hashKey[K comparable](
 	key *K,
 	buff []byte,
-	// FIXME (wojciech): Better if this is deterministic, so taking the address is not a good idea.
-	address types.VolatileAddress,
+	level uint8,
 ) types.Hash {
 	var hash types.Hash
 	p := photon.NewFromValue[K](key)
-	if address == 0 {
+	if level == 0 {
 		hash = types.Hash(xxhash.Sum64(p.B))
 	} else {
-		copy(buff, photon.NewFromValue(&address).B)
-		copy(buff[types.UInt64Length:], p.B)
+		buff[0] = level
+		copy(buff[1:], p.B)
 		hash = types.Hash(xxhash.Sum64(buff))
 	}
 
