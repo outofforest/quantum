@@ -147,6 +147,12 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				if err := db.Commit(volatilePool); err != nil {
 					panic(err)
 				}
+
+				for i := 0; i < numOfAddresses; i += 2 {
+					v := s.Find(accounts[i], pointerNode)
+					require.True(b, v.Exists(pointerNode, dataNode))
+					require.Equal(b, tx.Balance(2*balance), v.Value(pointerNode, dataNode))
+				}
 			}()
 
 			txIndex := 0

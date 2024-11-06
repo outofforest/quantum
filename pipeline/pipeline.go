@@ -1,9 +1,11 @@
 package pipeline
 
 import (
+	"context"
 	"sync/atomic"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
 	"github.com/outofforest/mass"
@@ -108,33 +110,32 @@ type Reader struct {
 }
 
 // Count returns the number of available requests to process.
-func (qr *Reader) Count() uint64 {
+func (qr *Reader) Count(ctx context.Context) (uint64, error) {
 	const maxChunkSize = 96
 
 	atomic.StoreUint64(qr.processedCount, qr.currentProcessedCount)
 	if toProcess := qr.currentAvailableCount - qr.currentProcessedCount; toProcess > 0 {
 		if toProcess > maxChunkSize {
-			return maxChunkSize
+			return maxChunkSize, errors.WithStack(ctx.Err())
 		}
-		return toProcess
+		return toProcess, errors.WithStack(ctx.Err())
 	}
 
 	for {
 		qr.currentAvailableCount = atomic.LoadUint64(qr.availableCount)
 		if toProcess := qr.currentAvailableCount - qr.currentProcessedCount; toProcess > 0 {
 			if toProcess > maxChunkSize {
-				return maxChunkSize
+				return maxChunkSize, errors.WithStack(ctx.Err())
 			}
-			return toProcess
+			return toProcess, errors.WithStack(ctx.Err())
+		}
+
+		if ctx.Err() != nil {
+			return 0, errors.WithStack(ctx.Err())
 		}
 
 		time.Sleep(10 * time.Microsecond)
 	}
-}
-
-// Acknowledge acknowledges processing of previously read requests.
-func (qr *Reader) Acknowledge() {
-	atomic.StoreUint64(qr.processedCount, qr.currentProcessedCount)
 }
 
 // Read reads next request from the pipeline.
