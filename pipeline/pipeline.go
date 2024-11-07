@@ -42,29 +42,31 @@ type TransactionRequestFactory struct {
 // New creates transaction request.
 func (trf *TransactionRequestFactory) New() *TransactionRequest {
 	t := trf.massTR.New()
+	t.trf = trf
 	t.LastStoreRequest = &t.StoreRequest
-	t.RequestedRevision = trf.revision
-	trf.revision++
 	return t
 }
 
 // TransactionRequest is used to request transaction execution.
 type TransactionRequest struct {
+	trf *TransactionRequestFactory
+
 	Transaction       any
 	StoreRequest      *StoreRequest
 	LastStoreRequest  **StoreRequest
 	SyncCh            chan<- error
 	Next              *TransactionRequest
 	Type              TransactionRequestType
-	RequestedRevision uint64
 	ChecksumProcessed bool
 }
 
 // AddStoreRequest adds store request to the transaction.
 func (t *TransactionRequest) AddStoreRequest(sr *StoreRequest) {
+	sr.RequestedRevision = t.trf.revision
 	for i := range sr.PointersToStore {
-		atomic.StoreUint64(&sr.Store[i].Revision, t.RequestedRevision)
+		atomic.StoreUint64(&sr.Store[i].Revision, sr.RequestedRevision)
 	}
+	t.trf.revision++
 
 	*t.LastStoreRequest = sr
 	t.LastStoreRequest = &sr.Next
@@ -76,6 +78,7 @@ type StoreRequest struct {
 	PointersToStore       uint64
 	Store                 [StoreCapacity]*types.Pointer
 
+	RequestedRevision         uint64
 	Deallocate                []types.Pointer
 	DeallocateVolatileAddress types.VolatileAddress
 	Next                      *StoreRequest
