@@ -709,10 +709,16 @@ func (db *DB) updateChecksums(
 				for sr := req.StoreRequest; sr != nil; sr = sr.Next {
 					for i := range sr.PointersToStore {
 						p := sr.Store[i]
+
+						// Volatile address must be copied before verifying revision. Otherwise, the address might be
+						// concurrently overwritten by another transaction between revision verification and
+						// checksum calculation.
+						volatileAddress := p.VolatileAddress
+
 						if atomic.LoadUint64(&p.Revision) != req.RequestedRevision {
 							continue
 						}
-						node := db.config.State.Node(p.VolatileAddress)
+						node := db.config.State.Node(volatileAddress)
 						for bi := range 16 {
 							matrix[nodesWaiting][bi] = (*byte)(unsafe.Add(node, bi*64))
 						}
@@ -759,6 +765,15 @@ func (db *DB) processStoreRequests(
 			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
 				for i := range sr.PointersToStore {
 					p := sr.Store[i]
+
+					// Volatile address must be copied before verifying revision. Otherwise, the address might be
+					// concurrently overwritten by another transaction between revision verification and
+					// store write.
+					// Persistent address is safe to be used even without atomic, because it is guaranteed that
+					// in the same snapshot it is set only once on the first time node is processed by the goroutine
+					// allocating persistent addresses,
+					volatileAddress := p.VolatileAddress
+
 					if atomic.LoadUint64(&p.Revision) != req.RequestedRevision {
 						continue
 					}
@@ -771,7 +786,7 @@ func (db *DB) processStoreRequests(
 
 					if err := store.Write(
 						p.PersistentAddress,
-						db.config.State.Bytes(p.VolatileAddress),
+						db.config.State.Bytes(volatileAddress),
 					); err != nil {
 						return err
 					}
