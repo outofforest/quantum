@@ -28,9 +28,8 @@ import (
 
 // Config stores snapshot configuration.
 type Config struct {
-	State            *alloc.State
-	TxRequestFactory *pipeline.TransactionRequestFactory
-	Stores           []persistent.Store
+	State  *alloc.State
+	Stores []persistent.Store
 }
 
 // SpaceToCommit represents requested space which might require to be committed.
@@ -73,19 +72,20 @@ func New(config Config) (*DB, error) {
 		return nil, err
 	}
 
+	queue, queueReader := pipeline.New()
+
 	db := &DB{
 		config:                      config,
+		txRequestFactory:            pipeline.NewTransactionRequestFactory(),
 		singularityNode:             photon.FromPointer[types.SingularityNode](config.State.Node(0)),
+		snapshotInfoNodeAssistant:   snapshotInfoNodeAssistant,
 		pointerNodeAssistant:        pointerNodeAssistant,
 		snapshotToNodeNodeAssistant: snapshotToNodeNodeAssistant,
 		listNodeAssistant:           listNodeAssistant,
-		pointerNode:                 pointerNodeAssistant.NewNode(),
-		snapshotInfoNode:            snapshotInfoNodeAssistant.NewNode(),
-		snapshotToNodeNode:          snapshotToNodeNodeAssistant.NewNode(),
-		listNode:                    listNodeAssistant.NewNode(),
 		massSnapshotToNodeEntry:     mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
 		deallocationListsToCommit:   map[types.SnapshotID]ListToCommit{},
-		queue:                       pipeline.New(),
+		queue:                       queue,
+		queueReader:                 queueReader,
 	}
 
 	// Logical nodes might be deallocated immediately.
@@ -118,218 +118,45 @@ func New(config Config) (*DB, error) {
 // DB represents the database.
 type DB struct {
 	config            Config
+	txRequestFactory  *pipeline.TransactionRequestFactory
 	singularityNode   *types.SingularityNode
 	snapshotInfo      types.SnapshotInfo
 	snapshots         *space.Space[types.SnapshotID, types.SnapshotInfo]
 	deallocationLists *space.Space[types.SnapshotID, types.Pointer]
 
 	pointerNodeAssistant        *space.NodeAssistant[types.Pointer]
+	snapshotInfoNodeAssistant   *space.NodeAssistant[types.DataItem[types.SnapshotID, types.SnapshotInfo]]
 	snapshotToNodeNodeAssistant *space.NodeAssistant[types.DataItem[types.SnapshotID, types.Pointer]]
 	listNodeAssistant           *list.NodeAssistant
-
-	pointerNode        *space.Node[types.Pointer]
-	snapshotInfoNode   *space.Node[types.DataItem[types.SnapshotID, types.SnapshotInfo]]
-	snapshotToNodeNode *space.Node[types.DataItem[types.SnapshotID, types.Pointer]]
-	listNode           *list.Node
 
 	massSnapshotToNodeEntry *mass.Mass[space.Entry[types.SnapshotID, types.Pointer]]
 
 	deallocationListsToCommit map[types.SnapshotID]ListToCommit
 
-	queue *pipeline.Pipeline
-}
-
-// NewVolatilePool creates new volatile allocation pool.
-func (db *DB) NewVolatilePool() *alloc.Pool[types.VolatileAddress] {
-	return db.config.State.NewVolatilePool()
-}
-
-// NewPersistentPool creates new persistent allocation pool.
-func (db *DB) NewPersistentPool() *alloc.Pool[types.PersistentAddress] {
-	return db.config.State.NewPersistentPool()
+	queueReader *pipeline.Reader
+	queue       *pipeline.Pipeline
 }
 
 // ApplyTransaction adds transaction to the queue.
 func (db *DB) ApplyTransaction(tx any) {
-	txRequest := db.config.TxRequestFactory.New()
+	txRequest := db.txRequestFactory.New()
 	txRequest.Transaction = tx
 	db.queue.Push(txRequest)
 }
 
 // DeleteSnapshot deletes snapshot.
-// FIXME (wojciech): Turn this into transaction.
-func (db *DB) DeleteSnapshot(
-	snapshotID types.SnapshotID,
-	volatilePool *alloc.Pool[types.VolatileAddress],
-	persistentPool *alloc.Pool[types.PersistentAddress],
-) error {
-	tx := db.config.TxRequestFactory.New()
-
-	snapshotInfoValue := db.snapshots.Find(snapshotID, db.pointerNode)
-	if !snapshotInfoValue.Exists(db.pointerNode, db.snapshotInfoNode) {
-		return errors.Errorf("snapshot %d does not exist", snapshotID)
+func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) {
+	tx := db.txRequestFactory.New()
+	tx.Transaction = &deleteSnapshotTx{
+		SnapshotID: snapshotID,
 	}
-
-	if err := snapshotInfoValue.Delete(tx, db.pointerNode, db.snapshotInfoNode); err != nil {
-		return err
-	}
-
-	snapshotInfo := snapshotInfoValue.Value(db.pointerNode, db.snapshotInfoNode)
-
-	var nextSnapshotInfo *types.SnapshotInfo
-	var nextDeallocationListRoot *types.Pointer
-	var nextDeallocationLists *space.Space[types.SnapshotID, types.Pointer]
-	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
-		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, db.pointerNode)
-		if !nextSnapshotInfoValue.Exists(db.pointerNode, db.snapshotInfoNode) {
-			return errors.Errorf("snapshot %d does not exist", snapshotID)
-		}
-		tmpNextSnapshotInfo := nextSnapshotInfoValue.Value(db.pointerNode, db.snapshotInfoNode)
-		nextSnapshotInfo = &tmpNextSnapshotInfo
-
-		nextDeallocationListRoot = &nextSnapshotInfo.DeallocationRoot
-		nextDeallocationLists = space.New[types.SnapshotID, types.Pointer](
-			space.Config[types.SnapshotID, types.Pointer]{
-				SpaceRoot:            nextDeallocationListRoot,
-				State:                db.config.State,
-				PointerNodeAssistant: db.pointerNodeAssistant,
-				DataNodeAssistant:    db.snapshotToNodeNodeAssistant,
-				MassEntry:            db.massSnapshotToNodeEntry,
-			},
-		)
-	} else {
-		nextSnapshotInfo = &db.snapshotInfo
-		nextDeallocationListRoot = &db.snapshotInfo.DeallocationRoot
-		nextDeallocationLists = db.deallocationLists
-	}
-
-	deallocationListsRoot := &snapshotInfo.DeallocationRoot
-	deallocationLists := space.New[types.SnapshotID, types.Pointer](
-		space.Config[types.SnapshotID, types.Pointer]{
-			SpaceRoot:            deallocationListsRoot,
-			State:                db.config.State,
-			PointerNodeAssistant: db.pointerNodeAssistant,
-			DataNodeAssistant:    db.snapshotToNodeNodeAssistant,
-			MassEntry:            db.massSnapshotToNodeEntry,
-		},
-	)
-
-	var startSnapshotID types.SnapshotID
-	if snapshotID != db.singularityNode.FirstSnapshotID {
-		startSnapshotID = snapshotInfo.PreviousSnapshotID + 1
-	}
-
-	for nextDeallocSnapshot := range nextDeallocationLists.Iterator(db.pointerNode, db.snapshotToNodeNode) {
-		if nextDeallocSnapshot.Key >= startSnapshotID && nextDeallocSnapshot.Key <= snapshotID {
-			list.Deallocate(
-				nextDeallocSnapshot.Value,
-				volatilePool,
-				persistentPool,
-				db.listNodeAssistant,
-				db.listNode,
-			)
-
-			continue
-		}
-
-		deallocationListValue := deallocationLists.Find(nextDeallocSnapshot.Key, db.pointerNode)
-		listNodeAddress := deallocationListValue.Value(db.pointerNode, db.snapshotToNodeNode)
-		newListNodeAddress := listNodeAddress
-		list := list.New(list.Config{
-			ListRoot:      &newListNodeAddress,
-			State:         db.config.State,
-			NodeAssistant: db.listNodeAssistant,
-		})
-
-		pointerToStore, err := list.Attach(&nextDeallocSnapshot.Value, volatilePool, db.listNode)
-		if err != nil {
-			return err
-		}
-		if pointerToStore != nil {
-			tx.AddStoreRequest(&pipeline.StoreRequest{
-				Store:                 [pipeline.StoreCapacity]*types.Pointer{pointerToStore},
-				PointersToStore:       1,
-				ImmediateDeallocation: true,
-			})
-		}
-		if newListNodeAddress != listNodeAddress {
-			if err := deallocationListValue.Set(
-				newListNodeAddress,
-				tx,
-				volatilePool,
-				db.pointerNode,
-				db.snapshotToNodeNode,
-			); err != nil {
-				return err
-			}
-		}
-	}
-
-	nextSnapshotInfo.DeallocationRoot = snapshotInfo.DeallocationRoot
-
-	space.Deallocate(
-		nextDeallocationListRoot,
-		volatilePool,
-		persistentPool,
-		db.pointerNodeAssistant,
-		db.pointerNode,
-	)
-
-	if snapshotID == db.singularityNode.FirstSnapshotID {
-		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.NextSnapshotID
-	} else {
-		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
-	}
-
-	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
-		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, db.pointerNode)
-		if err := nextSnapshotInfoValue.Set(
-			*nextSnapshotInfo,
-			tx,
-			volatilePool,
-			db.pointerNode,
-			db.snapshotInfoNode,
-		); err != nil {
-			return err
-		}
-	}
-
-	if snapshotID > db.singularityNode.FirstSnapshotID {
-		previousSnapshotInfoValue := db.snapshots.Find(snapshotInfo.PreviousSnapshotID, db.pointerNode)
-		if !previousSnapshotInfoValue.Exists(db.pointerNode, db.snapshotInfoNode) {
-			return errors.Errorf("snapshot %d does not exist", snapshotID)
-		}
-
-		previousSnapshotInfo := previousSnapshotInfoValue.Value(db.pointerNode, db.snapshotInfoNode)
-		previousSnapshotInfo.NextSnapshotID = snapshotInfo.NextSnapshotID
-
-		if err := previousSnapshotInfoValue.Set(
-			previousSnapshotInfo,
-			tx,
-			volatilePool,
-			db.pointerNode,
-			db.snapshotInfoNode,
-		); err != nil {
-			return err
-		}
-	}
-
-	if snapshotID == db.singularityNode.FirstSnapshotID {
-		db.singularityNode.FirstSnapshotID = snapshotInfo.NextSnapshotID
-	}
-	if snapshotID == db.snapshotInfo.PreviousSnapshotID {
-		db.snapshotInfo.PreviousSnapshotID = db.singularityNode.LastSnapshotID
-	}
-
 	db.queue.Push(tx)
-
-	return nil
 }
 
 // Commit commits current snapshot and returns next one.
 func (db *DB) Commit() error {
 	syncCh := make(chan error, len(db.config.Stores)+1) // 1 is for supervisor
-	tx := db.config.TxRequestFactory.New()
+	tx := db.txRequestFactory.New()
 	tx.Type = pipeline.Sync
 	tx.SyncCh = syncCh
 	db.queue.Push(tx)
@@ -341,7 +168,7 @@ func (db *DB) Commit() error {
 	}
 
 	syncCh = make(chan error, len(db.config.Stores)+1) // 1 is for supervisor
-	tx = db.config.TxRequestFactory.New()
+	tx = db.txRequestFactory.New()
 	tx.Type = pipeline.Commit
 	tx.SyncCh = syncCh
 	tx.Transaction = &commitTx{
@@ -362,7 +189,7 @@ func (db *DB) Commit() error {
 
 // Close tells that there will be no more operations done.
 func (db *DB) Close() {
-	tx := db.config.TxRequestFactory.New()
+	tx := db.txRequestFactory.New()
 	tx.Type = pipeline.Close
 	db.queue.Push(tx)
 }
@@ -375,8 +202,7 @@ func (db *DB) Run(ctx context.Context) error {
 			defer db.config.State.Close()
 
 			return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-				supervisorQReader := db.queue.NewReader()
-				prepareTxQReader := supervisorQReader.NewReader()
+				prepareTxQReader := db.queueReader.NewReader()
 				executeTxQReader := prepareTxQReader.NewReader()
 				allocateQReader := executeTxQReader.NewReader()
 				deallocateQReader := allocateQReader.NewReader()
@@ -392,14 +218,14 @@ func (db *DB) Run(ctx context.Context) error {
 					var lastSyncCh chan<- error
 
 					for {
-						count, err := supervisorQReader.Count(ctx)
+						count, err := db.queueReader.Count(ctx)
 						if err != nil && lastSyncCh != nil {
 							lastSyncCh <- err
 							lastSyncCh = nil
 						}
 
 						for range count {
-							req := supervisorQReader.Read()
+							req := db.queueReader.Read()
 							if req.SyncCh != nil {
 								lastSyncCh = req.SyncCh
 								continue
@@ -444,10 +270,183 @@ func (db *DB) Run(ctx context.Context) error {
 	})
 }
 
+func (db *DB) deleteSnapshot(
+	snapshotID types.SnapshotID,
+	tx *pipeline.TransactionRequest,
+	volatilePool *alloc.Pool[types.VolatileAddress],
+	persistentPool *alloc.Pool[types.PersistentAddress],
+	pointerNode *space.Node[types.Pointer],
+	snapshotInfoNode *space.Node[types.DataItem[types.SnapshotID, types.SnapshotInfo]],
+	snapshotToNodeNode *space.Node[types.DataItem[types.SnapshotID, types.Pointer]],
+	listNode *list.Node,
+) error {
+	snapshotInfoValue := db.snapshots.Find(snapshotID, pointerNode)
+	if !snapshotInfoValue.Exists(pointerNode, snapshotInfoNode) {
+		return errors.Errorf("snapshot %d does not exist", snapshotID)
+	}
+
+	if err := snapshotInfoValue.Delete(tx, pointerNode, snapshotInfoNode); err != nil {
+		return err
+	}
+
+	snapshotInfo := snapshotInfoValue.Value(pointerNode, snapshotInfoNode)
+
+	var nextSnapshotInfo *types.SnapshotInfo
+	var nextDeallocationListRoot *types.Pointer
+	var nextDeallocationLists *space.Space[types.SnapshotID, types.Pointer]
+	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
+		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, pointerNode)
+		if !nextSnapshotInfoValue.Exists(pointerNode, snapshotInfoNode) {
+			return errors.Errorf("snapshot %d does not exist", snapshotID)
+		}
+		tmpNextSnapshotInfo := nextSnapshotInfoValue.Value(pointerNode, snapshotInfoNode)
+		nextSnapshotInfo = &tmpNextSnapshotInfo
+
+		nextDeallocationListRoot = &nextSnapshotInfo.DeallocationRoot
+		nextDeallocationLists = space.New[types.SnapshotID, types.Pointer](
+			space.Config[types.SnapshotID, types.Pointer]{
+				SpaceRoot:            nextDeallocationListRoot,
+				State:                db.config.State,
+				PointerNodeAssistant: db.pointerNodeAssistant,
+				DataNodeAssistant:    db.snapshotToNodeNodeAssistant,
+				MassEntry:            db.massSnapshotToNodeEntry,
+			},
+		)
+	} else {
+		nextSnapshotInfo = &db.snapshotInfo
+		nextDeallocationListRoot = &db.snapshotInfo.DeallocationRoot
+		nextDeallocationLists = db.deallocationLists
+	}
+
+	deallocationListsRoot := &snapshotInfo.DeallocationRoot
+	deallocationLists := space.New[types.SnapshotID, types.Pointer](
+		space.Config[types.SnapshotID, types.Pointer]{
+			SpaceRoot:            deallocationListsRoot,
+			State:                db.config.State,
+			PointerNodeAssistant: db.pointerNodeAssistant,
+			DataNodeAssistant:    db.snapshotToNodeNodeAssistant,
+			MassEntry:            db.massSnapshotToNodeEntry,
+		},
+	)
+
+	var startSnapshotID types.SnapshotID
+	if snapshotID != db.singularityNode.FirstSnapshotID {
+		startSnapshotID = snapshotInfo.PreviousSnapshotID + 1
+	}
+
+	for nextDeallocSnapshot := range nextDeallocationLists.Iterator(pointerNode, snapshotToNodeNode) {
+		if nextDeallocSnapshot.Key >= startSnapshotID && nextDeallocSnapshot.Key <= snapshotID {
+			list.Deallocate(
+				nextDeallocSnapshot.Value,
+				volatilePool,
+				persistentPool,
+				db.listNodeAssistant,
+				listNode,
+			)
+
+			continue
+		}
+
+		deallocationListValue := deallocationLists.Find(nextDeallocSnapshot.Key, pointerNode)
+		listNodeAddress := deallocationListValue.Value(pointerNode, snapshotToNodeNode)
+		newListNodeAddress := listNodeAddress
+		list := list.New(list.Config{
+			ListRoot:      &newListNodeAddress,
+			State:         db.config.State,
+			NodeAssistant: db.listNodeAssistant,
+		})
+
+		pointerToStore, err := list.Attach(&nextDeallocSnapshot.Value, volatilePool, listNode)
+		if err != nil {
+			return err
+		}
+		if pointerToStore != nil {
+			tx.AddStoreRequest(&pipeline.StoreRequest{
+				Store:                 [pipeline.StoreCapacity]*types.Pointer{pointerToStore},
+				PointersToStore:       1,
+				ImmediateDeallocation: true,
+			})
+		}
+		if newListNodeAddress != listNodeAddress {
+			if err := deallocationListValue.Set(
+				newListNodeAddress,
+				tx,
+				volatilePool,
+				pointerNode,
+				snapshotToNodeNode,
+			); err != nil {
+				return err
+			}
+		}
+	}
+
+	nextSnapshotInfo.DeallocationRoot = snapshotInfo.DeallocationRoot
+
+	space.Deallocate(
+		nextDeallocationListRoot,
+		volatilePool,
+		persistentPool,
+		db.pointerNodeAssistant,
+		pointerNode,
+	)
+
+	if snapshotID == db.singularityNode.FirstSnapshotID {
+		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.NextSnapshotID
+	} else {
+		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
+	}
+
+	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
+		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, pointerNode)
+		if err := nextSnapshotInfoValue.Set(
+			*nextSnapshotInfo,
+			tx,
+			volatilePool,
+			pointerNode,
+			snapshotInfoNode,
+		); err != nil {
+			return err
+		}
+	}
+
+	if snapshotID > db.singularityNode.FirstSnapshotID {
+		previousSnapshotInfoValue := db.snapshots.Find(snapshotInfo.PreviousSnapshotID, pointerNode)
+		if !previousSnapshotInfoValue.Exists(pointerNode, snapshotInfoNode) {
+			return errors.Errorf("snapshot %d does not exist", snapshotID)
+		}
+
+		previousSnapshotInfo := previousSnapshotInfoValue.Value(pointerNode, snapshotInfoNode)
+		previousSnapshotInfo.NextSnapshotID = snapshotInfo.NextSnapshotID
+
+		if err := previousSnapshotInfoValue.Set(
+			previousSnapshotInfo,
+			tx,
+			volatilePool,
+			pointerNode,
+			snapshotInfoNode,
+		); err != nil {
+			return err
+		}
+	}
+
+	if snapshotID == db.singularityNode.FirstSnapshotID {
+		db.singularityNode.FirstSnapshotID = snapshotInfo.NextSnapshotID
+	}
+	if snapshotID == db.snapshotInfo.PreviousSnapshotID {
+		db.snapshotInfo.PreviousSnapshotID = db.singularityNode.LastSnapshotID
+	}
+
+	return nil
+}
+
 func (db *DB) commit(
 	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	volatilePool *alloc.Pool[types.VolatileAddress],
+	pointerNode *space.Node[types.Pointer],
+	snapshotInfoNode *space.Node[types.DataItem[types.SnapshotID, types.SnapshotInfo]],
+	snapshotToNodeNode *space.Node[types.DataItem[types.SnapshotID, types.Pointer]],
+	listNode *list.Node,
 ) error {
 	//nolint:nestif
 	if len(db.deallocationListsToCommit) > 0 {
@@ -459,12 +458,12 @@ func (db *DB) commit(
 
 		var sr pipeline.StoreRequest
 		for _, snapshotID := range lists {
-			deallocationListValue := db.deallocationLists.Find(snapshotID, db.pointerNode)
-			if deallocationListValue.Exists(db.pointerNode, db.snapshotToNodeNode) {
+			deallocationListValue := db.deallocationLists.Find(snapshotID, pointerNode)
+			if deallocationListValue.Exists(pointerNode, snapshotToNodeNode) {
 				pointerToStore, err := db.deallocationListsToCommit[snapshotID].List.Attach(
-					lo.ToPtr(deallocationListValue.Value(db.pointerNode, db.snapshotToNodeNode)),
+					lo.ToPtr(deallocationListValue.Value(pointerNode, snapshotToNodeNode)),
 					volatilePool,
-					db.listNode,
+					listNode,
 				)
 				if err != nil {
 					return err
@@ -478,8 +477,8 @@ func (db *DB) commit(
 				*db.deallocationListsToCommit[snapshotID].ListRoot,
 				tx,
 				volatilePool,
-				db.pointerNode,
-				db.snapshotToNodeNode,
+				pointerNode,
+				snapshotToNodeNode,
 			); err != nil {
 				return err
 			}
@@ -491,13 +490,13 @@ func (db *DB) commit(
 		clear(db.deallocationListsToCommit)
 	}
 
-	nextSnapshotInfoValue := db.snapshots.Find(db.singularityNode.LastSnapshotID, db.pointerNode)
+	nextSnapshotInfoValue := db.snapshots.Find(db.singularityNode.LastSnapshotID, pointerNode)
 	if err := nextSnapshotInfoValue.Set(
 		db.snapshotInfo,
 		tx,
 		volatilePool,
-		db.pointerNode,
-		db.snapshotInfoNode,
+		pointerNode,
+		snapshotInfoNode,
 	); err != nil {
 		return err
 	}
@@ -543,14 +542,19 @@ func (db *DB) executeTransactions(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
 ) error {
-	volatilePool := db.NewVolatilePool()
+	volatilePool := db.config.State.NewVolatilePool()
+	persistentPool := db.config.State.NewPersistentPool()
 
 	s, err := GetSpace[txtypes.Account, txtypes.Amount](spaces.Balances, db)
 	if err != nil {
 		return err
 	}
-	pointerNode := s.NewPointerNode()
 	dataNode := s.NewDataNode()
+
+	pointerNode := db.pointerNodeAssistant.NewNode()
+	snapshotInfoNode := db.snapshotInfoNodeAssistant.NewNode()
+	snapshotToNodeNode := db.snapshotToNodeNodeAssistant.NewNode()
+	listNode := db.listNodeAssistant.NewNode()
 
 	for {
 		count, err := pipeReader.Count(ctx)
@@ -569,8 +573,14 @@ func (db *DB) executeTransactions(
 					return err
 				}
 			case *commitTx:
-				if err := db.commit(tx.SnapshotID, req, volatilePool); err != nil {
+				if err := db.commit(tx.SnapshotID, req, volatilePool, pointerNode, snapshotInfoNode,
+					snapshotToNodeNode, listNode); err != nil {
 					req.SyncCh <- err
+					return err
+				}
+			case *deleteSnapshotTx:
+				if err := db.deleteSnapshot(tx.SnapshotID, req, volatilePool, persistentPool, pointerNode,
+					snapshotInfoNode, snapshotToNodeNode, listNode); err != nil {
 					return err
 				}
 			case *genesis.Tx:
@@ -589,7 +599,7 @@ func (db *DB) processAllocationRequests(
 	pipeReader *pipeline.Reader,
 ) error {
 	massPointer := mass.New[types.Pointer](1000)
-	persistentPool := db.NewPersistentPool()
+	persistentPool := db.config.State.NewPersistentPool()
 
 	for {
 		count, err := pipeReader.Count(ctx)
@@ -633,8 +643,8 @@ func (db *DB) processDeallocationRequests(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
 ) error {
-	volatilePool := db.NewVolatilePool()
-	persistentPool := db.NewPersistentPool()
+	volatilePool := db.config.State.NewVolatilePool()
+	persistentPool := db.config.State.NewPersistentPool()
 
 	listNode := db.listNodeAssistant.NewNode()
 
@@ -901,5 +911,9 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 }
 
 type commitTx struct {
+	SnapshotID types.SnapshotID
+}
+
+type deleteSnapshotTx struct {
 	SnapshotID types.SnapshotID
 }

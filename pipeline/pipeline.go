@@ -85,12 +85,17 @@ type StoreRequest struct {
 }
 
 // New creates new pipeline.
-func New() *Pipeline {
+func New() (*Pipeline, *Reader) {
 	head := &TransactionRequest{}
+	availableCount := lo.ToPtr[uint64](0)
 	return &Pipeline{
-		tail:           &head,
-		availableCount: lo.ToPtr[uint64](0),
-	}
+			tail:           &head,
+			availableCount: availableCount,
+		}, &Reader{
+			head:           &head,
+			availableCount: availableCount,
+			processedCount: lo.ToPtr[uint64](0),
+		}
 }
 
 // Pipeline is the pipeline processing transactions.
@@ -109,15 +114,6 @@ func (p *Pipeline) Push(item *TransactionRequest) {
 
 	if p.count%96 == 0 || item.SyncCh != nil || item.Type == Close {
 		atomic.StoreUint64(p.availableCount, p.count)
-	}
-}
-
-// NewReader creates new pipeline reader.
-func (p *Pipeline) NewReader() *Reader {
-	return &Reader{
-		head:           p.tail,
-		availableCount: p.availableCount,
-		processedCount: lo.ToPtr[uint64](0),
 	}
 }
 
