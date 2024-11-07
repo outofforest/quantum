@@ -628,6 +628,9 @@ func (db *DB) processDeallocationRequests(
 		for range count {
 			req := pipeReader.Read()
 			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+				if sr.DeallocateVolatileAddress != 0 {
+					volatilePool.Deallocate(sr.DeallocateVolatileAddress)
+				}
 				for _, p := range sr.Deallocate {
 					pointerToStore, err := db.deallocateNode(
 						&p,
