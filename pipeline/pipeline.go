@@ -47,6 +47,9 @@ type TransactionRequest struct {
 
 // AddStoreRequest adds store request to the transaction.
 func (t *TransactionRequest) AddStoreRequest(sr *StoreRequest) {
+	for i := range sr.PointersToStore {
+		atomic.StoreUint64(&sr.Store[i].Revision, t.RequestedRevision)
+	}
 	*t.LastStoreRequest = sr
 	t.LastStoreRequest = &sr.Next
 }
