@@ -19,7 +19,10 @@ import (
 	"github.com/outofforest/quantum/persistent"
 	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space"
-	"github.com/outofforest/quantum/tx"
+	"github.com/outofforest/quantum/tx/genesis"
+	"github.com/outofforest/quantum/tx/transfer"
+	txtypes "github.com/outofforest/quantum/tx/types"
+	"github.com/outofforest/quantum/tx/types/spaces"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -150,12 +153,6 @@ func (db *DB) NewPersistentPool() *alloc.Pool[types.PersistentAddress] {
 func (db *DB) ApplyTransaction(tx any) {
 	txRequest := db.config.TxRequestFactory.New()
 	txRequest.Transaction = tx
-	db.queue.Push(txRequest)
-}
-
-// ApplyTransactionRequest adds transaction request to the queue.
-// FIXME (wojciech): Instead of doing this, create a "genesis" transaction to fund account.
-func (db *DB) ApplyTransactionRequest(txRequest *pipeline.TransactionRequest) {
 	db.queue.Push(txRequest)
 }
 
@@ -508,7 +505,7 @@ func (db *DB) prepareTransactions(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
 ) error {
-	s, err := GetSpace[tx.Account, tx.Balance](tx.BalanceSpaceID, db)
+	s, err := GetSpace[txtypes.Account, txtypes.Amount](spaces.Balances, db)
 	if err != nil {
 		return err
 	}
@@ -525,11 +522,9 @@ func (db *DB) prepareTransactions(
 				continue
 			}
 
-			transferTx, ok := req.Transaction.(*tx.Transfer)
-			if !ok {
-				return errors.New("unknown transaction type")
+			if transferTx, ok := req.Transaction.(*transfer.Tx); ok {
+				transferTx.Prepare(s, pointerNode)
 			}
-			transferTx.Prepare(s, pointerNode)
 		}
 	}
 }
@@ -540,7 +535,7 @@ func (db *DB) executeTransactions(
 ) error {
 	volatilePool := db.NewVolatilePool()
 
-	s, err := GetSpace[tx.Account, tx.Balance](tx.BalanceSpaceID, db)
+	s, err := GetSpace[txtypes.Account, txtypes.Amount](spaces.Balances, db)
 	if err != nil {
 		return err
 	}
@@ -558,12 +553,17 @@ func (db *DB) executeTransactions(
 				continue
 			}
 
-			transferTx, ok := req.Transaction.(*tx.Transfer)
-			if !ok {
+			switch tx := req.Transaction.(type) {
+			case *genesis.Tx:
+				if err := tx.Execute(s, req, volatilePool, pointerNode, dataNode); err != nil {
+					return err
+				}
+			case *transfer.Tx:
+				if err := tx.Execute(req, volatilePool, pointerNode, dataNode); err != nil {
+					return err
+				}
+			default:
 				return errors.New("unknown transaction type")
-			}
-			if err := transferTx.Execute(req, volatilePool, pointerNode, dataNode); err != nil {
-				return err
 			}
 		}
 	}

@@ -19,7 +19,9 @@ import (
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/persistent"
 	"github.com/outofforest/quantum/pipeline"
-	"github.com/outofforest/quantum/tx"
+	"github.com/outofforest/quantum/tx/genesis"
+	"github.com/outofforest/quantum/tx/transfer"
+	txtypes "github.com/outofforest/quantum/tx/types"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -39,9 +41,12 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 	b.StopTimer()
 	b.ResetTimer()
 
-	accounts := make([]tx.Account, 0, numOfAddresses)
+	var genesisAccount txtypes.Account
+	_, _ = rand.Read(genesisAccount[:])
+
+	accounts := make([]txtypes.Account, 0, numOfAddresses)
 	for range cap(accounts) {
-		var address tx.Account
+		var address txtypes.Account
 		_, _ = rand.Read(address[:])
 		accounts = append(accounts, address)
 	}
@@ -112,7 +117,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			volatilePool := db.NewVolatilePool()
 			persistentPool := db.NewPersistentPool()
 
-			s, err := quantum.GetSpace[tx.Account, tx.Balance](spaceID, db)
+			s, err := quantum.GetSpace[txtypes.Account, txtypes.Amount](spaceID, db)
 			if err != nil {
 				panic(err)
 			}
@@ -121,18 +126,14 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			dataNode := s.NewDataNode()
 
 			func() {
-				for i := 0; i < numOfAddresses; i += 2 {
-					txRequest := txRequestFactory.New()
-
-					v := s.Find(accounts[i], pointerNode)
-
-					if err := v.Set(2*balance, txRequest, volatilePool, pointerNode, dataNode); err != nil {
-						panic(err)
-					}
-
-					db.ApplyTransactionRequest(txRequest)
-				}
-
+				db.ApplyTransaction(&genesis.Tx{
+					Accounts: []genesis.InitialBalance{
+						{
+							Account: genesisAccount,
+							Amount:  numOfAddresses * balance,
+						},
+					},
+				})
 				if err := db.Commit(volatilePool); err != nil {
 					panic(err)
 				}
@@ -140,11 +141,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				fmt.Println(s.Stats(pointerNode, dataNode))
 				fmt.Println("===========================")
 
-				for i := 0; i < numOfAddresses; i += 2 {
-					v := s.Find(accounts[i], pointerNode)
-					require.True(b, v.Exists(pointerNode, dataNode))
-					require.Equal(b, tx.Balance(2*balance), v.Value(pointerNode, dataNode))
-				}
+				v := s.Find(genesisAccount, pointerNode)
+				require.True(b, v.Exists(pointerNode, dataNode))
+				require.Equal(b, txtypes.Amount(numOfAddresses*balance), v.Value(pointerNode, dataNode))
 			}()
 
 			txIndex := 0
@@ -152,10 +151,10 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 			func() {
 				b.StartTimer()
-				for i := 0; i < numOfAddresses; i += 2 {
-					db.ApplyTransaction(&tx.Transfer{
-						From:   accounts[i],
-						To:     accounts[i+1],
+				for i := range numOfAddresses {
+					db.ApplyTransaction(&transfer.Tx{
+						From:   genesisAccount,
+						To:     accounts[i],
 						Amount: balance,
 					})
 
@@ -187,10 +186,14 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			func() {
 				fmt.Println(s.Stats(pointerNode, dataNode))
 
+				v := s.Find(genesisAccount, pointerNode)
+				require.True(b, v.Exists(pointerNode, dataNode))
+				require.Equal(b, txtypes.Amount(0), v.Value(pointerNode, dataNode))
+
 				for _, addr := range accounts {
 					v := s.Find(addr, pointerNode)
 					require.True(b, v.Exists(pointerNode, dataNode))
-					require.Equal(b, tx.Balance(balance), v.Value(pointerNode, dataNode))
+					require.Equal(b, txtypes.Amount(balance), v.Value(pointerNode, dataNode))
 				}
 			}()
 		}()
