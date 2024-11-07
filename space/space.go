@@ -526,7 +526,9 @@ func (s *Space[K, V]) redistributeAndSet(
 	// Persistent address stays the same, so data node will be reused for pointer node if both are
 	// created in the same snapshot, or data node will be deallocated otherwise.
 
-	// FIXME (wojciech): volatile address of the data node must be deallocated.
+	tx.AddStoreRequest(&pipeline.StoreRequest{
+		DeallocateVolatileAddress: v.pointer.VolatileAddress,
+	})
 
 	for item := range dataNode.Iterator() {
 		if item.State != types.StateData {

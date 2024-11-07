@@ -76,8 +76,9 @@ type StoreRequest struct {
 	PointersToStore       uint64
 	Store                 [StoreCapacity]*types.Pointer
 
-	Deallocate []types.Pointer
-	Next       *StoreRequest
+	Deallocate                []types.Pointer
+	DeallocateVolatileAddress types.VolatileAddress
+	Next                      *StoreRequest
 }
 
 // New creates new pipeline.
