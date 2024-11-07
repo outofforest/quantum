@@ -25,8 +25,9 @@ import (
 
 // Config stores snapshot configuration.
 type Config struct {
-	State  *alloc.State
-	Stores []persistent.Store
+	State            *alloc.State
+	TxRequestFactory *pipeline.TransactionRequestFactory
+	Stores           []persistent.Store
 }
 
 // SpaceToCommit represents requested space which might require to be committed.
@@ -79,7 +80,6 @@ func New(config Config) (*DB, error) {
 		snapshotInfoNode:            snapshotInfoNodeAssistant.NewNode(),
 		snapshotToNodeNode:          snapshotToNodeNodeAssistant.NewNode(),
 		listNode:                    listNodeAssistant.NewNode(),
-		massTransactionRequest:      mass.New[pipeline.TransactionRequest](1000),
 		massSnapshotToNodeEntry:     mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
 		deallocationListsToCommit:   map[types.SnapshotID]ListToCommit{},
 		queue:                       pipeline.New(),
@@ -129,7 +129,6 @@ type DB struct {
 	snapshotToNodeNode *space.Node[types.DataItem[types.SnapshotID, types.Pointer]]
 	listNode           *list.Node
 
-	massTransactionRequest  *mass.Mass[pipeline.TransactionRequest]
 	massSnapshotToNodeEntry *mass.Mass[space.Entry[types.SnapshotID, types.Pointer]]
 
 	deallocationListsToCommit map[types.SnapshotID]ListToCommit
@@ -149,7 +148,7 @@ func (db *DB) NewPersistentPool() *alloc.Pool[types.PersistentAddress] {
 
 // ApplyTransaction adds transaction to the queue.
 func (db *DB) ApplyTransaction(tx any) {
-	txRequest := pipeline.NewTransactionRequest(db.massTransactionRequest)
+	txRequest := db.config.TxRequestFactory.New()
 	txRequest.Transaction = tx
 	db.queue.Push(txRequest)
 }
@@ -165,7 +164,7 @@ func (db *DB) DeleteSnapshot(
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
 ) error {
-	tx := pipeline.NewTransactionRequest(db.massTransactionRequest)
+	tx := db.config.TxRequestFactory.New()
 
 	snapshotInfoValue := db.snapshots.Find(snapshotID, db.pointerNode)
 	if !snapshotInfoValue.Exists(db.pointerNode, db.snapshotInfoNode) {
@@ -330,13 +329,13 @@ func (db *DB) DeleteSnapshot(
 
 // Commit commits current snapshot and returns next one.
 func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
-	commitTx := pipeline.NewTransactionRequest(db.massTransactionRequest)
+	commitTx := db.config.TxRequestFactory.New()
 	commitTx.Type = pipeline.Commit
 
 	//nolint:nestif
 	if len(db.deallocationListsToCommit) > 0 {
 		syncCh := make(chan error, len(db.config.Stores)+1) // 1 is for supervisor
-		tx := pipeline.NewTransactionRequest(db.massTransactionRequest)
+		tx := db.config.TxRequestFactory.New()
 		tx.Type = pipeline.Sync
 		tx.SyncCh = syncCh
 		db.queue.Push(tx)
@@ -420,7 +419,7 @@ func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
 
 // Close tells that there will be no more operations done.
 func (db *DB) Close() {
-	tx := pipeline.NewTransactionRequest(db.massTransactionRequest)
+	tx := db.config.TxRequestFactory.New()
 	tx.Type = pipeline.Close
 	db.queue.Push(tx)
 }
@@ -440,9 +439,10 @@ func (db *DB) Run(ctx context.Context) error {
 				deallocateQReader := allocateQReader.NewReader()
 				checksumQReader1 := deallocateQReader.NewReader()
 				checksumQReader2 := checksumQReader1.NewReader()
+				checksumQReader3 := checksumQReader2.NewReader()
 				storeQReaders := make([]*pipeline.Reader, 0, len(db.config.Stores))
 				for range cap(storeQReaders) {
-					storeQReaders = append(storeQReaders, checksumQReader2.NewReader())
+					storeQReaders = append(storeQReaders, checksumQReader3.NewReader())
 				}
 
 				spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
@@ -480,10 +480,13 @@ func (db *DB) Run(ctx context.Context) error {
 					return db.processDeallocationRequests(ctx, deallocateQReader)
 				})
 				spawn("checksum1", parallel.Fail, func(ctx context.Context) error {
-					return db.updateChecksums(ctx, checksumQReader1, 2, 1)
+					return db.updateChecksums(ctx, checksumQReader1, 3, 2)
 				})
 				spawn("checksum2", parallel.Fail, func(ctx context.Context) error {
-					return db.updateChecksums(ctx, checksumQReader2, 0, 0)
+					return db.updateChecksums(ctx, checksumQReader2, 3, 1)
+				})
+				spawn("checksum3", parallel.Fail, func(ctx context.Context) error {
+					return db.updateChecksums(ctx, checksumQReader3, 0, 0)
 				})
 				for i, store := range db.config.Stores {
 					spawn(fmt.Sprintf("store-%02d", i), parallel.Fail, func(ctx context.Context) error {

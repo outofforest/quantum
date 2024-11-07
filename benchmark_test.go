@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/outofforest/logger"
-	"github.com/outofforest/mass"
 	"github.com/outofforest/parallel"
 	"github.com/outofforest/quantum"
 	"github.com/outofforest/quantum/alloc"
@@ -32,7 +31,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 15_000_000
+		numOfAddresses = 10_000_000
 		txsPerCommit   = 20_000
 		balance        = 100_000
 	)
@@ -83,9 +82,11 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				persistent.NewDummyStore(),
 			}
 
+			txRequestFactory := pipeline.NewTransactionRequestFactory()
 			db, err := quantum.New(quantum.Config{
-				State:  state,
-				Stores: stores,
+				State:            state,
+				TxRequestFactory: txRequestFactory,
+				Stores:           stores,
 			})
 			if err != nil {
 				panic(err)
@@ -120,9 +121,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			dataNode := s.NewDataNode()
 
 			func() {
-				massTR := mass.New[pipeline.TransactionRequest](10)
-
-				txRequest := pipeline.NewTransactionRequest(massTR)
+				txRequest := txRequestFactory.New()
 				if err := s.AllocatePointers(txRequest, 3, volatilePool, pointerNode); err != nil {
 					panic(err)
 				}
@@ -130,7 +129,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				db.ApplyTransactionRequest(txRequest)
 
 				for i := 0; i < numOfAddresses; i += 2 {
-					txRequest := pipeline.NewTransactionRequest(massTR)
+					txRequest := txRequestFactory.New()
 
 					v := s.Find(accounts[i], pointerNode)
 
