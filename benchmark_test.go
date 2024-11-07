@@ -121,13 +121,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			dataNode := s.NewDataNode()
 
 			func() {
-				txRequest := txRequestFactory.New()
-				if err := s.AllocatePointers(txRequest, 3, volatilePool, pointerNode); err != nil {
-					panic(err)
-				}
-
-				db.ApplyTransactionRequest(txRequest)
-
 				for i := 0; i < numOfAddresses; i += 2 {
 					txRequest := txRequestFactory.New()
 
