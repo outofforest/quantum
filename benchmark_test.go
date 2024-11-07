@@ -18,7 +18,6 @@ import (
 	"github.com/outofforest/quantum"
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/persistent"
-	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/tx/genesis"
 	"github.com/outofforest/quantum/tx/transfer"
 	txtypes "github.com/outofforest/quantum/tx/types"
@@ -87,11 +86,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				persistent.NewDummyStore(),
 			}
 
-			txRequestFactory := pipeline.NewTransactionRequestFactory()
 			db, err := quantum.New(quantum.Config{
-				State:            state,
-				TxRequestFactory: txRequestFactory,
-				Stores:           stores,
+				State:  state,
+				Stores: stores,
 			})
 			if err != nil {
 				panic(err)
@@ -113,9 +110,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			defer func() {
 				db.Close()
 			}()
-
-			volatilePool := db.NewVolatilePool()
-			persistentPool := db.NewPersistentPool()
 
 			s, err := quantum.GetSpace[txtypes.Account, txtypes.Amount](spaceID, db)
 			if err != nil {
@@ -165,13 +159,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 						}
 
 						if snapshotID > 1 {
-							if err := db.DeleteSnapshot(
-								snapshotID-2,
-								volatilePool,
-								persistentPool,
-							); err != nil {
-								panic(err)
-							}
+							db.DeleteSnapshot(snapshotID - 2)
 						}
 					}
 				}
