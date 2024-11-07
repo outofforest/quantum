@@ -1,4 +1,4 @@
-package tx
+package transfer
 
 import (
 	"math"
@@ -8,31 +8,23 @@ import (
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space"
+	txtypes "github.com/outofforest/quantum/tx/types"
 	"github.com/outofforest/quantum/types"
 )
 
-// BalanceSpaceID specifies space ID used to store balances.
-const BalanceSpaceID = 0x00
+// Tx defines transfer transaction.
+type Tx struct {
+	From   txtypes.Account
+	To     txtypes.Account
+	Amount txtypes.Amount
 
-// Account defines the type for account address.
-type Account [20]byte
-
-// Balance defines type for balance.
-type Balance uint64
-
-// Transfer defines transfer transaction.
-type Transfer struct {
-	From   Account
-	To     Account
-	Amount Balance
-
-	from *space.Entry[Account, Balance]
-	to   *space.Entry[Account, Balance]
+	from *space.Entry[txtypes.Account, txtypes.Amount]
+	to   *space.Entry[txtypes.Account, txtypes.Amount]
 }
 
 // Prepare prepares transaction for execution.
-func (t *Transfer) Prepare(
-	space *space.Space[Account, Balance],
+func (t *Tx) Prepare(
+	space *space.Space[txtypes.Account, txtypes.Amount],
 	pointerNode *space.Node[types.Pointer],
 ) {
 	t.from = space.Find(t.From, pointerNode)
@@ -40,11 +32,11 @@ func (t *Transfer) Prepare(
 }
 
 // Execute executes transaction.
-func (t *Transfer) Execute(
+func (t *Tx) Execute(
 	tx *pipeline.TransactionRequest,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	pointerNode *space.Node[types.Pointer],
-	dataNode *space.Node[types.DataItem[Account, Balance]],
+	dataNode *space.Node[types.DataItem[txtypes.Account, txtypes.Amount]],
 ) error {
 	fromBalance := t.from.Value(pointerNode, dataNode)
 	if fromBalance < t.Amount {
