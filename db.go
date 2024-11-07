@@ -402,9 +402,8 @@ func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
 	syncCh := make(chan error, len(db.config.Stores)+1) // 1 is for supervisor
 	commitTx.SyncCh = syncCh
 	commitTx.AddStoreRequest(&pipeline.StoreRequest{
-		RequestedRevision: pointer.Revision,
-		Store:             [pipeline.StoreCapacity]*types.Pointer{pointer},
-		PointersToStore:   1,
+		Store:           [pipeline.StoreCapacity]*types.Pointer{pointer},
+		PointersToStore: 1,
 	})
 	db.queue.Push(commitTx)
 
@@ -437,8 +436,7 @@ func (db *DB) Run(ctx context.Context) error {
 				supervisorQReader := db.queue.NewReader()
 				prepareTxQReader := supervisorQReader.NewReader()
 				executeTxQReader := prepareTxQReader.NewReader()
-				revisionQReader := executeTxQReader.NewReader()
-				allocateQReader := revisionQReader.NewReader()
+				allocateQReader := executeTxQReader.NewReader()
 				deallocateQReader := allocateQReader.NewReader()
 				checksumQReader1 := deallocateQReader.NewReader()
 				checksumQReader2 := checksumQReader1.NewReader()
@@ -475,9 +473,6 @@ func (db *DB) Run(ctx context.Context) error {
 				})
 				spawn("executeTx", parallel.Fail, func(ctx context.Context) error {
 					return db.executeTransactions(ctx, executeTxQReader)
-				})
-				spawn("revision", parallel.Fail, func(ctx context.Context) error {
-					return db.processRevisionRequests(ctx, revisionQReader)
 				})
 				spawn("allocate", parallel.Fail, func(ctx context.Context) error {
 					return db.processAllocationRequests(ctx, allocateQReader)
@@ -567,34 +562,6 @@ func (db *DB) executeTransactions(
 			}
 			if err := transferTx.Execute(req, volatilePool, pointerNode, dataNode); err != nil {
 				return err
-			}
-		}
-	}
-}
-
-func (db *DB) processRevisionRequests(
-	ctx context.Context,
-	pipeReader *pipeline.Reader,
-) error {
-	var revision uint64
-
-	for {
-		count, err := pipeReader.Count(ctx)
-		if err != nil {
-			return err
-		}
-		for range count {
-			req := pipeReader.Read()
-			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-				revision++
-				sr.RequestedRevision = revision
-				for i := range sr.PointersToStore {
-					atomic.StoreUint64(&sr.Store[i].Revision, revision)
-				}
-			}
-
-			if req.Type == pipeline.Commit {
-				revision = 0
 			}
 		}
 	}
@@ -739,7 +706,7 @@ func (db *DB) updateChecksums(
 				for sr := req.StoreRequest; sr != nil; sr = sr.Next {
 					for i := range sr.PointersToStore {
 						p := sr.Store[i]
-						if atomic.LoadUint64(&p.Revision) != sr.RequestedRevision {
+						if atomic.LoadUint64(&p.Revision) != req.RequestedRevision {
 							continue
 						}
 						node := db.config.State.Node(p.VolatileAddress)
@@ -792,7 +759,7 @@ func (db *DB) processStoreRequests(
 			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
 				for i := range sr.PointersToStore {
 					p := sr.Store[i]
-					if atomic.LoadUint64(&p.Revision) != sr.RequestedRevision {
+					if atomic.LoadUint64(&p.Revision) != req.RequestedRevision {
 						continue
 					}
 

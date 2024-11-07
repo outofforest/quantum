@@ -41,6 +41,7 @@ type TransactionRequest struct {
 	SyncCh            chan<- error
 	Next              *TransactionRequest
 	Type              TransactionRequestType
+	RequestedRevision uint64
 	ChecksumProcessed bool
 }
 
@@ -54,12 +55,10 @@ func (t *TransactionRequest) AddStoreRequest(sr *StoreRequest) {
 type StoreRequest struct {
 	ImmediateDeallocation bool
 	PointersToStore       uint64
-	// FIXME (wojciech): Pointer is modified during redistribution. We need to copy pointers here.
-	Store [StoreCapacity]*types.Pointer
+	Store                 [StoreCapacity]*types.Pointer
 
-	RequestedRevision uint64
-	Deallocate        []types.Pointer
-	Next              *StoreRequest
+	Deallocate []types.Pointer
+	Next       *StoreRequest
 }
 
 // New creates new pipeline.
@@ -80,14 +79,20 @@ type Pipeline struct {
 
 // Push pushes new request into the pipeline.
 func (p *Pipeline) Push(item *TransactionRequest) {
+	p.count++
+
+	item.RequestedRevision = p.count
+	for sr := item.StoreRequest; sr != nil; sr = sr.Next {
+		for i := range sr.PointersToStore {
+			atomic.StoreUint64(&sr.Store[i].Revision, p.count)
+		}
+	}
+
 	*p.tail = item
 	p.tail = &item.Next
 
-	p.count++
-
-	if p.count == 96 || item.SyncCh != nil || item.Type == Close {
-		atomic.AddUint64(p.availableCount, p.count)
-		p.count = 0
+	if p.count%96 == 0 || item.SyncCh != nil || item.Type == Close {
+		atomic.StoreUint64(p.availableCount, p.count)
 	}
 }
 
