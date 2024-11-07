@@ -154,11 +154,13 @@ func (db *DB) ApplyTransaction(tx any) {
 }
 
 // ApplyTransactionRequest adds transaction request to the queue.
+// FIXME (wojciech): Instead of doing this, create a "genesis" transaction to fund account.
 func (db *DB) ApplyTransactionRequest(txRequest *pipeline.TransactionRequest) {
 	db.queue.Push(txRequest)
 }
 
 // DeleteSnapshot deletes snapshot.
+// FIXME (wojciech): Turn this into transaction.
 func (db *DB) DeleteSnapshot(
 	snapshotID types.SnapshotID,
 	volatilePool *alloc.Pool[types.VolatileAddress],
@@ -328,6 +330,7 @@ func (db *DB) DeleteSnapshot(
 }
 
 // Commit commits current snapshot and returns next one.
+// FIXME (wojciech): Turn this into transaction.
 func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
 	commitTx := db.config.TxRequestFactory.New()
 	commitTx.Type = pipeline.Commit
@@ -683,6 +686,8 @@ func (db *DB) updateChecksums(
 	divider uint64,
 	mod uint64,
 ) error {
+	var reqIndex uint64
+
 	matrix := [16][16]*byte{}
 	matrixP := &matrix[0][0]
 	checksums := [16]*[32]byte{{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}}
@@ -703,8 +708,9 @@ func (db *DB) updateChecksums(
 		}
 		for range count {
 			req := pipeReader.Read()
+			reqIndex++
 
-			if !req.ChecksumProcessed && (divider == 0 || (req.RequestedRevision/16)%divider == mod) {
+			if !req.ChecksumProcessed && (divider == 0 || (reqIndex/16)%divider == mod) {
 				req.ChecksumProcessed = true
 				for sr := req.StoreRequest; sr != nil; sr = sr.Next {
 					for i := range sr.PointersToStore {
@@ -715,7 +721,7 @@ func (db *DB) updateChecksums(
 						// checksum calculation.
 						volatileAddress := p.VolatileAddress
 
-						if atomic.LoadUint64(&p.Revision) != req.RequestedRevision {
+						if atomic.LoadUint64(&p.Revision) != sr.RequestedRevision {
 							continue
 						}
 						node := db.config.State.Node(volatileAddress)
@@ -774,7 +780,7 @@ func (db *DB) processStoreRequests(
 					// allocating persistent addresses,
 					volatileAddress := p.VolatileAddress
 
-					if atomic.LoadUint64(&p.Revision) != req.RequestedRevision {
+					if atomic.LoadUint64(&p.Revision) != sr.RequestedRevision {
 						continue
 					}
 
