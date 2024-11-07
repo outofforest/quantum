@@ -327,84 +327,27 @@ func (db *DB) DeleteSnapshot(
 }
 
 // Commit commits current snapshot and returns next one.
-// FIXME (wojciech): Turn this into transaction.
-func (db *DB) Commit(volatilePool *alloc.Pool[types.VolatileAddress]) error {
-	commitTx := db.config.TxRequestFactory.New()
-	commitTx.Type = pipeline.Commit
-
-	//nolint:nestif
-	if len(db.deallocationListsToCommit) > 0 {
-		syncCh := make(chan error, len(db.config.Stores)+1) // 1 is for supervisor
-		tx := db.config.TxRequestFactory.New()
-		tx.Type = pipeline.Sync
-		tx.SyncCh = syncCh
-		db.queue.Push(tx)
-
-		for range len(db.config.Stores) {
-			if err := <-syncCh; err != nil {
-				return err
-			}
-		}
-
-		lists := make([]types.SnapshotID, 0, len(db.deallocationListsToCommit))
-		for snapshotID := range db.deallocationListsToCommit {
-			lists = append(lists, snapshotID)
-		}
-		sort.Slice(lists, func(i, j int) bool { return lists[i] < lists[j] })
-
-		var sr pipeline.StoreRequest
-		for _, snapshotID := range lists {
-			deallocationListValue := db.deallocationLists.Find(snapshotID, db.pointerNode)
-			if deallocationListValue.Exists(db.pointerNode, db.snapshotToNodeNode) {
-				pointerToStore, err := db.deallocationListsToCommit[snapshotID].List.Attach(
-					lo.ToPtr(deallocationListValue.Value(db.pointerNode, db.snapshotToNodeNode)),
-					volatilePool,
-					db.listNode,
-				)
-				if err != nil {
-					return err
-				}
-				if pointerToStore != nil {
-					sr.Store[sr.PointersToStore] = pointerToStore
-					sr.PointersToStore++
-				}
-			}
-			if err := deallocationListValue.Set(
-				*db.deallocationListsToCommit[snapshotID].ListRoot,
-				tx,
-				volatilePool,
-				db.pointerNode,
-				db.snapshotToNodeNode,
-			); err != nil {
-				return err
-			}
-		}
-		if sr.PointersToStore > 0 {
-			commitTx.AddStoreRequest(&sr)
-		}
-
-		clear(db.deallocationListsToCommit)
-	}
-
-	nextSnapshotInfoValue := db.snapshots.Find(db.singularityNode.LastSnapshotID, db.pointerNode)
-	if err := nextSnapshotInfoValue.Set(
-		db.snapshotInfo,
-		commitTx,
-		volatilePool,
-		db.pointerNode,
-		db.snapshotInfoNode,
-	); err != nil {
-		return err
-	}
-
-	pointer := db.config.State.SingularityNodePointer(db.singularityNode.LastSnapshotID)
+func (db *DB) Commit() error {
 	syncCh := make(chan error, len(db.config.Stores)+1) // 1 is for supervisor
-	commitTx.SyncCh = syncCh
-	commitTx.AddStoreRequest(&pipeline.StoreRequest{
-		Store:           [pipeline.StoreCapacity]*types.Pointer{pointer},
-		PointersToStore: 1,
-	})
-	db.queue.Push(commitTx)
+	tx := db.config.TxRequestFactory.New()
+	tx.Type = pipeline.Sync
+	tx.SyncCh = syncCh
+	db.queue.Push(tx)
+
+	for range len(db.config.Stores) {
+		if err := <-syncCh; err != nil {
+			return err
+		}
+	}
+
+	syncCh = make(chan error, len(db.config.Stores)+1) // 1 is for supervisor
+	tx = db.config.TxRequestFactory.New()
+	tx.Type = pipeline.Commit
+	tx.SyncCh = syncCh
+	tx.Transaction = &commitTx{
+		SnapshotID: db.singularityNode.LastSnapshotID,
+	}
+	db.queue.Push(tx)
 
 	for range len(db.config.Stores) {
 		if err := <-syncCh; err != nil {
@@ -501,6 +444,73 @@ func (db *DB) Run(ctx context.Context) error {
 	})
 }
 
+func (db *DB) commit(
+	snapshotID types.SnapshotID,
+	tx *pipeline.TransactionRequest,
+	volatilePool *alloc.Pool[types.VolatileAddress],
+) error {
+	//nolint:nestif
+	if len(db.deallocationListsToCommit) > 0 {
+		lists := make([]types.SnapshotID, 0, len(db.deallocationListsToCommit))
+		for snapshotID := range db.deallocationListsToCommit {
+			lists = append(lists, snapshotID)
+		}
+		sort.Slice(lists, func(i, j int) bool { return lists[i] < lists[j] })
+
+		var sr pipeline.StoreRequest
+		for _, snapshotID := range lists {
+			deallocationListValue := db.deallocationLists.Find(snapshotID, db.pointerNode)
+			if deallocationListValue.Exists(db.pointerNode, db.snapshotToNodeNode) {
+				pointerToStore, err := db.deallocationListsToCommit[snapshotID].List.Attach(
+					lo.ToPtr(deallocationListValue.Value(db.pointerNode, db.snapshotToNodeNode)),
+					volatilePool,
+					db.listNode,
+				)
+				if err != nil {
+					return err
+				}
+				if pointerToStore != nil {
+					sr.Store[sr.PointersToStore] = pointerToStore
+					sr.PointersToStore++
+				}
+			}
+			if err := deallocationListValue.Set(
+				*db.deallocationListsToCommit[snapshotID].ListRoot,
+				tx,
+				volatilePool,
+				db.pointerNode,
+				db.snapshotToNodeNode,
+			); err != nil {
+				return err
+			}
+		}
+		if sr.PointersToStore > 0 {
+			tx.AddStoreRequest(&sr)
+		}
+
+		clear(db.deallocationListsToCommit)
+	}
+
+	nextSnapshotInfoValue := db.snapshots.Find(db.singularityNode.LastSnapshotID, db.pointerNode)
+	if err := nextSnapshotInfoValue.Set(
+		db.snapshotInfo,
+		tx,
+		volatilePool,
+		db.pointerNode,
+		db.snapshotInfoNode,
+	); err != nil {
+		return err
+	}
+
+	pointer := db.config.State.SingularityNodePointer(snapshotID)
+	tx.AddStoreRequest(&pipeline.StoreRequest{
+		Store:           [pipeline.StoreCapacity]*types.Pointer{pointer},
+		PointersToStore: 1,
+	})
+
+	return nil
+}
+
 func (db *DB) prepareTransactions(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
@@ -554,12 +564,17 @@ func (db *DB) executeTransactions(
 			}
 
 			switch tx := req.Transaction.(type) {
-			case *genesis.Tx:
-				if err := tx.Execute(s, req, volatilePool, pointerNode, dataNode); err != nil {
-					return err
-				}
 			case *transfer.Tx:
 				if err := tx.Execute(req, volatilePool, pointerNode, dataNode); err != nil {
+					return err
+				}
+			case *commitTx:
+				if err := db.commit(tx.SnapshotID, req, volatilePool); err != nil {
+					req.SyncCh <- err
+					return err
+				}
+			case *genesis.Tx:
+				if err := tx.Execute(s, req, volatilePool, pointerNode, dataNode); err != nil {
 					return err
 				}
 			default:
@@ -883,4 +898,8 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 		DataNodeAssistant:    dataNodeAssistant,
 		MassEntry:            mass.New[space.Entry[K, V]](1000),
 	}), nil
+}
+
+type commitTx struct {
+	SnapshotID types.SnapshotID
 }
