@@ -26,10 +26,25 @@ const (
 // StoreCapacity is the maximum capacity of store array in store request.
 const StoreCapacity = 10
 
-// NewTransactionRequest returns new transaction request.
-func NewTransactionRequest(massTR *mass.Mass[TransactionRequest]) *TransactionRequest {
-	t := massTR.New()
+// NewTransactionRequestFactory creates transaction request factory.
+func NewTransactionRequestFactory() *TransactionRequestFactory {
+	return &TransactionRequestFactory{
+		massTR: mass.New[TransactionRequest](1000),
+	}
+}
+
+// TransactionRequestFactory is used to create new transaction requests.
+type TransactionRequestFactory struct {
+	revision uint64
+	massTR   *mass.Mass[TransactionRequest]
+}
+
+// New creates transaction request.
+func (trf *TransactionRequestFactory) New() *TransactionRequest {
+	t := trf.massTR.New()
 	t.LastStoreRequest = &t.StoreRequest
+	t.RequestedRevision = trf.revision
+	trf.revision++
 	return t
 }
 
@@ -50,6 +65,7 @@ func (t *TransactionRequest) AddStoreRequest(sr *StoreRequest) {
 	for i := range sr.PointersToStore {
 		atomic.StoreUint64(&sr.Store[i].Revision, t.RequestedRevision)
 	}
+
 	*t.LastStoreRequest = sr
 	t.LastStoreRequest = &sr.Next
 }
@@ -83,13 +99,6 @@ type Pipeline struct {
 // Push pushes new request into the pipeline.
 func (p *Pipeline) Push(item *TransactionRequest) {
 	p.count++
-
-	item.RequestedRevision = p.count
-	for sr := item.StoreRequest; sr != nil; sr = sr.Next {
-		for i := range sr.PointersToStore {
-			atomic.StoreUint64(&sr.Store[i].Revision, p.count)
-		}
-	}
 
 	*p.tail = item
 	p.tail = &item.Next

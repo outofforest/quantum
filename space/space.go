@@ -362,10 +362,10 @@ func (s *Space[K, V]) deleteValue(
 		return nil
 	}
 	if v.itemP.Hash == v.item.Hash && v.itemP.Key == v.item.Key {
+		tx.AddStoreRequest(&v.storeRequest)
+
 		v.item.State = types.StateDeleted
 		v.itemP.State = types.StateDeleted
-
-		tx.AddStoreRequest(&v.storeRequest)
 
 		return nil
 	}
@@ -389,18 +389,18 @@ func (s *Space[K, V]) setValue(
 
 	if v.pointer.State == types.StateData && v.itemP != nil {
 		if v.item.State <= types.StateDeleted {
+			tx.AddStoreRequest(&v.storeRequest)
+
 			v.item.State = types.StateData
 			*v.itemP = v.item
 			v.exists = true
 
-			tx.AddStoreRequest(&v.storeRequest)
-
 			return nil
 		}
 		if v.itemP.Hash == v.item.Hash && v.itemP.Key == v.item.Key {
-			v.itemP.Value = value
-
 			tx.AddStoreRequest(&v.storeRequest)
+
+			v.itemP.Value = value
 
 			return nil
 		}
@@ -426,6 +426,8 @@ func (s *Space[K, V]) set(
 
 			s.config.DataNodeAssistant.Project(dataNodeAddress, dataNode)
 
+			tx.AddStoreRequest(&v.storeRequest)
+
 			v.pointer.VolatileAddress = dataNodeAddress
 			v.pointer.State = types.StateData
 
@@ -438,8 +440,6 @@ func (s *Space[K, V]) set(
 			v.itemP = item
 			v.exists = true
 
-			tx.AddStoreRequest(&v.storeRequest)
-
 			return nil
 		case types.StateData:
 			s.config.DataNodeAssistant.Project(v.pointer.VolatileAddress, dataNode)
@@ -451,25 +451,25 @@ func (s *Space[K, V]) set(
 				item := dataNode.Item(*(*uint64)(indexP))
 
 				if item.State <= types.StateDeleted {
+					tx.AddStoreRequest(&v.storeRequest)
+
 					v.item.State = types.StateData
 					*item = v.item
 
 					v.itemP = item
 					v.exists = true
 
-					tx.AddStoreRequest(&v.storeRequest)
-
 					return nil
 				}
 
 				if v.item.Hash == item.Hash {
 					if v.item.Key == item.Key {
+						tx.AddStoreRequest(&v.storeRequest)
+
 						item.Value = v.item.Value
 
 						v.itemP = item
 						v.exists = true
-
-						tx.AddStoreRequest(&v.storeRequest)
 
 						return nil
 					}
@@ -574,6 +574,8 @@ func (s *Space[K, V]) redistributeAndSet(
 		return err
 	}
 
+	// It must (!!!) be done as a last step, after moving all the data items to their new positions and
+	// setting the revision by adding store request containing this pointer to the transaction request.
 	pointer.VolatileAddress = pointerNodeAddress
 	if conflict {
 		pointer.State = types.StatePointerWithHashMod
