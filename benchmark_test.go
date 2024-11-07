@@ -33,7 +33,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 10_000_000
+		numOfAddresses = 5_000_000
 		txsPerCommit   = 20_000
 		balance        = 100_000
 	)
@@ -134,7 +134,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 						},
 					},
 				})
-				if err := db.Commit(volatilePool); err != nil {
+				if err := db.Commit(); err != nil {
 					panic(err)
 				}
 
@@ -160,7 +160,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 					txIndex++
 					if txIndex%txsPerCommit == 0 {
-						if err := db.Commit(volatilePool); err != nil {
+						if err := db.Commit(); err != nil {
 							panic(err)
 						}
 
@@ -176,7 +176,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 					}
 				}
 
-				if err := db.Commit(volatilePool); err != nil {
+				if err := db.Commit(); err != nil {
 					panic(err)
 				}
 
