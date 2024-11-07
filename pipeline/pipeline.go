@@ -100,7 +100,6 @@ func New() (*Pipeline, *Reader) {
 
 // Pipeline is the pipeline processing transactions.
 type Pipeline struct {
-	head           **TransactionRequest
 	tail           **TransactionRequest
 	availableCount *uint64
 	count          uint64
