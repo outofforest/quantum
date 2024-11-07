@@ -5,8 +5,6 @@ import (
 	"unsafe"
 
 	"github.com/cespare/xxhash"
-	"github.com/pkg/errors"
-	"github.com/samber/lo"
 
 	"github.com/outofforest/mass"
 	"github.com/outofforest/photon"
@@ -141,86 +139,6 @@ func (s *Space[K, V]) iterate(
 			if !yield(item) {
 				return
 			}
-		}
-	}
-}
-
-type pointerToAllocate struct {
-	Level   uint64
-	Pointer *types.Pointer
-}
-
-// AllocatePointers allocates specified levels of pointer nodes.
-func (s *Space[K, V]) AllocatePointers(
-	tx *pipeline.TransactionRequest,
-	levels uint64,
-	pool *alloc.Pool[types.VolatileAddress],
-	pointerNode *Node[types.Pointer],
-) error {
-	if s.config.SpaceRoot.State != types.StateFree {
-		return errors.New("pointers can be preallocated only on empty space")
-	}
-	if levels == 0 {
-		return nil
-	}
-
-	numOfItems := s.config.PointerNodeAssistant.NumOfItems()
-	var numOfPointers uint64 = 1
-	for i := uint64(1); i < levels; i++ {
-		numOfPointers = numOfItems*numOfPointers + 1
-	}
-
-	sr := pipeline.StoreRequest{
-		Store:           [pipeline.StoreCapacity]*types.Pointer{s.config.SpaceRoot},
-		PointersToStore: 1,
-	}
-
-	stack := []pointerToAllocate{
-		{
-			Level:   1,
-			Pointer: s.config.SpaceRoot,
-		},
-	}
-
-	for {
-		if len(stack) == 0 {
-			if sr.PointersToStore > 0 {
-				tx.AddStoreRequest(&sr)
-			}
-			return nil
-		}
-
-		pToAllocate := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-
-		pointerNodeAddress, err := pool.Allocate()
-		if err != nil {
-			return err
-		}
-
-		s.config.PointerNodeAssistant.Project(pointerNodeAddress, pointerNode)
-
-		pToAllocate.Pointer.State = types.StatePointer
-		pToAllocate.Pointer.VolatileAddress = pointerNodeAddress
-
-		if pToAllocate.Level == levels {
-			continue
-		}
-
-		pToAllocate.Level++
-		for item := range pointerNode.Iterator() {
-			sr.Store[sr.PointersToStore] = item
-			sr.PointersToStore++
-
-			if sr.PointersToStore == pipeline.StoreCapacity {
-				tx.AddStoreRequest(lo.ToPtr(sr))
-				sr.PointersToStore = 0
-			}
-
-			stack = append(stack, pointerToAllocate{
-				Level:   pToAllocate.Level,
-				Pointer: item,
-			})
 		}
 	}
 }
