@@ -75,7 +75,7 @@ func (t *TransactionRequest) AddStoreRequest(sr *StoreRequest) {
 // StoreRequest is used to request writing nodes to the store.
 type StoreRequest struct {
 	ImmediateDeallocation bool
-	PointersToStore       uint64
+	PointersToStore       int8
 	Store                 [StoreCapacity]*types.Pointer
 
 	RequestedRevision         uint64
