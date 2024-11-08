@@ -54,7 +54,8 @@ type TransactionRequest struct {
 	Transaction       any
 	StoreRequest      *StoreRequest
 	LastStoreRequest  **StoreRequest
-	SyncCh            chan<- error
+	SyncCh            chan<- struct{}
+	CommitCh          chan<- error
 	Next              *TransactionRequest
 	Type              TransactionRequestType
 	ChecksumProcessed bool
@@ -112,7 +113,7 @@ func (p *Pipeline) Push(item *TransactionRequest) {
 	*p.tail = item
 	p.tail = &item.Next
 
-	if p.count%96 == 0 || item.SyncCh != nil || item.Type == Close {
+	if p.count%96 == 0 || item.Type != None {
 		atomic.StoreUint64(p.availableCount, p.count)
 	}
 }
@@ -143,7 +144,7 @@ func (qr *Reader) Read(ctx context.Context) (*TransactionRequest, error) {
 				break
 			}
 
-			time.Sleep(10 * time.Microsecond)
+			time.Sleep(5 * time.Microsecond)
 
 			if ctx.Err() != nil {
 				return nil, errors.WithStack(ctx.Err())
@@ -158,7 +159,7 @@ func (qr *Reader) Read(ctx context.Context) (*TransactionRequest, error) {
 
 // Acknowledge acknowledges processing of requests so next worker in the pipeline might take them.
 func (qr *Reader) Acknowledge(count uint64, req *TransactionRequest) {
-	if *qr.processedCount+96 <= count || req.Type == Sync || req.Type == Commit {
+	if *qr.processedCount+96 <= count || req.Type != None {
 		atomic.StoreUint64(qr.processedCount, count)
 	}
 }

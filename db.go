@@ -155,27 +155,24 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) {
 
 // Commit commits current snapshot and returns next one.
 func (db *DB) Commit() error {
-	syncCh := make(chan error, 2) //  1 is for deallocation, 1 is for supervisor
+	syncCh := make(chan struct{}, 2) //  1 is for deallocation, 1 is for supervisor
 	tx := db.txRequestFactory.New()
 	tx.Type = pipeline.Sync
 	tx.SyncCh = syncCh
 	db.queue.Push(tx)
 
-	if err := <-syncCh; err != nil {
-		return err
-	}
-
-	syncCh = make(chan error, len(db.config.Stores)+1) // 1 is for supervisor
+	commitCh := make(chan error, len(db.config.Stores)+1) // 1 is for supervisor
 	tx = db.txRequestFactory.New()
 	tx.Type = pipeline.Commit
-	tx.SyncCh = syncCh
+	tx.CommitCh = commitCh
 	tx.Transaction = &commitTx{
 		SnapshotID: db.singularityNode.LastSnapshotID,
+		SyncCh:     syncCh,
 	}
 	db.queue.Push(tx)
 
 	for range len(db.config.Stores) {
-		if err := <-syncCh; err != nil {
+		if err := <-commitCh; err != nil {
 			return err
 		}
 	}
@@ -212,22 +209,33 @@ func (db *DB) Run(ctx context.Context) error {
 				}
 
 				spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
-					var lastSyncCh chan<- error
+					var lastSyncCh chan<- struct{}
+					var lastCommitCh chan<- error
 					var processedCount uint64
 
 					for {
 						req, err := db.queueReader.Read(ctx)
-						if err != nil && lastSyncCh != nil {
-							lastSyncCh <- err
-							lastSyncCh = nil
+						if err != nil {
+							if lastSyncCh != nil {
+								lastSyncCh <- struct{}{}
+								lastSyncCh = nil
+							}
+							if lastCommitCh != nil {
+								lastCommitCh <- err
+								lastCommitCh = nil
+							}
 						}
 
 						if req != nil {
 							processedCount++
 							db.queueReader.Acknowledge(processedCount, req)
 
-							if req.SyncCh != nil {
+							if req.Type == pipeline.Sync {
 								lastSyncCh = req.SyncCh
+								continue
+							}
+							if req.Type == pipeline.Commit {
+								lastCommitCh = req.CommitCh
 								continue
 							}
 							if req.Type == pipeline.Close {
@@ -564,9 +572,12 @@ func (db *DB) executeTransactions(
 					return err
 				}
 			case *commitTx:
+				// Syncing must be finished just before committing because inside commit we store the results
+				// of deallocations.
+				<-tx.SyncCh
 				if err := db.commit(tx.SnapshotID, req, volatilePool, pointerNode, snapshotInfoNode,
 					snapshotToNodeNode, listNode); err != nil {
-					req.SyncCh <- err
+					req.CommitCh <- err
 					return err
 				}
 			case *deleteSnapshotTx:
@@ -673,7 +684,7 @@ func (db *DB) processDeallocationRequests(
 		// Sync is here in the pipeline because deallocation is the last step required before we may proceed
 		// with the commit.
 		if req.Type == pipeline.Sync {
-			req.SyncCh <- nil
+			req.SyncCh <- struct{}{}
 		}
 
 		pipeReader.Acknowledge(processedCount+1, req)
@@ -759,7 +770,7 @@ func (db *DB) updateChecksums(
 			}
 		}
 
-		if req.Type == pipeline.Sync || req.Type == pipeline.Commit {
+		if req.Type == pipeline.Commit {
 			if nodesWaiting > 0 {
 				checksum.Blake3(matrixP, checksumsP)
 				matrix = zeroMatrix
@@ -829,7 +840,7 @@ func (db *DB) processStoreRequests(
 			// numOfWrites = 0
 
 			err := store.Sync()
-			req.SyncCh <- err
+			req.CommitCh <- err
 			if err != nil {
 				return err
 			}
@@ -909,6 +920,7 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 
 type commitTx struct {
 	SnapshotID types.SnapshotID
+	SyncCh     <-chan struct{}
 }
 
 type deleteSnapshotTx struct {
