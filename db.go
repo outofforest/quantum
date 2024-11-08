@@ -155,16 +155,14 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) {
 
 // Commit commits current snapshot and returns next one.
 func (db *DB) Commit() error {
-	syncCh := make(chan error, len(db.config.Stores)+1) // 1 is for supervisor
+	syncCh := make(chan error, 2) //  1 is for deallocation, 1 is for supervisor
 	tx := db.txRequestFactory.New()
 	tx.Type = pipeline.Sync
 	tx.SyncCh = syncCh
 	db.queue.Push(tx)
 
-	for range len(db.config.Stores) {
-		if err := <-syncCh; err != nil {
-			return err
-		}
+	if err := <-syncCh; err != nil {
+		return err
 	}
 
 	syncCh = make(chan error, len(db.config.Stores)+1) // 1 is for supervisor
@@ -208,24 +206,26 @@ func (db *DB) Run(ctx context.Context) error {
 				deallocateQReader := allocateQReader.NewReader()
 				checksumQReader1 := deallocateQReader.NewReader()
 				checksumQReader2 := checksumQReader1.NewReader()
-				checksumQReader3 := checksumQReader2.NewReader()
 				storeQReaders := make([]*pipeline.Reader, 0, len(db.config.Stores))
 				for range cap(storeQReaders) {
-					storeQReaders = append(storeQReaders, checksumQReader3.NewReader())
+					storeQReaders = append(storeQReaders, checksumQReader2.NewReader())
 				}
 
 				spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
 					var lastSyncCh chan<- error
+					var processedCount uint64
 
 					for {
-						count, err := db.queueReader.Count(ctx)
+						req, err := db.queueReader.Read(ctx)
 						if err != nil && lastSyncCh != nil {
 							lastSyncCh <- err
 							lastSyncCh = nil
 						}
 
-						for range count {
-							req := db.queueReader.Read()
+						if req != nil {
+							processedCount++
+							db.queueReader.Acknowledge(processedCount, req)
+
 							if req.SyncCh != nil {
 								lastSyncCh = req.SyncCh
 								continue
@@ -249,13 +249,10 @@ func (db *DB) Run(ctx context.Context) error {
 					return db.processDeallocationRequests(ctx, deallocateQReader)
 				})
 				spawn("checksum1", parallel.Fail, func(ctx context.Context) error {
-					return db.updateChecksums(ctx, checksumQReader1, 3, 2)
+					return db.updateChecksums(ctx, checksumQReader1, 2, 1)
 				})
 				spawn("checksum2", parallel.Fail, func(ctx context.Context) error {
-					return db.updateChecksums(ctx, checksumQReader2, 3, 1)
-				})
-				spawn("checksum3", parallel.Fail, func(ctx context.Context) error {
-					return db.updateChecksums(ctx, checksumQReader3, 0, 0)
+					return db.updateChecksums(ctx, checksumQReader2, 0, 0)
 				})
 				for i, store := range db.config.Stores {
 					spawn(fmt.Sprintf("store-%02d", i), parallel.Fail, func(ctx context.Context) error {
@@ -520,21 +517,19 @@ func (db *DB) prepareTransactions(
 	}
 	pointerNode := s.NewPointerNode()
 
-	for {
-		count, err := pipeReader.Count(ctx)
+	for processedCount := uint64(0); ; processedCount++ {
+		req, err := pipeReader.Read(ctx)
 		if err != nil {
 			return err
 		}
-		for range count {
-			req := pipeReader.Read()
-			if req.Transaction == nil {
-				continue
-			}
 
+		if req.Transaction != nil {
 			if transferTx, ok := req.Transaction.(*transfer.Tx); ok {
 				transferTx.Prepare(s, pointerNode)
 			}
 		}
+
+		pipeReader.Acknowledge(processedCount+1, req)
 	}
 }
 
@@ -556,17 +551,13 @@ func (db *DB) executeTransactions(
 	snapshotToNodeNode := db.snapshotToNodeNodeAssistant.NewNode()
 	listNode := db.listNodeAssistant.NewNode()
 
-	for {
-		count, err := pipeReader.Count(ctx)
+	for processedCount := uint64(0); ; processedCount++ {
+		req, err := pipeReader.Read(ctx)
 		if err != nil {
 			return err
 		}
-		for range count {
-			req := pipeReader.Read()
-			if req.Transaction == nil {
-				continue
-			}
 
+		if req.Transaction != nil {
 			switch tx := req.Transaction.(type) {
 			case *transfer.Tx:
 				if err := tx.Execute(req, volatilePool, pointerNode, dataNode); err != nil {
@@ -591,6 +582,8 @@ func (db *DB) executeTransactions(
 				return errors.New("unknown transaction type")
 			}
 		}
+
+		pipeReader.Acknowledge(processedCount+1, req)
 	}
 }
 
@@ -601,41 +594,41 @@ func (db *DB) processAllocationRequests(
 	massPointer := mass.New[types.Pointer](1000)
 	persistentPool := db.config.State.NewPersistentPool()
 
-	for {
-		count, err := pipeReader.Count(ctx)
+	for processedCount := uint64(0); ; processedCount++ {
+		req, err := pipeReader.Read(ctx)
 		if err != nil {
 			return err
 		}
-		for range count {
-			req := pipeReader.Read()
-			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-				if sr.PointersToStore == 0 {
-					continue
-				}
 
-				// FIXME (wojciech): I believe not all the requests require deallocation.
-				sr.Deallocate = massPointer.NewSlice(uint64(sr.PointersToStore))
-				var numOfPointersToDeallocate uint
-				for i := range sr.PointersToStore {
-					p := sr.Store[i]
-					if p.SnapshotID != db.singularityNode.LastSnapshotID {
-						if p.PersistentAddress != 0 {
-							sr.Deallocate[numOfPointersToDeallocate] = *p
-							numOfPointersToDeallocate++
-						}
-						p.SnapshotID = db.singularityNode.LastSnapshotID
+		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+			if sr.PointersToStore == 0 {
+				continue
+			}
 
-						var err error
-						p.PersistentAddress, err = persistentPool.Allocate()
-						if err != nil {
-							return err
-						}
+			// FIXME (wojciech): I believe not all the requests require deallocation.
+			sr.Deallocate = massPointer.NewSlice(uint64(sr.PointersToStore))
+			var numOfPointersToDeallocate uint
+			for i := range sr.PointersToStore {
+				p := sr.Store[i]
+				if p.SnapshotID != db.singularityNode.LastSnapshotID {
+					if p.PersistentAddress != 0 {
+						sr.Deallocate[numOfPointersToDeallocate] = *p
+						numOfPointersToDeallocate++
+					}
+					p.SnapshotID = db.singularityNode.LastSnapshotID
+
+					var err error
+					p.PersistentAddress, err = persistentPool.Allocate()
+					if err != nil {
+						return err
 					}
 				}
-
-				sr.Deallocate = sr.Deallocate[:numOfPointersToDeallocate]
 			}
+
+			sr.Deallocate = sr.Deallocate[:numOfPointersToDeallocate]
 		}
+
+		pipeReader.Acknowledge(processedCount+1, req)
 	}
 }
 
@@ -648,36 +641,42 @@ func (db *DB) processDeallocationRequests(
 
 	listNode := db.listNodeAssistant.NewNode()
 
-	for {
-		count, err := pipeReader.Count(ctx)
+	for processedCount := uint64(0); ; processedCount++ {
+		req, err := pipeReader.Read(ctx)
 		if err != nil {
 			return err
 		}
-		for range count {
-			req := pipeReader.Read()
-			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-				if sr.DeallocateVolatileAddress != 0 {
-					volatilePool.Deallocate(sr.DeallocateVolatileAddress)
-				}
-				for _, p := range sr.Deallocate {
-					pointerToStore, err := db.deallocateNode(
-						&p,
-						sr.ImmediateDeallocation,
-						volatilePool,
-						persistentPool,
-						listNode,
-					)
-					if err != nil {
-						return err
-					}
 
-					//nolint:staticcheck
-					if pointerToStore != nil {
-						// FIXME (wojciech): This must be handled somehow
-					}
+		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+			if sr.DeallocateVolatileAddress != 0 {
+				volatilePool.Deallocate(sr.DeallocateVolatileAddress)
+			}
+			for _, p := range sr.Deallocate {
+				pointerToStore, err := db.deallocateNode(
+					&p,
+					sr.ImmediateDeallocation,
+					volatilePool,
+					persistentPool,
+					listNode,
+				)
+				if err != nil {
+					return err
+				}
+
+				//nolint:staticcheck
+				if pointerToStore != nil {
+					// FIXME (wojciech): This must be handled somehow
 				}
 			}
 		}
+
+		// Sync is here in the pipeline because deallocation is the last step required before we may proceed
+		// with the commit.
+		if req.Type == pipeline.Sync {
+			req.SyncCh <- nil
+		}
+
+		pipeReader.Acknowledge(processedCount+1, req)
 	}
 }
 
@@ -711,69 +710,63 @@ func (db *DB) updateChecksums(
 	divider uint64,
 	mod uint64,
 ) error {
-	var reqIndex uint64
-
 	matrix := [16][16]*byte{}
 	matrixP := &matrix[0][0]
 	checksums := [16]*[32]byte{{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}}
 	checksumsP := (**byte)(unsafe.Pointer(&checksums[0]))
 
 	matrix = zeroMatrix
-	var nodesWaiting int
-	for {
-		if nodesWaiting > 0 {
-			checksum.Blake3(matrixP, checksumsP)
-			matrix = zeroMatrix
-			nodesWaiting = 0
-		}
-
-		count, err := pipeReader.Count(ctx)
+	var nodesWaiting uint64
+	for processedCount := uint64(0); ; processedCount++ {
+		req, err := pipeReader.Read(ctx)
 		if err != nil {
 			return err
 		}
-		for range count {
-			req := pipeReader.Read()
-			reqIndex++
 
-			if !req.ChecksumProcessed && (divider == 0 || (reqIndex/16)%divider == mod) {
-				req.ChecksumProcessed = true
-				for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-					// We process starting from the data node, which is the last one.
-					for i := sr.PointersToStore - 1; i >= 0; i-- {
-						p := sr.Store[i]
+		if !req.ChecksumProcessed && (divider == 0 || (processedCount/16)%divider == mod) {
+			req.ChecksumProcessed = true
 
-						// Volatile address must be copied before verifying revision. Otherwise, the address might be
-						// concurrently overwritten by another transaction between revision verification and
-						// checksum calculation.
-						volatileAddress := p.VolatileAddress
+			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+				// We process starting from the data node, which is the last one.
+				for i := sr.PointersToStore - 1; i >= 0; i-- {
+					p := sr.Store[i]
 
-						if atomic.LoadUint64(&p.Revision) != sr.RequestedRevision {
-							// Pointers are processed from the data node up t the root node. If at any level
-							// revision test fails, it doesn't make sense to process parent nodes because revision
-							// test will fail there for sure.
-							break
-						}
+					// Volatile address must be copied before verifying revision. Otherwise, the address might be
+					// concurrently overwritten by another transaction between revision verification and
+					// checksum calculation.
+					volatileAddress := p.VolatileAddress
 
-						node := db.config.State.Node(volatileAddress)
-						for bi := range 16 {
-							matrix[nodesWaiting][bi] = (*byte)(unsafe.Add(node, bi*64))
-						}
-						nodesWaiting++
+					if atomic.LoadUint64(&p.Revision) != sr.RequestedRevision {
+						// Pointers are processed from the data node up t the root node. If at any level
+						// revision test fails, it doesn't make sense to process parent nodes because revision
+						// test will fail there for sure.
+						break
+					}
 
-						if nodesWaiting == 16 {
-							checksum.Blake3(matrixP, checksumsP)
-							matrix = zeroMatrix
-							nodesWaiting = 0
-						}
+					node := db.config.State.Node(volatileAddress)
+					for bi := range 16 {
+						matrix[nodesWaiting][bi] = (*byte)(unsafe.Add(node, bi*64))
+					}
+					nodesWaiting++
+
+					if nodesWaiting == 16 {
+						checksum.Blake3(matrixP, checksumsP)
+						pipeReader.Acknowledge(processedCount, req)
+						matrix = zeroMatrix
+						nodesWaiting = 0
 					}
 				}
 			}
+		}
 
-			if (req.Type == pipeline.Sync || req.Type == pipeline.Commit) && nodesWaiting > 0 {
+		if req.Type == pipeline.Sync || req.Type == pipeline.Commit {
+			if nodesWaiting > 0 {
 				checksum.Blake3(matrixP, checksumsP)
 				matrix = zeroMatrix
 				nodesWaiting = 0
 			}
+
+			pipeReader.Acknowledge(processedCount+1, req)
 		}
 	}
 }
@@ -786,68 +779,63 @@ func (db *DB) processStoreRequests(
 	// uniqueNodes := map[types.VolatileAddress]struct{}{}
 	// var numOfWrites uint
 
-	for {
-		count, err := pipeReader.Count(ctx)
+	for processedCount := uint64(0); ; processedCount++ {
+		req, err := pipeReader.Read(ctx)
 		if err != nil {
 			return err
 		}
-		for range count {
-			req := pipeReader.Read()
-			if req.Type == pipeline.Sync {
-				req.SyncCh <- nil
-				continue
-			}
 
-			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-				// We process starting from the data node, which is the last one.
-				for i := sr.PointersToStore - 1; i >= 0; i-- {
-					p := sr.Store[i]
+		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+			// We process starting from the data node, which is the last one.
+			for i := sr.PointersToStore - 1; i >= 0; i-- {
+				p := sr.Store[i]
 
-					// Volatile address must be copied before verifying revision. Otherwise, the address might be
-					// concurrently overwritten by another transaction between revision verification and
-					// store write.
-					// Persistent address is safe to be used even without atomic, because it is guaranteed that
-					// in the same snapshot it is set only once on the first time node is processed by the goroutine
-					// allocating persistent addresses,
-					volatileAddress := p.VolatileAddress
+				// Volatile address must be copied before verifying revision. Otherwise, the address might be
+				// concurrently overwritten by another transaction between revision verification and
+				// store write.
+				// Persistent address is safe to be used even without atomic, because it is guaranteed that
+				// in the same snapshot it is set only once on the first time node is processed by the goroutine
+				// allocating persistent addresses,
+				volatileAddress := p.VolatileAddress
 
-					if atomic.LoadUint64(&p.Revision) != sr.RequestedRevision {
-						// Pointers are processed from the data node up t the root node. If at any level
-						// revision test fails, it doesn't make sense to process parent nodes because revision
-						// test will fail there for sure.
-						break
-					}
-
-					// uniqueNodes[p.VolatileAddress] = struct{}{}
-					// numOfWrites++
-
-					// https://github.com/zeebo/blake3
-					// p.Checksum = blake3.Sum256(db.config.State.Bytes(p.VolatileAddress))
-
-					if err := store.Write(
-						p.PersistentAddress,
-						db.config.State.Bytes(volatileAddress),
-					); err != nil {
-						return err
-					}
+				if atomic.LoadUint64(&p.Revision) != sr.RequestedRevision {
+					// Pointers are processed from the data node up t the root node. If at any level
+					// revision test fails, it doesn't make sense to process parent nodes because revision
+					// test will fail there for sure.
+					break
 				}
-			}
 
-			if req.SyncCh != nil {
-				// fmt.Println("========== STORE")
-				// fmt.Println(len(uniqueNodes))
-				// fmt.Println(numOfWrites)
-				// fmt.Println(float64(numOfWrites) / float64(len(uniqueNodes)))
-				// clear(uniqueNodes)
-				// numOfWrites = 0
+				// uniqueNodes[p.VolatileAddress] = struct{}{}
+				// numOfWrites++
 
-				err := store.Sync()
-				req.SyncCh <- err
-				if err != nil {
+				// https://github.com/zeebo/blake3
+				// p.Checksum = blake3.Sum256(db.config.State.Bytes(p.VolatileAddress))
+
+				if err := store.Write(
+					p.PersistentAddress,
+					db.config.State.Bytes(volatileAddress),
+				); err != nil {
 					return err
 				}
 			}
 		}
+
+		if req.Type == pipeline.Commit {
+			// fmt.Println("========== STORE")
+			// fmt.Println(len(uniqueNodes))
+			// fmt.Println(numOfWrites)
+			// fmt.Println(float64(numOfWrites) / float64(len(uniqueNodes)))
+			// clear(uniqueNodes)
+			// numOfWrites = 0
+
+			err := store.Sync()
+			req.SyncCh <- err
+			if err != nil {
+				return err
+			}
+		}
+
+		pipeReader.Acknowledge(processedCount+1, req)
 	}
 }
 

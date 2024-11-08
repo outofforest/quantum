@@ -124,44 +124,43 @@ type Reader struct {
 	processedCount *uint64
 
 	currentAvailableCount uint64
-	currentProcessedCount uint64
-}
-
-// Count returns the number of available requests to process.
-func (qr *Reader) Count(ctx context.Context) (uint64, error) {
-	const maxChunkSize = 96
-
-	atomic.StoreUint64(qr.processedCount, qr.currentProcessedCount)
-	if toProcess := qr.currentAvailableCount - qr.currentProcessedCount; toProcess > 0 {
-		if toProcess > maxChunkSize {
-			return maxChunkSize, errors.WithStack(ctx.Err())
-		}
-		return toProcess, errors.WithStack(ctx.Err())
-	}
-
-	for {
-		qr.currentAvailableCount = atomic.LoadUint64(qr.availableCount)
-		if toProcess := qr.currentAvailableCount - qr.currentProcessedCount; toProcess > 0 {
-			if toProcess > maxChunkSize {
-				return maxChunkSize, errors.WithStack(ctx.Err())
-			}
-			return toProcess, errors.WithStack(ctx.Err())
-		}
-
-		if ctx.Err() != nil {
-			return 0, errors.WithStack(ctx.Err())
-		}
-
-		time.Sleep(10 * time.Microsecond)
-	}
+	currentReadCount      uint64
 }
 
 // Read reads next request from the pipeline.
-func (qr *Reader) Read() *TransactionRequest {
-	h := *qr.head
+func (qr *Reader) Read(ctx context.Context) (*TransactionRequest, error) {
+	var h *TransactionRequest
+	var err error
+	if qr.currentAvailableCount > qr.currentReadCount {
+		h = *qr.head
+	} else {
+		// It is done once per epoch to save time on calling ctx.Err().
+		err = errors.WithStack(ctx.Err())
+		for {
+			qr.currentAvailableCount = atomic.LoadUint64(qr.availableCount)
+			if qr.currentAvailableCount > qr.currentReadCount {
+				h = *qr.head
+				break
+			}
+
+			time.Sleep(10 * time.Microsecond)
+
+			if ctx.Err() != nil {
+				return nil, errors.WithStack(ctx.Err())
+			}
+		}
+	}
+
 	qr.head = &h.Next
-	qr.currentProcessedCount++
-	return h
+	qr.currentReadCount++
+	return h, err
+}
+
+// Acknowledge acknowledges processing of requests so next worker in the pipeline might take them.
+func (qr *Reader) Acknowledge(count uint64, req *TransactionRequest) {
+	if *qr.processedCount+96 <= count || req.Type == Sync || req.Type == Commit {
+		atomic.StoreUint64(qr.processedCount, count)
+	}
 }
 
 // NewReader returns new dependant reader.
