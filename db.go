@@ -614,7 +614,7 @@ func (db *DB) processAllocationRequests(
 				}
 
 				// FIXME (wojciech): I believe not all the requests require deallocation.
-				sr.Deallocate = massPointer.NewSlice(sr.PointersToStore)
+				sr.Deallocate = massPointer.NewSlice(uint64(sr.PointersToStore))
 				var numOfPointersToDeallocate uint
 				for i := range sr.PointersToStore {
 					p := sr.Store[i]
@@ -738,7 +738,8 @@ func (db *DB) updateChecksums(
 			if !req.ChecksumProcessed && (divider == 0 || (reqIndex/16)%divider == mod) {
 				req.ChecksumProcessed = true
 				for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-					for i := range sr.PointersToStore {
+					// We process starting from the data node, which is the last one.
+					for i := sr.PointersToStore - 1; i >= 0; i-- {
 						p := sr.Store[i]
 
 						// Volatile address must be copied before verifying revision. Otherwise, the address might be
@@ -747,8 +748,12 @@ func (db *DB) updateChecksums(
 						volatileAddress := p.VolatileAddress
 
 						if atomic.LoadUint64(&p.Revision) != sr.RequestedRevision {
-							continue
+							// Pointers are processed from the data node up t the root node. If at any level
+							// revision test fails, it doesn't make sense to process parent nodes because revision
+							// test will fail there for sure.
+							break
 						}
+
 						node := db.config.State.Node(volatileAddress)
 						for bi := range 16 {
 							matrix[nodesWaiting][bi] = (*byte)(unsafe.Add(node, bi*64))
@@ -794,7 +799,8 @@ func (db *DB) processStoreRequests(
 			}
 
 			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-				for i := range sr.PointersToStore {
+				// We process starting from the data node, which is the last one.
+				for i := sr.PointersToStore - 1; i >= 0; i-- {
 					p := sr.Store[i]
 
 					// Volatile address must be copied before verifying revision. Otherwise, the address might be
@@ -806,7 +812,10 @@ func (db *DB) processStoreRequests(
 					volatileAddress := p.VolatileAddress
 
 					if atomic.LoadUint64(&p.Revision) != sr.RequestedRevision {
-						continue
+						// Pointers are processed from the data node up t the root node. If at any level
+						// revision test fails, it doesn't make sense to process parent nodes because revision
+						// test will fail there for sure.
+						break
 					}
 
 					// uniqueNodes[p.VolatileAddress] = struct{}{}
