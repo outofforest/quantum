@@ -50,13 +50,13 @@ func (ns *NodeAssistant[T]) NumOfItems() uint64 {
 }
 
 // Index returns index from hash.
-func (ns *NodeAssistant[T]) Index(hash types.Hash) uint64 {
+func (ns *NodeAssistant[T]) Index(hash types.KeyHash) uint64 {
 	return uint64(hash) % ns.numOfItems
 }
 
 // Shift shifts bits in hash.
-func (ns *NodeAssistant[T]) Shift(hash types.Hash) types.Hash {
-	return hash / types.Hash(ns.numOfItems)
+func (ns *NodeAssistant[T]) Shift(hash types.KeyHash) types.KeyHash {
+	return hash / types.KeyHash(ns.numOfItems)
 }
 
 // Project projects node bytes to its structure.

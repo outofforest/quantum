@@ -34,7 +34,7 @@ func TestFindCollisions(t *testing.T) {
 
 	fmt.Println("started")
 
-	m := map[types.Hash][]int{}
+	m := map[types.KeyHash][]int{}
 	for i := range math.MaxInt {
 		h := hashKey(&i, nil, 0)
 		if h2 := m[h]; len(h2) == 4 {
@@ -48,7 +48,7 @@ func TestFindCollisions(t *testing.T) {
 
 func TestCollisions(t *testing.T) {
 	for _, set := range collisions {
-		m := map[types.Hash]struct{}{}
+		m := map[types.KeyHash]struct{}{}
 		for _, i := range set {
 			m[hashKey(&i, nil, 0)] = struct{}{}
 		}

@@ -1,11 +1,12 @@
 package types
 
-import (
-	"crypto/sha256"
-)
+const (
+	// UInt64Length is the number of bytes taken by uint64.
+	UInt64Length = 8
 
-// UInt64Length is the number of bytes taken by uint64.
-const UInt64Length = 8
+	// HashLength is the number of bytes taken by hash.
+	HashLength = 32
+)
 
 // State enumerates possible slot states.
 type State byte
@@ -37,8 +38,11 @@ type (
 	// PersistentAddress represents the address of a node in persistent store.
 	PersistentAddress uint64
 
-	// Hash is the type for key hash.
-	Hash uint64
+	// KeyHash is the type for key hash.
+	KeyHash uint64
+
+	// Hash represents hash of a node.
+	Hash [HashLength]byte
 
 	// SpaceID is the type for space ID.
 	SpaceID uint64
@@ -48,7 +52,7 @@ type (
 type Pointer struct {
 	SnapshotID        SnapshotID
 	Revision          uint64
-	Checksum          [sha256.Size]byte
+	Hash              KeyHash
 	VolatileAddress   VolatileAddress
 	PersistentAddress PersistentAddress
 	State             State
@@ -56,7 +60,7 @@ type Pointer struct {
 
 // DataItem stores single key-value pair.
 type DataItem[K, V comparable] struct {
-	Hash  Hash
+	Hash  KeyHash
 	Key   K
 	State State
 	Value V

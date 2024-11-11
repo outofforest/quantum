@@ -36,14 +36,13 @@ func (t *Tx) Execute(
 	tx *pipeline.TransactionRequest,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	pointerNode *space.Node[types.Pointer],
-	dataNode *space.Node[types.DataItem[txtypes.Account, txtypes.Amount]],
 ) error {
-	fromBalance := t.from.Value(pointerNode, dataNode)
+	fromBalance := t.from.Value(pointerNode)
 	if fromBalance < t.Amount {
 		return errors.Errorf("sender's balance is too low, balance: %d, amount to send: %d", fromBalance, t.Amount)
 	}
 
-	toBalance := t.to.Value(pointerNode, dataNode)
+	toBalance := t.to.Value(pointerNode)
 	if math.MaxUint64-toBalance < t.Amount {
 		return errors.Errorf(
 			"transfer cannot be executed because it would cause an overflow on the recipient's balance, balance: %d, amount to send: %d", //nolint:lll
@@ -55,7 +54,6 @@ func (t *Tx) Execute(
 		tx,
 		volatilePool,
 		pointerNode,
-		dataNode,
 	); err != nil {
 		return err
 	}
@@ -65,6 +63,5 @@ func (t *Tx) Execute(
 		tx,
 		volatilePool,
 		pointerNode,
-		dataNode,
 	)
 }
