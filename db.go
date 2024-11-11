@@ -3,6 +3,7 @@ package quantum
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"sync/atomic"
 	"unsafe"
@@ -714,70 +715,152 @@ var (
 	}
 )
 
-// FIXME (wojciech): Checksums must be computed in right order: data nodes first, then parents, root at the end.
+type request struct {
+	TxRequest    *pipeline.TransactionRequest
+	Count        uint64
+	StoreRequest *pipeline.StoreRequest
+	PointerIndex int8
+}
+
+type reader struct {
+	pipeReader *pipeline.Reader
+	divider    uint64
+	mod        uint64
+	read       uint64
+
+	txRequest    *pipeline.TransactionRequest
+	storeRequest *pipeline.StoreRequest
+	commitMode   bool
+}
+
+func (r *reader) Read(ctx context.Context) (request, error) {
+	for {
+		for r.storeRequest == nil && !r.commitMode {
+			var err error
+			r.txRequest, err = r.pipeReader.Read(ctx)
+			if err != nil {
+				return request{}, err
+			}
+
+			r.commitMode = r.txRequest.Type == pipeline.Commit
+			if r.txRequest.StoreRequest != nil && !r.txRequest.ChecksumProcessed && (r.divider == 0 ||
+				(r.read/16)%r.divider == r.mod) {
+				r.txRequest.ChecksumProcessed = true
+				r.storeRequest = r.txRequest.StoreRequest
+			}
+			r.read++
+		}
+		for r.storeRequest != nil && r.storeRequest.PointersToStore == 0 {
+			r.storeRequest = r.storeRequest.Next
+		}
+
+		if r.storeRequest == nil && !r.commitMode {
+			continue
+		}
+
+		sr := r.storeRequest
+		req := request{
+			StoreRequest: sr,
+			TxRequest:    r.txRequest,
+			Count:        r.read,
+		}
+
+		if sr != nil {
+			r.storeRequest = sr.Next
+			req.PointerIndex = sr.PointersToStore
+		}
+
+		return req, nil
+	}
+}
+
+func (r *reader) Acknowledge(count uint64, req *pipeline.TransactionRequest, commit bool) {
+	if commit {
+		r.commitMode = false
+	}
+	r.pipeReader.Acknowledge(count, req)
+}
+
 func (db *DB) updateChecksums(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
 	divider uint64,
 	mod uint64,
 ) error {
-	matrix := [16][16]*byte{}
+	var matrix [16][16]*byte
 	matrixP := &matrix[0][0]
 	checksums := [16]*[32]byte{{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}}
 	checksumsP := (**byte)(unsafe.Pointer(&checksums[0]))
 
-	matrix = zeroMatrix
-	var nodesWaiting uint64
-	for processedCount := uint64(0); ; processedCount++ {
-		req, err := pipeReader.Read(ctx)
-		if err != nil {
-			return err
+	r := &reader{
+		pipeReader: pipeReader,
+		divider:    divider,
+		mod:        mod,
+	}
+
+	for {
+		matrix = zeroMatrix
+		var slots [16]request
+
+		var commitReq request
+		minReq := request{
+			Count: math.MaxUint64,
 		}
 
-		if !req.ChecksumProcessed && (divider == 0 || (processedCount/16)%divider == mod) {
-			req.ChecksumProcessed = true
+		var nilSlots int
+	riLoop:
+		for ri := range slots {
+			req := slots[ri]
 
-			for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-				// We process starting from the data node, which is the last one.
-				for i := sr.PointersToStore - 1; i >= 0; i-- {
-					p := sr.Store[i]
-
-					// Volatile address must be copied before verifying revision. Otherwise, the address might be
-					// concurrently overwritten by another transaction between revision verification and
-					// checksum calculation.
-					volatileAddress := p.VolatileAddress
-
-					if atomic.LoadUint64(&p.Revision) != sr.RequestedRevision {
-						// Pointers are processed from the data node up t the root node. If at any level
-						// revision test fails, it doesn't make sense to process parent nodes because revision
-						// test will fail there for sure.
-						break
+			var volatileAddress types.VolatileAddress
+			for {
+				if req.PointerIndex == 0 {
+					var err error
+					req, err = r.Read(ctx)
+					if err != nil {
+						return err
 					}
-
-					node := db.config.State.Node(volatileAddress)
-					for bi := range 16 {
-						matrix[nodesWaiting][bi] = (*byte)(unsafe.Add(node, bi*64))
+					if req.TxRequest.Type == pipeline.Commit {
+						commitReq = req
 					}
-					nodesWaiting++
-
-					if nodesWaiting == 16 {
-						checksum.Blake3(matrixP, checksumsP)
-						pipeReader.Acknowledge(processedCount, req)
-						matrix = zeroMatrix
-						nodesWaiting = 0
+					if req.StoreRequest == nil {
+						nilSlots++
+						slots[ri] = req
+						continue riLoop
+					}
+					if req.Count < minReq.Count {
+						minReq = req
 					}
 				}
+
+				req.PointerIndex--
+				p := req.StoreRequest.Store[req.PointerIndex]
+
+				volatileAddress = p.VolatileAddress
+
+				if atomic.LoadUint64(&p.Revision) != req.StoreRequest.RequestedRevision {
+					// Pointers are processed from the data node up t the root node. If at any level
+					// revision test fails, it doesn't make sense to process parent nodes because revision
+					// test will fail there for sure.
+					req.PointerIndex = 0
+					continue
+				}
+
+				break
+			}
+
+			slots[ri] = req
+			node := db.config.State.Node(volatileAddress)
+			for bi := range 16 {
+				matrix[ri][bi] = (*byte)(unsafe.Add(node, bi*64))
 			}
 		}
 
-		if req.Type == pipeline.Commit {
-			if nodesWaiting > 0 {
-				checksum.Blake3(matrixP, checksumsP)
-				matrix = zeroMatrix
-				nodesWaiting = 0
-			}
-
-			pipeReader.Acknowledge(processedCount+1, req)
+		if nilSlots == len(slots) {
+			r.Acknowledge(commitReq.Count, commitReq.TxRequest, true)
+		} else {
+			checksum.Blake3(matrixP, checksumsP)
+			r.Acknowledge(minReq.Count-1, minReq.TxRequest, false)
 		}
 	}
 }
