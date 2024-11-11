@@ -25,7 +25,6 @@ func (t *Tx) Execute(
 	tx *pipeline.TransactionRequest,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	pointerNode *space.Node[types.Pointer],
-	dataNode *space.Node[types.DataItem[txtypes.Account, txtypes.Amount]],
 ) error {
 	for _, a := range t.Accounts {
 		if err := space.Find(a.Account, pointerNode).Set(
@@ -33,7 +32,6 @@ func (t *Tx) Execute(
 			tx,
 			volatilePool,
 			pointerNode,
-			dataNode,
 		); err != nil {
 			return err
 		}
