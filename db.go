@@ -49,7 +49,7 @@ type ListToCommit struct {
 
 // New creates new database.
 func New(config Config) (*DB, error) {
-	pointerNodeAssistant, err := space.NewNodeAssistant[types.Pointer](config.State)
+	pointerNodeAssistant, err := space.NewPointerNodeAssistant(config.State.NodeSize())
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +125,7 @@ type DB struct {
 	snapshots         *space.Space[types.SnapshotID, types.SnapshotInfo]
 	deallocationLists *space.Space[types.SnapshotID, types.Pointer]
 
-	pointerNodeAssistant        *space.NodeAssistant[types.Pointer]
+	pointerNodeAssistant        *space.PointerNodeAssistant
 	snapshotInfoNodeAssistant   *space.DataNodeAssistant[types.SnapshotID, types.SnapshotInfo]
 	snapshotToNodeNodeAssistant *space.DataNodeAssistant[types.SnapshotID, types.Pointer]
 	listNodeAssistant           *list.NodeAssistant
@@ -281,29 +281,28 @@ func (db *DB) deleteSnapshot(
 	tx *pipeline.TransactionRequest,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
-	pointerNode *space.Node[types.Pointer],
 	listNode *list.Node,
 ) error {
-	snapshotInfoValue := db.snapshots.Find(snapshotID, pointerNode)
-	if !snapshotInfoValue.Exists(pointerNode) {
+	snapshotInfoValue := db.snapshots.Find(snapshotID)
+	if !snapshotInfoValue.Exists() {
 		return errors.Errorf("snapshot %d does not exist", snapshotID)
 	}
 
-	if err := snapshotInfoValue.Delete(tx, pointerNode); err != nil {
+	if err := snapshotInfoValue.Delete(tx); err != nil {
 		return err
 	}
 
-	snapshotInfo := snapshotInfoValue.Value(pointerNode)
+	snapshotInfo := snapshotInfoValue.Value()
 
 	var nextSnapshotInfo *types.SnapshotInfo
 	var nextDeallocationListRoot *types.Pointer
 	var nextDeallocationLists *space.Space[types.SnapshotID, types.Pointer]
 	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
-		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, pointerNode)
-		if !nextSnapshotInfoValue.Exists(pointerNode) {
+		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID)
+		if !nextSnapshotInfoValue.Exists() {
 			return errors.Errorf("snapshot %d does not exist", snapshotID)
 		}
-		tmpNextSnapshotInfo := nextSnapshotInfoValue.Value(pointerNode)
+		tmpNextSnapshotInfo := nextSnapshotInfoValue.Value()
 		nextSnapshotInfo = &tmpNextSnapshotInfo
 
 		nextDeallocationListRoot = &nextSnapshotInfo.DeallocationRoot
@@ -338,7 +337,7 @@ func (db *DB) deleteSnapshot(
 		startSnapshotID = snapshotInfo.PreviousSnapshotID + 1
 	}
 
-	for nextDeallocSnapshot := range nextDeallocationLists.Iterator(pointerNode) {
+	for nextDeallocSnapshot := range nextDeallocationLists.Iterator() {
 		if nextDeallocSnapshot.Key >= startSnapshotID && nextDeallocSnapshot.Key <= snapshotID {
 			list.Deallocate(
 				nextDeallocSnapshot.Value,
@@ -351,8 +350,8 @@ func (db *DB) deleteSnapshot(
 			continue
 		}
 
-		deallocationListValue := deallocationLists.Find(nextDeallocSnapshot.Key, pointerNode)
-		listNodeAddress := deallocationListValue.Value(pointerNode)
+		deallocationListValue := deallocationLists.Find(nextDeallocSnapshot.Key)
+		listNodeAddress := deallocationListValue.Value()
 		newListNodeAddress := listNodeAddress
 		list := list.New(list.Config{
 			ListRoot:      &newListNodeAddress,
@@ -376,7 +375,6 @@ func (db *DB) deleteSnapshot(
 				newListNodeAddress,
 				tx,
 				volatilePool,
-				pointerNode,
 			); err != nil {
 				return err
 			}
@@ -389,8 +387,8 @@ func (db *DB) deleteSnapshot(
 		nextDeallocationListRoot,
 		volatilePool,
 		persistentPool,
+		db.config.State,
 		db.pointerNodeAssistant,
-		pointerNode,
 	)
 
 	if snapshotID == db.singularityNode.FirstSnapshotID {
@@ -400,31 +398,29 @@ func (db *DB) deleteSnapshot(
 	}
 
 	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
-		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, pointerNode)
+		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID)
 		if err := nextSnapshotInfoValue.Set(
 			*nextSnapshotInfo,
 			tx,
 			volatilePool,
-			pointerNode,
 		); err != nil {
 			return err
 		}
 	}
 
 	if snapshotID > db.singularityNode.FirstSnapshotID {
-		previousSnapshotInfoValue := db.snapshots.Find(snapshotInfo.PreviousSnapshotID, pointerNode)
-		if !previousSnapshotInfoValue.Exists(pointerNode) {
+		previousSnapshotInfoValue := db.snapshots.Find(snapshotInfo.PreviousSnapshotID)
+		if !previousSnapshotInfoValue.Exists() {
 			return errors.Errorf("snapshot %d does not exist", snapshotID)
 		}
 
-		previousSnapshotInfo := previousSnapshotInfoValue.Value(pointerNode)
+		previousSnapshotInfo := previousSnapshotInfoValue.Value()
 		previousSnapshotInfo.NextSnapshotID = snapshotInfo.NextSnapshotID
 
 		if err := previousSnapshotInfoValue.Set(
 			previousSnapshotInfo,
 			tx,
 			volatilePool,
-			pointerNode,
 		); err != nil {
 			return err
 		}
@@ -444,7 +440,6 @@ func (db *DB) commit(
 	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	volatilePool *alloc.Pool[types.VolatileAddress],
-	pointerNode *space.Node[types.Pointer],
 	listNode *list.Node,
 ) error {
 	//nolint:nestif
@@ -457,10 +452,10 @@ func (db *DB) commit(
 
 		var sr pipeline.StoreRequest
 		for _, snapshotID := range lists {
-			deallocationListValue := db.deallocationLists.Find(snapshotID, pointerNode)
-			if deallocationListValue.Exists(pointerNode) {
+			deallocationListValue := db.deallocationLists.Find(snapshotID)
+			if deallocationListValue.Exists() {
 				pointerToStore, err := db.deallocationListsToCommit[snapshotID].List.Attach(
-					lo.ToPtr(deallocationListValue.Value(pointerNode)),
+					lo.ToPtr(deallocationListValue.Value()),
 					volatilePool,
 					listNode,
 				)
@@ -476,7 +471,6 @@ func (db *DB) commit(
 				*db.deallocationListsToCommit[snapshotID].ListRoot,
 				tx,
 				volatilePool,
-				pointerNode,
 			); err != nil {
 				return err
 			}
@@ -488,12 +482,11 @@ func (db *DB) commit(
 		clear(db.deallocationListsToCommit)
 	}
 
-	nextSnapshotInfoValue := db.snapshots.Find(db.singularityNode.LastSnapshotID, pointerNode)
+	nextSnapshotInfoValue := db.snapshots.Find(db.singularityNode.LastSnapshotID)
 	if err := nextSnapshotInfoValue.Set(
 		db.snapshotInfo,
 		tx,
 		volatilePool,
-		pointerNode,
 	); err != nil {
 		return err
 	}
@@ -515,7 +508,6 @@ func (db *DB) prepareTransactions(
 	if err != nil {
 		return err
 	}
-	pointerNode := s.NewPointerNode()
 
 	for processedCount := uint64(0); ; processedCount++ {
 		req, err := pipeReader.Read(ctx)
@@ -525,7 +517,7 @@ func (db *DB) prepareTransactions(
 
 		if req.Transaction != nil {
 			if transferTx, ok := req.Transaction.(*transfer.Tx); ok {
-				transferTx.Prepare(s, pointerNode)
+				transferTx.Prepare(s)
 			}
 		}
 
@@ -545,7 +537,6 @@ func (db *DB) executeTransactions(
 		return err
 	}
 
-	pointerNode := db.pointerNodeAssistant.NewNode()
 	listNode := db.listNodeAssistant.NewNode()
 
 	for processedCount := uint64(0); ; processedCount++ {
@@ -557,24 +548,23 @@ func (db *DB) executeTransactions(
 		if req.Transaction != nil {
 			switch tx := req.Transaction.(type) {
 			case *transfer.Tx:
-				if err := tx.Execute(req, volatilePool, pointerNode); err != nil {
+				if err := tx.Execute(req, volatilePool); err != nil {
 					return err
 				}
 			case *commitTx:
 				// Syncing must be finished just before committing because inside commit we store the results
 				// of deallocations.
 				<-tx.SyncCh
-				if err := db.commit(tx.SnapshotID, req, volatilePool, pointerNode, listNode); err != nil {
+				if err := db.commit(tx.SnapshotID, req, volatilePool, listNode); err != nil {
 					req.CommitCh <- err
 					return err
 				}
 			case *deleteSnapshotTx:
-				if err := db.deleteSnapshot(tx.SnapshotID, req, volatilePool, persistentPool, pointerNode,
-					listNode); err != nil {
+				if err := db.deleteSnapshot(tx.SnapshotID, req, volatilePool, persistentPool, listNode); err != nil {
 					return err
 				}
 			case *genesis.Tx:
-				if err := tx.Execute(s, req, volatilePool, pointerNode); err != nil {
+				if err := tx.Execute(s, req, volatilePool); err != nil {
 					return err
 				}
 			default:

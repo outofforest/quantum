@@ -24,14 +24,12 @@ func (t *Tx) Execute(
 	space *space.Space[txtypes.Account, txtypes.Amount],
 	tx *pipeline.TransactionRequest,
 	volatilePool *alloc.Pool[types.VolatileAddress],
-	pointerNode *space.Node[types.Pointer],
 ) error {
 	for _, a := range t.Accounts {
-		if err := space.Find(a.Account, pointerNode).Set(
+		if err := space.Find(a.Account).Set(
 			a.Amount,
 			tx,
 			volatilePool,
-			pointerNode,
 		); err != nil {
 			return err
 		}

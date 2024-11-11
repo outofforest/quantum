@@ -23,26 +23,22 @@ type Tx struct {
 }
 
 // Prepare prepares transaction for execution.
-func (t *Tx) Prepare(
-	space *space.Space[txtypes.Account, txtypes.Amount],
-	pointerNode *space.Node[types.Pointer],
-) {
-	t.from = space.Find(t.From, pointerNode)
-	t.to = space.Find(t.To, pointerNode)
+func (t *Tx) Prepare(space *space.Space[txtypes.Account, txtypes.Amount]) {
+	t.from = space.Find(t.From)
+	t.to = space.Find(t.To)
 }
 
 // Execute executes transaction.
 func (t *Tx) Execute(
 	tx *pipeline.TransactionRequest,
 	volatilePool *alloc.Pool[types.VolatileAddress],
-	pointerNode *space.Node[types.Pointer],
 ) error {
-	fromBalance := t.from.Value(pointerNode)
+	fromBalance := t.from.Value()
 	if fromBalance < t.Amount {
 		return errors.Errorf("sender's balance is too low, balance: %d, amount to send: %d", fromBalance, t.Amount)
 	}
 
-	toBalance := t.to.Value(pointerNode)
+	toBalance := t.to.Value()
 	if math.MaxUint64-toBalance < t.Amount {
 		return errors.Errorf(
 			"transfer cannot be executed because it would cause an overflow on the recipient's balance, balance: %d, amount to send: %d", //nolint:lll
@@ -53,7 +49,6 @@ func (t *Tx) Execute(
 		fromBalance-t.Amount,
 		tx,
 		volatilePool,
-		pointerNode,
 	); err != nil {
 		return err
 	}
@@ -62,6 +57,5 @@ func (t *Tx) Execute(
 		toBalance+t.Amount,
 		tx,
 		volatilePool,
-		pointerNode,
 	)
 }
