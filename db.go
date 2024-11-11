@@ -55,14 +55,14 @@ func New(config Config) (*DB, error) {
 	}
 
 	snapshotInfoNodeAssistant, err := space.NewDataNodeAssistant[types.SnapshotID, types.SnapshotInfo](
-		config.State,
+		config.State.NodeSize(),
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	snapshotToNodeNodeAssistant, err := space.NewDataNodeAssistant[types.SnapshotID, types.Pointer](
-		config.State,
+		config.State.NodeSize(),
 	)
 	if err != nil {
 		return nil, err
@@ -974,7 +974,7 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 		return nil, errors.Errorf("space %d is not defined", spaceID)
 	}
 
-	dataNodeAssistant, err := space.NewDataNodeAssistant[K, V](db.config.State)
+	dataNodeAssistant, err := space.NewDataNodeAssistant[K, V](db.config.State.NodeSize())
 	if err != nil {
 		return nil, err
 	}

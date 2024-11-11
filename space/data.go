@@ -5,16 +5,13 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/types"
 )
 
 const numOfSlots = 4
 
 // NewDataNodeAssistant creates new space data node assistant.
-func NewDataNodeAssistant[K, V comparable](state *alloc.State) (*DataNodeAssistant[K, V], error) {
-	nodeSize := state.NodeSize()
-
+func NewDataNodeAssistant[K, V comparable](nodeSize uint64) (*DataNodeAssistant[K, V], error) {
 	headerSize := uint64(unsafe.Sizeof(DataNodeHeader{})+types.UInt64Length-1) / types.UInt64Length * types.UInt64Length
 	slotSize := (nodeSize - headerSize) / numOfSlots / types.UInt64Length * types.UInt64Length
 
@@ -28,7 +25,6 @@ func NewDataNodeAssistant[K, V comparable](state *alloc.State) (*DataNodeAssista
 	numOfItemsInSlot := slotSize / itemSize
 
 	da := &DataNodeAssistant[K, V]{
-		state:            state,
 		itemSize:         itemSize,
 		numOfItems:       numOfItemsInSlot * numOfSlots,
 		numOfItemsInSlot: numOfItemsInSlot,
@@ -43,8 +39,6 @@ func NewDataNodeAssistant[K, V comparable](state *alloc.State) (*DataNodeAssista
 
 // DataNodeAssistant converts nodes from bytes to data objects.
 type DataNodeAssistant[K, V comparable] struct {
-	state *alloc.State
-
 	itemSize         uint64
 	numOfItems       uint64
 	numOfItemsInSlot uint64
