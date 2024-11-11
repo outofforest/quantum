@@ -19,7 +19,7 @@ const trials = 20
 type Config[K, V comparable] struct {
 	SpaceRoot             *types.Pointer
 	State                 *alloc.State
-	PointerNodeAssistant  *NodeAssistant[types.Pointer]
+	PointerNodeAssistant  *PointerNodeAssistant
 	DataNodeAssistant     *DataNodeAssistant[K, V]
 	MassEntry             *mass.Mass[Entry[K, V]]
 	ImmediateDeallocation bool
@@ -70,56 +70,34 @@ type Space[K, V comparable] struct {
 	trials      [][trials]uint64
 }
 
-// NewPointerNode creates new pointer node representation.
-func (s *Space[K, V]) NewPointerNode() *Node[types.Pointer] {
-	return s.config.PointerNodeAssistant.NewNode()
-}
-
 // Find locates key in the space.
-func (s *Space[K, V]) Find(
-	key K,
-	pointerNode *Node[types.Pointer],
-) *Entry[K, V] {
+func (s *Space[K, V]) Find(key K) *Entry[K, V] {
 	v := s.config.MassEntry.New()
 	initBytes := unsafe.Slice((*byte)(unsafe.Pointer(v)), s.initSize)
 	copy(initBytes, s.defaultInit)
 	v.item.Hash = hashKey(&key, s.hashBuff, 0)
 	v.item.Key = key
 
-	s.find(v, pointerNode, false)
+	s.find(v, false)
 	return v
 }
 
 // Iterator returns iterator iterating over items in space.
-func (s *Space[K, V]) Iterator(
-	pointerNode *Node[types.Pointer],
-) func(func(item *types.DataItem[K, V]) bool) {
+func (s *Space[K, V]) Iterator() func(func(item *types.DataItem[K, V]) bool) {
 	return func(yield func(item *types.DataItem[K, V]) bool) {
-		s.iterate(
-			pointerNode,
-			s.config.SpaceRoot,
-			yield,
-		)
+		s.iterate(s.config.SpaceRoot, yield)
 	}
 }
 
-func (s *Space[K, V]) iterate(
-	pointerNode *Node[types.Pointer],
-	pointer *types.Pointer,
-	yield func(item *types.DataItem[K, V]) bool,
-) {
+func (s *Space[K, V]) iterate(pointer *types.Pointer, yield func(item *types.DataItem[K, V]) bool) {
 	switch pointer.State {
 	case types.StatePointer, types.StatePointerWithHashMod:
-		s.config.PointerNodeAssistant.Project(pointer.VolatileAddress, pointerNode)
-		for item := range pointerNode.Iterator() {
+		for item := range s.config.PointerNodeAssistant.Iterator(s.config.State.Node(pointer.VolatileAddress)) {
 			if pointer.State == types.StateFree {
 				continue
 			}
 
-			s.iterate(pointerNode,
-				item,
-				yield,
-			)
+			s.iterate(item, yield)
 		}
 	case types.StateData:
 		for item := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(pointer.VolatileAddress)) {
@@ -134,7 +112,7 @@ func (s *Space[K, V]) iterate(
 }
 
 // Nodes returns list of nodes used by the space.
-func (s *Space[K, V]) Nodes(pointerNode *Node[types.Pointer]) []types.VolatileAddress {
+func (s *Space[K, V]) Nodes() []types.VolatileAddress {
 	switch s.config.SpaceRoot.State {
 	case types.StateFree:
 		return nil
@@ -158,8 +136,7 @@ func (s *Space[K, V]) Nodes(pointerNode *Node[types.Pointer]) []types.VolatileAd
 		stack = stack[:len(stack)-1]
 		nodes = append(nodes, pointerNodeAddress)
 
-		s.config.PointerNodeAssistant.Project(pointerNodeAddress, pointerNode)
-		for pointer := range pointerNode.Iterator() {
+		for pointer := range s.config.PointerNodeAssistant.Iterator(s.config.State.Node(pointerNodeAddress)) {
 			switch pointer.State {
 			case types.StateFree:
 			case types.StateData:
@@ -172,9 +149,7 @@ func (s *Space[K, V]) Nodes(pointerNode *Node[types.Pointer]) []types.VolatileAd
 }
 
 // Stats returns stats about the space.
-func (s *Space[K, V]) Stats(
-	pointerNode *Node[types.Pointer],
-) (uint64, uint64, uint64, float64) {
+func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 	switch s.config.SpaceRoot.State {
 	case types.StateFree:
 		return 0, 0, 0, 0
@@ -199,8 +174,7 @@ func (s *Space[K, V]) Stats(
 		pointerNodes++
 		stack = stack[:len(stack)-1]
 
-		s.config.PointerNodeAssistant.Project(n, pointerNode)
-		for pointer := range pointerNode.Iterator() {
+		for pointer := range s.config.PointerNodeAssistant.Iterator(s.config.State.Node(n)) {
 			switch pointer.State {
 			case types.StateFree:
 			case types.StateData:
@@ -223,38 +197,28 @@ func (s *Space[K, V]) Stats(
 	}
 }
 
-func (s *Space[K, V]) valueExists(
-	v *Entry[K, V],
-	pointerNode *Node[types.Pointer],
-) bool {
+func (s *Space[K, V]) valueExists(v *Entry[K, V]) bool {
 	if !v.fullyRouted {
 		v.fullyRouted = true
-		s.find(v, pointerNode, true)
+		s.find(v, true)
 	}
 
 	return v.exists
 }
 
-func (s *Space[K, V]) readValue(
-	v *Entry[K, V],
-	pointerNode *Node[types.Pointer],
-) V {
+func (s *Space[K, V]) readValue(v *Entry[K, V]) V {
 	if !v.fullyRouted {
 		v.fullyRouted = true
-		s.find(v, pointerNode, true)
+		s.find(v, true)
 	}
 
 	return v.item.Value
 }
 
-func (s *Space[K, V]) deleteValue(
-	tx *pipeline.TransactionRequest,
-	v *Entry[K, V],
-	pointerNode *Node[types.Pointer],
-) error {
+func (s *Space[K, V]) deleteValue(tx *pipeline.TransactionRequest, v *Entry[K, V]) error {
 	if !v.fullyRouted {
 		v.fullyRouted = true
-		s.find(v, pointerNode, true)
+		s.find(v, true)
 	}
 
 	if v.pointer.State == types.StateFree {
@@ -280,11 +244,10 @@ func (s *Space[K, V]) setValue(
 	v *Entry[K, V],
 	value V,
 	pool *alloc.Pool[types.VolatileAddress],
-	pointerNode *Node[types.Pointer],
 ) error {
 	if !v.fullyRouted {
 		v.fullyRouted = true
-		s.find(v, pointerNode, true)
+		s.find(v, true)
 	}
 
 	v.item.Value = value
@@ -308,14 +271,13 @@ func (s *Space[K, V]) setValue(
 		}
 	}
 
-	return s.set(tx, v, pool, pointerNode)
+	return s.set(tx, v, pool)
 }
 
 func (s *Space[K, V]) set(
 	tx *pipeline.TransactionRequest,
 	v *Entry[K, V],
 	pool *alloc.Pool[types.VolatileAddress],
-	pointerNode *Node[types.Pointer],
 ) error {
 	for {
 		switch v.pointer.State {
@@ -383,18 +345,17 @@ func (s *Space[K, V]) set(
 				v,
 				conflict,
 				pool,
-				pointerNode,
 			)
 		default:
 			v.level++
-			s.config.PointerNodeAssistant.Project(v.pointer.VolatileAddress,
-				pointerNode)
 			if v.pointer.State == types.StatePointerWithHashMod {
 				v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
 			}
 
-			index := s.config.PointerNodeAssistant.Index(v.item.Hash)
-			pointer := pointerNode.Item(index)
+			pointer := s.config.PointerNodeAssistant.Item(
+				s.config.State.Node(v.pointer.VolatileAddress),
+				s.config.PointerNodeAssistant.ItemOffset(s.config.PointerNodeAssistant.Index(v.item.Hash)),
+			)
 			v.item.Hash = s.config.PointerNodeAssistant.Shift(v.item.Hash)
 			v.pointer = pointer
 
@@ -410,7 +371,6 @@ func (s *Space[K, V]) redistributeAndSet(
 	v *Entry[K, V],
 	conflict bool,
 	pool *alloc.Pool[types.VolatileAddress],
-	pointerNode *Node[types.Pointer],
 ) error {
 	v.level++
 
@@ -418,7 +378,6 @@ func (s *Space[K, V]) redistributeAndSet(
 	if err != nil {
 		return err
 	}
-	s.config.PointerNodeAssistant.Project(pointerNodeAddress, pointerNode)
 
 	// Persistent address stays the same, so data node will be reused for pointer node if both are
 	// created in the same snapshot, or data node will be deallocated otherwise.
@@ -427,6 +386,7 @@ func (s *Space[K, V]) redistributeAndSet(
 		DeallocateVolatileAddress: v.pointer.VolatileAddress,
 	})
 
+	pointerNode := s.config.State.Node(pointerNodeAddress)
 	for item := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(v.pointer.VolatileAddress)) {
 		if item.State != types.StateData {
 			continue
@@ -436,8 +396,10 @@ func (s *Space[K, V]) redistributeAndSet(
 			item.Hash = hashKey(&item.Key, s.hashBuff, v.level)
 		}
 
-		index := s.config.PointerNodeAssistant.Index(item.Hash)
-		pointer := pointerNode.Item(index)
+		pointer := s.config.PointerNodeAssistant.Item(
+			pointerNode,
+			s.config.PointerNodeAssistant.ItemOffset(s.config.PointerNodeAssistant.Index(item.Hash)),
+		)
 		item.Hash = s.config.PointerNodeAssistant.Shift(item.Hash)
 
 		if err := s.set(tx,
@@ -450,7 +412,7 @@ func (s *Space[K, V]) redistributeAndSet(
 				},
 				item:  *item,
 				level: v.level,
-			}, pool, pointerNode); err != nil {
+			}, pool); err != nil {
 			return err
 		}
 	}
@@ -461,15 +423,17 @@ func (s *Space[K, V]) redistributeAndSet(
 		v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
 	}
 
-	index := s.config.PointerNodeAssistant.Index(v.item.Hash)
+	v.pointer = s.config.PointerNodeAssistant.Item(
+		pointerNode,
+		s.config.PointerNodeAssistant.ItemOffset(s.config.PointerNodeAssistant.Index(v.item.Hash)),
+	)
 	v.item.Hash = s.config.PointerNodeAssistant.Shift(v.item.Hash)
-	v.pointer = pointerNode.Item(index)
 
 	// FIXME (wojciech): What if by any chance number of pointers exceeds 10?
 	v.storeRequest.Store[v.storeRequest.PointersToStore] = v.pointer
 	v.storeRequest.PointersToStore++
 
-	if err := s.set(tx, v, pool, pointerNode); err != nil {
+	if err := s.set(tx, v, pool); err != nil {
 		return err
 	}
 
@@ -485,22 +449,19 @@ func (s *Space[K, V]) redistributeAndSet(
 	return nil
 }
 
-func (s *Space[K, V]) find(
-	v *Entry[K, V],
-	pointerNode *Node[types.Pointer],
-	processDataNode bool,
-) {
+func (s *Space[K, V]) find(v *Entry[K, V], processDataNode bool) {
 	for {
 		switch v.pointer.State {
 		case types.StatePointer, types.StatePointerWithHashMod:
 			v.level++
-			s.config.PointerNodeAssistant.Project(v.pointer.VolatileAddress, pointerNode)
 			if v.pointer.State == types.StatePointerWithHashMod {
 				v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
 			}
 
-			index := s.config.PointerNodeAssistant.Index(v.item.Hash)
-			pointer := pointerNode.Item(index)
+			pointer := s.config.PointerNodeAssistant.Item(
+				s.config.State.Node(v.pointer.VolatileAddress),
+				s.config.PointerNodeAssistant.ItemOffset(s.config.PointerNodeAssistant.Index(v.item.Hash)),
+			)
 			v.item.Hash = s.config.PointerNodeAssistant.Shift(v.item.Hash)
 			v.pointer = pointer
 
@@ -558,10 +519,8 @@ type Entry[K, V comparable] struct {
 }
 
 // Value returns the value from entry.
-func (v *Entry[K, V]) Value(
-	pointerNode *Node[types.Pointer],
-) V {
-	return v.space.readValue(v, pointerNode)
+func (v *Entry[K, V]) Value() V {
+	return v.space.readValue(v)
 }
 
 // Key returns the key from entry.
@@ -570,10 +529,8 @@ func (v *Entry[K, V]) Key() K {
 }
 
 // Exists returns true if entry exists in the space.
-func (v *Entry[K, V]) Exists(
-	pointerNode *Node[types.Pointer],
-) bool {
-	return v.space.valueExists(v, pointerNode)
+func (v *Entry[K, V]) Exists() bool {
+	return v.space.valueExists(v)
 }
 
 // Set sts value for entry.
@@ -581,17 +538,15 @@ func (v *Entry[K, V]) Set(
 	value V,
 	tx *pipeline.TransactionRequest,
 	pool *alloc.Pool[types.VolatileAddress],
-	pointerNode *Node[types.Pointer],
 ) error {
-	return v.space.setValue(tx, v, value, pool, pointerNode)
+	return v.space.setValue(tx, v, value, pool)
 }
 
 // Delete deletes the entry.
 func (v *Entry[K, V]) Delete(
 	tx *pipeline.TransactionRequest,
-	pointerNode *Node[types.Pointer],
 ) error {
-	return v.space.deleteValue(tx, v, pointerNode)
+	return v.space.deleteValue(tx, v)
 }
 
 func hashKey[K comparable](
@@ -625,8 +580,8 @@ func Deallocate(
 	spaceRoot *types.Pointer,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
-	pointerNodeAssistant *NodeAssistant[types.Pointer],
-	pointerNode *Node[types.Pointer],
+	state *alloc.State,
+	pointerNodeAssistant *PointerNodeAssistant,
 ) {
 	switch spaceRoot.State {
 	case types.StateFree:
@@ -637,24 +592,23 @@ func Deallocate(
 		return
 	}
 
-	deallocatePointerNode(spaceRoot, volatilePool, persistentPool, pointerNodeAssistant, pointerNode)
+	deallocatePointerNode(spaceRoot, volatilePool, persistentPool, state, pointerNodeAssistant)
 }
 
 func deallocatePointerNode(
 	pointer *types.Pointer,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
-	pointerNodeAssistant *NodeAssistant[types.Pointer],
-	pointerNode *Node[types.Pointer],
+	state *alloc.State,
+	pointerNodeAssistant *PointerNodeAssistant,
 ) {
-	pointerNodeAssistant.Project(pointer.VolatileAddress, pointerNode)
-	for p := range pointerNode.Iterator() {
+	for p := range pointerNodeAssistant.Iterator(state.Node(pointer.VolatileAddress)) {
 		switch p.State {
 		case types.StateData:
 			volatilePool.Deallocate(pointer.VolatileAddress)
 			persistentPool.Deallocate(p.PersistentAddress)
 		case types.StatePointer, types.StatePointerWithHashMod:
-			deallocatePointerNode(p, volatilePool, persistentPool, pointerNodeAssistant, pointerNode)
+			deallocatePointerNode(p, volatilePool, persistentPool, state, pointerNodeAssistant)
 		}
 	}
 	volatilePool.Deallocate(pointer.VolatileAddress)

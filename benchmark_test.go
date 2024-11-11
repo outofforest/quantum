@@ -116,8 +116,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				panic(err)
 			}
 
-			pointerNode := s.NewPointerNode()
-
 			func() {
 				db.ApplyTransaction(&genesis.Tx{
 					Accounts: []genesis.InitialBalance{
@@ -131,12 +129,12 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 					panic(err)
 				}
 
-				fmt.Println(s.Stats(pointerNode))
+				fmt.Println(s.Stats())
 				fmt.Println("===========================")
 
-				v := s.Find(genesisAccount, pointerNode)
-				require.True(b, v.Exists(pointerNode))
-				require.Equal(b, txtypes.Amount(numOfAddresses*balance), v.Value(pointerNode))
+				v := s.Find(genesisAccount)
+				require.True(b, v.Exists())
+				require.Equal(b, txtypes.Amount(numOfAddresses*balance), v.Value())
 			}()
 
 			txIndex := 0
@@ -171,16 +169,16 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			}()
 
 			func() {
-				fmt.Println(s.Stats(pointerNode))
+				fmt.Println(s.Stats())
 
-				v := s.Find(genesisAccount, pointerNode)
-				require.True(b, v.Exists(pointerNode))
-				require.Equal(b, txtypes.Amount(0), v.Value(pointerNode))
+				v := s.Find(genesisAccount)
+				require.True(b, v.Exists())
+				require.Equal(b, txtypes.Amount(0), v.Value())
 
 				for _, addr := range accounts {
-					v := s.Find(addr, pointerNode)
-					require.True(b, v.Exists(pointerNode))
-					require.Equal(b, txtypes.Amount(balance), v.Value(pointerNode))
+					v := s.Find(addr)
+					require.True(b, v.Exists())
+					require.Equal(b, txtypes.Amount(balance), v.Value())
 				}
 			}()
 		}()
