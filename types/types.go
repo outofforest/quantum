@@ -6,6 +6,9 @@ const (
 
 	// HashLength is the number of bytes taken by hash.
 	HashLength = 32
+
+	// HashBlockSize defines how many bytes are in one block hashed by blake3.
+	HashBlockSize = 64
 )
 
 // State enumerates possible slot states.

@@ -12,8 +12,8 @@ const numOfSlots = 4
 
 // NewDataNodeAssistant creates new space data node assistant.
 func NewDataNodeAssistant[K, V comparable](nodeSize uint64) (*DataNodeAssistant[K, V], error) {
-	headerSize := uint64(unsafe.Sizeof(DataNodeHeader{})+types.UInt64Length-1) / types.UInt64Length * types.UInt64Length
-	slotSize := (nodeSize - headerSize) / numOfSlots / types.UInt64Length * types.UInt64Length
+	headerSize := uint64(unsafe.Sizeof(DataNodeHeader{})+types.HashBlockSize-1) / types.HashBlockSize * types.HashBlockSize
+	slotSize := (nodeSize - headerSize) / numOfSlots / types.HashBlockSize * types.HashBlockSize
 
 	itemSize := uint64(unsafe.Sizeof(types.DataItem[K, V]{})+types.UInt64Length-1) /
 		types.UInt64Length * types.UInt64Length
