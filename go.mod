@@ -13,7 +13,7 @@ require (
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.9.0
 	github.com/zeebo/blake3 v0.2.4
-	golang.org/x/sys v0.26.0
+	golang.org/x/sys v0.27.0
 	lukechampine.com/blake3 v1.3.0
 )
 
