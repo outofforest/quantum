@@ -9,15 +9,15 @@ import (
 )
 
 // NewPointerNodeAssistant creates new pointer node assistant.
-func NewPointerNodeAssistant(nodeSize uint64) (*PointerNodeAssistant, error) {
+func NewPointerNodeAssistant() (*PointerNodeAssistant, error) {
 	pointerSize := uint64(unsafe.Sizeof(types.Pointer{})+types.UInt64Length-1) /
 		types.UInt64Length * types.UInt64Length
 
 	// numOfPointers must be even because 2 hashes fit into one hash block.
-	numOfPointers := nodeSize / (pointerSize + types.HashLength) / 2 * 2
+	numOfPointers := types.NodeLength / (pointerSize + types.HashLength) / 2 * 2
 	if numOfPointers == 0 {
 		return nil, errors.Errorf("pointer size %d is greater than node size %d",
-			(pointerSize + types.HashLength), nodeSize)
+			(pointerSize + types.HashLength), types.NodeLength)
 	}
 
 	return &PointerNodeAssistant{

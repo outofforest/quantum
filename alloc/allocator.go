@@ -12,11 +12,10 @@ type Address interface {
 // NewAllocationCh creates channel containing allocatable addresses.
 func NewAllocationCh[A Address](
 	size uint64,
-	nodeSize uint64,
 	nodesPerGroup uint64,
 	numOfReservedNodes uint64,
 ) (chan []A, []A) {
-	numOfNodes := size / nodeSize
+	numOfNodes := size / types.NodeLength
 	numOfNodes -= numOfReservedNodes
 
 	numOfGroups := numOfNodes / nodesPerGroup
@@ -28,7 +27,7 @@ func NewAllocationCh[A Address](
 	reservedNodes := make([]A, 0, numOfReservedNodes)
 	availableNodes := make([]A, 0, numOfNodes)
 	for i := range totalNumOfNodes {
-		address := A(i * nodeSize)
+		address := A(i * types.NodeLength)
 		if i%spreadFactor == 0 {
 			reservedNodes = append(reservedNodes, address)
 			continue
