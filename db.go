@@ -204,9 +204,10 @@ func (db *DB) Run(ctx context.Context) error {
 				deallocateQReader := allocateQReader.NewReader()
 				checksumQReader1 := deallocateQReader.NewReader()
 				checksumQReader2 := checksumQReader1.NewReader()
+				checksumQReader3 := checksumQReader2.NewReader()
 				storeQReaders := make([]*pipeline.Reader, 0, len(db.config.Stores))
 				for range cap(storeQReaders) {
-					storeQReaders = append(storeQReaders, checksumQReader2.NewReader())
+					storeQReaders = append(storeQReaders, checksumQReader3.NewReader())
 				}
 
 				spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
@@ -258,10 +259,13 @@ func (db *DB) Run(ctx context.Context) error {
 					return db.processDeallocationRequests(ctx, deallocateQReader)
 				})
 				spawn("checksum1", parallel.Fail, func(ctx context.Context) error {
-					return db.updateChecksums(ctx, checksumQReader1, 2, 1)
+					return db.updateChecksums(ctx, checksumQReader1, 3, 2)
 				})
 				spawn("checksum2", parallel.Fail, func(ctx context.Context) error {
-					return db.updateChecksums(ctx, checksumQReader2, 0, 0)
+					return db.updateChecksums(ctx, checksumQReader2, 3, 1)
+				})
+				spawn("checksum3", parallel.Fail, func(ctx context.Context) error {
+					return db.updateChecksums(ctx, checksumQReader3, 0, 0)
 				})
 				for i, store := range db.config.Stores {
 					spawn(fmt.Sprintf("store-%02d", i), parallel.Fail, func(ctx context.Context) error {
@@ -672,23 +676,23 @@ func (db *DB) processDeallocationRequests(
 var (
 	zeroBlock  = make([]byte, 64)
 	zp         = &zeroBlock[0]
-	zeroMatrix = [16][16]*byte{
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp},
+	zeroMatrix = [16][64]*byte{
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
+		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
 	}
 )
 
@@ -764,7 +768,7 @@ func (db *DB) updateChecksums(
 	divider uint64,
 	mod uint64,
 ) error {
-	var matrix [16][16]*byte
+	var matrix [16][64]*byte
 	matrixP := &matrix[0][0]
 	checksums := [16]*[32]byte{{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}}
 	checksumsP := (**byte)(unsafe.Pointer(&checksums[0]))
@@ -828,7 +832,7 @@ func (db *DB) updateChecksums(
 
 			slots[ri] = req
 			node := db.config.State.Node(volatileAddress)
-			for bi := range 16 {
+			for bi := range 64 {
 				matrix[ri][bi] = (*byte)(unsafe.Add(node, bi*64))
 			}
 		}

@@ -352,9 +352,9 @@ func (s *Space[K, V]) set(
 				v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
 			}
 
-			pointer := s.config.PointerNodeAssistant.Item(
+			pointer := s.config.PointerNodeAssistant.Pointer(
 				s.config.State.Node(v.pointer.VolatileAddress),
-				s.config.PointerNodeAssistant.ItemOffset(s.config.PointerNodeAssistant.Index(v.item.Hash)),
+				s.config.PointerNodeAssistant.PointerOffset(s.config.PointerNodeAssistant.Index(v.item.Hash)),
 			)
 			v.item.Hash = s.config.PointerNodeAssistant.Shift(v.item.Hash)
 			v.pointer = pointer
@@ -396,9 +396,9 @@ func (s *Space[K, V]) redistributeAndSet(
 			item.Hash = hashKey(&item.Key, s.hashBuff, v.level)
 		}
 
-		pointer := s.config.PointerNodeAssistant.Item(
+		pointer := s.config.PointerNodeAssistant.Pointer(
 			pointerNode,
-			s.config.PointerNodeAssistant.ItemOffset(s.config.PointerNodeAssistant.Index(item.Hash)),
+			s.config.PointerNodeAssistant.PointerOffset(s.config.PointerNodeAssistant.Index(item.Hash)),
 		)
 		item.Hash = s.config.PointerNodeAssistant.Shift(item.Hash)
 
@@ -423,9 +423,9 @@ func (s *Space[K, V]) redistributeAndSet(
 		v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
 	}
 
-	v.pointer = s.config.PointerNodeAssistant.Item(
+	v.pointer = s.config.PointerNodeAssistant.Pointer(
 		pointerNode,
-		s.config.PointerNodeAssistant.ItemOffset(s.config.PointerNodeAssistant.Index(v.item.Hash)),
+		s.config.PointerNodeAssistant.PointerOffset(s.config.PointerNodeAssistant.Index(v.item.Hash)),
 	)
 	v.item.Hash = s.config.PointerNodeAssistant.Shift(v.item.Hash)
 
@@ -458,9 +458,9 @@ func (s *Space[K, V]) find(v *Entry[K, V], processDataNode bool) {
 				v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
 			}
 
-			pointer := s.config.PointerNodeAssistant.Item(
+			pointer := s.config.PointerNodeAssistant.Pointer(
 				s.config.State.Node(v.pointer.VolatileAddress),
-				s.config.PointerNodeAssistant.ItemOffset(s.config.PointerNodeAssistant.Index(v.item.Hash)),
+				s.config.PointerNodeAssistant.PointerOffset(s.config.PointerNodeAssistant.Index(v.item.Hash)),
 			)
 			v.item.Hash = s.config.PointerNodeAssistant.Shift(v.item.Hash)
 			v.pointer = pointer

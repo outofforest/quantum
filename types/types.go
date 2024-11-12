@@ -55,7 +55,6 @@ type (
 type Pointer struct {
 	SnapshotID        SnapshotID
 	Revision          uint64
-	Hash              KeyHash
 	VolatileAddress   VolatileAddress
 	PersistentAddress PersistentAddress
 	State             State
