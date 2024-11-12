@@ -49,11 +49,6 @@ type ListToCommit struct {
 
 // New creates new database.
 func New(config Config) (*DB, error) {
-	pointerNodeAssistant, err := space.NewPointerNodeAssistant()
-	if err != nil {
-		return nil, err
-	}
-
 	snapshotInfoNodeAssistant, err := space.NewDataNodeAssistant[types.SnapshotID, types.SnapshotInfo]()
 	if err != nil {
 		return nil, err
@@ -76,7 +71,6 @@ func New(config Config) (*DB, error) {
 		txRequestFactory:            pipeline.NewTransactionRequestFactory(),
 		singularityNode:             photon.FromPointer[types.SingularityNode](config.State.Node(0)),
 		snapshotInfoNodeAssistant:   snapshotInfoNodeAssistant,
-		pointerNodeAssistant:        pointerNodeAssistant,
 		snapshotToNodeNodeAssistant: snapshotToNodeNodeAssistant,
 		listNodeAssistant:           listNodeAssistant,
 		massSnapshotToNodeEntry:     mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
@@ -89,7 +83,6 @@ func New(config Config) (*DB, error) {
 	db.snapshots = space.New[types.SnapshotID, types.SnapshotInfo](space.Config[types.SnapshotID, types.SnapshotInfo]{
 		SpaceRoot:             &db.singularityNode.SnapshotRoot,
 		State:                 config.State,
-		PointerNodeAssistant:  pointerNodeAssistant,
 		DataNodeAssistant:     snapshotInfoNodeAssistant,
 		MassEntry:             mass.New[space.Entry[types.SnapshotID, types.SnapshotInfo]](1000),
 		ImmediateDeallocation: true,
@@ -99,7 +92,6 @@ func New(config Config) (*DB, error) {
 		space.Config[types.SnapshotID, types.Pointer]{
 			SpaceRoot:             &db.snapshotInfo.DeallocationRoot,
 			State:                 config.State,
-			PointerNodeAssistant:  pointerNodeAssistant,
 			DataNodeAssistant:     snapshotToNodeNodeAssistant,
 			MassEntry:             mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
 			ImmediateDeallocation: true,
@@ -121,7 +113,6 @@ type DB struct {
 	snapshots         *space.Space[types.SnapshotID, types.SnapshotInfo]
 	deallocationLists *space.Space[types.SnapshotID, types.Pointer]
 
-	pointerNodeAssistant        *space.PointerNodeAssistant
 	snapshotInfoNodeAssistant   *space.DataNodeAssistant[types.SnapshotID, types.SnapshotInfo]
 	snapshotToNodeNodeAssistant *space.DataNodeAssistant[types.SnapshotID, types.Pointer]
 	listNodeAssistant           *list.NodeAssistant
@@ -308,11 +299,10 @@ func (db *DB) deleteSnapshot(
 		nextDeallocationListRoot = &nextSnapshotInfo.DeallocationRoot
 		nextDeallocationLists = space.New[types.SnapshotID, types.Pointer](
 			space.Config[types.SnapshotID, types.Pointer]{
-				SpaceRoot:            nextDeallocationListRoot,
-				State:                db.config.State,
-				PointerNodeAssistant: db.pointerNodeAssistant,
-				DataNodeAssistant:    db.snapshotToNodeNodeAssistant,
-				MassEntry:            db.massSnapshotToNodeEntry,
+				SpaceRoot:         nextDeallocationListRoot,
+				State:             db.config.State,
+				DataNodeAssistant: db.snapshotToNodeNodeAssistant,
+				MassEntry:         db.massSnapshotToNodeEntry,
 			},
 		)
 	} else {
@@ -324,11 +314,10 @@ func (db *DB) deleteSnapshot(
 	deallocationListsRoot := &snapshotInfo.DeallocationRoot
 	deallocationLists := space.New[types.SnapshotID, types.Pointer](
 		space.Config[types.SnapshotID, types.Pointer]{
-			SpaceRoot:            deallocationListsRoot,
-			State:                db.config.State,
-			PointerNodeAssistant: db.pointerNodeAssistant,
-			DataNodeAssistant:    db.snapshotToNodeNodeAssistant,
-			MassEntry:            db.massSnapshotToNodeEntry,
+			SpaceRoot:         deallocationListsRoot,
+			State:             db.config.State,
+			DataNodeAssistant: db.snapshotToNodeNodeAssistant,
+			MassEntry:         db.massSnapshotToNodeEntry,
 		},
 	)
 
@@ -388,7 +377,6 @@ func (db *DB) deleteSnapshot(
 		volatilePool,
 		persistentPool,
 		db.config.State,
-		db.pointerNodeAssistant,
 	)
 
 	if snapshotID == db.singularityNode.FirstSnapshotID {
@@ -970,11 +958,10 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 	}
 
 	return space.New[K, V](space.Config[K, V]{
-		SpaceRoot:            &db.snapshotInfo.Spaces[spaceID],
-		State:                db.config.State,
-		PointerNodeAssistant: db.pointerNodeAssistant,
-		DataNodeAssistant:    dataNodeAssistant,
-		MassEntry:            mass.New[space.Entry[K, V]](1000),
+		SpaceRoot:         &db.snapshotInfo.Spaces[spaceID],
+		State:             db.config.State,
+		DataNodeAssistant: dataNodeAssistant,
+		MassEntry:         mass.New[space.Entry[K, V]](1000),
 	}), nil
 }
 

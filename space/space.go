@@ -19,7 +19,6 @@ const trials = 20
 type Config[K, V comparable] struct {
 	SpaceRoot             *types.Pointer
 	State                 *alloc.State
-	PointerNodeAssistant  *PointerNodeAssistant
 	DataNodeAssistant     *DataNodeAssistant[K, V]
 	MassEntry             *mass.Mass[Entry[K, V]]
 	ImmediateDeallocation bool
@@ -92,12 +91,14 @@ func (s *Space[K, V]) Iterator() func(func(item *types.DataItem[K, V]) bool) {
 func (s *Space[K, V]) iterate(pointer *types.Pointer, yield func(item *types.DataItem[K, V]) bool) {
 	switch pointer.State {
 	case types.StatePointer, types.StatePointerWithHashMod:
-		for item := range s.config.PointerNodeAssistant.Iterator(s.config.State.Node(pointer.VolatileAddress)) {
-			if pointer.State == types.StateFree {
+		pointerNode := ProjectPointerNode(s.config.State.Node(pointer.VolatileAddress))
+		for pi := range pointerNode.Pointers {
+			p := &pointerNode.Pointers[pi]
+			if p.State == types.StateFree {
 				continue
 			}
 
-			s.iterate(item, yield)
+			s.iterate(p, yield)
 		}
 	case types.StateData:
 		for item := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(pointer.VolatileAddress)) {
@@ -136,13 +137,14 @@ func (s *Space[K, V]) Nodes() []types.VolatileAddress {
 		stack = stack[:len(stack)-1]
 		nodes = append(nodes, pointerNodeAddress)
 
-		for pointer := range s.config.PointerNodeAssistant.Iterator(s.config.State.Node(pointerNodeAddress)) {
-			switch pointer.State {
+		pointerNode := ProjectPointerNode(s.config.State.Node(pointerNodeAddress))
+		for pi := range pointerNode.Pointers {
+			switch pointerNode.Pointers[pi].State {
 			case types.StateFree:
 			case types.StateData:
-				nodes = append(nodes, pointer.VolatileAddress)
+				nodes = append(nodes, pointerNode.Pointers[pi].VolatileAddress)
 			case types.StatePointer, types.StatePointerWithHashMod:
-				stack = append(stack, pointer.VolatileAddress)
+				stack = append(stack, pointerNode.Pointers[pi].VolatileAddress)
 			}
 		}
 	}
@@ -174,8 +176,9 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 		pointerNodes++
 		stack = stack[:len(stack)-1]
 
-		for pointer := range s.config.PointerNodeAssistant.Iterator(s.config.State.Node(n)) {
-			switch pointer.State {
+		pointerNode := ProjectPointerNode(s.config.State.Node(n))
+		for pi := range pointerNode.Pointers {
+			switch pointerNode.Pointers[pi].State {
 			case types.StateFree:
 			case types.StateData:
 				dataNodes++
@@ -183,15 +186,17 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 					maxLevel = level
 				}
 
-				for dItem := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(pointer.VolatileAddress)) {
+				for dItem := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(
+					pointerNode.Pointers[pi].VolatileAddress,
+				)) {
 					dataSlots++
 					if dItem.State == types.StateData {
 						dataItems++
 					}
 				}
 			case types.StatePointer, types.StatePointerWithHashMod:
-				stack = append(stack, pointer.VolatileAddress)
-				levels[pointer.VolatileAddress] = level
+				stack = append(stack, pointerNode.Pointers[pi].VolatileAddress)
+				levels[pointerNode.Pointers[pi].VolatileAddress] = level
 			}
 		}
 	}
@@ -352,11 +357,9 @@ func (s *Space[K, V]) set(
 				v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
 			}
 
-			pointer := s.config.PointerNodeAssistant.Pointer(
-				s.config.State.Node(v.pointer.VolatileAddress),
-				s.config.PointerNodeAssistant.PointerOffset(s.config.PointerNodeAssistant.Index(v.item.Hash)),
-			)
-			v.item.Hash = s.config.PointerNodeAssistant.Shift(v.item.Hash)
+			pointerNode := ProjectPointerNode(s.config.State.Node(v.pointer.VolatileAddress))
+			pointer := &pointerNode.Pointers[PointerIndex(v.item.Hash)]
+			v.item.Hash = PointerShift(v.item.Hash)
 			v.pointer = pointer
 
 			// FIXME (wojciech): What if by any chance number of pointers exceeds 10?
@@ -386,7 +389,7 @@ func (s *Space[K, V]) redistributeAndSet(
 		DeallocateVolatileAddress: v.pointer.VolatileAddress,
 	})
 
-	pointerNode := s.config.State.Node(pointerNodeAddress)
+	pointerNode := ProjectPointerNode(s.config.State.Node(pointerNodeAddress))
 	for item := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(v.pointer.VolatileAddress)) {
 		if item.State != types.StateData {
 			continue
@@ -396,11 +399,8 @@ func (s *Space[K, V]) redistributeAndSet(
 			item.Hash = hashKey(&item.Key, s.hashBuff, v.level)
 		}
 
-		pointer := s.config.PointerNodeAssistant.Pointer(
-			pointerNode,
-			s.config.PointerNodeAssistant.PointerOffset(s.config.PointerNodeAssistant.Index(item.Hash)),
-		)
-		item.Hash = s.config.PointerNodeAssistant.Shift(item.Hash)
+		pointer := &pointerNode.Pointers[PointerIndex(item.Hash)]
+		item.Hash = PointerShift(item.Hash)
 
 		if err := s.set(tx,
 			&Entry[K, V]{
@@ -423,11 +423,8 @@ func (s *Space[K, V]) redistributeAndSet(
 		v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
 	}
 
-	v.pointer = s.config.PointerNodeAssistant.Pointer(
-		pointerNode,
-		s.config.PointerNodeAssistant.PointerOffset(s.config.PointerNodeAssistant.Index(v.item.Hash)),
-	)
-	v.item.Hash = s.config.PointerNodeAssistant.Shift(v.item.Hash)
+	v.pointer = &pointerNode.Pointers[PointerIndex(v.item.Hash)]
+	v.item.Hash = PointerShift(v.item.Hash)
 
 	// FIXME (wojciech): What if by any chance number of pointers exceeds 10?
 	v.storeRequest.Store[v.storeRequest.PointersToStore] = v.pointer
@@ -458,11 +455,9 @@ func (s *Space[K, V]) find(v *Entry[K, V], processDataNode bool) {
 				v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
 			}
 
-			pointer := s.config.PointerNodeAssistant.Pointer(
-				s.config.State.Node(v.pointer.VolatileAddress),
-				s.config.PointerNodeAssistant.PointerOffset(s.config.PointerNodeAssistant.Index(v.item.Hash)),
-			)
-			v.item.Hash = s.config.PointerNodeAssistant.Shift(v.item.Hash)
+			pointerNode := ProjectPointerNode(s.config.State.Node(v.pointer.VolatileAddress))
+			pointer := &pointerNode.Pointers[PointerIndex(v.item.Hash)]
+			v.item.Hash = PointerShift(v.item.Hash)
 			v.pointer = pointer
 
 			v.storeRequest.Store[v.storeRequest.PointersToStore] = pointer
@@ -581,7 +576,6 @@ func Deallocate(
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
 	state *alloc.State,
-	pointerNodeAssistant *PointerNodeAssistant,
 ) {
 	switch spaceRoot.State {
 	case types.StateFree:
@@ -592,7 +586,7 @@ func Deallocate(
 		return
 	}
 
-	deallocatePointerNode(spaceRoot, volatilePool, persistentPool, state, pointerNodeAssistant)
+	deallocatePointerNode(spaceRoot, volatilePool, persistentPool, state)
 }
 
 func deallocatePointerNode(
@@ -600,15 +594,17 @@ func deallocatePointerNode(
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
 	state *alloc.State,
-	pointerNodeAssistant *PointerNodeAssistant,
 ) {
-	for p := range pointerNodeAssistant.Iterator(state.Node(pointer.VolatileAddress)) {
+	pointerNode := ProjectPointerNode(state.Node(pointer.VolatileAddress))
+	for pi := range pointerNode.Pointers {
+		p := &pointerNode.Pointers[pi]
+
 		switch p.State {
 		case types.StateData:
 			volatilePool.Deallocate(pointer.VolatileAddress)
 			persistentPool.Deallocate(p.PersistentAddress)
 		case types.StatePointer, types.StatePointerWithHashMod:
-			deallocatePointerNode(p, volatilePool, persistentPool, state, pointerNodeAssistant)
+			deallocatePointerNode(p, volatilePool, persistentPool, state)
 		}
 	}
 	volatilePool.Deallocate(pointer.VolatileAddress)
