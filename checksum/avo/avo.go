@@ -14,6 +14,7 @@ const (
 	numOfMessages             = 16
 	numOfChunks               = 4
 	numOfBlocksInChunk        = 16
+	totalBlocks               = numOfChunks * numOfBlocksInChunk
 	numOfStates               = 16
 	blockSize                 = 16 * uint32Size
 	iv0                uint32 = 0x6A09E667
@@ -60,12 +61,12 @@ func Blake3() {
 	}
 
 	memB := Mem{Base: Load(Param("b"), GP64())}
-	for bi := range numOfChunks * numOfBlocksInChunk {
+	for bi := range totalBlocks {
 		// Load and transpose blocks.
 		for i := range numOfMessages {
 			m := Mem{Base: GP64()}
-			MOVQ(memB.Offset((i*numOfBlocksInChunk+bi)*uint64Size), m.Base)
-			VMOVDQA64(m, rB[i])
+			MOVQ(memB.Offset((i*totalBlocks+bi)*uint64Size), m.Base)
+			VMOVDQU64(m, rB[i])
 		}
 		rB = transpose16x16(rB)
 
@@ -162,11 +163,11 @@ func Blake3() {
 	for i := range numOfMessages / 2 {
 		m := Mem{Base: GP64()}
 		MOVQ(memZ.Offset((2*i)*uint64Size), m.Base)
-		VMOVDQA64(rS1[i].AsY(), m)
+		VMOVDQU64(rS1[i].AsY(), m)
 
 		MOVQ(memZ.Offset((2*i+1)*uint64Size), m.Base)
 		VSHUFI32X4(U8(0xee), rS1[i], rS1[i], rS1[i])
-		VMOVDQA64(rS1[i].AsY(), m)
+		VMOVDQU64(rS1[i].AsY(), m)
 	}
 
 	RET()
@@ -183,7 +184,7 @@ func Transpose16x16() {
 	}
 	memX := Mem{Base: Load(Param("x"), GP64())}
 	for i := range numOfBlocksInChunk {
-		VMOVDQA64(memX.Offset(i*blockSize), rX[i])
+		VMOVDQU64(memX.Offset(i*blockSize), rX[i])
 	}
 
 	rB := transpose16x16(rX)
@@ -191,7 +192,7 @@ func Transpose16x16() {
 	// Store results
 	memZ := Mem{Base: Load(Param("z"), GP64())}
 	for i := range numOfBlocksInChunk {
-		VMOVDQA64(rB[i], memZ.Offset(i*blockSize))
+		VMOVDQU64(rB[i], memZ.Offset(i*blockSize))
 	}
 
 	RET()
@@ -208,7 +209,7 @@ func Transpose8x16() {
 	}
 	memX := Mem{Base: Load(Param("x"), GP64())}
 	for i := range numOfBlocksInChunk / 2 {
-		VMOVDQA64(memX.Offset(i*blockSize), rX[i])
+		VMOVDQU64(memX.Offset(i*blockSize), rX[i])
 	}
 
 	rB := transpose8x16(rX)
@@ -216,7 +217,7 @@ func Transpose8x16() {
 	// Store results
 	memZ := Mem{Base: Load(Param("z"), GP64())}
 	for i := range numOfBlocksInChunk / 2 {
-		VMOVDQA64(rB[i], memZ.Offset(i*blockSize))
+		VMOVDQU64(rB[i], memZ.Offset(i*blockSize))
 	}
 
 	RET()
@@ -234,19 +235,19 @@ func G() {
 	memC := Mem{Base: Load(Param("c"), GP64())}
 	memD := Mem{Base: Load(Param("d"), GP64())}
 
-	VMOVDQA64(memA, a)
-	VMOVDQA64(memB, b)
-	VMOVDQA64(memC, c)
-	VMOVDQA64(memD, d)
-	VMOVDQA64(Mem{Base: Load(Param("mx"), GP64())}, mx)
-	VMOVDQA64(Mem{Base: Load(Param("my"), GP64())}, my)
+	VMOVDQU64(memA, a)
+	VMOVDQU64(memB, b)
+	VMOVDQU64(memC, c)
+	VMOVDQU64(memD, d)
+	VMOVDQU64(Mem{Base: Load(Param("mx"), GP64())}, mx)
+	VMOVDQU64(Mem{Base: Load(Param("my"), GP64())}, my)
 
 	g(a, b, c, d, mx, my)
 
-	VMOVDQA64(a, memA)
-	VMOVDQA64(b, memB)
-	VMOVDQA64(c, memC)
-	VMOVDQA64(d, memD)
+	VMOVDQU64(a, memA)
+	VMOVDQU64(b, memB)
+	VMOVDQU64(c, memC)
+	VMOVDQU64(d, memD)
 
 	RET()
 }

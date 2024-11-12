@@ -43,19 +43,23 @@ func NewState(
 	persistentAllocationCh, persistentReservedNodes := NewAllocationCh[types.PersistentAddress](size,
 		nodesPerGroup, numOfSingularityNodes)
 
-	singularityNodePointers := make([]types.Pointer, 0, numOfSingularityNodes)
+	sNode := (*types.SingularityNode)(unsafe.Add(unsafe.Pointer(&data[0]), volatileReservedNodes[0]))
+	singularityNodeRoots := make([]types.NodeRoot, 0, numOfSingularityNodes)
 	for i := range numOfSingularityNodes {
-		singularityNodePointers = append(singularityNodePointers, types.Pointer{
-			Revision:          1,
-			VolatileAddress:   volatileReservedNodes[0],
-			PersistentAddress: persistentReservedNodes[i%numOfSingularityNodes],
+		singularityNodeRoots = append(singularityNodeRoots, types.NodeRoot{
+			Hash: &sNode.Hash,
+			Pointer: &types.Pointer{
+				Revision:          1,
+				VolatileAddress:   volatileReservedNodes[0],
+				PersistentAddress: persistentReservedNodes[i%numOfSingularityNodes],
+			},
 		})
 	}
 
 	return &State{
 			size:                       size,
 			nodesPerGroup:              nodesPerGroup,
-			singularityNodePointers:    singularityNodePointers,
+			singularityNodeRoots:       singularityNodeRoots,
 			numOfEraseWorkers:          numOfEraseWorkers,
 			data:                       data,
 			dataP:                      unsafe.Pointer(&data[0]),
@@ -75,7 +79,7 @@ func NewState(
 type State struct {
 	size                       uint64
 	nodesPerGroup              uint64
-	singularityNodePointers    []types.Pointer
+	singularityNodeRoots       []types.NodeRoot
 	numOfEraseWorkers          uint64
 	data                       []byte
 	dataP                      unsafe.Pointer
@@ -98,11 +102,11 @@ func (s *State) NewPersistentPool() *Pool[types.PersistentAddress] {
 	return NewPool[types.PersistentAddress](s.persistentAllocationPoolCh, s.persistentDeallocationCh)
 }
 
-// SingularityNodePointer returns pointer where singularity node is stored.
-func (s *State) SingularityNodePointer(snapshotID types.SnapshotID) *types.Pointer {
-	pointer := &s.singularityNodePointers[snapshotID%types.SnapshotID(len(s.singularityNodePointers))]
-	pointer.SnapshotID = snapshotID // To prevent deallocation of the singularity node.
-	return pointer
+// SingularityNodeRoot returns node root of singularity node.
+func (s *State) SingularityNodeRoot(snapshotID types.SnapshotID) types.NodeRoot {
+	root := s.singularityNodeRoots[snapshotID%types.SnapshotID(len(s.singularityNodeRoots))]
+	root.Pointer.SnapshotID = snapshotID // To prevent deallocation of the singularity node.
+	return root
 }
 
 // Node returns node bytes.
