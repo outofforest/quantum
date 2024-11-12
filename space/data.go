@@ -9,17 +9,17 @@ import (
 )
 
 // NewDataNodeAssistant creates new space data node assistant.
-func NewDataNodeAssistant[K, V comparable](nodeSize uint64) (*DataNodeAssistant[K, V], error) {
+func NewDataNodeAssistant[K, V comparable]() (*DataNodeAssistant[K, V], error) {
 	itemSize := uint64(unsafe.Sizeof(types.DataItem[K, V]{})+types.UInt64Length-1) /
 		types.UInt64Length * types.UInt64Length
 
-	if itemSize > nodeSize {
-		return nil, errors.Errorf("item size %d is greater than node size %d", itemSize, nodeSize)
+	if itemSize > types.NodeLength {
+		return nil, errors.Errorf("item size %d is greater than node size %d", itemSize, types.NodeLength)
 	}
 
 	return &DataNodeAssistant[K, V]{
 		itemSize:   itemSize,
-		numOfItems: nodeSize / itemSize,
+		numOfItems: types.NodeLength / itemSize,
 	}, nil
 }
 

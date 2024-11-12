@@ -32,7 +32,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 10_000_000
+		numOfAddresses = 5_000_000
 		txsPerCommit   = 20_000
 		balance        = 100_000
 	)
@@ -56,10 +56,8 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 		}()
 		func() {
 			var size uint64 = 120 * 1024 * 1024 * 1024
-			var nodeSize uint64 = 4 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size,
-				nodeSize,
 				100,
 				3,
 				true,
@@ -76,7 +74,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				// "db1.quantum",
 				// "/tmp/d0/wojciech/db.quantum",
 				// "/tmp/d1/wojciech/db.quantum",
-			}, size, nodeSize)
+			}, size)
 			if err != nil {
 				panic(err)
 			}
@@ -188,19 +186,18 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 func fileStores(
 	paths []string,
 	size uint64,
-	nodeSize uint64,
 ) ([]persistent.Store, func(), error) {
 	numOfStores := uint64(len(paths))
 	stores := make([]persistent.Store, 0, numOfStores)
 	funcs := make([]func(), 0, numOfStores)
 
-	expectedNumOfNodes := size / nodeSize
-	expectedCapacity := (expectedNumOfNodes + numOfStores - 1) / numOfStores * nodeSize
-	seekTo := int64(expectedCapacity - nodeSize)
-	data := make([]byte, 2*nodeSize-1)
+	expectedNumOfNodes := size / types.NodeLength
+	expectedCapacity := (expectedNumOfNodes + numOfStores - 1) / numOfStores * types.NodeLength
+	seekTo := int64(expectedCapacity - types.NodeLength)
+	data := make([]byte, 2*types.NodeLength-1)
 	p := uint64(uintptr(unsafe.Pointer(&data[0])))
-	p = (p+nodeSize-1)/nodeSize*nodeSize - p
-	data = data[p : p+nodeSize]
+	p = (p+types.NodeLength-1)/types.NodeLength*types.NodeLength - p
+	data = data[p : p+types.NodeLength]
 
 	var minNumOfNodes uint64 = math.MaxUint64
 	for _, path := range paths {
@@ -223,7 +220,7 @@ func fileStores(
 			fileSize = int64(expectedCapacity)
 		}
 
-		numOfNodes := uint64(fileSize) / nodeSize
+		numOfNodes := uint64(fileSize) / types.NodeLength
 		if numOfNodes < minNumOfNodes {
 			minNumOfNodes = numOfNodes
 		}

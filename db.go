@@ -49,21 +49,17 @@ type ListToCommit struct {
 
 // New creates new database.
 func New(config Config) (*DB, error) {
-	pointerNodeAssistant, err := space.NewPointerNodeAssistant(config.State.NodeSize())
+	pointerNodeAssistant, err := space.NewPointerNodeAssistant()
 	if err != nil {
 		return nil, err
 	}
 
-	snapshotInfoNodeAssistant, err := space.NewDataNodeAssistant[types.SnapshotID, types.SnapshotInfo](
-		config.State.NodeSize(),
-	)
+	snapshotInfoNodeAssistant, err := space.NewDataNodeAssistant[types.SnapshotID, types.SnapshotInfo]()
 	if err != nil {
 		return nil, err
 	}
 
-	snapshotToNodeNodeAssistant, err := space.NewDataNodeAssistant[types.SnapshotID, types.Pointer](
-		config.State.NodeSize(),
-	)
+	snapshotToNodeNodeAssistant, err := space.NewDataNodeAssistant[types.SnapshotID, types.Pointer]()
 	if err != nil {
 		return nil, err
 	}
@@ -968,7 +964,7 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 		return nil, errors.Errorf("space %d is not defined", spaceID)
 	}
 
-	dataNodeAssistant, err := space.NewDataNodeAssistant[K, V](db.config.State.NodeSize())
+	dataNodeAssistant, err := space.NewDataNodeAssistant[K, V]()
 	if err != nil {
 		return nil, err
 	}
