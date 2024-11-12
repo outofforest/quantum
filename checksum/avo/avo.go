@@ -9,29 +9,30 @@ import (
 )
 
 const (
-	uint64Size                  = 8
-	uint32Size                  = 4
-	numOfMessages               = 16
-	numOfBlocksInMessage        = 16
-	numOfStates                 = 16
-	blockSize                   = 16 * uint32Size
-	iv0                  uint32 = 0x6A09E667
-	iv1                  uint32 = 0xBB67AE85
-	iv2                  uint32 = 0x3C6EF372
-	iv3                  uint32 = 0xA54FF53A
-	iv4                  uint32 = 0x510E527F
-	iv5                  uint32 = 0x9B05688C
-	iv6                  uint32 = 0x1F83D9AB
-	iv7                  uint32 = 0x5BE0CD19
-	flagChunkStart       uint32 = 1 << 0
-	flagChunkEnd         uint32 = 1 << 1
-	flagRoot             uint32 = 1 << 3
-	a                           = 0xa
-	b                           = 0xb
-	c                           = 0xc
-	d                           = 0xd
-	e                           = 0xe
-	f                           = 0xf
+	uint64Size                = 8
+	uint32Size                = 4
+	numOfMessages             = 16
+	numOfChunks               = 4
+	numOfBlocksInChunk        = 16
+	numOfStates               = 16
+	blockSize                 = 16 * uint32Size
+	iv0                uint32 = 0x6A09E667
+	iv1                uint32 = 0xBB67AE85
+	iv2                uint32 = 0x3C6EF372
+	iv3                uint32 = 0xA54FF53A
+	iv4                uint32 = 0x510E527F
+	iv5                uint32 = 0x9B05688C
+	iv6                uint32 = 0x1F83D9AB
+	iv7                uint32 = 0x5BE0CD19
+	flagChunkStart     uint32 = 1 << 0
+	flagChunkEnd       uint32 = 1 << 1
+	flagRoot           uint32 = 1 << 3
+	a                         = 0xa
+	b                         = 0xb
+	c                         = 0xc
+	d                         = 0xd
+	e                         = 0xe
+	f                         = 0xf
 )
 
 // Blake3 implements blake3 for 16 1KB messages.
@@ -59,11 +60,11 @@ func Blake3() {
 	}
 
 	memB := Mem{Base: Load(Param("b"), GP64())}
-	for bi := range numOfBlocksInMessage {
+	for bi := range numOfChunks * numOfBlocksInChunk {
 		// Load and transpose blocks.
 		for i := range numOfMessages {
 			m := Mem{Base: GP64()}
-			MOVQ(memB.Offset((i*numOfBlocksInMessage+bi)*uint64Size), m.Base)
+			MOVQ(memB.Offset((i*numOfBlocksInChunk+bi)*uint64Size), m.Base)
 			VMOVDQA64(m, rB[i])
 		}
 		rB = transpose16x16(rB)
@@ -177,11 +178,11 @@ func Transpose16x16() {
 	Doc("Transpose16x16 transposes 16x16 matrix made of vectors x0..xf and stores the results in z0..zf.")
 
 	// Load matrix to registers
-	rX := [numOfBlocksInMessage]reg.VecVirtual{
+	rX := [numOfBlocksInChunk]reg.VecVirtual{
 		ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(),
 	}
 	memX := Mem{Base: Load(Param("x"), GP64())}
-	for i := range numOfBlocksInMessage {
+	for i := range numOfBlocksInChunk {
 		VMOVDQA64(memX.Offset(i*blockSize), rX[i])
 	}
 
@@ -189,7 +190,7 @@ func Transpose16x16() {
 
 	// Store results
 	memZ := Mem{Base: Load(Param("z"), GP64())}
-	for i := range numOfBlocksInMessage {
+	for i := range numOfBlocksInChunk {
 		VMOVDQA64(rB[i], memZ.Offset(i*blockSize))
 	}
 
@@ -202,11 +203,11 @@ func Transpose8x16() {
 	Doc("Transpose8x16 transposes 8x16 matrix made of vectors x0..x7 and stores the results in z0..z7.")
 
 	// Load matrix to registers
-	rX := [numOfBlocksInMessage / 2]reg.VecVirtual{
+	rX := [numOfBlocksInChunk / 2]reg.VecVirtual{
 		ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(),
 	}
 	memX := Mem{Base: Load(Param("x"), GP64())}
-	for i := range numOfBlocksInMessage / 2 {
+	for i := range numOfBlocksInChunk / 2 {
 		VMOVDQA64(memX.Offset(i*blockSize), rX[i])
 	}
 
@@ -214,7 +215,7 @@ func Transpose8x16() {
 
 	// Store results
 	memZ := Mem{Base: Load(Param("z"), GP64())}
-	for i := range numOfBlocksInMessage / 2 {
+	for i := range numOfBlocksInChunk / 2 {
 		VMOVDQA64(rB[i], memZ.Offset(i*blockSize))
 	}
 
@@ -250,7 +251,7 @@ func G() {
 	RET()
 }
 
-func transpose8x16(m [numOfBlocksInMessage / 2]reg.VecVirtual) [numOfBlocksInMessage / 2]reg.VecVirtual {
+func transpose8x16(m [numOfStates / 2]reg.VecVirtual) [numOfMessages / 2]reg.VecVirtual {
 	/*
 		00: 			00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f
 		01: 			10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f
@@ -360,12 +361,12 @@ func transpose8x16(m [numOfBlocksInMessage / 2]reg.VecVirtual) [numOfBlocksInMes
 	VSHUFI32X4(U8(0x88), m[0], m[1], t)    // 5
 	VSHUFI32X4(U8(0xdd), m[0], m[1], m[1]) // 7
 
-	return [numOfBlocksInMessage / 2]reg.VecVirtual{
+	return [numOfBlocksInChunk / 2]reg.VecVirtual{
 		m[4], m[2], m[6], m[3], m[5], t, m[7], m[1],
 	}
 }
 
-func transpose16x16(m [numOfBlocksInMessage]reg.VecVirtual) [numOfBlocksInMessage]reg.VecVirtual {
+func transpose16x16(m [numOfMessages]reg.VecVirtual) [numOfBlocksInChunk]reg.VecVirtual {
 	/*
 		00: 			00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f
 		01: 			10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f
@@ -535,7 +536,7 @@ func transpose16x16(m [numOfBlocksInMessage]reg.VecVirtual) [numOfBlocksInMessag
 	VSHUFI32X4(U8(0x88), m[8], m[0], m[9]) // b
 	VSHUFI32X4(U8(0xdd), m[8], m[0], m[0]) // f
 
-	return [numOfBlocksInMessage]reg.VecVirtual{
+	return [numOfBlocksInChunk]reg.VecVirtual{
 		m[c], m[4], m[a], m[b], m[e], m[2], m[3], m[5], m[d], m[6], m[7], m[9], m[f], t, m[1], m[0],
 	}
 }

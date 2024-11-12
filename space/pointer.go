@@ -10,58 +10,64 @@ import (
 
 // NewPointerNodeAssistant creates new pointer node assistant.
 func NewPointerNodeAssistant(nodeSize uint64) (*PointerNodeAssistant, error) {
-	itemSize := uint64(unsafe.Sizeof(types.Pointer{})+types.UInt64Length-1) / types.UInt64Length * types.UInt64Length
+	pointerSize := uint64(unsafe.Sizeof(types.Pointer{})+types.UInt64Length-1) /
+		types.UInt64Length * types.UInt64Length
 
-	numOfItems := nodeSize / itemSize
-	if numOfItems == 0 {
-		return nil, errors.New("node size is too small")
+	// numOfPointers must be even because 2 hashes fit into one hash block.
+	numOfPointers := nodeSize / (pointerSize + types.HashLength) / 2 * 2
+	if numOfPointers == 0 {
+		return nil, errors.Errorf("pointer size %d is greater than node size %d",
+			(pointerSize + types.HashLength), nodeSize)
 	}
 
 	return &PointerNodeAssistant{
-		numOfItems: numOfItems,
-		itemSize:   itemSize,
+		pointerSize:   pointerSize,
+		numOfPointers: numOfPointers,
+		pointerOffset: numOfPointers * types.HashLength,
 	}, nil
 }
 
 // PointerNodeAssistant converts nodes from bytes to pointer objects.
 type PointerNodeAssistant struct {
-	numOfItems uint64
-	itemSize   uint64
+	pointerSize   uint64
+	numOfPointers uint64
+	pointerOffset uint64
 }
 
-// NumOfItems returns number of items fitting in one node.
-func (na *PointerNodeAssistant) NumOfItems() uint64 {
-	return na.numOfItems
+// NumOfPointers returns number of pointers fitting in one node.
+func (na *PointerNodeAssistant) NumOfPointers() uint64 {
+	return na.numOfPointers
 }
 
 // Index returns index from hash.
 func (na *PointerNodeAssistant) Index(hash types.KeyHash) uint64 {
-	return uint64(hash) % na.numOfItems
+	return uint64(hash) % na.numOfPointers
 }
 
 // Shift shifts bits in hash.
 func (na *PointerNodeAssistant) Shift(hash types.KeyHash) types.KeyHash {
-	return hash / types.KeyHash(na.numOfItems)
+	return hash / types.KeyHash(na.numOfPointers)
 }
 
-// ItemOffset returns item's offset relative to the beginning of the node.
-func (na *PointerNodeAssistant) ItemOffset(index uint64) uint64 {
-	return na.itemSize * index
+// PointerOffset returns pointer's offset relative to the beginning of the node.
+func (na *PointerNodeAssistant) PointerOffset(index uint64) uint64 {
+	return na.pointerOffset + na.pointerSize*index
 }
 
-// Item maps the memory address given by the node address and offset to an item.
-func (na *PointerNodeAssistant) Item(n unsafe.Pointer, offset uint64) *types.Pointer {
+// Pointer maps the memory address given by the node address and offset to a pointer.
+func (na *PointerNodeAssistant) Pointer(n unsafe.Pointer, offset uint64) *types.Pointer {
 	return (*types.Pointer)(unsafe.Add(n, offset))
 }
 
-// Iterator iterates over items.
+// Iterator iterates over pointers.
 func (na *PointerNodeAssistant) Iterator(n unsafe.Pointer) func(func(*types.Pointer) bool) {
 	return func(yield func(*types.Pointer) bool) {
-		for range na.numOfItems {
+		n = unsafe.Add(n, na.pointerOffset)
+		for range na.numOfPointers {
 			if !yield((*types.Pointer)(n)) {
 				return
 			}
-			n = unsafe.Add(n, na.itemSize)
+			n = unsafe.Add(n, na.pointerSize)
 		}
 	}
 }

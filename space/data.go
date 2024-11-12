@@ -8,41 +8,25 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-const numOfSlots = 4
-
 // NewDataNodeAssistant creates new space data node assistant.
 func NewDataNodeAssistant[K, V comparable](nodeSize uint64) (*DataNodeAssistant[K, V], error) {
-	headerSize := uint64(unsafe.Sizeof(DataNodeHeader{})+types.HashBlockSize-1) / types.HashBlockSize * types.HashBlockSize
-	slotSize := (nodeSize - headerSize) / numOfSlots / types.HashBlockSize * types.HashBlockSize
-
 	itemSize := uint64(unsafe.Sizeof(types.DataItem[K, V]{})+types.UInt64Length-1) /
 		types.UInt64Length * types.UInt64Length
 
-	if itemSize > slotSize {
-		return nil, errors.Errorf("item size %d is greater than slot size %d", itemSize, slotSize)
+	if itemSize > nodeSize {
+		return nil, errors.Errorf("item size %d is greater than node size %d", itemSize, nodeSize)
 	}
 
-	numOfItemsInSlot := slotSize / itemSize
-
-	da := &DataNodeAssistant[K, V]{
-		itemSize:         itemSize,
-		numOfItems:       numOfItemsInSlot * numOfSlots,
-		numOfItemsInSlot: numOfItemsInSlot,
-	}
-
-	for si := range uint64(numOfSlots) {
-		da.itemOffsets[si] = headerSize + si*slotSize
-	}
-
-	return da, nil
+	return &DataNodeAssistant[K, V]{
+		itemSize:   itemSize,
+		numOfItems: nodeSize / itemSize,
+	}, nil
 }
 
 // DataNodeAssistant converts nodes from bytes to data objects.
 type DataNodeAssistant[K, V comparable] struct {
-	itemSize         uint64
-	numOfItems       uint64
-	numOfItemsInSlot uint64
-	itemOffsets      [numOfSlots]uint64
+	itemSize   uint64
+	numOfItems uint64
 }
 
 // NumOfItems returns number of items fitting in one node.
@@ -62,7 +46,7 @@ func (na *DataNodeAssistant[K, V]) Shift(hash types.KeyHash) types.KeyHash {
 
 // ItemOffset returns item's offset relative to the beginning of the node.
 func (na *DataNodeAssistant[K, V]) ItemOffset(index uint64) uint64 {
-	return na.itemOffsets[index/na.numOfItemsInSlot] + na.itemSize*(index%na.numOfItemsInSlot)
+	return na.itemSize * index
 }
 
 // Item maps the memory address given by the node address and offset to an item.
@@ -73,19 +57,11 @@ func (na *DataNodeAssistant[K, V]) Item(n unsafe.Pointer, offset uint64) *types.
 // Iterator iterates over items.
 func (na *DataNodeAssistant[K, V]) Iterator(n unsafe.Pointer) func(func(*types.DataItem[K, V]) bool) {
 	return func(yield func(item *types.DataItem[K, V]) bool) {
-		for _, offset := range na.itemOffsets {
-			itemsP := unsafe.Add(n, offset)
-			for range na.numOfItemsInSlot {
-				if !yield((*types.DataItem[K, V])(itemsP)) {
-					return
-				}
-				itemsP = unsafe.Add(itemsP, na.itemSize)
+		for range na.numOfItems {
+			if !yield((*types.DataItem[K, V])(n)) {
+				return
 			}
+			n = unsafe.Add(n, na.itemSize)
 		}
 	}
-}
-
-// DataNodeHeader represents header of data node.
-type DataNodeHeader struct {
-	Hashes [numOfSlots]types.Hash
 }
