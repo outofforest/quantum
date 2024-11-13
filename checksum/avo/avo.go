@@ -9,40 +9,44 @@ import (
 )
 
 const (
-	uint64Size                = 8
-	uint32Size                = 4
-	numOfMessages             = 16
-	numOfChunks               = 4
-	numOfBlocksInChunk        = 16
-	totalBlocks               = numOfChunks * numOfBlocksInChunk
-	numOfStates               = 16
-	blockSize                 = 16 * uint32Size
-	iv0                uint32 = 0x6A09E667
-	iv1                uint32 = 0xBB67AE85
-	iv2                uint32 = 0x3C6EF372
-	iv3                uint32 = 0xA54FF53A
-	iv4                uint32 = 0x510E527F
-	iv5                uint32 = 0x9B05688C
-	iv6                uint32 = 0x1F83D9AB
-	iv7                uint32 = 0x5BE0CD19
-	flagChunkStart     uint32 = 1 << 0
-	flagChunkEnd       uint32 = 1 << 1
-	flagRoot           uint32 = 1 << 3
-	a                         = 0xa
-	b                         = 0xb
-	c                         = 0xc
-	d                         = 0xd
-	e                         = 0xe
-	f                         = 0xf
+	uint64Size                  = 8
+	uint32Size                  = 4
+	numOfMessages               = 16
+	numOfChunksInMessage        = 4
+	numOfBlocksInChunk          = 16
+	numOfBlocksInMessage        = numOfChunksInMessage * numOfBlocksInChunk
+	numOfStates                 = 16
+	blockSize                   = 16 * uint32Size
+	iv0                  uint32 = 0x6A09E667
+	iv1                  uint32 = 0xBB67AE85
+	iv2                  uint32 = 0x3C6EF372
+	iv3                  uint32 = 0xA54FF53A
+	iv4                  uint32 = 0x510E527F
+	iv5                  uint32 = 0x9B05688C
+	iv6                  uint32 = 0x1F83D9AB
+	iv7                  uint32 = 0x5BE0CD19
+	a                           = 0xa
+	b                           = 0xb
+	c                           = 0xc
+	d                           = 0xd
+	e                           = 0xe
+	f                           = 0xf
 )
 
-// Blake3 implements blake3 for 16 1KB messages.
+// Blake3 implements blake3 for 16 4KB messages.
+// There are some modifications against original blake3:
+//   - blake3 hashes each 1KB chunk independently and then forms a tree to compute final hash. That design might improve
+//     concurrency in some scenarios. Here it only overcomplicates things, so instead we treat full 4KB message
+//     as a single chunk.
+//   - due to that chunk independence blake3 uses flags to mark places where chunk starts and ends to protect against
+//     situation where shift in data might produce conflicting hash. Here we don't deal with data streams,
+//     but well-defined portions of data, so we don't need it.
 func Blake3() {
 	TEXT("Blake3", NOSPLIT, "func(b **byte, z **byte)")
 	Doc("Blake3 implements blake3 for 16 1KB messages.")
 
 	sInit := [16]uint32{
-		iv0, iv1, iv2, iv3, iv4, iv5, iv6, iv7, iv0, iv1, iv2, iv3, 0, 0, blockSize, flagChunkStart,
+		iv0, iv1, iv2, iv3, iv4, iv5, iv6, iv7, iv0, iv1, iv2, iv3, 0, 0, blockSize, 0,
 	}
 
 	// Init first s registers.
@@ -61,19 +65,14 @@ func Blake3() {
 	}
 
 	memB := Mem{Base: Load(Param("b"), GP64())}
-	for bi := range totalBlocks {
+	for bi := range numOfBlocksInMessage {
 		// Load and transpose blocks.
 		for i := range numOfMessages {
 			m := Mem{Base: GP64()}
-			MOVQ(memB.Offset((i*totalBlocks+bi)*uint64Size), m.Base)
+			MOVQ(memB.Offset((i*numOfBlocksInMessage+bi)*uint64Size), m.Base)
 			VMOVDQU64(m, rB[i])
 		}
 		rB = transpose16x16(rB)
-
-		// Init last s registers.
-		if bi == numOfStates-1 {
-			sInit[numOfStates-1] = flagChunkEnd | flagRoot
-		}
 
 		rS2 := [numOfStates / 2]reg.VecVirtual{
 			ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(),
@@ -82,7 +81,6 @@ func Blake3() {
 			MOVD(U32(sInit[i]), r)
 			VPBROADCASTD(r.As32(), rS2[i-numOfStates/2])
 		}
-		sInit[15] = 0 // flagChunkStart is set only for the first block.
 
 		g(rS1[0], rS1[4], rS2[0], rS2[4], rB[0], rB[1])
 		g(rS1[1], rS1[5], rS2[1], rS2[5], rB[2], rB[3])

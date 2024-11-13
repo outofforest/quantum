@@ -9,10 +9,10 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-func TestNumOfPointersIsEven(t *testing.T) {
-	require.Equal(t, 0, NumOfPointers%2)
-}
-
-func TestPointerNodeSize(t *testing.T) {
-	require.LessOrEqual(t, unsafe.Sizeof(PointerNode{}), uintptr(types.NodeLength))
+func TestPointerNode(t *testing.T) {
+	var p PointerNode
+	require.Equal(t, 0, len(p.Pointers)%2)
+	require.Equal(t, len(p.Hashes), len(p.Pointers))
+	require.LessOrEqual(t, unsafe.Sizeof(p), uintptr(types.NodeLength))
+	require.Equal(t, uintptr(28*types.BlockLength), unsafe.Sizeof(p.Hashes))
 }
