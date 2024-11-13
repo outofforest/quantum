@@ -65,95 +65,109 @@ func Blake3() {
 	}
 
 	memB := Mem{Base: Load(Param("b"), GP64())}
-	for bi := range numOfBlocksInMessage {
-		// Load and transpose blocks.
-		for i := range numOfMessages {
-			m := Mem{Base: GP64()}
-			MOVQ(memB.Offset((i*numOfBlocksInMessage+bi)*uint64Size), m.Base)
-			VMOVDQU64(m, rB[i])
-		}
-		rB = transpose16x16(rB)
 
-		rS2 := [numOfStates / 2]reg.VecVirtual{
-			ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(),
-		}
-		for i := numOfStates / 2; i < numOfStates; i++ {
-			MOVD(U32(sInit[i]), r)
-			VPBROADCASTD(r.As32(), rS2[i-numOfStates/2])
-		}
+	loopCounterR := GP64()
+	MOVQ(U64(numOfBlocksInMessage), loopCounterR)
 
-		g(rS1[0], rS1[4], rS2[0], rS2[4], rB[0], rB[1])
-		g(rS1[1], rS1[5], rS2[1], rS2[5], rB[2], rB[3])
-		g(rS1[2], rS1[6], rS2[2], rS2[6], rB[4], rB[5])
-		g(rS1[3], rS1[7], rS2[3], rS2[7], rB[6], rB[7])
-		g(rS1[0], rS1[5], rS2[2], rS2[7], rB[8], rB[9])
-		g(rS1[1], rS1[6], rS2[3], rS2[4], rB[a], rB[b])
-		g(rS1[2], rS1[7], rS2[0], rS2[5], rB[c], rB[d])
-		g(rS1[3], rS1[4], rS2[1], rS2[6], rB[e], rB[f])
+	// Loop starts here
 
-		g(rS1[0], rS1[4], rS2[0], rS2[4], rB[2], rB[6])
-		g(rS1[1], rS1[5], rS2[1], rS2[5], rB[3], rB[a])
-		g(rS1[2], rS1[6], rS2[2], rS2[6], rB[7], rB[0])
-		g(rS1[3], rS1[7], rS2[3], rS2[7], rB[4], rB[d])
-		g(rS1[0], rS1[5], rS2[2], rS2[7], rB[1], rB[b])
-		g(rS1[1], rS1[6], rS2[3], rS2[4], rB[c], rB[5])
-		g(rS1[2], rS1[7], rS2[0], rS2[5], rB[9], rB[e])
-		g(rS1[3], rS1[4], rS2[1], rS2[6], rB[f], rB[8])
+	const loopStartLabel = "loopStart"
+	Label(loopStartLabel)
 
-		g(rS1[0], rS1[4], rS2[0], rS2[4], rB[3], rB[4])
-		g(rS1[1], rS1[5], rS2[1], rS2[5], rB[a], rB[c])
-		g(rS1[2], rS1[6], rS2[2], rS2[6], rB[d], rB[2])
-		g(rS1[3], rS1[7], rS2[3], rS2[7], rB[7], rB[e])
-		g(rS1[0], rS1[5], rS2[2], rS2[7], rB[6], rB[5])
-		g(rS1[1], rS1[6], rS2[3], rS2[4], rB[9], rB[0])
-		g(rS1[2], rS1[7], rS2[0], rS2[5], rB[b], rB[f])
-		g(rS1[3], rS1[4], rS2[1], rS2[6], rB[8], rB[1])
-
-		g(rS1[0], rS1[4], rS2[0], rS2[4], rB[a], rB[7])
-		g(rS1[1], rS1[5], rS2[1], rS2[5], rB[c], rB[9])
-		g(rS1[2], rS1[6], rS2[2], rS2[6], rB[e], rB[3])
-		g(rS1[3], rS1[7], rS2[3], rS2[7], rB[d], rB[f])
-		g(rS1[0], rS1[5], rS2[2], rS2[7], rB[4], rB[0])
-		g(rS1[1], rS1[6], rS2[3], rS2[4], rB[b], rB[2])
-		g(rS1[2], rS1[7], rS2[0], rS2[5], rB[5], rB[8])
-		g(rS1[3], rS1[4], rS2[1], rS2[6], rB[1], rB[6])
-
-		g(rS1[0], rS1[4], rS2[0], rS2[4], rB[c], rB[d])
-		g(rS1[1], rS1[5], rS2[1], rS2[5], rB[9], rB[b])
-		g(rS1[2], rS1[6], rS2[2], rS2[6], rB[f], rB[a])
-		g(rS1[3], rS1[7], rS2[3], rS2[7], rB[e], rB[8])
-		g(rS1[0], rS1[5], rS2[2], rS2[7], rB[7], rB[2])
-		g(rS1[1], rS1[6], rS2[3], rS2[4], rB[5], rB[3])
-		g(rS1[2], rS1[7], rS2[0], rS2[5], rB[0], rB[1])
-		g(rS1[3], rS1[4], rS2[1], rS2[6], rB[6], rB[4])
-
-		g(rS1[0], rS1[4], rS2[0], rS2[4], rB[9], rB[e])
-		g(rS1[1], rS1[5], rS2[1], rS2[5], rB[b], rB[5])
-		g(rS1[2], rS1[6], rS2[2], rS2[6], rB[8], rB[c])
-		g(rS1[3], rS1[7], rS2[3], rS2[7], rB[f], rB[1])
-		g(rS1[0], rS1[5], rS2[2], rS2[7], rB[d], rB[3])
-		g(rS1[1], rS1[6], rS2[3], rS2[4], rB[0], rB[a])
-		g(rS1[2], rS1[7], rS2[0], rS2[5], rB[2], rB[6])
-		g(rS1[3], rS1[4], rS2[1], rS2[6], rB[4], rB[7])
-
-		g(rS1[0], rS1[4], rS2[0], rS2[4], rB[b], rB[f])
-		g(rS1[1], rS1[5], rS2[1], rS2[5], rB[5], rB[0])
-		g(rS1[2], rS1[6], rS2[2], rS2[6], rB[1], rB[9])
-		g(rS1[3], rS1[7], rS2[3], rS2[7], rB[8], rB[6])
-		g(rS1[0], rS1[5], rS2[2], rS2[7], rB[e], rB[a])
-		g(rS1[1], rS1[6], rS2[3], rS2[4], rB[2], rB[c])
-		g(rS1[2], rS1[7], rS2[0], rS2[5], rB[3], rB[4])
-		g(rS1[3], rS1[4], rS2[1], rS2[6], rB[7], rB[d])
-
-		VPXORD(rS1[0], rS2[0], rS1[0])
-		VPXORD(rS1[1], rS2[1], rS1[1])
-		VPXORD(rS1[2], rS2[2], rS1[2])
-		VPXORD(rS1[3], rS2[3], rS1[3])
-		VPXORD(rS1[4], rS2[4], rS1[4])
-		VPXORD(rS1[5], rS2[5], rS1[5])
-		VPXORD(rS1[6], rS2[6], rS1[6])
-		VPXORD(rS1[7], rS2[7], rS1[7])
+	// Load and transpose blocks.
+	for i := range numOfMessages {
+		m := Mem{Base: GP64()}
+		MOVQ(memB.Offset(i*numOfBlocksInMessage*uint64Size), m.Base)
+		VMOVDQU64(m, rB[i])
 	}
+	ADDQ(U8(uint64Size), memB.Base)
+
+	rB = transpose16x16(rB)
+
+	rS2 := [numOfStates / 2]reg.VecVirtual{
+		ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(),
+	}
+	for i := numOfStates / 2; i < numOfStates; i++ {
+		MOVD(U32(sInit[i]), r)
+		VPBROADCASTD(r.As32(), rS2[i-numOfStates/2])
+	}
+
+	g(rS1[0], rS1[4], rS2[0], rS2[4], rB[0], rB[1])
+	g(rS1[1], rS1[5], rS2[1], rS2[5], rB[2], rB[3])
+	g(rS1[2], rS1[6], rS2[2], rS2[6], rB[4], rB[5])
+	g(rS1[3], rS1[7], rS2[3], rS2[7], rB[6], rB[7])
+	g(rS1[0], rS1[5], rS2[2], rS2[7], rB[8], rB[9])
+	g(rS1[1], rS1[6], rS2[3], rS2[4], rB[a], rB[b])
+	g(rS1[2], rS1[7], rS2[0], rS2[5], rB[c], rB[d])
+	g(rS1[3], rS1[4], rS2[1], rS2[6], rB[e], rB[f])
+
+	g(rS1[0], rS1[4], rS2[0], rS2[4], rB[2], rB[6])
+	g(rS1[1], rS1[5], rS2[1], rS2[5], rB[3], rB[a])
+	g(rS1[2], rS1[6], rS2[2], rS2[6], rB[7], rB[0])
+	g(rS1[3], rS1[7], rS2[3], rS2[7], rB[4], rB[d])
+	g(rS1[0], rS1[5], rS2[2], rS2[7], rB[1], rB[b])
+	g(rS1[1], rS1[6], rS2[3], rS2[4], rB[c], rB[5])
+	g(rS1[2], rS1[7], rS2[0], rS2[5], rB[9], rB[e])
+	g(rS1[3], rS1[4], rS2[1], rS2[6], rB[f], rB[8])
+
+	g(rS1[0], rS1[4], rS2[0], rS2[4], rB[3], rB[4])
+	g(rS1[1], rS1[5], rS2[1], rS2[5], rB[a], rB[c])
+	g(rS1[2], rS1[6], rS2[2], rS2[6], rB[d], rB[2])
+	g(rS1[3], rS1[7], rS2[3], rS2[7], rB[7], rB[e])
+	g(rS1[0], rS1[5], rS2[2], rS2[7], rB[6], rB[5])
+	g(rS1[1], rS1[6], rS2[3], rS2[4], rB[9], rB[0])
+	g(rS1[2], rS1[7], rS2[0], rS2[5], rB[b], rB[f])
+	g(rS1[3], rS1[4], rS2[1], rS2[6], rB[8], rB[1])
+
+	g(rS1[0], rS1[4], rS2[0], rS2[4], rB[a], rB[7])
+	g(rS1[1], rS1[5], rS2[1], rS2[5], rB[c], rB[9])
+	g(rS1[2], rS1[6], rS2[2], rS2[6], rB[e], rB[3])
+	g(rS1[3], rS1[7], rS2[3], rS2[7], rB[d], rB[f])
+	g(rS1[0], rS1[5], rS2[2], rS2[7], rB[4], rB[0])
+	g(rS1[1], rS1[6], rS2[3], rS2[4], rB[b], rB[2])
+	g(rS1[2], rS1[7], rS2[0], rS2[5], rB[5], rB[8])
+	g(rS1[3], rS1[4], rS2[1], rS2[6], rB[1], rB[6])
+
+	g(rS1[0], rS1[4], rS2[0], rS2[4], rB[c], rB[d])
+	g(rS1[1], rS1[5], rS2[1], rS2[5], rB[9], rB[b])
+	g(rS1[2], rS1[6], rS2[2], rS2[6], rB[f], rB[a])
+	g(rS1[3], rS1[7], rS2[3], rS2[7], rB[e], rB[8])
+	g(rS1[0], rS1[5], rS2[2], rS2[7], rB[7], rB[2])
+	g(rS1[1], rS1[6], rS2[3], rS2[4], rB[5], rB[3])
+	g(rS1[2], rS1[7], rS2[0], rS2[5], rB[0], rB[1])
+	g(rS1[3], rS1[4], rS2[1], rS2[6], rB[6], rB[4])
+
+	g(rS1[0], rS1[4], rS2[0], rS2[4], rB[9], rB[e])
+	g(rS1[1], rS1[5], rS2[1], rS2[5], rB[b], rB[5])
+	g(rS1[2], rS1[6], rS2[2], rS2[6], rB[8], rB[c])
+	g(rS1[3], rS1[7], rS2[3], rS2[7], rB[f], rB[1])
+	g(rS1[0], rS1[5], rS2[2], rS2[7], rB[d], rB[3])
+	g(rS1[1], rS1[6], rS2[3], rS2[4], rB[0], rB[a])
+	g(rS1[2], rS1[7], rS2[0], rS2[5], rB[2], rB[6])
+	g(rS1[3], rS1[4], rS2[1], rS2[6], rB[4], rB[7])
+
+	g(rS1[0], rS1[4], rS2[0], rS2[4], rB[b], rB[f])
+	g(rS1[1], rS1[5], rS2[1], rS2[5], rB[5], rB[0])
+	g(rS1[2], rS1[6], rS2[2], rS2[6], rB[1], rB[9])
+	g(rS1[3], rS1[7], rS2[3], rS2[7], rB[8], rB[6])
+	g(rS1[0], rS1[5], rS2[2], rS2[7], rB[e], rB[a])
+	g(rS1[1], rS1[6], rS2[3], rS2[4], rB[2], rB[c])
+	g(rS1[2], rS1[7], rS2[0], rS2[5], rB[3], rB[4])
+	g(rS1[3], rS1[4], rS2[1], rS2[6], rB[7], rB[d])
+
+	VPXORD(rS1[0], rS2[0], rS1[0])
+	VPXORD(rS1[1], rS2[1], rS1[1])
+	VPXORD(rS1[2], rS2[2], rS1[2])
+	VPXORD(rS1[3], rS2[3], rS1[3])
+	VPXORD(rS1[4], rS2[4], rS1[4])
+	VPXORD(rS1[5], rS2[5], rS1[5])
+	VPXORD(rS1[6], rS2[6], rS1[6])
+	VPXORD(rS1[7], rS2[7], rS1[7])
+
+	DECQ(loopCounterR)
+	JNZ(LabelRef(loopStartLabel))
+
+	// Loop ends here
 
 	rS1 = transpose8x16(rS1)
 
