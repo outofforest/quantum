@@ -190,12 +190,15 @@ func (db *DB) Run(ctx context.Context) error {
 			defer db.config.State.Close()
 
 			return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-				prepareTxQReader := pipeline.CloneReader(db.queueReader)
-				executeTxQReader := pipeline.NewReader(prepareTxQReader)
-				allocateQReader := pipeline.NewReader(executeTxQReader)
+				prepareTxReaders := make([]*pipeline.Reader, 0, 2)
+				for range cap(prepareTxReaders) {
+					prepareTxReaders = append(prepareTxReaders, pipeline.CloneReader(db.queueReader))
+				}
+				executeTxReader := pipeline.NewReader(prepareTxReaders...)
+				allocateReader := pipeline.NewReader(executeTxReader)
 				hashReaders := make([]*pipeline.Reader, 0, 3)
 				for range cap(hashReaders) {
-					hashReaders = append(hashReaders, pipeline.NewReader(executeTxQReader))
+					hashReaders = append(hashReaders, pipeline.NewReader(executeTxReader))
 				}
 				storeQReaders := make([]*pipeline.Reader, 0, len(db.config.Stores))
 				for range cap(storeQReaders) {
@@ -238,14 +241,16 @@ func (db *DB) Run(ctx context.Context) error {
 						}
 					}
 				})
-				spawn("prepareTx", parallel.Fail, func(ctx context.Context) error {
-					return db.prepareTransactions(ctx, prepareTxQReader)
-				})
+				for i, reader := range prepareTxReaders {
+					spawn(fmt.Sprintf("prepareTx-%02d", i), parallel.Fail, func(ctx context.Context) error {
+						return db.prepareTransactions(ctx, reader, uint64(len(prepareTxReaders)), uint64(i))
+					})
+				}
 				spawn("executeTx", parallel.Fail, func(ctx context.Context) error {
-					return db.executeTransactions(ctx, executeTxQReader)
+					return db.executeTransactions(ctx, executeTxReader)
 				})
 				spawn("allocate", parallel.Fail, func(ctx context.Context) error {
-					return db.processAllocationRequests(ctx, allocateQReader)
+					return db.processAllocationRequests(ctx, allocateReader)
 				})
 				for i, reader := range hashReaders {
 					spawn(fmt.Sprintf("hash-%02d", i), parallel.Fail, func(ctx context.Context) error {
@@ -503,6 +508,8 @@ func (db *DB) commit(
 func (db *DB) prepareTransactions(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
+	divider uint64,
+	mod uint64,
 ) error {
 	s, err := GetSpace[txtypes.Account, txtypes.Amount](spaces.Balances, db)
 	if err != nil {
@@ -515,7 +522,7 @@ func (db *DB) prepareTransactions(
 			return err
 		}
 
-		if req.Transaction != nil {
+		if processedCount%divider == mod && req.Transaction != nil {
 			if transferTx, ok := req.Transaction.(*transfer.Tx); ok {
 				transferTx.Prepare(s)
 			}
