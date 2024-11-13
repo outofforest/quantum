@@ -80,7 +80,6 @@ type StoreRequest struct {
 	Store                 [StoreCapacity]types.NodeRoot
 
 	RequestedRevision         uint64
-	Deallocate                []types.Pointer
 	DeallocateVolatileAddress types.VolatileAddress
 	Next                      *StoreRequest
 }

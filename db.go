@@ -193,8 +193,7 @@ func (db *DB) Run(ctx context.Context) error {
 				prepareTxQReader := db.queueReader.NewReader()
 				executeTxQReader := prepareTxQReader.NewReader()
 				allocateQReader := executeTxQReader.NewReader()
-				deallocateQReader := allocateQReader.NewReader()
-				checksumQReader1 := deallocateQReader.NewReader()
+				checksumQReader1 := allocateQReader.NewReader()
 				checksumQReader2 := checksumQReader1.NewReader()
 				checksumQReader3 := checksumQReader2.NewReader()
 				storeQReaders := make([]*pipeline.Reader, 0, len(db.config.Stores))
@@ -246,9 +245,6 @@ func (db *DB) Run(ctx context.Context) error {
 				})
 				spawn("allocate", parallel.Fail, func(ctx context.Context) error {
 					return db.processAllocationRequests(ctx, allocateQReader)
-				})
-				spawn("deallocate", parallel.Fail, func(ctx context.Context) error {
-					return db.processDeallocationRequests(ctx, deallocateQReader)
 				})
 				spawn("checksum1", parallel.Fail, func(ctx context.Context) error {
 					return db.updateChecksums(ctx, checksumQReader1, 3, 2)
@@ -587,51 +583,6 @@ func (db *DB) processAllocationRequests(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
 ) error {
-	massPointer := mass.New[types.Pointer](1000)
-	persistentPool := db.config.State.NewPersistentPool()
-
-	for processedCount := uint64(0); ; processedCount++ {
-		req, err := pipeReader.Read(ctx)
-		if err != nil {
-			return err
-		}
-
-		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-			if sr.PointersToStore == 0 {
-				continue
-			}
-
-			// FIXME (wojciech): I believe not all the requests require deallocation.
-			sr.Deallocate = massPointer.NewSlice(uint64(sr.PointersToStore))
-			var numOfPointersToDeallocate uint
-			for i := range sr.PointersToStore {
-				root := sr.Store[i]
-				if root.Pointer.SnapshotID != db.singularityNode.LastSnapshotID {
-					if root.Pointer.PersistentAddress != 0 {
-						sr.Deallocate[numOfPointersToDeallocate] = *root.Pointer
-						numOfPointersToDeallocate++
-					}
-					root.Pointer.SnapshotID = db.singularityNode.LastSnapshotID
-
-					var err error
-					root.Pointer.PersistentAddress, err = persistentPool.Allocate()
-					if err != nil {
-						return err
-					}
-				}
-			}
-
-			sr.Deallocate = sr.Deallocate[:numOfPointersToDeallocate]
-		}
-
-		pipeReader.Acknowledge(processedCount+1, req)
-	}
-}
-
-func (db *DB) processDeallocationRequests(
-	ctx context.Context,
-	pipeReader *pipeline.Reader,
-) error {
 	volatilePool := db.config.State.NewVolatilePool()
 	persistentPool := db.config.State.NewPersistentPool()
 
@@ -644,29 +595,43 @@ func (db *DB) processDeallocationRequests(
 		}
 
 		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+			for i := range sr.PointersToStore {
+				root := sr.Store[i]
+
+				//nolint:nestif
+				if root.Pointer.SnapshotID != db.singularityNode.LastSnapshotID {
+					if root.Pointer.PersistentAddress != 0 {
+						nodeRootToStore, err := db.deallocateNode(
+							root.Pointer,
+							sr.ImmediateDeallocation,
+							volatilePool,
+							persistentPool,
+							listNode,
+						)
+						if err != nil {
+							return err
+						}
+
+						//nolint:staticcheck
+						if nodeRootToStore.Pointer != nil {
+							// FIXME (wojciech): This must be handled somehow
+						}
+					}
+					root.Pointer.SnapshotID = db.singularityNode.LastSnapshotID
+
+					var err error
+					root.Pointer.PersistentAddress, err = persistentPool.Allocate()
+					if err != nil {
+						return err
+					}
+				}
+			}
 			if sr.DeallocateVolatileAddress != 0 {
 				volatilePool.Deallocate(sr.DeallocateVolatileAddress)
 			}
-			for _, p := range sr.Deallocate {
-				nodeRootToStore, err := db.deallocateNode(
-					&p,
-					sr.ImmediateDeallocation,
-					volatilePool,
-					persistentPool,
-					listNode,
-				)
-				if err != nil {
-					return err
-				}
-
-				//nolint:staticcheck
-				if nodeRootToStore.Pointer != nil {
-					// FIXME (wojciech): This must be handled somehow
-				}
-			}
 		}
 
-		// Sync is here in the pipeline because deallocation is the last step required before we may proceed
+		// Sync is here in the pipeline because allocation is the last step required before we may proceed
 		// with the commit.
 		if req.Type == pipeline.Sync {
 			req.SyncCh <- struct{}{}
