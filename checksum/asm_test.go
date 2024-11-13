@@ -92,7 +92,7 @@ func TestBlake3Zeros(t *testing.T) {
 	Blake3(matrixP, hashesP)
 
 	for _, h := range hashes {
-		require.Equal(t, zeroValueHash, h)
+		assert.Equal(t, zeroValueHash, h)
 	}
 }
 
