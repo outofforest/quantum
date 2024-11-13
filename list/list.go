@@ -9,7 +9,7 @@ import (
 
 // Config stores list configuration.
 type Config struct {
-	ListRoot      *types.Pointer
+	ListRoot      types.NodeRoot
 	State         *alloc.State
 	NodeAssistant *NodeAssistant
 }
@@ -31,23 +31,23 @@ func (l *List) Add(
 	pointer *types.Pointer,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	node *Node,
-) (*types.Pointer, error) {
-	if l.config.ListRoot.VolatileAddress == 0 {
+) (types.NodeRoot, error) {
+	if l.config.ListRoot.Pointer.VolatileAddress == 0 {
 		newNodeAddress, err := volatilePool.Allocate()
 		if err != nil {
-			return nil, err
+			return types.NodeRoot{}, err
 		}
 		l.config.NodeAssistant.Project(newNodeAddress, node)
 
 		node.Pointers[0] = *pointer
 		node.Header.NumOfPointers = 1
 
-		l.config.ListRoot.VolatileAddress = newNodeAddress
+		l.config.ListRoot.Pointer.VolatileAddress = newNodeAddress
 
 		return l.config.ListRoot, nil
 	}
 
-	l.config.NodeAssistant.Project(l.config.ListRoot.VolatileAddress, node)
+	l.config.NodeAssistant.Project(l.config.ListRoot.Pointer.VolatileAddress, node)
 	if node.Header.NumOfPointers+node.Header.NumOfSideLists < uint64(len(node.Pointers)) {
 		node.Pointers[node.Header.NumOfPointers] = *pointer
 		node.Header.NumOfPointers++
@@ -57,16 +57,16 @@ func (l *List) Add(
 
 	newNodeAddress, err := volatilePool.Allocate()
 	if err != nil {
-		return nil, err
+		return types.NodeRoot{}, err
 	}
 	l.config.NodeAssistant.Project(newNodeAddress, node)
 
 	node.Pointers[0] = *pointer
-	node.Pointers[len(node.Pointers)-1] = *l.config.ListRoot
+	node.Pointers[len(node.Pointers)-1] = *l.config.ListRoot.Pointer
 	node.Header.NumOfPointers = 1
 	node.Header.NumOfSideLists = 1
 
-	l.config.ListRoot.VolatileAddress = newNodeAddress
+	l.config.ListRoot.Pointer.VolatileAddress = newNodeAddress
 
 	return l.config.ListRoot, nil
 }
@@ -76,15 +76,14 @@ func (l *List) Attach(
 	pointer *types.Pointer,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	node *Node,
-) (*types.Pointer, error) {
-	if l.config.ListRoot.VolatileAddress == 0 {
-		*l.config.ListRoot = *pointer
+) (types.NodeRoot, error) {
+	if l.config.ListRoot.Pointer.VolatileAddress == 0 {
+		*l.config.ListRoot.Pointer = *pointer
 
-		//nolint:nilnil
-		return nil, nil
+		return types.NodeRoot{}, nil
 	}
 
-	l.config.NodeAssistant.Project(l.config.ListRoot.VolatileAddress, node)
+	l.config.NodeAssistant.Project(l.config.ListRoot.Pointer.VolatileAddress, node)
 	if node.Header.NumOfPointers+node.Header.NumOfSideLists < uint64(len(node.Pointers)) {
 		node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists-1] = *pointer
 		node.Header.NumOfSideLists++
@@ -94,15 +93,15 @@ func (l *List) Attach(
 
 	newNodeAddress, err := volatilePool.Allocate()
 	if err != nil {
-		return nil, err
+		return types.NodeRoot{}, err
 	}
 	l.config.NodeAssistant.Project(newNodeAddress, node)
 
-	node.Pointers[uint64(len(node.Pointers))-1] = *l.config.ListRoot
+	node.Pointers[uint64(len(node.Pointers))-1] = *l.config.ListRoot.Pointer
 	node.Pointers[uint64(len(node.Pointers))-2] = *pointer
 	node.Header.NumOfSideLists = 2
 
-	l.config.ListRoot.VolatileAddress = newNodeAddress
+	l.config.ListRoot.Pointer.VolatileAddress = newNodeAddress
 
 	return l.config.ListRoot, nil
 }
@@ -110,11 +109,11 @@ func (l *List) Attach(
 // Iterator iterates over items in the list.
 func (l *List) Iterator(node *Node) func(func(types.Pointer) bool) {
 	return func(yield func(types.Pointer) bool) {
-		if l.config.ListRoot.VolatileAddress == 0 {
+		if l.config.ListRoot.Pointer.VolatileAddress == 0 {
 			return
 		}
 
-		stack := []types.Pointer{*l.config.ListRoot}
+		stack := []types.Pointer{*l.config.ListRoot.Pointer}
 		for {
 			if len(stack) == 0 {
 				return
@@ -137,12 +136,12 @@ func (l *List) Iterator(node *Node) func(func(types.Pointer) bool) {
 
 // Nodes returns list of nodes used by the list.
 func (l *List) Nodes(node *Node) []types.VolatileAddress {
-	if l.config.ListRoot.VolatileAddress == 0 {
+	if l.config.ListRoot.Pointer.VolatileAddress == 0 {
 		return nil
 	}
 
 	nodes := []types.VolatileAddress{}
-	stack := []types.Pointer{*l.config.ListRoot}
+	stack := []types.Pointer{*l.config.ListRoot.Pointer}
 
 	for {
 		if len(stack) == 0 {

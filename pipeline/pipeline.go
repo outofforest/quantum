@@ -65,7 +65,7 @@ type TransactionRequest struct {
 func (t *TransactionRequest) AddStoreRequest(sr *StoreRequest) {
 	sr.RequestedRevision = t.trf.revision
 	for i := range sr.PointersToStore {
-		atomic.StoreUint64(&sr.Store[i].Revision, sr.RequestedRevision)
+		atomic.StoreUint64(&sr.Store[i].Pointer.Revision, sr.RequestedRevision)
 	}
 	t.trf.revision++
 
@@ -77,7 +77,7 @@ func (t *TransactionRequest) AddStoreRequest(sr *StoreRequest) {
 type StoreRequest struct {
 	ImmediateDeallocation bool
 	PointersToStore       int8
-	Store                 [StoreCapacity]*types.Pointer
+	Store                 [StoreCapacity]types.NodeRoot
 
 	RequestedRevision         uint64
 	Deallocate                []types.Pointer
@@ -144,7 +144,7 @@ func (qr *Reader) Read(ctx context.Context) (*TransactionRequest, error) {
 				break
 			}
 
-			time.Sleep(5 * time.Microsecond)
+			time.Sleep(50 * time.Microsecond)
 
 			if ctx.Err() != nil {
 				return nil, errors.WithStack(ctx.Err())

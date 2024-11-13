@@ -44,7 +44,7 @@ type SpaceToCommit struct {
 // ListToCommit contains cached deallocation list.
 type ListToCommit struct {
 	List     *list.List
-	ListRoot *types.Pointer
+	ListRoot types.NodeRoot
 }
 
 // New creates new database.
@@ -54,7 +54,7 @@ func New(config Config) (*DB, error) {
 		return nil, err
 	}
 
-	snapshotToNodeNodeAssistant, err := space.NewDataNodeAssistant[types.SnapshotID, types.Pointer]()
+	snapshotToNodeNodeAssistant, err := space.NewDataNodeAssistant[types.SnapshotID, types.Root]()
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func New(config Config) (*DB, error) {
 		snapshotInfoNodeAssistant:   snapshotInfoNodeAssistant,
 		snapshotToNodeNodeAssistant: snapshotToNodeNodeAssistant,
 		listNodeAssistant:           listNodeAssistant,
-		massSnapshotToNodeEntry:     mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
+		massSnapshotToNodeEntry:     mass.New[space.Entry[types.SnapshotID, types.Root]](1000),
 		deallocationListsToCommit:   map[types.SnapshotID]ListToCommit{},
 		queue:                       queue,
 		queueReader:                 queueReader,
@@ -81,19 +81,25 @@ func New(config Config) (*DB, error) {
 
 	// Logical nodes might be deallocated immediately.
 	db.snapshots = space.New[types.SnapshotID, types.SnapshotInfo](space.Config[types.SnapshotID, types.SnapshotInfo]{
-		SpaceRoot:             &db.singularityNode.SnapshotRoot,
+		SpaceRoot: types.NodeRoot{
+			Hash:    &db.singularityNode.SnapshotRoot.Hash,
+			Pointer: &db.singularityNode.SnapshotRoot.Pointer,
+		},
 		State:                 config.State,
 		DataNodeAssistant:     snapshotInfoNodeAssistant,
 		MassEntry:             mass.New[space.Entry[types.SnapshotID, types.SnapshotInfo]](1000),
 		ImmediateDeallocation: true,
 	})
 
-	db.deallocationLists = space.New[types.SnapshotID, types.Pointer](
-		space.Config[types.SnapshotID, types.Pointer]{
-			SpaceRoot:             &db.snapshotInfo.DeallocationRoot,
+	db.deallocationLists = space.New[types.SnapshotID, types.Root](
+		space.Config[types.SnapshotID, types.Root]{
+			SpaceRoot: types.NodeRoot{
+				Hash:    &db.snapshotInfo.DeallocationRoot.Hash,
+				Pointer: &db.snapshotInfo.DeallocationRoot.Pointer,
+			},
 			State:                 config.State,
 			DataNodeAssistant:     snapshotToNodeNodeAssistant,
-			MassEntry:             mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
+			MassEntry:             mass.New[space.Entry[types.SnapshotID, types.Root]](1000),
 			ImmediateDeallocation: true,
 		},
 	)
@@ -111,13 +117,13 @@ type DB struct {
 	singularityNode   *types.SingularityNode
 	snapshotInfo      types.SnapshotInfo
 	snapshots         *space.Space[types.SnapshotID, types.SnapshotInfo]
-	deallocationLists *space.Space[types.SnapshotID, types.Pointer]
+	deallocationLists *space.Space[types.SnapshotID, types.Root]
 
 	snapshotInfoNodeAssistant   *space.DataNodeAssistant[types.SnapshotID, types.SnapshotInfo]
-	snapshotToNodeNodeAssistant *space.DataNodeAssistant[types.SnapshotID, types.Pointer]
+	snapshotToNodeNodeAssistant *space.DataNodeAssistant[types.SnapshotID, types.Root]
 	listNodeAssistant           *list.NodeAssistant
 
-	massSnapshotToNodeEntry *mass.Mass[space.Entry[types.SnapshotID, types.Pointer]]
+	massSnapshotToNodeEntry *mass.Mass[space.Entry[types.SnapshotID, types.Root]]
 
 	deallocationListsToCommit map[types.SnapshotID]ListToCommit
 
@@ -166,7 +172,6 @@ func (db *DB) Commit() error {
 	}
 
 	db.config.State.Commit()
-
 	return db.prepareNextSnapshot()
 }
 
@@ -286,8 +291,8 @@ func (db *DB) deleteSnapshot(
 	snapshotInfo := snapshotInfoValue.Value()
 
 	var nextSnapshotInfo *types.SnapshotInfo
-	var nextDeallocationListRoot *types.Pointer
-	var nextDeallocationLists *space.Space[types.SnapshotID, types.Pointer]
+	var nextDeallocationListRoot types.NodeRoot
+	var nextDeallocationLists *space.Space[types.SnapshotID, types.Root]
 	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
 		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID)
 		if !nextSnapshotInfoValue.Exists() {
@@ -296,9 +301,12 @@ func (db *DB) deleteSnapshot(
 		tmpNextSnapshotInfo := nextSnapshotInfoValue.Value()
 		nextSnapshotInfo = &tmpNextSnapshotInfo
 
-		nextDeallocationListRoot = &nextSnapshotInfo.DeallocationRoot
-		nextDeallocationLists = space.New[types.SnapshotID, types.Pointer](
-			space.Config[types.SnapshotID, types.Pointer]{
+		nextDeallocationListRoot = types.NodeRoot{
+			Hash:    &nextSnapshotInfo.DeallocationRoot.Hash,
+			Pointer: &nextSnapshotInfo.DeallocationRoot.Pointer,
+		}
+		nextDeallocationLists = space.New[types.SnapshotID, types.Root](
+			space.Config[types.SnapshotID, types.Root]{
 				SpaceRoot:         nextDeallocationListRoot,
 				State:             db.config.State,
 				DataNodeAssistant: db.snapshotToNodeNodeAssistant,
@@ -307,13 +315,19 @@ func (db *DB) deleteSnapshot(
 		)
 	} else {
 		nextSnapshotInfo = &db.snapshotInfo
-		nextDeallocationListRoot = &db.snapshotInfo.DeallocationRoot
+		nextDeallocationListRoot = types.NodeRoot{
+			Hash:    &db.snapshotInfo.DeallocationRoot.Hash,
+			Pointer: &db.snapshotInfo.DeallocationRoot.Pointer,
+		}
 		nextDeallocationLists = db.deallocationLists
 	}
 
-	deallocationListsRoot := &snapshotInfo.DeallocationRoot
-	deallocationLists := space.New[types.SnapshotID, types.Pointer](
-		space.Config[types.SnapshotID, types.Pointer]{
+	deallocationListsRoot := types.NodeRoot{
+		Hash:    &snapshotInfo.DeallocationRoot.Hash,
+		Pointer: &snapshotInfo.DeallocationRoot.Pointer,
+	}
+	deallocationLists := space.New[types.SnapshotID, types.Root](
+		space.Config[types.SnapshotID, types.Root]{
 			SpaceRoot:         deallocationListsRoot,
 			State:             db.config.State,
 			DataNodeAssistant: db.snapshotToNodeNodeAssistant,
@@ -329,7 +343,7 @@ func (db *DB) deleteSnapshot(
 	for nextDeallocSnapshot := range nextDeallocationLists.Iterator() {
 		if nextDeallocSnapshot.Key >= startSnapshotID && nextDeallocSnapshot.Key <= snapshotID {
 			list.Deallocate(
-				nextDeallocSnapshot.Value,
+				nextDeallocSnapshot.Value.Pointer,
 				volatilePool,
 				persistentPool,
 				db.listNodeAssistant,
@@ -343,23 +357,26 @@ func (db *DB) deleteSnapshot(
 		listNodeAddress := deallocationListValue.Value()
 		newListNodeAddress := listNodeAddress
 		list := list.New(list.Config{
-			ListRoot:      &newListNodeAddress,
+			ListRoot: types.NodeRoot{
+				Hash:    &newListNodeAddress.Hash,
+				Pointer: &newListNodeAddress.Pointer,
+			},
 			State:         db.config.State,
 			NodeAssistant: db.listNodeAssistant,
 		})
 
-		pointerToStore, err := list.Attach(&nextDeallocSnapshot.Value, volatilePool, listNode)
+		nodeRootToStore, err := list.Attach(&nextDeallocSnapshot.Value.Pointer, volatilePool, listNode)
 		if err != nil {
 			return err
 		}
-		if pointerToStore != nil {
+		if nodeRootToStore.Pointer != nil {
 			tx.AddStoreRequest(&pipeline.StoreRequest{
-				Store:                 [pipeline.StoreCapacity]*types.Pointer{pointerToStore},
+				Store:                 [pipeline.StoreCapacity]types.NodeRoot{nodeRootToStore},
 				PointersToStore:       1,
 				ImmediateDeallocation: true,
 			})
 		}
-		if newListNodeAddress != listNodeAddress {
+		if newListNodeAddress.Pointer != listNodeAddress.Pointer {
 			if err := deallocationListValue.Set(
 				newListNodeAddress,
 				tx,
@@ -373,7 +390,7 @@ func (db *DB) deleteSnapshot(
 	nextSnapshotInfo.DeallocationRoot = snapshotInfo.DeallocationRoot
 
 	space.Deallocate(
-		nextDeallocationListRoot,
+		nextDeallocationListRoot.Pointer,
 		volatilePool,
 		persistentPool,
 		db.config.State,
@@ -442,21 +459,24 @@ func (db *DB) commit(
 		for _, snapshotID := range lists {
 			deallocationListValue := db.deallocationLists.Find(snapshotID)
 			if deallocationListValue.Exists() {
-				pointerToStore, err := db.deallocationListsToCommit[snapshotID].List.Attach(
-					lo.ToPtr(deallocationListValue.Value()),
+				nodeRootToStore, err := db.deallocationListsToCommit[snapshotID].List.Attach(
+					lo.ToPtr(deallocationListValue.Value().Pointer),
 					volatilePool,
 					listNode,
 				)
 				if err != nil {
 					return err
 				}
-				if pointerToStore != nil {
-					sr.Store[sr.PointersToStore] = pointerToStore
+				if nodeRootToStore.Pointer != nil {
+					sr.Store[sr.PointersToStore] = nodeRootToStore
 					sr.PointersToStore++
 				}
 			}
 			if err := deallocationListValue.Set(
-				*db.deallocationListsToCommit[snapshotID].ListRoot,
+				types.Root{
+					Hash:    *db.deallocationListsToCommit[snapshotID].ListRoot.Hash,
+					Pointer: *db.deallocationListsToCommit[snapshotID].ListRoot.Pointer,
+				},
 				tx,
 				volatilePool,
 			); err != nil {
@@ -479,9 +499,8 @@ func (db *DB) commit(
 		return err
 	}
 
-	pointer := db.config.State.SingularityNodePointer(snapshotID)
 	tx.AddStoreRequest(&pipeline.StoreRequest{
-		Store:           [pipeline.StoreCapacity]*types.Pointer{pointer},
+		Store:           [pipeline.StoreCapacity]types.NodeRoot{db.config.State.SingularityNodeRoot(snapshotID)},
 		PointersToStore: 1,
 	})
 
@@ -586,16 +605,16 @@ func (db *DB) processAllocationRequests(
 			sr.Deallocate = massPointer.NewSlice(uint64(sr.PointersToStore))
 			var numOfPointersToDeallocate uint
 			for i := range sr.PointersToStore {
-				p := sr.Store[i]
-				if p.SnapshotID != db.singularityNode.LastSnapshotID {
-					if p.PersistentAddress != 0 {
-						sr.Deallocate[numOfPointersToDeallocate] = *p
+				root := sr.Store[i]
+				if root.Pointer.SnapshotID != db.singularityNode.LastSnapshotID {
+					if root.Pointer.PersistentAddress != 0 {
+						sr.Deallocate[numOfPointersToDeallocate] = *root.Pointer
 						numOfPointersToDeallocate++
 					}
-					p.SnapshotID = db.singularityNode.LastSnapshotID
+					root.Pointer.SnapshotID = db.singularityNode.LastSnapshotID
 
 					var err error
-					p.PersistentAddress, err = persistentPool.Allocate()
+					root.Pointer.PersistentAddress, err = persistentPool.Allocate()
 					if err != nil {
 						return err
 					}
@@ -629,7 +648,7 @@ func (db *DB) processDeallocationRequests(
 				volatilePool.Deallocate(sr.DeallocateVolatileAddress)
 			}
 			for _, p := range sr.Deallocate {
-				pointerToStore, err := db.deallocateNode(
+				nodeRootToStore, err := db.deallocateNode(
 					&p,
 					sr.ImmediateDeallocation,
 					volatilePool,
@@ -641,7 +660,7 @@ func (db *DB) processDeallocationRequests(
 				}
 
 				//nolint:staticcheck
-				if pointerToStore != nil {
+				if nodeRootToStore.Pointer != nil {
 					// FIXME (wojciech): This must be handled somehow
 				}
 			}
@@ -658,26 +677,29 @@ func (db *DB) processDeallocationRequests(
 }
 
 var (
-	zeroBlock  = make([]byte, 64)
-	zp         = &zeroBlock[0]
+	zeroHash   [types.HashLength]byte
+	zh         = &zeroHash[0]
+	zeroBlock  [types.BlockLength]byte
+	zb         = &zeroBlock[0]
 	zeroMatrix = [16][64]*byte{
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
-		{zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp, zp}, //nolint:lll
+		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
+		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
+		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
+		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
+		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
+		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
+		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
+		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
+		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
+		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
+		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
+		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
+		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
+		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
+		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
+		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
 	}
+	zeroHashes = [16]*byte{zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh}
 )
 
 type request struct {
@@ -709,7 +731,7 @@ func (r *reader) Read(ctx context.Context) (request, error) {
 
 			r.commitMode = r.txRequest.Type == pipeline.Commit
 			if r.txRequest.StoreRequest != nil && !r.txRequest.ChecksumProcessed && (r.divider == 0 ||
-				(r.read/16)%r.divider == r.mod) {
+				r.read%r.divider == r.mod) {
 				r.txRequest.ChecksumProcessed = true
 				r.storeRequest = r.txRequest.StoreRequest
 			}
@@ -754,8 +776,8 @@ func (db *DB) updateChecksums(
 ) error {
 	var matrix [16][64]*byte
 	matrixP := &matrix[0][0]
-	checksums := [16]*[32]byte{{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}}
-	checksumsP := (**byte)(unsafe.Pointer(&checksums[0]))
+	var hashes [16]*byte
+	hashesP := &hashes[0]
 
 	r := &reader{
 		pipeReader: pipeReader,
@@ -763,9 +785,11 @@ func (db *DB) updateChecksums(
 		mod:        mod,
 	}
 
+	var slots [16]request
+
 	for {
 		matrix = zeroMatrix
-		var slots [16]request
+		hashes = zeroHashes
 
 		var commitReq request
 		minReq := request{
@@ -778,6 +802,7 @@ func (db *DB) updateChecksums(
 			req := slots[ri]
 
 			var volatileAddress types.VolatileAddress
+			var hash *types.Hash
 			for {
 				if req.PointerIndex == 0 {
 					var err error
@@ -793,23 +818,26 @@ func (db *DB) updateChecksums(
 						slots[ri] = req
 						continue riLoop
 					}
-					if req.Count < minReq.Count {
-						minReq = req
-					}
 				}
 
 				req.PointerIndex--
-				p := req.StoreRequest.Store[req.PointerIndex]
+				root := req.StoreRequest.Store[req.PointerIndex]
 
-				volatileAddress = p.VolatileAddress
+				volatileAddress = root.Pointer.VolatileAddress
 
-				if atomic.LoadUint64(&p.Revision) != req.StoreRequest.RequestedRevision {
+				if atomic.LoadUint64(&root.Pointer.Revision) != req.StoreRequest.RequestedRevision {
 					// Pointers are processed from the data node up t the root node. If at any level
 					// revision test fails, it doesn't make sense to process parent nodes because revision
 					// test will fail there for sure.
 					req.PointerIndex = 0
 					continue
 				}
+
+				if req.Count < minReq.Count {
+					minReq = req
+				}
+
+				hash = root.Hash
 
 				break
 			}
@@ -819,12 +847,13 @@ func (db *DB) updateChecksums(
 			for bi := range 64 {
 				matrix[ri][bi] = (*byte)(unsafe.Add(node, bi*64))
 			}
+			hashes[ri] = &hash[0]
 		}
 
 		if nilSlots == len(slots) {
 			r.Acknowledge(commitReq.Count, commitReq.TxRequest, true)
 		} else {
-			checksum.Blake3(matrixP, checksumsP)
+			checksum.Blake3(matrixP, hashesP)
 			r.Acknowledge(minReq.Count-1, minReq.TxRequest, false)
 		}
 	}
@@ -847,7 +876,7 @@ func (db *DB) processStoreRequests(
 		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
 			// We process starting from the data node, which is the last one.
 			for i := sr.PointersToStore - 1; i >= 0; i-- {
-				p := sr.Store[i]
+				root := sr.Store[i]
 
 				// Volatile address must be copied before verifying revision. Otherwise, the address might be
 				// concurrently overwritten by another transaction between revision verification and
@@ -855,9 +884,9 @@ func (db *DB) processStoreRequests(
 				// Persistent address is safe to be used even without atomic, because it is guaranteed that
 				// in the same snapshot it is set only once on the first time node is processed by the goroutine
 				// allocating persistent addresses,
-				volatileAddress := p.VolatileAddress
+				volatileAddress := root.Pointer.VolatileAddress
 
-				if atomic.LoadUint64(&p.Revision) != sr.RequestedRevision {
+				if atomic.LoadUint64(&root.Pointer.Revision) != sr.RequestedRevision {
 					// Pointers are processed from the data node up t the root node. If at any level
 					// revision test fails, it doesn't make sense to process parent nodes because revision
 					// test will fail there for sure.
@@ -871,7 +900,7 @@ func (db *DB) processStoreRequests(
 				// p.Checksum = blake3.Sum256(db.config.State.Bytes(p.VolatileAddress))
 
 				if err := store.Write(
-					p.PersistentAddress,
+					root.Pointer.PersistentAddress,
 					db.config.State.Bytes(volatileAddress),
 				); err != nil {
 					return err
@@ -904,19 +933,21 @@ func (db *DB) deallocateNode(
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
 	node *list.Node,
-) (*types.Pointer, error) {
+) (types.NodeRoot, error) {
 	if db.snapshotInfo.PreviousSnapshotID == db.singularityNode.LastSnapshotID ||
 		pointer.SnapshotID > db.snapshotInfo.PreviousSnapshotID || immediateDeallocation {
 		volatilePool.Deallocate(pointer.VolatileAddress)
 		persistentPool.Deallocate(pointer.PersistentAddress)
 
-		//nolint:nilnil
-		return nil, nil
+		return types.NodeRoot{}, nil
 	}
 
 	l, exists := db.deallocationListsToCommit[pointer.SnapshotID]
 	if !exists {
-		l.ListRoot = &types.Pointer{}
+		l.ListRoot = types.NodeRoot{
+			Hash:    &types.Hash{},
+			Pointer: &types.Pointer{},
+		}
 		l.List = list.New(list.Config{
 			ListRoot:      l.ListRoot,
 			State:         db.config.State,
@@ -934,13 +965,13 @@ func (db *DB) deallocateNode(
 
 func (db *DB) prepareNextSnapshot() error {
 	var snapshotID types.SnapshotID
-	if db.singularityNode.SnapshotRoot.State != types.StateFree {
+	if db.singularityNode.SnapshotRoot.Pointer.State != types.StateFree {
 		snapshotID = db.singularityNode.LastSnapshotID + 1
 	}
 
 	db.snapshotInfo.PreviousSnapshotID = db.singularityNode.LastSnapshotID
 	db.snapshotInfo.NextSnapshotID = snapshotID + 1
-	db.snapshotInfo.DeallocationRoot = types.Pointer{}
+	db.snapshotInfo.DeallocationRoot = types.Root{}
 	db.singularityNode.LastSnapshotID = snapshotID
 
 	return nil
@@ -958,7 +989,10 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 	}
 
 	return space.New[K, V](space.Config[K, V]{
-		SpaceRoot:         &db.snapshotInfo.Spaces[spaceID],
+		SpaceRoot: types.NodeRoot{
+			Hash:    &db.snapshotInfo.Spaces[spaceID].Hash,
+			Pointer: &db.snapshotInfo.Spaces[spaceID].Pointer,
+		},
 		State:             db.config.State,
 		DataNodeAssistant: dataNodeAssistant,
 		MassEntry:         mass.New[space.Entry[K, V]](1000),

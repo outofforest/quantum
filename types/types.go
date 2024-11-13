@@ -7,6 +7,9 @@ const (
 	// HashLength is the number of bytes taken by hash.
 	HashLength = 32
 
+	// BlockLength is the number of bytes in one block used for hashing.
+	BlockLength = 64
+
 	// NodeLength is the number of bytes in the node.
 	NodeLength = 4096
 )
@@ -60,6 +63,18 @@ type Pointer struct {
 	State             State
 }
 
+// NodeRoot represents the root of node.
+type NodeRoot struct {
+	Pointer *Pointer
+	Hash    *Hash
+}
+
+// Root represents root of the structure.
+type Root struct {
+	Pointer Pointer
+	Hash    Hash
+}
+
 // DataItem stores single key-value pair.
 type DataItem[K, V comparable] struct {
 	Hash  KeyHash
@@ -72,15 +87,16 @@ type DataItem[K, V comparable] struct {
 type SnapshotInfo struct {
 	PreviousSnapshotID SnapshotID
 	NextSnapshotID     SnapshotID
-	DeallocationRoot   Pointer
+	DeallocationRoot   Root
 
 	// FIXME (wojciech): Generalize this to any number of spaces.
-	Spaces [2]Pointer
+	Spaces [2]Root
 }
 
 // SingularityNode is the root of the store.
 type SingularityNode struct {
+	Hash            Hash
 	FirstSnapshotID SnapshotID
 	LastSnapshotID  SnapshotID
-	SnapshotRoot    Pointer
+	SnapshotRoot    Root
 }

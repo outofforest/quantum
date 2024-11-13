@@ -23,37 +23,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPBROADCASTD AX, Z7
 	MOVQ         b+0(FP), CX
 	MOVQ         (CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         128(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         256(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         384(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z8
 	MOVQ         512(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         640(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         768(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         896(CX), AX
-	VMOVDQA64    (AX), Z15
+	VMOVDQU64    (AX), Z9
 	MOVQ         1024(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1152(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1280(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1408(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z10
 	MOVQ         1536(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         1664(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1792(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         1920(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z11
+	MOVQ         2048(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2560(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         3072(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         3584(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         4096(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         4608(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         5120(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         5632(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         6144(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         6656(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7168(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         7680(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z11, Z10, Z9
@@ -927,37 +927,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         8(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         136(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         264(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         392(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z20
 	MOVQ         520(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         648(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         776(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         904(CX), AX
-	VMOVDQA64    (AX), Z13
+	VMOVDQU64    (AX), Z12
 	MOVQ         1032(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1160(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1288(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1416(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z18
 	MOVQ         1544(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         1672(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1800(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         1928(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z19
+	MOVQ         2056(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2568(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         3080(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         3592(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         4104(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         4616(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         5128(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         5640(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         6152(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         6664(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7176(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         7688(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z19, Z18, Z12
@@ -1831,37 +1831,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         16(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         144(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         272(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         400(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z23
 	MOVQ         528(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         656(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         784(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         912(CX), AX
-	VMOVDQA64    (AX), Z10
+	VMOVDQU64    (AX), Z22
 	MOVQ         1040(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1168(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1296(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1424(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z15
 	MOVQ         1552(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         1680(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1808(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         1936(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z17
+	MOVQ         2064(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2576(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         3088(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         3600(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         4112(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         4624(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         5136(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         5648(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         6160(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         6672(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7184(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         7696(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z17, Z15, Z22
@@ -2735,37 +2735,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         24(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         152(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         280(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         408(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z8
 	MOVQ         536(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         664(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         792(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         920(CX), AX
-	VMOVDQA64    (AX), Z18
+	VMOVDQU64    (AX), Z9
 	MOVQ         1048(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1176(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1304(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1432(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z13
 	MOVQ         1560(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         1688(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1816(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         1944(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z14
+	MOVQ         2072(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2584(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         3096(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         3608(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         4120(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         4632(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         5144(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         5656(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         6168(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         6680(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7192(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         7704(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z14, Z13, Z9
@@ -3639,37 +3639,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         32(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         160(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         288(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         416(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z20
 	MOVQ         544(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         672(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         800(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         928(CX), AX
-	VMOVDQA64    (AX), Z15
+	VMOVDQU64    (AX), Z12
 	MOVQ         1056(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1184(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1312(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1440(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z10
 	MOVQ         1568(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         1696(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1824(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         1952(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z11
+	MOVQ         2080(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2592(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         3104(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         3616(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         4128(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         4640(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         5152(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         5664(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         6176(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         6688(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7200(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         7712(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z11, Z10, Z12
@@ -4543,37 +4543,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         40(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         168(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         296(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         424(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z23
 	MOVQ         552(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         680(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         808(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         936(CX), AX
-	VMOVDQA64    (AX), Z13
+	VMOVDQU64    (AX), Z22
 	MOVQ         1064(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1192(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1320(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1448(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z18
 	MOVQ         1576(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         1704(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1832(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         1960(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z19
+	MOVQ         2088(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2600(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         3112(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         3624(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         4136(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         4648(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         5160(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         5672(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         6184(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         6696(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7208(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         7720(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z19, Z18, Z22
@@ -5447,37 +5447,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         48(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         176(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         304(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         432(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z8
 	MOVQ         560(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         688(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         816(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         944(CX), AX
-	VMOVDQA64    (AX), Z10
+	VMOVDQU64    (AX), Z9
 	MOVQ         1072(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1200(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1328(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1456(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z15
 	MOVQ         1584(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         1712(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1840(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         1968(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z17
+	MOVQ         2096(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2608(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         3120(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         3632(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         4144(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         4656(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         5168(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         5680(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         6192(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         6704(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7216(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         7728(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z17, Z15, Z9
@@ -6351,37 +6351,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         56(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         184(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         312(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         440(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z20
 	MOVQ         568(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         696(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         824(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         952(CX), AX
-	VMOVDQA64    (AX), Z18
+	VMOVDQU64    (AX), Z12
 	MOVQ         1080(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1208(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1336(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1464(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z13
 	MOVQ         1592(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         1720(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1848(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         1976(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z14
+	MOVQ         2104(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2616(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         3128(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         3640(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         4152(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         4664(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         5176(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         5688(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         6200(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         6712(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7224(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         7736(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z14, Z13, Z12
@@ -7255,37 +7255,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         64(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         192(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         320(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         448(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z23
 	MOVQ         576(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         704(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         832(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         960(CX), AX
-	VMOVDQA64    (AX), Z15
+	VMOVDQU64    (AX), Z22
 	MOVQ         1088(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1216(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1344(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1472(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z10
 	MOVQ         1600(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         1728(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1856(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         1984(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z11
+	MOVQ         2112(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2624(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         3136(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         3648(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         4160(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         4672(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         5184(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         5696(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         6208(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         6720(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7232(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         7744(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z11, Z10, Z22
@@ -8159,37 +8159,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         72(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         200(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         328(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         456(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z8
 	MOVQ         584(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         712(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         840(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         968(CX), AX
-	VMOVDQA64    (AX), Z13
+	VMOVDQU64    (AX), Z9
 	MOVQ         1096(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1224(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1352(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1480(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z18
 	MOVQ         1608(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         1736(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1864(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         1992(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z19
+	MOVQ         2120(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2632(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         3144(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         3656(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         4168(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         4680(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         5192(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         5704(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         6216(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         6728(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7240(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         7752(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z19, Z18, Z9
@@ -9063,37 +9063,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         80(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         208(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         336(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         464(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z20
 	MOVQ         592(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         720(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         848(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         976(CX), AX
-	VMOVDQA64    (AX), Z10
+	VMOVDQU64    (AX), Z12
 	MOVQ         1104(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1232(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1360(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1488(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z15
 	MOVQ         1616(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         1744(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1872(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2000(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z17
+	MOVQ         2128(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2640(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         3152(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         3664(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         4176(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         4688(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         5200(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         5712(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         6224(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         6736(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7248(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         7760(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z17, Z15, Z12
@@ -9967,37 +9967,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         88(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         216(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         344(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         472(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z23
 	MOVQ         600(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         728(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         856(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         984(CX), AX
-	VMOVDQA64    (AX), Z18
+	VMOVDQU64    (AX), Z22
 	MOVQ         1112(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1240(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1368(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1496(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z13
 	MOVQ         1624(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         1752(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1880(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2008(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z14
+	MOVQ         2136(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2648(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         3160(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         3672(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         4184(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         4696(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         5208(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         5720(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         6232(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         6744(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7256(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         7768(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z14, Z13, Z22
@@ -10871,37 +10871,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         96(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         224(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         352(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         480(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z8
 	MOVQ         608(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         736(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         864(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         992(CX), AX
-	VMOVDQA64    (AX), Z15
+	VMOVDQU64    (AX), Z9
 	MOVQ         1120(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1248(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1376(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1504(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z10
 	MOVQ         1632(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         1760(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1888(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2016(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z11
+	MOVQ         2144(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2656(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         3168(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         3680(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         4192(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         4704(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         5216(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         5728(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         6240(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         6752(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7264(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         7776(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z11, Z10, Z9
@@ -11775,37 +11775,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         104(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         232(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         360(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         488(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z20
 	MOVQ         616(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         744(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         872(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1000(CX), AX
-	VMOVDQA64    (AX), Z13
+	VMOVDQU64    (AX), Z12
 	MOVQ         1128(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1256(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1384(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1512(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z18
 	MOVQ         1640(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         1768(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1896(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2024(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z19
+	MOVQ         2152(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2664(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         3176(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         3688(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         4200(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         4712(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         5224(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         5736(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         6248(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         6760(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7272(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         7784(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z19, Z18, Z12
@@ -12679,37 +12679,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         112(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         240(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         368(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         496(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z23
 	MOVQ         624(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         752(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         880(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1008(CX), AX
-	VMOVDQA64    (AX), Z10
+	VMOVDQU64    (AX), Z22
 	MOVQ         1136(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1264(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1392(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1520(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z15
 	MOVQ         1648(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         1776(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1904(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2032(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z17
+	MOVQ         2160(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2672(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         3184(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         3696(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         4208(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         4720(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         5232(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         5744(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         6256(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         6768(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7280(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         7792(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z17, Z15, Z22
@@ -13583,37 +13583,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         120(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         248(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         376(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         504(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z8
 	MOVQ         632(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         760(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         888(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1016(CX), AX
-	VMOVDQA64    (AX), Z18
+	VMOVDQU64    (AX), Z9
 	MOVQ         1144(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1272(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1400(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1528(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z13
 	MOVQ         1656(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         1784(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1912(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2040(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z14
+	MOVQ         2168(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2680(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         3192(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         3704(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         4216(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         4728(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         5240(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         5752(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         6264(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         6776(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7288(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         7800(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z14, Z13, Z9
@@ -14487,37 +14487,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         128(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         256(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         384(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         512(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z20
 	MOVQ         640(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         768(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         896(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1024(CX), AX
-	VMOVDQA64    (AX), Z15
+	VMOVDQU64    (AX), Z12
 	MOVQ         1152(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1280(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1408(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1536(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z10
 	MOVQ         1664(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         1792(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1920(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2048(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z11
+	MOVQ         2176(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2688(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         3200(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         3712(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         4224(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         4736(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         5248(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         5760(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         6272(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         6784(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7296(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         7808(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z11, Z10, Z12
@@ -15391,37 +15391,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         136(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         264(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         392(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         520(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z23
 	MOVQ         648(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         776(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         904(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1032(CX), AX
-	VMOVDQA64    (AX), Z13
+	VMOVDQU64    (AX), Z22
 	MOVQ         1160(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1288(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1416(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1544(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z18
 	MOVQ         1672(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         1800(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1928(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2056(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z19
+	MOVQ         2184(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2696(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         3208(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         3720(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         4232(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         4744(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         5256(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         5768(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         6280(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         6792(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7304(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         7816(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z19, Z18, Z22
@@ -16295,37 +16295,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         144(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         272(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         400(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         528(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z8
 	MOVQ         656(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         784(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         912(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1040(CX), AX
-	VMOVDQA64    (AX), Z10
+	VMOVDQU64    (AX), Z9
 	MOVQ         1168(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1296(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1424(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1552(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z15
 	MOVQ         1680(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         1808(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1936(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2064(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z17
+	MOVQ         2192(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2704(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         3216(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         3728(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         4240(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         4752(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         5264(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         5776(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         6288(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         6800(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7312(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         7824(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z17, Z15, Z9
@@ -17199,37 +17199,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         152(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         280(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         408(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         536(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z20
 	MOVQ         664(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         792(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         920(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1048(CX), AX
-	VMOVDQA64    (AX), Z18
+	VMOVDQU64    (AX), Z12
 	MOVQ         1176(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1304(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1432(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1560(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z13
 	MOVQ         1688(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         1816(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1944(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2072(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z14
+	MOVQ         2200(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2712(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         3224(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         3736(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         4248(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         4760(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         5272(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         5784(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         6296(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         6808(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7320(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         7832(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z14, Z13, Z12
@@ -18103,37 +18103,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         160(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         288(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         416(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         544(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z23
 	MOVQ         672(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         800(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         928(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1056(CX), AX
-	VMOVDQA64    (AX), Z15
+	VMOVDQU64    (AX), Z22
 	MOVQ         1184(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1312(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1440(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1568(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z10
 	MOVQ         1696(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         1824(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1952(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2080(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z11
+	MOVQ         2208(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2720(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         3232(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         3744(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         4256(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         4768(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         5280(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         5792(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         6304(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         6816(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7328(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         7840(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z11, Z10, Z22
@@ -19007,37 +19007,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         168(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         296(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         424(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         552(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z8
 	MOVQ         680(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         808(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         936(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1064(CX), AX
-	VMOVDQA64    (AX), Z13
+	VMOVDQU64    (AX), Z9
 	MOVQ         1192(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1320(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1448(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1576(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z18
 	MOVQ         1704(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         1832(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1960(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2088(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z19
+	MOVQ         2216(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2728(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         3240(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         3752(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         4264(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         4776(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         5288(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         5800(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         6312(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         6824(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7336(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         7848(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z19, Z18, Z9
@@ -19911,37 +19911,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         176(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         304(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         432(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         560(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z20
 	MOVQ         688(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         816(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         944(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1072(CX), AX
-	VMOVDQA64    (AX), Z10
+	VMOVDQU64    (AX), Z12
 	MOVQ         1200(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1328(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1456(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1584(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z15
 	MOVQ         1712(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         1840(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1968(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2096(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z17
+	MOVQ         2224(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2736(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         3248(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         3760(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         4272(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         4784(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         5296(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         5808(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         6320(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         6832(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7344(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         7856(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z17, Z15, Z12
@@ -20815,37 +20815,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         184(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         312(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         440(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         568(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z23
 	MOVQ         696(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         824(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         952(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1080(CX), AX
-	VMOVDQA64    (AX), Z18
+	VMOVDQU64    (AX), Z22
 	MOVQ         1208(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1336(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1464(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1592(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z13
 	MOVQ         1720(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         1848(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1976(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2104(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z14
+	MOVQ         2232(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2744(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         3256(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         3768(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         4280(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         4792(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         5304(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         5816(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         6328(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         6840(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7352(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         7864(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z14, Z13, Z22
@@ -21719,37 +21719,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         192(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         320(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         448(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         576(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z8
 	MOVQ         704(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         832(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         960(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1088(CX), AX
-	VMOVDQA64    (AX), Z15
+	VMOVDQU64    (AX), Z9
 	MOVQ         1216(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1344(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1472(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1600(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z10
 	MOVQ         1728(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         1856(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1984(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2112(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z11
+	MOVQ         2240(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2752(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         3264(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         3776(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         4288(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         4800(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         5312(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         5824(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         6336(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         6848(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7360(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         7872(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z11, Z10, Z9
@@ -22623,37 +22623,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         200(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         328(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         456(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         584(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z20
 	MOVQ         712(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         840(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         968(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1096(CX), AX
-	VMOVDQA64    (AX), Z13
+	VMOVDQU64    (AX), Z12
 	MOVQ         1224(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1352(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1480(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1608(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z18
 	MOVQ         1736(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         1864(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1992(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2120(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z19
+	MOVQ         2248(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2760(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         3272(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         3784(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         4296(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         4808(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         5320(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         5832(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         6344(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         6856(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7368(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         7880(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z19, Z18, Z12
@@ -23527,37 +23527,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         208(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         336(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         464(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         592(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z23
 	MOVQ         720(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         848(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         976(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1104(CX), AX
-	VMOVDQA64    (AX), Z10
+	VMOVDQU64    (AX), Z22
 	MOVQ         1232(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1360(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1488(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1616(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z15
 	MOVQ         1744(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         1872(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         2000(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2128(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z17
+	MOVQ         2256(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2768(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         3280(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         3792(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         4304(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         4816(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         5328(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         5840(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         6352(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         6864(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7376(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         7888(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z17, Z15, Z22
@@ -24431,37 +24431,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         216(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         344(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         472(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         600(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z8
 	MOVQ         728(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         856(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         984(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1112(CX), AX
-	VMOVDQA64    (AX), Z18
+	VMOVDQU64    (AX), Z9
 	MOVQ         1240(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1368(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1496(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1624(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z13
 	MOVQ         1752(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         1880(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         2008(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2136(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z14
+	MOVQ         2264(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2776(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         3288(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         3800(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         4312(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         4824(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         5336(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         5848(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         6360(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         6872(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7384(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         7896(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z14, Z13, Z9
@@ -25335,37 +25335,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         224(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         352(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         480(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         608(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z20
 	MOVQ         736(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         864(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         992(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1120(CX), AX
-	VMOVDQA64    (AX), Z15
+	VMOVDQU64    (AX), Z12
 	MOVQ         1248(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1376(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1504(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1632(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z10
 	MOVQ         1760(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         1888(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         2016(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2144(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z11
+	MOVQ         2272(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2784(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         3296(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         3808(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         4320(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         4832(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         5344(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         5856(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         6368(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         6880(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7392(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         7904(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z11, Z10, Z12
@@ -26239,37 +26239,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         232(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         360(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         488(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         616(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z23
 	MOVQ         744(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         872(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1000(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1128(CX), AX
-	VMOVDQA64    (AX), Z13
+	VMOVDQU64    (AX), Z22
 	MOVQ         1256(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1384(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1512(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1640(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z18
 	MOVQ         1768(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         1896(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         2024(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2152(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z19
+	MOVQ         2280(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2792(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         3304(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         3816(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         4328(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         4840(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         5352(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         5864(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         6376(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         6888(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7400(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         7912(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z19, Z18, Z22
@@ -27143,37 +27143,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         240(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         368(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         496(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         624(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z8
 	MOVQ         752(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         880(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1008(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1136(CX), AX
-	VMOVDQA64    (AX), Z10
+	VMOVDQU64    (AX), Z9
 	MOVQ         1264(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1392(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1520(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1648(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z15
 	MOVQ         1776(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         1904(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         2032(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2160(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z17
+	MOVQ         2288(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2800(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         3312(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         3824(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         4336(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         4848(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         5360(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         5872(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         6384(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         6896(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7408(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         7920(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z17, Z15, Z9
@@ -28047,37 +28047,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         248(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         376(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         504(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         632(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z20
 	MOVQ         760(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         888(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1016(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1144(CX), AX
-	VMOVDQA64    (AX), Z18
+	VMOVDQU64    (AX), Z12
 	MOVQ         1272(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1400(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1528(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1656(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z13
 	MOVQ         1784(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         1912(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         2040(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2168(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z14
+	MOVQ         2296(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2808(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         3320(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         3832(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         4344(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         4856(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         5368(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         5880(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         6392(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         6904(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7416(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         7928(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z14, Z13, Z12
@@ -28951,37 +28951,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         256(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         384(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         512(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         640(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z23
 	MOVQ         768(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         896(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1024(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1152(CX), AX
-	VMOVDQA64    (AX), Z15
+	VMOVDQU64    (AX), Z22
 	MOVQ         1280(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1408(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1536(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1664(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z10
 	MOVQ         1792(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         1920(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         2048(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2176(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z11
+	MOVQ         2304(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2816(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         3328(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         3840(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         4352(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         4864(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         5376(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         5888(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         6400(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         6912(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7424(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         7936(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z11, Z10, Z22
@@ -29855,37 +29855,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         264(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         392(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         520(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         648(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z8
 	MOVQ         776(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         904(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1032(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1160(CX), AX
-	VMOVDQA64    (AX), Z13
+	VMOVDQU64    (AX), Z9
 	MOVQ         1288(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1416(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1544(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1672(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z18
 	MOVQ         1800(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         1928(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         2056(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2184(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z19
+	MOVQ         2312(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2824(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         3336(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         3848(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         4360(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         4872(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         5384(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         5896(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         6408(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         6920(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7432(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         7944(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z19, Z18, Z9
@@ -30759,37 +30759,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         272(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         400(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         528(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         656(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z20
 	MOVQ         784(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         912(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1040(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1168(CX), AX
-	VMOVDQA64    (AX), Z10
+	VMOVDQU64    (AX), Z12
 	MOVQ         1296(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1424(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1552(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1680(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z15
 	MOVQ         1808(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         1936(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         2064(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2192(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z17
+	MOVQ         2320(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2832(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         3344(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         3856(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         4368(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         4880(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         5392(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         5904(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         6416(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         6928(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7440(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         7952(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z17, Z15, Z12
@@ -31663,37 +31663,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         280(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         408(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         536(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         664(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z23
 	MOVQ         792(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         920(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1048(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1176(CX), AX
-	VMOVDQA64    (AX), Z18
+	VMOVDQU64    (AX), Z22
 	MOVQ         1304(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1432(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1560(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1688(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z13
 	MOVQ         1816(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         1944(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         2072(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2200(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z14
+	MOVQ         2328(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2840(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         3352(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         3864(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         4376(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         4888(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         5400(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         5912(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         6424(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         6936(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7448(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         7960(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z14, Z13, Z22
@@ -32567,37 +32567,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         288(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         416(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         544(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         672(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z8
 	MOVQ         800(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         928(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1056(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1184(CX), AX
-	VMOVDQA64    (AX), Z15
+	VMOVDQU64    (AX), Z9
 	MOVQ         1312(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1440(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1568(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1696(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z10
 	MOVQ         1824(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         1952(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         2080(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2208(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z11
+	MOVQ         2336(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2848(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         3360(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         3872(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         4384(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         4896(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         5408(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         5920(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         6432(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         6944(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7456(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         7968(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z11, Z10, Z9
@@ -33471,37 +33471,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         296(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         424(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         552(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         680(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z20
 	MOVQ         808(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         936(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1064(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1192(CX), AX
-	VMOVDQA64    (AX), Z13
+	VMOVDQU64    (AX), Z12
 	MOVQ         1320(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1448(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1576(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1704(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z18
 	MOVQ         1832(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         1960(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         2088(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2216(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z19
+	MOVQ         2344(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2856(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         3368(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         3880(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         4392(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         4904(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         5416(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         5928(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         6440(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         6952(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7464(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         7976(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z19, Z18, Z12
@@ -34375,37 +34375,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         304(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         432(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         560(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         688(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z23
 	MOVQ         816(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         944(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1072(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1200(CX), AX
-	VMOVDQA64    (AX), Z10
+	VMOVDQU64    (AX), Z22
 	MOVQ         1328(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1456(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1584(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1712(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z15
 	MOVQ         1840(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         1968(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         2096(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2224(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z17
+	MOVQ         2352(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2864(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         3376(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         3888(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         4400(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         4912(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         5424(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         5936(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         6448(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         6960(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7472(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         7984(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z17, Z15, Z22
@@ -35279,37 +35279,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         312(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         440(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         568(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         696(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z8
 	MOVQ         824(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         952(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1080(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1208(CX), AX
-	VMOVDQA64    (AX), Z18
+	VMOVDQU64    (AX), Z9
 	MOVQ         1336(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1464(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1592(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1720(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z13
 	MOVQ         1848(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         1976(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         2104(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2232(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z14
+	MOVQ         2360(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2872(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         3384(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         3896(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         4408(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         4920(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         5432(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         5944(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         6456(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         6968(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7480(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         7992(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z14, Z13, Z9
@@ -36183,37 +36183,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         320(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         448(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         576(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         704(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z20
 	MOVQ         832(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         960(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1088(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1216(CX), AX
-	VMOVDQA64    (AX), Z15
+	VMOVDQU64    (AX), Z12
 	MOVQ         1344(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1472(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1600(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1728(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z10
 	MOVQ         1856(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         1984(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         2112(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2240(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z11
+	MOVQ         2368(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2880(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         3392(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         3904(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         4416(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         4928(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         5440(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         5952(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         6464(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         6976(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7488(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         8000(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z11, Z10, Z12
@@ -37087,37 +37087,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         328(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         456(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         584(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         712(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z23
 	MOVQ         840(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         968(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1096(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1224(CX), AX
-	VMOVDQA64    (AX), Z13
+	VMOVDQU64    (AX), Z22
 	MOVQ         1352(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1480(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1608(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1736(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z18
 	MOVQ         1864(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         1992(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         2120(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2248(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z19
+	MOVQ         2376(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2888(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         3400(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         3912(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         4424(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         4936(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         5448(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         5960(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         6472(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         6984(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7496(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         8008(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z19, Z18, Z22
@@ -37991,37 +37991,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         336(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         464(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         592(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         720(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z8
 	MOVQ         848(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         976(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1104(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1232(CX), AX
-	VMOVDQA64    (AX), Z10
+	VMOVDQU64    (AX), Z9
 	MOVQ         1360(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1488(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1616(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1744(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z15
 	MOVQ         1872(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         2000(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         2128(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2256(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z17
+	MOVQ         2384(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2896(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         3408(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         3920(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         4432(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         4944(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         5456(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         5968(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         6480(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         6992(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7504(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         8016(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z17, Z15, Z9
@@ -38895,37 +38895,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         344(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         472(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         600(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         728(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z20
 	MOVQ         856(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         984(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1112(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1240(CX), AX
-	VMOVDQA64    (AX), Z18
+	VMOVDQU64    (AX), Z12
 	MOVQ         1368(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1496(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1624(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1752(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z13
 	MOVQ         1880(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         2008(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         2136(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2264(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z14
+	MOVQ         2392(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2904(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         3416(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         3928(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         4440(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         4952(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         5464(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         5976(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         6488(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         7000(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7512(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         8024(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z14, Z13, Z12
@@ -39799,37 +39799,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         352(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         480(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         608(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         736(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z23
 	MOVQ         864(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         992(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1120(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1248(CX), AX
-	VMOVDQA64    (AX), Z15
+	VMOVDQU64    (AX), Z22
 	MOVQ         1376(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1504(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1632(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1760(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z10
 	MOVQ         1888(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         2016(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         2144(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2272(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z11
+	MOVQ         2400(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2912(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         3424(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         3936(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         4448(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         4960(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         5472(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         5984(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         6496(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         7008(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7520(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         8032(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z11, Z10, Z22
@@ -40703,37 +40703,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         360(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         488(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         616(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         744(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z8
 	MOVQ         872(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         1000(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1128(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1256(CX), AX
-	VMOVDQA64    (AX), Z13
+	VMOVDQU64    (AX), Z9
 	MOVQ         1384(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1512(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1640(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1768(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z18
 	MOVQ         1896(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         2024(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         2152(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2280(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z19
+	MOVQ         2408(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2920(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         3432(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         3944(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         4456(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         4968(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         5480(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         5992(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         6504(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         7016(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7528(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         8040(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z19, Z18, Z9
@@ -41607,37 +41607,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         368(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         496(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         624(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         752(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z20
 	MOVQ         880(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         1008(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1136(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1264(CX), AX
-	VMOVDQA64    (AX), Z10
+	VMOVDQU64    (AX), Z12
 	MOVQ         1392(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1520(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1648(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1776(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z15
 	MOVQ         1904(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         2032(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         2160(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2288(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z17
+	MOVQ         2416(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2928(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         3440(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         3952(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         4464(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         4976(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         5488(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         6000(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         6512(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         7024(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7536(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         8048(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z17, Z15, Z12
@@ -42511,37 +42511,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         376(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         504(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         632(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         760(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z23
 	MOVQ         888(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         1016(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1144(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1272(CX), AX
-	VMOVDQA64    (AX), Z18
+	VMOVDQU64    (AX), Z22
 	MOVQ         1400(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1528(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1656(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1784(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z13
 	MOVQ         1912(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         2040(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         2168(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2296(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z14
+	MOVQ         2424(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2936(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         3448(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         3960(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         4472(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         4984(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         5496(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         6008(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         6520(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         7032(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7544(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         8056(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z14, Z13, Z22
@@ -43415,37 +43415,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         384(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         512(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         640(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         768(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z8
 	MOVQ         896(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         1024(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1152(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1280(CX), AX
-	VMOVDQA64    (AX), Z15
+	VMOVDQU64    (AX), Z9
 	MOVQ         1408(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1536(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1664(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1792(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z10
 	MOVQ         1920(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         2048(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         2176(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2304(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z11
+	MOVQ         2432(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2944(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         3456(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         3968(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         4480(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         4992(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         5504(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         6016(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         6528(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         7040(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7552(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         8064(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z11, Z10, Z9
@@ -44319,37 +44319,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         392(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         520(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         648(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         776(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z20
 	MOVQ         904(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         1032(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1160(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1288(CX), AX
-	VMOVDQA64    (AX), Z13
+	VMOVDQU64    (AX), Z12
 	MOVQ         1416(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1544(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1672(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1800(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z18
 	MOVQ         1928(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         2056(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         2184(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2312(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z19
+	MOVQ         2440(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2952(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         3464(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         3976(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         4488(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         5000(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         5512(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         6024(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         6536(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         7048(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7560(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         8072(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z19, Z18, Z12
@@ -45223,37 +45223,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         400(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         528(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         656(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         784(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z23
 	MOVQ         912(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         1040(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1168(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1296(CX), AX
-	VMOVDQA64    (AX), Z10
+	VMOVDQU64    (AX), Z22
 	MOVQ         1424(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1552(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1680(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1808(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z15
 	MOVQ         1936(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         2064(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         2192(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2320(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z17
+	MOVQ         2448(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2960(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         3472(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         3984(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         4496(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         5008(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         5520(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         6032(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         6544(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         7056(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7568(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         8080(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z17, Z15, Z22
@@ -46127,37 +46127,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         408(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         536(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         664(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         792(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z8
 	MOVQ         920(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         1048(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1176(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1304(CX), AX
-	VMOVDQA64    (AX), Z18
+	VMOVDQU64    (AX), Z9
 	MOVQ         1432(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1560(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1688(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1816(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z13
 	MOVQ         1944(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         2072(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         2200(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2328(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z14
+	MOVQ         2456(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2968(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         3480(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         3992(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         4504(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         5016(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         5528(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         6040(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         6552(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         7064(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7576(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         8088(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z14, Z13, Z9
@@ -47031,37 +47031,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         416(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         544(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         672(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         800(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z20
 	MOVQ         928(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         1056(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1184(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1312(CX), AX
-	VMOVDQA64    (AX), Z15
+	VMOVDQU64    (AX), Z12
 	MOVQ         1440(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1568(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1696(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1824(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z10
 	MOVQ         1952(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         2080(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         2208(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2336(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z11
+	MOVQ         2464(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         2976(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         3488(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         4000(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         4512(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         5024(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         5536(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         6048(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         6560(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         7072(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7584(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         8096(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z11, Z10, Z12
@@ -47935,37 +47935,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         424(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         552(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         680(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         808(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z23
 	MOVQ         936(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         1064(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1192(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1320(CX), AX
-	VMOVDQA64    (AX), Z13
+	VMOVDQU64    (AX), Z22
 	MOVQ         1448(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1576(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1704(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1832(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z18
 	MOVQ         1960(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         2088(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         2216(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2344(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z19
+	MOVQ         2472(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         2984(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         3496(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         4008(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         4520(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         5032(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         5544(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         6056(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         6568(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         7080(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7592(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         8104(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z19, Z18, Z22
@@ -48839,37 +48839,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         432(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         560(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         688(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         816(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z8
 	MOVQ         944(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         1072(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1200(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1328(CX), AX
-	VMOVDQA64    (AX), Z10
+	VMOVDQU64    (AX), Z9
 	MOVQ         1456(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1584(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1712(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1840(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z15
 	MOVQ         1968(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         2096(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         2224(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2352(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z17
+	MOVQ         2480(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         2992(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         3504(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         4016(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         4528(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         5040(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         5552(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         6064(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         6576(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         7088(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7600(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         8112(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z17, Z15, Z9
@@ -49743,37 +49743,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         440(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         568(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         696(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         824(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z20
 	MOVQ         952(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         1080(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1208(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1336(CX), AX
-	VMOVDQA64    (AX), Z18
+	VMOVDQU64    (AX), Z12
 	MOVQ         1464(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1592(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1720(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1848(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z13
 	MOVQ         1976(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         2104(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         2232(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2360(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z14
+	MOVQ         2488(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         3000(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         3512(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         4024(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         4536(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         5048(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         5560(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         6072(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         6584(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         7096(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7608(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         8120(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z14, Z13, Z12
@@ -50647,37 +50647,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         448(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         576(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         704(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         832(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z23
 	MOVQ         960(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         1088(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1216(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1344(CX), AX
-	VMOVDQA64    (AX), Z15
+	VMOVDQU64    (AX), Z22
 	MOVQ         1472(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1600(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1728(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1856(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z10
 	MOVQ         1984(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         2112(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         2240(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2368(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z11
+	MOVQ         2496(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         3008(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         3520(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         4032(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         4544(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         5056(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         5568(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         6080(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         6592(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         7104(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7616(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         8128(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z11, Z10, Z22
@@ -51551,37 +51551,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         456(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         584(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         712(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         840(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z8
 	MOVQ         968(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         1096(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1224(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1352(CX), AX
-	VMOVDQA64    (AX), Z13
+	VMOVDQU64    (AX), Z9
 	MOVQ         1480(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1608(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1736(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1864(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z18
 	MOVQ         1992(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         2120(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         2248(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2376(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z19
+	MOVQ         2504(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         3016(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         3528(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         4040(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         4552(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         5064(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         5576(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         6088(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         6600(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         7112(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7624(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         8136(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z19, Z18, Z9
@@ -52455,37 +52455,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         464(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         592(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         720(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         848(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z20
 	MOVQ         976(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         1104(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1232(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1360(CX), AX
-	VMOVDQA64    (AX), Z10
+	VMOVDQU64    (AX), Z12
 	MOVQ         1488(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1616(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1744(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1872(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z15
 	MOVQ         2000(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         2128(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         2256(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2384(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z17
+	MOVQ         2512(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         3024(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         3536(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         4048(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         4560(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         5072(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         5584(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         6096(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         6608(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         7120(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7632(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         8144(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z17, Z15, Z12
@@ -53359,37 +53359,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         472(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         600(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         728(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         856(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z23
 	MOVQ         984(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         1112(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1240(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1368(CX), AX
-	VMOVDQA64    (AX), Z18
+	VMOVDQU64    (AX), Z22
 	MOVQ         1496(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1624(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1752(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1880(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z13
 	MOVQ         2008(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         2136(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         2264(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2392(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z14
+	MOVQ         2520(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         3032(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         3544(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         4056(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         4568(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         5080(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         5592(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         6104(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         6616(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         7128(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7640(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         8152(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z14, Z13, Z22
@@ -54263,37 +54263,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         480(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         608(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         736(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         864(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z8
 	MOVQ         992(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         1120(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1248(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1376(CX), AX
-	VMOVDQA64    (AX), Z15
+	VMOVDQU64    (AX), Z9
 	MOVQ         1504(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1632(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1760(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1888(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z10
 	MOVQ         2016(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         2144(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         2272(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2400(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z11
+	MOVQ         2528(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         3040(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         3552(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         4064(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         4576(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         5088(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         5600(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         6112(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         6624(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         7136(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7648(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         8160(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z11, Z10, Z9
@@ -55167,37 +55167,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         488(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         616(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         744(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         872(CX), AX
-	VMOVDQA64    (AX), Z19
+	VMOVDQU64    (AX), Z20
 	MOVQ         1000(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         1128(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1256(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1384(CX), AX
-	VMOVDQA64    (AX), Z13
+	VMOVDQU64    (AX), Z12
 	MOVQ         1512(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         1640(CX), AX
-	VMOVDQA64    (AX), Z14
-	MOVQ         1768(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1896(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z18
 	MOVQ         2024(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         2152(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         2280(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         2408(CX), AX
-	VMOVDQA64    (AX), Z8
+	VMOVDQU64    (AX), Z19
+	MOVQ         2536(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         3048(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         3560(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         4072(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         4584(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         5096(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         5608(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         6120(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         6632(CX), AX
+	VMOVDQU64    (AX), Z23
+	MOVQ         7144(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         7656(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         8168(CX), AX
+	VMOVDQU64    (AX), Z8
 	VSHUFPS      $0x44, Z12, Z20, Z16
 	VSHUFPS      $0xee, Z12, Z20, Z20
 	VSHUFPS      $0x44, Z19, Z18, Z12
@@ -56071,37 +56071,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         496(CX), AX
-	VMOVDQA64    (AX), Z23
-	MOVQ         624(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         752(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         880(CX), AX
-	VMOVDQA64    (AX), Z17
+	VMOVDQU64    (AX), Z23
 	MOVQ         1008(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         1136(CX), AX
-	VMOVDQA64    (AX), Z18
-	MOVQ         1264(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1392(CX), AX
-	VMOVDQA64    (AX), Z10
+	VMOVDQU64    (AX), Z22
 	MOVQ         1520(CX), AX
-	VMOVDQA64    (AX), Z24
-	MOVQ         1648(CX), AX
-	VMOVDQA64    (AX), Z11
-	MOVQ         1776(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         1904(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z15
 	MOVQ         2032(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         2160(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         2288(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         2416(CX), AX
-	VMOVDQA64    (AX), Z20
+	VMOVDQU64    (AX), Z17
+	MOVQ         2544(CX), AX
+	VMOVDQU64    (AX), Z9
+	MOVQ         3056(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         3568(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         4080(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         4592(CX), AX
+	VMOVDQU64    (AX), Z24
+	MOVQ         5104(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         5616(CX), AX
+	VMOVDQU64    (AX), Z13
+	MOVQ         6128(CX), AX
+	VMOVDQU64    (AX), Z14
+	MOVQ         6640(CX), AX
+	VMOVDQU64    (AX), Z8
+	MOVQ         7152(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         7664(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         8176(CX), AX
+	VMOVDQU64    (AX), Z20
 	VSHUFPS      $0x44, Z22, Z23, Z21
 	VSHUFPS      $0xee, Z22, Z23, Z23
 	VSHUFPS      $0x44, Z17, Z15, Z22
@@ -56975,37 +56975,37 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
 	MOVQ         504(CX), AX
-	VMOVDQA64    (AX), Z8
-	MOVQ         632(CX), AX
-	VMOVDQA64    (AX), Z9
-	MOVQ         760(CX), AX
-	VMOVDQA64    (AX), Z13
-	MOVQ         888(CX), AX
-	VMOVDQA64    (AX), Z14
+	VMOVDQU64    (AX), Z8
 	MOVQ         1016(CX), AX
-	VMOVDQA64    (AX), Z12
-	MOVQ         1144(CX), AX
-	VMOVDQA64    (AX), Z15
-	MOVQ         1272(CX), AX
-	VMOVDQA64    (AX), Z17
-	MOVQ         1400(CX), AX
-	VMOVDQA64    (AX), Z18
+	VMOVDQU64    (AX), Z9
 	MOVQ         1528(CX), AX
-	VMOVDQA64    (AX), Z16
-	MOVQ         1656(CX), AX
-	VMOVDQA64    (AX), Z19
-	MOVQ         1784(CX), AX
-	VMOVDQA64    (AX), Z10
-	MOVQ         1912(CX), AX
-	VMOVDQA64    (AX), Z11
+	VMOVDQU64    (AX), Z13
 	MOVQ         2040(CX), AX
-	VMOVDQA64    (AX), Z20
-	MOVQ         2168(CX), AX
-	VMOVDQA64    (AX), Z21
-	MOVQ         2296(CX), AX
-	VMOVDQA64    (AX), Z22
-	MOVQ         2424(CX), AX
-	VMOVDQA64    (AX), Z23
+	VMOVDQU64    (AX), Z14
+	MOVQ         2552(CX), AX
+	VMOVDQU64    (AX), Z12
+	MOVQ         3064(CX), AX
+	VMOVDQU64    (AX), Z15
+	MOVQ         3576(CX), AX
+	VMOVDQU64    (AX), Z17
+	MOVQ         4088(CX), AX
+	VMOVDQU64    (AX), Z18
+	MOVQ         4600(CX), AX
+	VMOVDQU64    (AX), Z16
+	MOVQ         5112(CX), AX
+	VMOVDQU64    (AX), Z19
+	MOVQ         5624(CX), AX
+	VMOVDQU64    (AX), Z10
+	MOVQ         6136(CX), AX
+	VMOVDQU64    (AX), Z11
+	MOVQ         6648(CX), AX
+	VMOVDQU64    (AX), Z20
+	MOVQ         7160(CX), AX
+	VMOVDQU64    (AX), Z21
+	MOVQ         7672(CX), AX
+	VMOVDQU64    (AX), Z22
+	MOVQ         8184(CX), AX
+	VMOVDQU64    (AX), Z23
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z14, Z13, Z9
@@ -57912,59 +57912,59 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	VSHUFI32X4   $0xdd, Z0, Z1, Z1
 	MOVQ         z+8(FP), AX
 	MOVQ         (AX), CX
-	VMOVDQA64    Y4, (CX)
+	VMOVDQU64    Y4, (CX)
 	MOVQ         8(AX), CX
 	VSHUFI32X4   $0xee, Z4, Z4, Z4
-	VMOVDQA64    Y4, (CX)
+	VMOVDQU64    Y4, (CX)
 	MOVQ         16(AX), CX
-	VMOVDQA64    Y2, (CX)
+	VMOVDQU64    Y2, (CX)
 	MOVQ         24(AX), CX
 	VSHUFI32X4   $0xee, Z2, Z2, Z2
-	VMOVDQA64    Y2, (CX)
+	VMOVDQU64    Y2, (CX)
 	MOVQ         32(AX), CX
-	VMOVDQA64    Y6, (CX)
+	VMOVDQU64    Y6, (CX)
 	MOVQ         40(AX), CX
 	VSHUFI32X4   $0xee, Z6, Z6, Z6
-	VMOVDQA64    Y6, (CX)
+	VMOVDQU64    Y6, (CX)
 	MOVQ         48(AX), CX
-	VMOVDQA64    Y3, (CX)
+	VMOVDQU64    Y3, (CX)
 	MOVQ         56(AX), CX
 	VSHUFI32X4   $0xee, Z3, Z3, Z3
-	VMOVDQA64    Y3, (CX)
+	VMOVDQU64    Y3, (CX)
 	MOVQ         64(AX), CX
-	VMOVDQA64    Y5, (CX)
+	VMOVDQU64    Y5, (CX)
 	MOVQ         72(AX), CX
 	VSHUFI32X4   $0xee, Z5, Z5, Z5
-	VMOVDQA64    Y5, (CX)
+	VMOVDQU64    Y5, (CX)
 	MOVQ         80(AX), CX
-	VMOVDQA64    Y8, (CX)
+	VMOVDQU64    Y8, (CX)
 	MOVQ         88(AX), CX
 	VSHUFI32X4   $0xee, Z8, Z8, Z8
-	VMOVDQA64    Y8, (CX)
+	VMOVDQU64    Y8, (CX)
 	MOVQ         96(AX), CX
-	VMOVDQA64    Y7, (CX)
+	VMOVDQU64    Y7, (CX)
 	MOVQ         104(AX), CX
 	VSHUFI32X4   $0xee, Z7, Z7, Z7
-	VMOVDQA64    Y7, (CX)
+	VMOVDQU64    Y7, (CX)
 	MOVQ         112(AX), CX
-	VMOVDQA64    Y1, (CX)
+	VMOVDQU64    Y1, (CX)
 	MOVQ         120(AX), CX
 	VSHUFI32X4   $0xee, Z1, Z1, Z1
-	VMOVDQA64    Y1, (CX)
+	VMOVDQU64    Y1, (CX)
 	RET
 
 // func Transpose8x16(x *uint32, z *uint32)
 // Requires: AVX512F
 TEXT ·Transpose8x16(SB), NOSPLIT, $0-16
 	MOVQ       x+0(FP), AX
-	VMOVDQA64  (AX), Z0
-	VMOVDQA64  64(AX), Z1
-	VMOVDQA64  128(AX), Z2
-	VMOVDQA64  192(AX), Z3
-	VMOVDQA64  256(AX), Z4
-	VMOVDQA64  320(AX), Z5
-	VMOVDQA64  384(AX), Z6
-	VMOVDQA64  448(AX), Z7
+	VMOVDQU64  (AX), Z0
+	VMOVDQU64  64(AX), Z1
+	VMOVDQU64  128(AX), Z2
+	VMOVDQU64  192(AX), Z3
+	VMOVDQU64  256(AX), Z4
+	VMOVDQU64  320(AX), Z5
+	VMOVDQU64  384(AX), Z6
+	VMOVDQU64  448(AX), Z7
 	VSHUFPS    $0x44, Z1, Z0, Z8
 	VSHUFPS    $0xee, Z1, Z0, Z0
 	VSHUFPS    $0x44, Z3, Z2, Z1
@@ -57998,36 +57998,36 @@ TEXT ·Transpose8x16(SB), NOSPLIT, $0-16
 	VSHUFI32X4 $0x88, Z0, Z1, Z8
 	VSHUFI32X4 $0xdd, Z0, Z1, Z1
 	MOVQ       z+8(FP), AX
-	VMOVDQA64  Z4, (AX)
-	VMOVDQA64  Z2, 64(AX)
-	VMOVDQA64  Z6, 128(AX)
-	VMOVDQA64  Z3, 192(AX)
-	VMOVDQA64  Z5, 256(AX)
-	VMOVDQA64  Z8, 320(AX)
-	VMOVDQA64  Z7, 384(AX)
-	VMOVDQA64  Z1, 448(AX)
+	VMOVDQU64  Z4, (AX)
+	VMOVDQU64  Z2, 64(AX)
+	VMOVDQU64  Z6, 128(AX)
+	VMOVDQU64  Z3, 192(AX)
+	VMOVDQU64  Z5, 256(AX)
+	VMOVDQU64  Z8, 320(AX)
+	VMOVDQU64  Z7, 384(AX)
+	VMOVDQU64  Z1, 448(AX)
 	RET
 
 // func Transpose16x16(x *uint32, z *uint32)
 // Requires: AVX512F
 TEXT ·Transpose16x16(SB), NOSPLIT, $0-16
 	MOVQ       x+0(FP), AX
-	VMOVDQA64  (AX), Z0
-	VMOVDQA64  64(AX), Z1
-	VMOVDQA64  128(AX), Z2
-	VMOVDQA64  192(AX), Z3
-	VMOVDQA64  256(AX), Z4
-	VMOVDQA64  320(AX), Z5
-	VMOVDQA64  384(AX), Z6
-	VMOVDQA64  448(AX), Z7
-	VMOVDQA64  512(AX), Z8
-	VMOVDQA64  576(AX), Z9
-	VMOVDQA64  640(AX), Z10
-	VMOVDQA64  704(AX), Z11
-	VMOVDQA64  768(AX), Z12
-	VMOVDQA64  832(AX), Z13
-	VMOVDQA64  896(AX), Z14
-	VMOVDQA64  960(AX), Z15
+	VMOVDQU64  (AX), Z0
+	VMOVDQU64  64(AX), Z1
+	VMOVDQU64  128(AX), Z2
+	VMOVDQU64  192(AX), Z3
+	VMOVDQU64  256(AX), Z4
+	VMOVDQU64  320(AX), Z5
+	VMOVDQU64  384(AX), Z6
+	VMOVDQU64  448(AX), Z7
+	VMOVDQU64  512(AX), Z8
+	VMOVDQU64  576(AX), Z9
+	VMOVDQU64  640(AX), Z10
+	VMOVDQU64  704(AX), Z11
+	VMOVDQU64  768(AX), Z12
+	VMOVDQU64  832(AX), Z13
+	VMOVDQU64  896(AX), Z14
+	VMOVDQU64  960(AX), Z15
 	VSHUFPS    $0x44, Z1, Z0, Z16
 	VSHUFPS    $0xee, Z1, Z0, Z0
 	VSHUFPS    $0x44, Z3, Z2, Z1
@@ -58093,22 +58093,22 @@ TEXT ·Transpose16x16(SB), NOSPLIT, $0-16
 	VSHUFI32X4 $0x88, Z8, Z0, Z9
 	VSHUFI32X4 $0xdd, Z8, Z0, Z0
 	MOVQ       z+8(FP), AX
-	VMOVDQA64  Z12, (AX)
-	VMOVDQA64  Z4, 64(AX)
-	VMOVDQA64  Z10, 128(AX)
-	VMOVDQA64  Z11, 192(AX)
-	VMOVDQA64  Z14, 256(AX)
-	VMOVDQA64  Z2, 320(AX)
-	VMOVDQA64  Z3, 384(AX)
-	VMOVDQA64  Z5, 448(AX)
-	VMOVDQA64  Z13, 512(AX)
-	VMOVDQA64  Z6, 576(AX)
-	VMOVDQA64  Z7, 640(AX)
-	VMOVDQA64  Z9, 704(AX)
-	VMOVDQA64  Z15, 768(AX)
-	VMOVDQA64  Z16, 832(AX)
-	VMOVDQA64  Z1, 896(AX)
-	VMOVDQA64  Z0, 960(AX)
+	VMOVDQU64  Z12, (AX)
+	VMOVDQU64  Z4, 64(AX)
+	VMOVDQU64  Z10, 128(AX)
+	VMOVDQU64  Z11, 192(AX)
+	VMOVDQU64  Z14, 256(AX)
+	VMOVDQU64  Z2, 320(AX)
+	VMOVDQU64  Z3, 384(AX)
+	VMOVDQU64  Z5, 448(AX)
+	VMOVDQU64  Z13, 512(AX)
+	VMOVDQU64  Z6, 576(AX)
+	VMOVDQU64  Z7, 640(AX)
+	VMOVDQU64  Z9, 704(AX)
+	VMOVDQU64  Z15, 768(AX)
+	VMOVDQU64  Z16, 832(AX)
+	VMOVDQU64  Z1, 896(AX)
+	VMOVDQU64  Z0, 960(AX)
 	RET
 
 // func G(a *[16]uint32, b *[16]uint32, c *[16]uint32, d *[16]uint32, mx *[16]uint32, my *[16]uint32)
@@ -58118,14 +58118,14 @@ TEXT ·G(SB), NOSPLIT, $0-48
 	MOVQ      b+8(FP), CX
 	MOVQ      c+16(FP), DX
 	MOVQ      d+24(FP), BX
-	VMOVDQA64 (AX), Z0
-	VMOVDQA64 (CX), Z1
-	VMOVDQA64 (DX), Z2
-	VMOVDQA64 (BX), Z3
+	VMOVDQU64 (AX), Z0
+	VMOVDQU64 (CX), Z1
+	VMOVDQU64 (DX), Z2
+	VMOVDQU64 (BX), Z3
 	MOVQ      mx+32(FP), SI
-	VMOVDQA64 (SI), Z4
+	VMOVDQU64 (SI), Z4
 	MOVQ      my+40(FP), SI
-	VMOVDQA64 (SI), Z5
+	VMOVDQU64 (SI), Z5
 	VPADDD    Z0, Z1, Z0
 	VPADDD    Z0, Z4, Z0
 	VPXORD    Z3, Z0, Z3
@@ -58140,8 +58140,8 @@ TEXT ·G(SB), NOSPLIT, $0-48
 	VPADDD    Z2, Z3, Z2
 	VPXORD    Z1, Z2, Z1
 	VPRORD    $0x07, Z1, Z1
-	VMOVDQA64 Z0, (AX)
-	VMOVDQA64 Z1, (CX)
-	VMOVDQA64 Z2, (DX)
-	VMOVDQA64 Z3, (BX)
+	VMOVDQU64 Z0, (AX)
+	VMOVDQU64 Z1, (CX)
+	VMOVDQU64 Z2, (DX)
+	VMOVDQU64 Z3, (BX)
 	RET
