@@ -59,6 +59,13 @@ func Blake3() {
 		VPBROADCASTD(r.As32(), rS1[i])
 	}
 
+	rS2Init := [numOfStates / 2]reg.GPVirtual{
+		GP64(), GP64(), GP64(), GP64(), GP64(), GP64(), GP64(), GP64(),
+	}
+	for i := range len(rS2Init) {
+		MOVD(U32(sInit[numOfStates/2+i]), rS2Init[i])
+	}
+
 	rB := [numOfMessages]reg.VecVirtual{
 		ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(),
 		ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(),
@@ -66,8 +73,8 @@ func Blake3() {
 
 	memB := Mem{Base: Load(Param("b"), GP64())}
 
-	loopCounterR := GP64()
-	MOVQ(U64(numOfBlocksInMessage), loopCounterR)
+	loopCounterR := GP8()
+	MOVB(U8(numOfBlocksInMessage), loopCounterR)
 
 	// Loop starts here
 
@@ -87,9 +94,8 @@ func Blake3() {
 	rS2 := [numOfStates / 2]reg.VecVirtual{
 		ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(),
 	}
-	for i := numOfStates / 2; i < numOfStates; i++ {
-		MOVD(U32(sInit[i]), r)
-		VPBROADCASTD(r.As32(), rS2[i-numOfStates/2])
+	for i, s2Init := range rS2Init {
+		VPBROADCASTD(s2Init.As32(), rS2[i])
 	}
 
 	g(rS1[0], rS1[4], rS2[0], rS2[4], rB[0], rB[1])
@@ -164,7 +170,7 @@ func Blake3() {
 	VPXORD(rS1[6], rS2[6], rS1[6])
 	VPXORD(rS1[7], rS2[7], rS1[7])
 
-	DECQ(loopCounterR)
+	DECB(loopCounterR)
 	JNZ(LabelRef(loopStartLabel))
 
 	// Loop ends here
