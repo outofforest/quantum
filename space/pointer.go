@@ -8,7 +8,7 @@ import (
 
 const (
 	// NumOfPointers specifies the number of pointers in single pointer node.
-	NumOfPointers = 62
+	NumOfPointers = 64
 
 	// NumOfBlocksForPointerNode defines how many blocks must be hashed for pointer node.
 	NumOfBlocksForPointerNode = NumOfPointers * types.HashLength / types.BlockLength
@@ -18,7 +18,6 @@ const (
 type PointerNode struct {
 	// Hashes must go first because this is the hashed portion of the pointer node.
 	Hashes   [NumOfPointers]types.Hash
-	States   [NumOfPointers]types.State
 	Pointers [NumOfPointers]types.Pointer
 }
 

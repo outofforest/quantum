@@ -13,7 +13,6 @@ func TestPointerNode(t *testing.T) {
 	var p PointerNode
 	require.Equal(t, 0, len(p.Pointers)%2)
 	require.Equal(t, len(p.Hashes), len(p.Pointers))
-	require.Equal(t, len(p.Hashes), len(p.States))
 	require.LessOrEqual(t, unsafe.Sizeof(p), uintptr(types.NodeLength))
 	require.Equal(t, uintptr(NumOfBlocksForPointerNode*types.BlockLength), unsafe.Sizeof(p.Hashes))
 	require.Equal(t, uintptr(unsafe.Pointer(&p)), uintptr(unsafe.Pointer(&p.Hashes)))
