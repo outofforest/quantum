@@ -32,9 +32,27 @@ const (
 
 	// StatePointer means slot contains pointer.
 	StatePointer
+)
 
-	// StatePointerWithHashMod means slot contains pointer and key hash must be recalculated.
-	StatePointerWithHashMod
+// Flags defines pointer flags.
+type Flags byte
+
+// IsSet checks if flag is set.
+func (f Flags) IsSet(flag Flags) bool {
+	return f&flag != FlagNone
+}
+
+// Set sets flag.
+func (f Flags) Set(flag Flags) Flags {
+	return f | flag
+}
+
+const (
+	// FlagNone is used to verify flags using bitwise and operator.
+	FlagNone Flags = 0
+
+	// FlagHashMod says that key hash must be recalculated.
+	FlagHashMod Flags = 1 << (iota - 1)
 )
 
 type (
@@ -64,6 +82,7 @@ type Pointer struct {
 	PersistentAddress PersistentAddress
 	Revision          uint32
 	State             State
+	Flags             Flags
 }
 
 // NodeRoot represents the root of node.

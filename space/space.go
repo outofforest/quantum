@@ -90,7 +90,7 @@ func (s *Space[K, V]) Iterator() func(func(item *types.DataItem[K, V]) bool) {
 
 func (s *Space[K, V]) iterate(pointer *types.Pointer, yield func(item *types.DataItem[K, V]) bool) {
 	switch pointer.State {
-	case types.StatePointer, types.StatePointerWithHashMod:
+	case types.StatePointer:
 		pointerNode := ProjectPointerNode(s.config.State.Node(pointer.VolatileAddress))
 		for pi := range pointerNode.Pointers {
 			p := &pointerNode.Pointers[pi]
@@ -143,7 +143,7 @@ func (s *Space[K, V]) Nodes() []types.VolatileAddress {
 			case types.StateFree:
 			case types.StateData:
 				nodes = append(nodes, pointerNode.Pointers[pi].VolatileAddress)
-			case types.StatePointer, types.StatePointerWithHashMod:
+			case types.StatePointer:
 				stack = append(stack, pointerNode.Pointers[pi].VolatileAddress)
 			}
 		}
@@ -194,7 +194,7 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 						dataItems++
 					}
 				}
-			case types.StatePointer, types.StatePointerWithHashMod:
+			case types.StatePointer:
 				stack = append(stack, pointerNode.Pointers[pi].VolatileAddress)
 				levels[pointerNode.Pointers[pi].VolatileAddress] = level
 			}
@@ -353,7 +353,7 @@ func (s *Space[K, V]) set(
 			)
 		default:
 			v.level++
-			if v.root.Pointer.State == types.StatePointerWithHashMod {
+			if v.root.Pointer.Flags.IsSet(types.FlagHashMod) {
 				v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
 			}
 
@@ -447,11 +447,10 @@ func (s *Space[K, V]) redistributeAndSet(
 	// It must (!!!) be done as a last step, after moving all the data items to their new positions and
 	// setting the revision by adding store request containing this pointer to the transaction request.
 	pointer.VolatileAddress = pointerNodeAddress
+	pointer.State = types.StatePointer
 
 	if conflict {
-		pointer.State = types.StatePointerWithHashMod
-	} else {
-		pointer.State = types.StatePointer
+		pointer.Flags = pointer.Flags.Set(types.FlagHashMod)
 	}
 
 	return nil
@@ -460,9 +459,9 @@ func (s *Space[K, V]) redistributeAndSet(
 func (s *Space[K, V]) find(v *Entry[K, V], processDataNode bool) {
 	for {
 		switch v.root.Pointer.State {
-		case types.StatePointer, types.StatePointerWithHashMod:
+		case types.StatePointer:
 			v.level++
-			if v.root.Pointer.State == types.StatePointerWithHashMod {
+			if v.root.Pointer.Flags.IsSet(types.FlagHashMod) {
 				v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
 			}
 
@@ -618,7 +617,7 @@ func deallocatePointerNode(
 		case types.StateData:
 			volatilePool.Deallocate(pointer.VolatileAddress)
 			persistentPool.Deallocate(p.PersistentAddress)
-		case types.StatePointer, types.StatePointerWithHashMod:
+		case types.StatePointer:
 			deallocatePointerNode(p, volatilePool, persistentPool, state)
 		}
 	}

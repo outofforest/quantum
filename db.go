@@ -815,7 +815,7 @@ func (db *DB) updateHashes(
 			node := db.config.State.Node(volatileAddress)
 
 			numOfBlocks := types.NumOfBlocks
-			if state == types.StatePointer || state == types.StatePointerWithHashMod {
+			if state == types.StatePointer {
 				numOfBlocks = space.NumOfBlocksForPointerNode
 			}
 
