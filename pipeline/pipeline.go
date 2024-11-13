@@ -183,3 +183,12 @@ func NewReader(parentReaders ...*Reader) *Reader {
 
 	return r
 }
+
+// CloneReader creates new reader starting from the same head.
+func CloneReader(reader *Reader) *Reader {
+	return &Reader{
+		head:            reader.head,
+		availableCounts: reader.availableCounts,
+		processedCount:  lo.ToPtr[uint64](0),
+	}
+}
