@@ -150,7 +150,7 @@ func (qr *Reader) Read(ctx context.Context) (*TransactionRequest, error) {
 				break
 			}
 
-			time.Sleep(50 * time.Microsecond)
+			time.Sleep(10 * time.Microsecond)
 
 			if ctx.Err() != nil {
 				return nil, errors.WithStack(ctx.Err())
