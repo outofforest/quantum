@@ -190,15 +190,16 @@ func (db *DB) Run(ctx context.Context) error {
 			defer db.config.State.Close()
 
 			return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-				prepareTxQReader := db.queueReader.NewReader()
-				executeTxQReader := prepareTxQReader.NewReader()
-				allocateQReader := executeTxQReader.NewReader()
-				checksumQReader1 := allocateQReader.NewReader()
-				checksumQReader2 := checksumQReader1.NewReader()
-				checksumQReader3 := checksumQReader2.NewReader()
+				prepareTxQReader := pipeline.NewReader(db.queueReader)
+				executeTxQReader := pipeline.NewReader(prepareTxQReader)
+				allocateQReader := pipeline.NewReader(executeTxQReader)
+				hashReaders := make([]*pipeline.Reader, 0, 3)
+				for range cap(hashReaders) {
+					hashReaders = append(hashReaders, pipeline.NewReader(executeTxQReader))
+				}
 				storeQReaders := make([]*pipeline.Reader, 0, len(db.config.Stores))
 				for range cap(storeQReaders) {
-					storeQReaders = append(storeQReaders, checksumQReader3.NewReader())
+					storeQReaders = append(storeQReaders, pipeline.NewReader(hashReaders...))
 				}
 
 				spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
@@ -246,15 +247,11 @@ func (db *DB) Run(ctx context.Context) error {
 				spawn("allocate", parallel.Fail, func(ctx context.Context) error {
 					return db.processAllocationRequests(ctx, allocateQReader)
 				})
-				spawn("checksum1", parallel.Fail, func(ctx context.Context) error {
-					return db.updateChecksums(ctx, checksumQReader1, 3, 2)
-				})
-				spawn("checksum2", parallel.Fail, func(ctx context.Context) error {
-					return db.updateChecksums(ctx, checksumQReader2, 3, 1)
-				})
-				spawn("checksum3", parallel.Fail, func(ctx context.Context) error {
-					return db.updateChecksums(ctx, checksumQReader3, 0, 0)
-				})
+				for i, reader := range hashReaders {
+					spawn(fmt.Sprintf("hash-%02d", i), parallel.Fail, func(ctx context.Context) error {
+						return db.updateHashes(ctx, reader, uint64(len(hashReaders)), uint64(i))
+					})
+				}
 				for i, store := range db.config.Stores {
 					spawn(fmt.Sprintf("store-%02d", i), parallel.Fail, func(ctx context.Context) error {
 						return db.processStoreRequests(ctx, store, storeQReaders[i])
@@ -695,9 +692,7 @@ func (r *reader) Read(ctx context.Context) (request, error) {
 			}
 
 			r.commitMode = r.txRequest.Type == pipeline.Commit
-			if r.txRequest.StoreRequest != nil && !r.txRequest.ChecksumProcessed && (r.divider == 0 ||
-				r.read%r.divider == r.mod) {
-				r.txRequest.ChecksumProcessed = true
+			if r.txRequest.StoreRequest != nil && r.read%r.divider == r.mod {
 				r.storeRequest = r.txRequest.StoreRequest
 			}
 			r.read++
@@ -733,7 +728,7 @@ func (r *reader) Acknowledge(count uint64, req *pipeline.TransactionRequest, com
 	r.pipeReader.Acknowledge(count, req)
 }
 
-func (db *DB) updateChecksums(
+func (db *DB) updateHashes(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
 	divider uint64,

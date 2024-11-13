@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"math"
 	"sync/atomic"
 	"time"
 
@@ -51,14 +52,13 @@ func (trf *TransactionRequestFactory) New() *TransactionRequest {
 type TransactionRequest struct {
 	trf *TransactionRequestFactory
 
-	Transaction       any
-	StoreRequest      *StoreRequest
-	LastStoreRequest  **StoreRequest
-	SyncCh            chan<- struct{}
-	CommitCh          chan<- error
-	Next              *TransactionRequest
-	Type              TransactionRequestType
-	ChecksumProcessed bool
+	Transaction      any
+	StoreRequest     *StoreRequest
+	LastStoreRequest **StoreRequest
+	SyncCh           chan<- struct{}
+	CommitCh         chan<- error
+	Next             *TransactionRequest
+	Type             TransactionRequestType
 }
 
 // AddStoreRequest adds store request to the transaction.
@@ -92,9 +92,9 @@ func New() (*Pipeline, *Reader) {
 			tail:           &head,
 			availableCount: availableCount,
 		}, &Reader{
-			head:           &head,
-			availableCount: availableCount,
-			processedCount: lo.ToPtr[uint64](0),
+			head:            &head,
+			availableCounts: []*uint64{availableCount},
+			processedCount:  lo.ToPtr[uint64](0),
 		}
 }
 
@@ -119,9 +119,9 @@ func (p *Pipeline) Push(item *TransactionRequest) {
 
 // Reader reads requests from the pipeline.
 type Reader struct {
-	head           **TransactionRequest
-	availableCount *uint64
-	processedCount *uint64
+	head            **TransactionRequest
+	availableCounts []*uint64
+	processedCount  *uint64
 
 	currentAvailableCount uint64
 	currentReadCount      uint64
@@ -137,7 +137,14 @@ func (qr *Reader) Read(ctx context.Context) (*TransactionRequest, error) {
 		// It is done once per epoch to save time on calling ctx.Err().
 		err = errors.WithStack(ctx.Err())
 		for {
-			qr.currentAvailableCount = atomic.LoadUint64(qr.availableCount)
+			var minAvailableCount uint64 = math.MaxUint64
+			for _, ac := range qr.availableCounts {
+				availableCount := atomic.LoadUint64(ac)
+				if availableCount < minAvailableCount {
+					minAvailableCount = availableCount
+				}
+			}
+			qr.currentAvailableCount = minAvailableCount
 			if qr.currentAvailableCount > qr.currentReadCount {
 				h = *qr.head
 				break
@@ -163,11 +170,16 @@ func (qr *Reader) Acknowledge(count uint64, req *TransactionRequest) {
 	}
 }
 
-// NewReader returns new dependant reader.
-func (qr *Reader) NewReader() *Reader {
-	return &Reader{
-		head:           qr.head,
-		availableCount: qr.processedCount,
-		processedCount: lo.ToPtr[uint64](0),
+// NewReader creates new dependant reader.
+func NewReader(parentReaders ...*Reader) *Reader {
+	r := &Reader{
+		head:            parentReaders[0].head,
+		availableCounts: make([]*uint64, 0, len(parentReaders)),
+		processedCount:  lo.ToPtr[uint64](0),
 	}
+	for _, pr := range parentReaders {
+		r.availableCounts = append(r.availableCounts, pr.processedCount)
+	}
+
+	return r
 }
