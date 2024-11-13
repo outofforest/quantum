@@ -190,7 +190,7 @@ func (db *DB) Run(ctx context.Context) error {
 			defer db.config.State.Close()
 
 			return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-				prepareTxQReader := pipeline.NewReader(db.queueReader)
+				prepareTxQReader := pipeline.CloneReader(db.queueReader)
 				executeTxQReader := pipeline.NewReader(prepareTxQReader)
 				allocateQReader := pipeline.NewReader(executeTxQReader)
 				hashReaders := make([]*pipeline.Reader, 0, 3)
