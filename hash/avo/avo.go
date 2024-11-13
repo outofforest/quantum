@@ -1,6 +1,6 @@
 package main
 
-//go:generate go run . -out ../asm.s -stubs ../asm_stub.go -pkg checksum
+//go:generate go run . -out ../asm.s -stubs ../asm_stub.go -pkg hash
 
 import (
 	. "github.com/mmcloughlin/avo/build"
