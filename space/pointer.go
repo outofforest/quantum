@@ -6,11 +6,17 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-// NumOfPointers specifies the number of pointers in single pointer node.
-const NumOfPointers = 56
+const (
+	// NumOfPointers specifies the number of pointers in single pointer node.
+	NumOfPointers = 56
+
+	// NumOfBlocksForPointerNode defines how many blocks must be hashed for pointer node.
+	NumOfBlocksForPointerNode = NumOfPointers * types.HashLength / types.BlockLength
+)
 
 // PointerNode represents pointer node.
 type PointerNode struct {
+	// Hashes must go first because this is the hashed portion of the pointer node.
 	Hashes   [NumOfPointers]types.Hash
 	Pointers [NumOfPointers]types.Pointer
 }

@@ -681,7 +681,7 @@ var (
 	zh         = &zeroHash[0]
 	zeroBlock  [types.BlockLength]byte
 	zb         = &zeroBlock[0]
-	zeroMatrix = [16][64]*byte{
+	zeroMatrix = [16][types.NumOfBlocks]*byte{
 		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
 		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
 		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
@@ -774,7 +774,7 @@ func (db *DB) updateChecksums(
 	divider uint64,
 	mod uint64,
 ) error {
-	var matrix [16][64]*byte
+	var matrix [16][types.NumOfBlocks]*byte
 	matrixP := &matrix[0][0]
 	var hashes [16]*byte
 	hashesP := &hashes[0]
@@ -801,6 +801,7 @@ func (db *DB) updateChecksums(
 		for ri := range slots {
 			req := slots[ri]
 
+			var state types.State
 			var volatileAddress types.VolatileAddress
 			var hash *types.Hash
 			for {
@@ -837,6 +838,7 @@ func (db *DB) updateChecksums(
 					minReq = req
 				}
 
+				state = root.Pointer.State
 				hash = root.Hash
 
 				break
@@ -844,8 +846,14 @@ func (db *DB) updateChecksums(
 
 			slots[ri] = req
 			node := db.config.State.Node(volatileAddress)
-			for bi := range 64 {
-				matrix[ri][bi] = (*byte)(unsafe.Add(node, bi*64))
+
+			numOfBlocks := types.NumOfBlocks
+			if state == types.StatePointer || state == types.StatePointerWithHashMod {
+				numOfBlocks = space.NumOfBlocksForPointerNode
+			}
+
+			for bi := range numOfBlocks {
+				matrix[ri][bi] = (*byte)(unsafe.Add(node, bi*types.BlockLength))
 			}
 			hashes[ri] = &hash[0]
 		}
