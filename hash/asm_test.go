@@ -3,7 +3,7 @@
 
 //nolint:lll
 
-package checksum
+package hash
 
 import (
 	"bytes"

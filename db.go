@@ -15,7 +15,7 @@ import (
 	"github.com/outofforest/parallel"
 	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/alloc"
-	"github.com/outofforest/quantum/checksum"
+	"github.com/outofforest/quantum/hash"
 	"github.com/outofforest/quantum/list"
 	"github.com/outofforest/quantum/persistent"
 	"github.com/outofforest/quantum/pipeline"
@@ -861,7 +861,7 @@ func (db *DB) updateChecksums(
 		if nilSlots == len(slots) {
 			r.Acknowledge(commitReq.Count, commitReq.TxRequest, true)
 		} else {
-			checksum.Blake3(matrixP, hashesP)
+			hash.Blake3(matrixP, hashesP)
 			r.Acknowledge(minReq.Count-1, minReq.TxRequest, false)
 		}
 	}
