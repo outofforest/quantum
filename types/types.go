@@ -63,17 +63,18 @@ type Pointer struct {
 	Revision          uint64
 	VolatileAddress   VolatileAddress
 	PersistentAddress PersistentAddress
-	State             State
 }
 
 // NodeRoot represents the root of node.
 type NodeRoot struct {
+	State   *State
 	Pointer *Pointer
 	Hash    *Hash
 }
 
 // Root represents root of the structure.
 type Root struct {
+	State   State
 	Pointer Pointer
 	Hash    Hash
 }

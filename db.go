@@ -83,6 +83,7 @@ func New(config Config) (*DB, error) {
 	db.snapshots = space.New[types.SnapshotID, types.SnapshotInfo](space.Config[types.SnapshotID, types.SnapshotInfo]{
 		SpaceRoot: types.NodeRoot{
 			Hash:    &db.singularityNode.SnapshotRoot.Hash,
+			State:   &db.singularityNode.SnapshotRoot.State,
 			Pointer: &db.singularityNode.SnapshotRoot.Pointer,
 		},
 		State:                 config.State,
@@ -95,6 +96,7 @@ func New(config Config) (*DB, error) {
 		space.Config[types.SnapshotID, types.Root]{
 			SpaceRoot: types.NodeRoot{
 				Hash:    &db.snapshotInfo.DeallocationRoot.Hash,
+				State:   &db.snapshotInfo.DeallocationRoot.State,
 				Pointer: &db.snapshotInfo.DeallocationRoot.Pointer,
 			},
 			State:                 config.State,
@@ -301,6 +303,7 @@ func (db *DB) deleteSnapshot(
 
 		nextDeallocationListRoot = types.NodeRoot{
 			Hash:    &nextSnapshotInfo.DeallocationRoot.Hash,
+			State:   &nextSnapshotInfo.DeallocationRoot.State,
 			Pointer: &nextSnapshotInfo.DeallocationRoot.Pointer,
 		}
 		nextDeallocationLists = space.New[types.SnapshotID, types.Root](
@@ -315,6 +318,7 @@ func (db *DB) deleteSnapshot(
 		nextSnapshotInfo = &db.snapshotInfo
 		nextDeallocationListRoot = types.NodeRoot{
 			Hash:    &db.snapshotInfo.DeallocationRoot.Hash,
+			State:   &db.snapshotInfo.DeallocationRoot.State,
 			Pointer: &db.snapshotInfo.DeallocationRoot.Pointer,
 		}
 		nextDeallocationLists = db.deallocationLists
@@ -322,6 +326,7 @@ func (db *DB) deleteSnapshot(
 
 	deallocationListsRoot := types.NodeRoot{
 		Hash:    &snapshotInfo.DeallocationRoot.Hash,
+		State:   &snapshotInfo.DeallocationRoot.State,
 		Pointer: &snapshotInfo.DeallocationRoot.Pointer,
 	}
 	deallocationLists := space.New[types.SnapshotID, types.Root](
@@ -357,6 +362,7 @@ func (db *DB) deleteSnapshot(
 		list := list.New(list.Config{
 			ListRoot: types.NodeRoot{
 				Hash:    &newListNodeAddress.Hash,
+				State:   &newListNodeAddress.State,
 				Pointer: &newListNodeAddress.Pointer,
 			},
 			State:         db.config.State,
@@ -388,7 +394,7 @@ func (db *DB) deleteSnapshot(
 	nextSnapshotInfo.DeallocationRoot = snapshotInfo.DeallocationRoot
 
 	space.Deallocate(
-		nextDeallocationListRoot.Pointer,
+		nextDeallocationListRoot,
 		volatilePool,
 		persistentPool,
 		db.config.State,
@@ -473,6 +479,7 @@ func (db *DB) commit(
 			if err := deallocationListValue.Set(
 				types.Root{
 					Hash:    *db.deallocationListsToCommit[snapshotID].ListRoot.Hash,
+					State:   *db.deallocationListsToCommit[snapshotID].ListRoot.State,
 					Pointer: *db.deallocationListsToCommit[snapshotID].ListRoot.Pointer,
 				},
 				tx,
@@ -805,7 +812,7 @@ func (db *DB) updateHashes(
 					minReq = req
 				}
 
-				state = root.Pointer.State
+				state = *root.State
 				hash = root.Hash
 
 				break
@@ -921,6 +928,7 @@ func (db *DB) deallocateNode(
 	if !exists {
 		l.ListRoot = types.NodeRoot{
 			Hash:    &types.Hash{},
+			State:   lo.ToPtr(types.StateFree),
 			Pointer: &types.Pointer{},
 		}
 		l.List = list.New(list.Config{
@@ -940,7 +948,7 @@ func (db *DB) deallocateNode(
 
 func (db *DB) prepareNextSnapshot() error {
 	var snapshotID types.SnapshotID
-	if db.singularityNode.SnapshotRoot.Pointer.State != types.StateFree {
+	if db.singularityNode.SnapshotRoot.State != types.StateFree {
 		snapshotID = db.singularityNode.LastSnapshotID + 1
 	}
 
@@ -966,6 +974,7 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 	return space.New[K, V](space.Config[K, V]{
 		SpaceRoot: types.NodeRoot{
 			Hash:    &db.snapshotInfo.Spaces[spaceID].Hash,
+			State:   &db.snapshotInfo.Spaces[spaceID].State,
 			Pointer: &db.snapshotInfo.Spaces[spaceID].Pointer,
 		},
 		State:             db.config.State,
