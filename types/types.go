@@ -60,21 +60,20 @@ type (
 // Pointer is the pointer to another block.
 type Pointer struct {
 	SnapshotID        SnapshotID
-	Revision          uint64
 	VolatileAddress   VolatileAddress
 	PersistentAddress PersistentAddress
+	Revision          uint32
+	State             State
 }
 
 // NodeRoot represents the root of node.
 type NodeRoot struct {
-	State   *State
 	Pointer *Pointer
 	Hash    *Hash
 }
 
 // Root represents root of the structure.
 type Root struct {
-	State   State
 	Pointer Pointer
 	Hash    Hash
 }

@@ -6,7 +6,6 @@ import (
 	"unsafe"
 
 	"github.com/pkg/errors"
-	"github.com/samber/lo"
 	"golang.org/x/sys/unix"
 
 	"github.com/outofforest/parallel"
@@ -48,8 +47,7 @@ func NewState(
 	singularityNodeRoots := make([]types.NodeRoot, 0, numOfSingularityNodes)
 	for i := range numOfSingularityNodes {
 		singularityNodeRoots = append(singularityNodeRoots, types.NodeRoot{
-			Hash:  &sNode.Hash,
-			State: lo.ToPtr(types.StateData),
+			Hash: &sNode.Hash,
 			Pointer: &types.Pointer{
 				Revision:          1,
 				VolatileAddress:   volatileReservedNodes[0],
