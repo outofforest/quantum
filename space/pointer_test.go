@@ -10,7 +10,7 @@ import (
 )
 
 func TestPointerNode(t *testing.T) {
-	p := PointerNode{}
+	var p PointerNode
 	require.Equal(t, 0, len(p.Pointers)%2)
 	require.Equal(t, len(p.Hashes), len(p.Pointers))
 	require.LessOrEqual(t, unsafe.Sizeof(p), uintptr(types.NodeLength))

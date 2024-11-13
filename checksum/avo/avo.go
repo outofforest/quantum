@@ -39,8 +39,8 @@ const (
 //     concurrency in some scenarios. Here it only overcomplicates things, so instead we treat full 4KB message
 //     as a single chunk.
 //   - due to that chunk independence blake3 uses flags to mark places where chunk starts and ends to protect against
-//     situation where shift in data might produce conflicting hash. Here we don't deal with data streams, but well defined
-//     portions of data, so we don't need it.
+//     situation where shift in data might produce conflicting hash. Here we don't deal with data streams,
+//     but well-defined portions of data, so we don't need it.
 func Blake3() {
 	TEXT("Blake3", NOSPLIT, "func(b **byte, z **byte)")
 	Doc("Blake3 implements blake3 for 16 1KB messages.")
