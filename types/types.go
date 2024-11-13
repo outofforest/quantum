@@ -12,6 +12,9 @@ const (
 
 	// NodeLength is the number of bytes in the node.
 	NodeLength = 4096
+
+	// NumOfBlocks defines how many blocks to hash are present in the node.
+	NumOfBlocks = NodeLength / BlockLength
 )
 
 // State enumerates possible slot states.
