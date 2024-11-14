@@ -99,10 +99,10 @@ type Root struct {
 
 // DataItem stores single key-value pair.
 type DataItem[K, V comparable] struct {
-	Hash  KeyHash
-	Key   K
-	State State
-	Value V
+	KeyHash KeyHash
+	Key     K
+	State   State
+	Value   V
 }
 
 // SnapshotInfo stores information required to retrieve snapshot.

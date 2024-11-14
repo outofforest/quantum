@@ -1,6 +1,7 @@
 package space
 
 import (
+	"math/bits"
 	"unsafe"
 
 	"github.com/outofforest/quantum/types"
@@ -12,7 +13,11 @@ const (
 
 	// NumOfBlocksForPointerNode defines how many blocks must be hashed for pointer node.
 	NumOfBlocksForPointerNode = NumOfPointers * types.HashLength / types.BlockLength
+
+	indexMask = NumOfPointers - 1
 )
+
+var rightShiftBits = -1 * bits.TrailingZeros64(NumOfPointers)
 
 // PointerNode represents pointer node.
 type PointerNode struct {
@@ -28,10 +33,10 @@ func ProjectPointerNode(n unsafe.Pointer) *PointerNode {
 
 // PointerIndex returns index from hash.
 func PointerIndex(hash types.KeyHash) uint64 {
-	return uint64(hash) % NumOfPointers
+	return uint64(hash) & indexMask
 }
 
 // PointerShift shifts bits in hash.
 func PointerShift(hash types.KeyHash) types.KeyHash {
-	return hash / NumOfPointers
+	return types.KeyHash(bits.RotateLeft64(uint64(hash), rightShiftBits))
 }

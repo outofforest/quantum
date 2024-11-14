@@ -73,7 +73,7 @@ func (s *Space[K, V]) Find(key K) *Entry[K, V] {
 	v := s.config.MassEntry.New()
 	initBytes := unsafe.Slice((*byte)(unsafe.Pointer(v)), s.initSize)
 	copy(initBytes, s.defaultInit)
-	v.item.Hash = hashKey(&key, s.hashBuff, 0)
+	v.item.KeyHash = hashKey(&key, s.hashBuff, 0)
 	v.item.Key = key
 
 	s.find(v, false)
@@ -262,7 +262,7 @@ func (s *Space[K, V]) set(
 
 			item := s.config.DataNodeAssistant.Item(
 				s.config.State.Node(dataNodeAddress),
-				s.config.DataNodeAssistant.ItemOffset(s.config.DataNodeAssistant.Index(v.item.Hash+1)),
+				s.config.DataNodeAssistant.ItemOffset(s.config.DataNodeAssistant.Index(v.item.KeyHash+1)),
 			)
 
 			v.item.State = types.StateData
@@ -275,7 +275,7 @@ func (s *Space[K, V]) set(
 		case types.StateData:
 			var conflict bool
 			node := s.config.State.Node(v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress)
-			startIndex := s.config.DataNodeAssistant.Index(v.item.Hash)
+			startIndex := s.config.DataNodeAssistant.Index(v.item.KeyHash)
 			for i, offsetP := 0, unsafe.Pointer(&s.trials[startIndex]); i < trials; i, offsetP = i+1,
 				unsafe.Add(offsetP, types.UInt64Length) {
 				item := s.config.DataNodeAssistant.Item(node, *(*uint64)(offsetP))
@@ -292,7 +292,7 @@ func (s *Space[K, V]) set(
 					return nil
 				}
 
-				if v.item.Hash == item.Hash {
+				if v.item.KeyHash == item.KeyHash {
 					if v.item.Key == item.Key {
 						tx.AddStoreRequest(&v.storeRequest)
 
@@ -317,14 +317,14 @@ func (s *Space[K, V]) set(
 		default:
 			v.level++
 			if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Flags.IsSet(types.FlagHashMod) {
-				v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
+				v.item.KeyHash = hashKey(&v.item.Key, s.hashBuff, v.level)
 			}
 
 			pointerNode := ProjectPointerNode(s.config.State.Node(
 				v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress,
 			))
-			index := PointerIndex(v.item.Hash)
-			v.item.Hash = PointerShift(v.item.Hash)
+			index := PointerIndex(v.item.KeyHash)
+			v.item.KeyHash = PointerShift(v.item.KeyHash)
 
 			// FIXME (wojciech): What if by any chance number of pointers exceeds 10?
 			v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
@@ -363,15 +363,15 @@ func (s *Space[K, V]) redistributeAndSet(
 		}
 
 		if conflict {
-			item.Hash = hashKey(&item.Key, s.hashBuff, v.level)
+			item.KeyHash = hashKey(&item.Key, s.hashBuff, v.level)
 		}
 
-		index := PointerIndex(item.Hash)
+		index := PointerIndex(item.KeyHash)
 		root := types.NodeRoot{
 			Hash:    &pointerNode.Hashes[index],
 			Pointer: &pointerNode.Pointers[index],
 		}
-		item.Hash = PointerShift(item.Hash)
+		item.KeyHash = PointerShift(item.KeyHash)
 
 		if err := s.set(tx,
 			&Entry[K, V]{
@@ -390,11 +390,11 @@ func (s *Space[K, V]) redistributeAndSet(
 	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
 
 	if conflict {
-		v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
+		v.item.KeyHash = hashKey(&v.item.Key, s.hashBuff, v.level)
 	}
 
-	index := PointerIndex(v.item.Hash)
-	v.item.Hash = PointerShift(v.item.Hash)
+	index := PointerIndex(v.item.KeyHash)
+	v.item.KeyHash = PointerShift(v.item.KeyHash)
 
 	// FIXME (wojciech): What if by any chance number of pointers exceeds 10?
 	v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
@@ -423,14 +423,14 @@ func (s *Space[K, V]) find(v *Entry[K, V], processDataNode bool) {
 		case types.StatePointer:
 			v.level++
 			if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Flags.IsSet(types.FlagHashMod) {
-				v.item.Hash = hashKey(&v.item.Key, s.hashBuff, v.level)
+				v.item.KeyHash = hashKey(&v.item.Key, s.hashBuff, v.level)
 			}
 
 			pointerNode := ProjectPointerNode(s.config.State.Node(
 				v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress,
 			))
-			index := PointerIndex(v.item.Hash)
-			v.item.Hash = PointerShift(v.item.Hash)
+			index := PointerIndex(v.item.KeyHash)
+			v.item.KeyHash = PointerShift(v.item.KeyHash)
 
 			v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
 			v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
@@ -441,7 +441,7 @@ func (s *Space[K, V]) find(v *Entry[K, V], processDataNode bool) {
 			}
 
 			node := s.config.State.Node(v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress)
-			startIndex := s.config.DataNodeAssistant.Index(v.item.Hash)
+			startIndex := s.config.DataNodeAssistant.Index(v.item.KeyHash)
 			for i, offsetP := 0, unsafe.Pointer(&s.trials[startIndex]); i < trials; i, offsetP = i+1,
 				unsafe.Add(offsetP, types.UInt64Length) {
 				item := (*types.DataItem[K, V])(unsafe.Add(node, *(*uint64)(offsetP)))
@@ -453,7 +453,7 @@ func (s *Space[K, V]) find(v *Entry[K, V], processDataNode bool) {
 					}
 					return
 				case types.StateData:
-					if item.Hash == v.item.Hash && item.Key == v.item.Key {
+					if item.KeyHash == v.item.KeyHash && item.Key == v.item.Key {
 						v.exists = true
 						v.itemP = item
 						v.item.Value = item.Value
