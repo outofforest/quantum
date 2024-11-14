@@ -225,21 +225,18 @@ func (s *Space[K, V]) deleteValue(tx *pipeline.TransactionRequest, v *Entry[K, V
 		s.find(v, true)
 	}
 
-	if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StateFree {
-		return nil
-	}
+	switch {
+	case v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StateFree:
+	case v.itemP == nil || v.itemP.State <= types.StateDeleted:
+	default:
+		// If we are here it means `s.find` found the slot with matching key so don't need to check hash and key again.
 
-	if v.itemP == nil || v.itemP.State <= types.StateDeleted {
-		return nil
-	}
-	if v.itemP.Hash == v.item.Hash && v.itemP.Key == v.item.Key {
 		tx.AddStoreRequest(&v.storeRequest)
 
 		v.item.State = types.StateDeleted
 		v.itemP.State = types.StateDeleted
-
-		return nil
 	}
+
 	return nil
 }
 
@@ -249,31 +246,8 @@ func (s *Space[K, V]) setValue(
 	value V,
 	pool *alloc.Pool[types.VolatileAddress],
 ) error {
-	if !v.fullyRouted {
-		v.fullyRouted = true
-		s.find(v, true)
-	}
-
+	v.fullyRouted = true
 	v.item.Value = value
-
-	if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StateData && v.itemP != nil {
-		if v.item.State <= types.StateDeleted {
-			tx.AddStoreRequest(&v.storeRequest)
-
-			v.item.State = types.StateData
-			*v.itemP = v.item
-			v.exists = true
-
-			return nil
-		}
-		if v.itemP.Hash == v.item.Hash && v.itemP.Key == v.item.Key {
-			tx.AddStoreRequest(&v.storeRequest)
-
-			v.itemP.Value = value
-
-			return nil
-		}
-	}
 
 	return s.set(tx, v, pool)
 }
