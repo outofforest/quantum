@@ -337,7 +337,6 @@ func (s *Space[K, V]) set(
 			v.item.Hash = PointerShift(v.item.Hash)
 
 			// FIXME (wojciech): What if by any chance number of pointers exceeds 10?
-			v.storeRequest.Store[v.storeRequest.PointersToStore].Index = index
 			v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
 			v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
 			v.storeRequest.PointersToStore++
@@ -379,7 +378,6 @@ func (s *Space[K, V]) redistributeAndSet(
 
 		index := PointerIndex(item.Hash)
 		root := types.NodeRoot{
-			Index:   index,
 			Hash:    &pointerNode.Hashes[index],
 			Pointer: &pointerNode.Pointers[index],
 		}
@@ -409,7 +407,6 @@ func (s *Space[K, V]) redistributeAndSet(
 	v.item.Hash = PointerShift(v.item.Hash)
 
 	// FIXME (wojciech): What if by any chance number of pointers exceeds 10?
-	v.storeRequest.Store[v.storeRequest.PointersToStore].Index = index
 	v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
 	v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
 	v.storeRequest.PointersToStore++
@@ -445,7 +442,6 @@ func (s *Space[K, V]) find(v *Entry[K, V], processDataNode bool) {
 			index := PointerIndex(v.item.Hash)
 			v.item.Hash = PointerShift(v.item.Hash)
 
-			v.storeRequest.Store[v.storeRequest.PointersToStore].Index = index
 			v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
 			v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
 			v.storeRequest.PointersToStore++

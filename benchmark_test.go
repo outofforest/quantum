@@ -32,7 +32,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 5_000_000
+		numOfAddresses = 20_000_000
 		txsPerCommit   = 20_000
 		balance        = 100_000
 	)
