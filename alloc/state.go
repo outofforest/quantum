@@ -21,22 +21,24 @@ func NewState(
 	useHugePages bool,
 	numOfEraseWorkers uint64,
 ) (*State, func(), error) {
-	numOfGroups := (size - types.NodeLength) / types.NodeLength / nodesPerGroup
-	numOfNodes := numOfGroups * nodesPerGroup
-	size = numOfNodes * types.NodeLength
 	opts := unix.MAP_SHARED | unix.MAP_ANONYMOUS | unix.MAP_POPULATE
 	if useHugePages {
+		// When using huge pages, the size must be a multiple of the hugepage size. Otherwise, munmap fails.
 		opts |= unix.MAP_HUGETLB
 	}
-	data, err := unix.Mmap(-1, 0, int(size+types.NodeLength), unix.PROT_READ|unix.PROT_WRITE, opts)
+	data, err := unix.Mmap(-1, 0, int(size), unix.PROT_READ|unix.PROT_WRITE, opts)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "memory allocation failed")
 	}
 
+	dataOrig := data
+
 	// Align allocated memory address to the node size. It might be required if using O_DIRECT option to open files.
 	p := uint64(uintptr(unsafe.Pointer(&data[0])))
 	p = (p+types.NodeLength-1)/types.NodeLength*types.NodeLength - p
-	data = data[p : p+size]
+	data = data[p:]
+
+	size = uint64(len(data))
 
 	volatileAllocationCh, volatileReservedNodes := NewAllocationCh[types.VolatileAddress](size, nodesPerGroup,
 		1)
@@ -71,7 +73,7 @@ func NewState(
 			persistentAllocationPoolCh: make(chan []types.PersistentAddress, 1),
 			closedCh:                   make(chan struct{}),
 		}, func() {
-			_ = unix.Munmap(data)
+			_ = unix.Munmap(dataOrig)
 		}, nil
 }
 
