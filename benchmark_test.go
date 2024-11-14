@@ -32,7 +32,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 1_000
+		numOfAddresses = 20_000_000
 		txsPerCommit   = 20_000
 		balance        = 100_000
 	)
@@ -40,22 +40,26 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 	b.StopTimer()
 	b.ResetTimer()
 
-	var genesisAccount txtypes.Account
-	_, _ = rand.Read(genesisAccount[:])
+	var accounts [numOfAddresses]txtypes.Account
+	accountBytes := unsafe.Slice(&accounts[0][0], unsafe.Sizeof(accounts))
 
-	accounts := make([]txtypes.Account, 0, numOfAddresses)
-	for range cap(accounts) {
-		var address txtypes.Account
-		_, _ = rand.Read(address[:])
-		accounts = append(accounts, address)
-	}
+	// f, err := os.Open("accounts")
+	// require.NoError(b, err)
+	// _, err = f.Read(accountBytes)
+	// require.NoError(b, err)
+	// require.NoError(b, f.Close())
+
+	defer func() {
+		if b.Failed() {
+			_ = os.WriteFile("accounts", accountBytes, 0o600)
+		}
+	}()
 
 	for bi := 0; bi < b.N; bi++ {
 		func() {
-			fmt.Print("")
-		}()
-		func() {
-			var size uint64 = 20 * 1024 * 1024 * 1024
+			_, _ = rand.Read(accountBytes)
+
+			var size uint64 = 120 * 1024 * 1024 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size,
 				100,
@@ -118,7 +122,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				db.ApplyTransaction(&genesis.Tx{
 					Accounts: []genesis.InitialBalance{
 						{
-							Account: genesisAccount,
+							Account: txtypes.GenesisAccount,
 							Amount:  numOfAddresses * balance,
 						},
 					},
@@ -130,7 +134,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				fmt.Println(s.Stats())
 				fmt.Println("===========================")
 
-				v := s.Find(genesisAccount)
+				v := s.Find(txtypes.GenesisAccount)
 				require.True(b, v.Exists())
 				require.Equal(b, txtypes.Amount(numOfAddresses*balance), v.Value())
 			}()
@@ -142,7 +146,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				b.StartTimer()
 				for i := range numOfAddresses {
 					db.ApplyTransaction(&transfer.Tx{
-						From:   genesisAccount,
+						From:   txtypes.GenesisAccount,
 						To:     accounts[i],
 						Amount: balance,
 					})
@@ -169,7 +173,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			func() {
 				fmt.Println(s.Stats())
 
-				v := s.Find(genesisAccount)
+				v := s.Find(txtypes.GenesisAccount)
 				require.True(b, v.Exists())
 				require.Equal(b, txtypes.Amount(0), v.Value())
 
