@@ -87,7 +87,6 @@ type Pointer struct {
 
 // NodeRoot represents the root of node.
 type NodeRoot struct {
-	Index   uint64
 	Pointer *Pointer
 	Hash    *Hash
 }

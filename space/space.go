@@ -202,28 +202,19 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 }
 
 func (s *Space[K, V]) valueExists(v *Entry[K, V]) bool {
-	if !v.fullyRouted {
-		v.fullyRouted = true
-		s.find(v, true)
-	}
+	s.find(v, true)
 
 	return v.exists
 }
 
 func (s *Space[K, V]) readValue(v *Entry[K, V]) V {
-	if !v.fullyRouted {
-		v.fullyRouted = true
-		s.find(v, true)
-	}
+	s.find(v, true)
 
 	return v.item.Value
 }
 
 func (s *Space[K, V]) deleteValue(tx *pipeline.TransactionRequest, v *Entry[K, V]) error {
-	if !v.fullyRouted {
-		v.fullyRouted = true
-		s.find(v, true)
-	}
+	s.find(v, true)
 
 	switch {
 	case v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StateFree:
@@ -246,7 +237,6 @@ func (s *Space[K, V]) setValue(
 	value V,
 	pool *alloc.Pool[types.VolatileAddress],
 ) error {
-	v.fullyRouted = true
 	v.item.Value = value
 
 	return s.set(tx, v, pool)
@@ -337,7 +327,6 @@ func (s *Space[K, V]) set(
 			v.item.Hash = PointerShift(v.item.Hash)
 
 			// FIXME (wojciech): What if by any chance number of pointers exceeds 10?
-			v.storeRequest.Store[v.storeRequest.PointersToStore].Index = index
 			v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
 			v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
 			v.storeRequest.PointersToStore++
@@ -379,7 +368,6 @@ func (s *Space[K, V]) redistributeAndSet(
 
 		index := PointerIndex(item.Hash)
 		root := types.NodeRoot{
-			Index:   index,
 			Hash:    &pointerNode.Hashes[index],
 			Pointer: &pointerNode.Pointers[index],
 		}
@@ -409,7 +397,6 @@ func (s *Space[K, V]) redistributeAndSet(
 	v.item.Hash = PointerShift(v.item.Hash)
 
 	// FIXME (wojciech): What if by any chance number of pointers exceeds 10?
-	v.storeRequest.Store[v.storeRequest.PointersToStore].Index = index
 	v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
 	v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
 	v.storeRequest.PointersToStore++
@@ -445,7 +432,6 @@ func (s *Space[K, V]) find(v *Entry[K, V], processDataNode bool) {
 			index := PointerIndex(v.item.Hash)
 			v.item.Hash = PointerShift(v.item.Hash)
 
-			v.storeRequest.Store[v.storeRequest.PointersToStore].Index = index
 			v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
 			v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
 			v.storeRequest.PointersToStore++
@@ -492,11 +478,10 @@ type Entry[K, V comparable] struct {
 	space        *Space[K, V]
 	storeRequest pipeline.StoreRequest
 
-	itemP       *types.DataItem[K, V]
-	item        types.DataItem[K, V]
-	exists      bool
-	fullyRouted bool
-	level       uint8
+	itemP  *types.DataItem[K, V]
+	item   types.DataItem[K, V]
+	exists bool
+	level  uint8
 }
 
 // Value returns the value from entry.
