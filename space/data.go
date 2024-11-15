@@ -34,16 +34,6 @@ func (na *DataNodeAssistant[K, V]) NumOfItems() uint64 {
 	return na.numOfItems
 }
 
-// Index returns index from hash.
-func (na *DataNodeAssistant[K, V]) Index(hash types.KeyHash) uint64 {
-	return uint64(hash) % na.numOfItems
-}
-
-// Shift shifts bits in hash.
-func (na *DataNodeAssistant[K, V]) Shift(hash types.KeyHash) types.KeyHash {
-	return hash / types.KeyHash(na.numOfItems)
-}
-
 // ItemOffset returns item's offset relative to the beginning of the node.
 func (na *DataNodeAssistant[K, V]) ItemOffset(index uint64) uint64 {
 	return na.itemSize * index
