@@ -868,11 +868,8 @@ func (db *DB) processStoreRequests(
 					break
 				}
 
-				// uniqueNodes[p.VolatileAddress] = struct{}{}
+				// uniqueNodes[volatileAddress] = struct{}{}
 				// numOfWrites++
-
-				// https://github.com/zeebo/blake3
-				// p.Checksum = blake3.Sum256(db.config.State.Bytes(p.VolatileAddress))
 
 				if err := store.Write(
 					root.Pointer.PersistentAddress,

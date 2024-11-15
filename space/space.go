@@ -1,10 +1,14 @@
 package space
 
 import (
+	"math"
+	"math/bits"
 	"sort"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/cespare/xxhash"
+	"github.com/samber/lo"
 
 	"github.com/outofforest/mass"
 	"github.com/outofforest/photon"
@@ -13,7 +17,7 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-const trials = 20
+const trials = 50
 
 // Config stores space configuration.
 type Config[K, V comparable] struct {
@@ -48,6 +52,7 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 
 	numOfItems := config.DataNodeAssistant.NumOfItems()
 	s.trials = make([][trials]uint64, 0, numOfItems)
+	// FIXME (wojciech): Prevent duplicates in the row and generate uniform distribution of each index across the rows.
 	for startIndex := range uint64(cap(s.trials)) {
 		var offsets [trials]uint64
 		for i := range uint64(trials) {
@@ -203,18 +208,37 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 }
 
 func (s *Space[K, V]) valueExists(v *Entry[K, V]) bool {
+	// FIXME (wojciech): This might be done conditionally based on data node revision.
+	if v.storeRequest.PointersToStore > 1 {
+		v.item.KeyHash = PointerUnshift(v.item.KeyHash)
+		v.storeRequest.PointersToStore--
+		v.level--
+	}
+
 	s.find(v, true)
 
 	return v.exists
 }
 
 func (s *Space[K, V]) readValue(v *Entry[K, V]) V {
+	if v.storeRequest.PointersToStore > 1 {
+		v.item.KeyHash = PointerUnshift(v.item.KeyHash)
+		v.storeRequest.PointersToStore--
+		v.level--
+	}
+
 	s.find(v, true)
 
 	return v.item.Value
 }
 
 func (s *Space[K, V]) deleteValue(tx *pipeline.TransactionRequest, v *Entry[K, V]) error {
+	if v.storeRequest.PointersToStore > 1 {
+		v.item.KeyHash = PointerUnshift(v.item.KeyHash)
+		v.storeRequest.PointersToStore--
+		v.level--
+	}
+
 	s.find(v, true)
 
 	switch {
@@ -240,11 +264,17 @@ func (s *Space[K, V]) setValue(
 ) error {
 	v.item.Value = value
 
+	if v.storeRequest.PointersToStore > 1 {
+		v.item.KeyHash = PointerUnshift(v.item.KeyHash)
+		v.storeRequest.PointersToStore--
+		v.level--
+	}
+
 	return s.set(tx, v, pool)
 }
 
 func (s *Space[K, V]) find(v *Entry[K, V], processDataNode bool) {
-	s.walkPointers(v)
+	s.walkPointers(v, processDataNode)
 
 	if !processDataNode || v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State != types.StateData {
 		v.item.State = types.StateFree
@@ -270,7 +300,7 @@ func (s *Space[K, V]) set(
 	v *Entry[K, V],
 	pool *alloc.Pool[types.VolatileAddress],
 ) error {
-	s.walkPointers(v)
+	s.walkPointers(v, true)
 
 	if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StateFree {
 		dataNodeAddress, err := pool.Allocate()
@@ -299,17 +329,109 @@ func (s *Space[K, V]) set(
 		return nil
 	}
 
+	// Horizontal redistribution.
+	//nolint:nestif
+	if v.storeRequest.PointersToStore > 1 {
+		index := v.parentIndex
+		parentNode := ProjectPointerNode(s.config.State.Node(
+			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer.VolatileAddress),
+		)
+		originalIndex := index
+		trailingZeros := bits.TrailingZeros64(NumOfPointers / 2)
+		if trailingZeros2 := bits.TrailingZeros64(index); trailingZeros2 < trailingZeros {
+			trailingZeros = trailingZeros2
+		}
+		mask := uint64(1) << trailingZeros
+		for mask > 1 {
+			mask >>= 1
+			newIndex := index | mask
+			if parentNode.Pointers[newIndex].State == types.StateFree {
+				index = newIndex
+				break
+			}
+		}
+
+		mask = uint64(math.MaxUint64) << bits.TrailingZeros64(mask)
+		if index != originalIndex {
+			dataNodeAddress, err := pool.Allocate()
+			if err != nil {
+				return err
+			}
+			parentNode.Pointers[index].VolatileAddress = dataNodeAddress
+			parentNode.Pointers[index].State = types.StateData
+
+			tx.AddStoreRequest(&pipeline.StoreRequest{
+				Store: [pipeline.StoreCapacity]types.NodeRoot{
+					{
+						Hash:    &parentNode.Hashes[index],
+						Pointer: &parentNode.Pointers[index],
+					},
+				},
+				PointersToStore: 1,
+			})
+
+			for item := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(
+				v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress,
+			)) {
+				if item.State != types.StateData {
+					continue
+				}
+
+				itemIndex := PointerIndex(PointerUnshift(item.KeyHash))
+				if itemIndex&mask != index {
+					continue
+				}
+
+				// FIXME (wojciech): By doing this, following accesses must do a lot of hops to determine free slot.
+				// Consider rearranging items in the block to make slots to free instead of deleted.
+				item.State = types.StateDeleted
+
+				item := *item
+				item.KeyHash = PointerUnshift(item.KeyHash)
+
+				// FIXME (wojciech): This creates huge amount of transaction requests.
+				if err := s.set(tx,
+					&Entry[K, V]{
+						space: s,
+						storeRequest: pipeline.StoreRequest{
+							Store: [pipeline.StoreCapacity]types.NodeRoot{
+								v.storeRequest.Store[v.storeRequest.PointersToStore-2],
+							},
+							PointersToStore: 1,
+						},
+						item:        item,
+						level:       v.level - 1,
+						parentIndex: index,
+					}, pool); err != nil {
+					return err
+				}
+			}
+
+			// FIXME (wojciech): Store the distributed node, there is no guarantee it will be a part
+			// of the current update.
+
+			// FIXME (wojciech): Avoid repeating the loop
+			// This must be done because the item to set might go to the newly created data node.
+			v.item.KeyHash = PointerUnshift(v.item.KeyHash)
+			v.storeRequest.PointersToStore--
+			v.level--
+
+			return s.set(tx, v, pool)
+		}
+	}
+
+	// Vertical redistribution.
 	return s.redistributeAndSet(tx, v, conflict, pool)
 }
 
+// FIXME (wojciech): Vertical redistribution might be done by moving the data block to the first pointer
+// of new poitner node, followed by horizontal redistribution.
 func (s *Space[K, V]) redistributeAndSet(
 	tx *pipeline.TransactionRequest,
 	v *Entry[K, V],
 	conflict bool,
 	pool *alloc.Pool[types.VolatileAddress],
 ) error {
-	v.level++
-
 	pointerNodeAddress, err := pool.Allocate()
 	if err != nil {
 		return err
@@ -318,35 +440,31 @@ func (s *Space[K, V]) redistributeAndSet(
 	// Persistent address stays the same, so data node will be reused for pointer node if both are
 	// created in the same snapshot, or data node will be deallocated otherwise.
 
+	dataNodeAddress := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress
 	tx.AddStoreRequest(&pipeline.StoreRequest{
-		DeallocateVolatileAddress: v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress,
+		DeallocateVolatileAddress: dataNodeAddress,
 	})
 
-	pointerNode := ProjectPointerNode(s.config.State.Node(pointerNodeAddress))
-	for item := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(
-		v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress,
-	)) {
+	// The new root must be temporary until all the items are moved. Otherwise, prepare tx goroutine might follow
+	// a wrong path.
+	pointerNodeRoot := v.storeRequest.Store[v.storeRequest.PointersToStore-1]
+	pointerNodeRoot.Pointer = lo.ToPtr(*pointerNodeRoot.Pointer)
+	pointerNodeRoot.Pointer.VolatileAddress = pointerNodeAddress
+	pointerNodeRoot.Pointer.State = types.StatePointer
+	if conflict {
+		pointerNodeRoot.Pointer.Flags = pointerNodeRoot.Pointer.Flags.Set(types.FlagHashMod)
+	}
+
+	for item := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(dataNodeAddress)) {
 		if item.State != types.StateData {
 			continue
 		}
-
-		if conflict {
-			item.KeyHash = hashKey(&item.Key, s.hashBuff, v.level)
-		}
-
-		index := PointerIndex(item.KeyHash)
-		item.KeyHash = PointerShift(item.KeyHash)
 
 		if err := s.set(tx,
 			&Entry[K, V]{
 				space: s,
 				storeRequest: pipeline.StoreRequest{
-					Store: [pipeline.StoreCapacity]types.NodeRoot{
-						{
-							Hash:    &pointerNode.Hashes[index],
-							Pointer: &pointerNode.Pointers[index],
-						},
-					},
+					Store:           [pipeline.StoreCapacity]types.NodeRoot{pointerNodeRoot},
 					PointersToStore: 1,
 				},
 				item:  *item,
@@ -356,19 +474,10 @@ func (s *Space[K, V]) redistributeAndSet(
 		}
 	}
 
-	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
+	originalPointerNodeRootIndex := v.storeRequest.PointersToStore - 1
+	originalPointerNodeRoot := v.storeRequest.Store[originalPointerNodeRootIndex]
 
-	if conflict {
-		v.item.KeyHash = hashKey(&v.item.Key, s.hashBuff, v.level)
-	}
-
-	index := PointerIndex(v.item.KeyHash)
-	v.item.KeyHash = PointerShift(v.item.KeyHash)
-
-	// FIXME (wojciech): What if by any chance number of pointers exceeds 10?
-	v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
-	v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
-	v.storeRequest.PointersToStore++
+	v.storeRequest.Store[originalPointerNodeRootIndex] = pointerNodeRoot
 
 	if err := s.set(tx, v, pool); err != nil {
 		return err
@@ -376,17 +485,20 @@ func (s *Space[K, V]) redistributeAndSet(
 
 	// It must (!!!) be done as a last step, after moving all the data items to their new positions and
 	// setting the revision by adding store request containing this pointer to the transaction request.
-	pointer.VolatileAddress = pointerNodeAddress
-	pointer.State = types.StatePointer
+	originalPointerNodeRoot.Pointer.VolatileAddress = pointerNodeAddress
+	originalPointerNodeRoot.Pointer.State = types.StatePointer
+	atomic.StoreUint32(&originalPointerNodeRoot.Pointer.Revision, pointerNodeRoot.Pointer.Revision)
 
 	if conflict {
-		pointer.Flags = pointer.Flags.Set(types.FlagHashMod)
+		originalPointerNodeRoot.Pointer.Flags = originalPointerNodeRoot.Pointer.Flags.Set(types.FlagHashMod)
 	}
+
+	v.storeRequest.Store[originalPointerNodeRootIndex] = originalPointerNodeRoot
 
 	return nil
 }
 
-func (s *Space[K, V]) walkPointers(v *Entry[K, V]) {
+func (s *Space[K, V]) walkPointers(v *Entry[K, V], processDataNode bool) {
 	for v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StatePointer {
 		v.level++
 		if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Flags.IsSet(types.FlagHashMod) {
@@ -397,11 +509,37 @@ func (s *Space[K, V]) walkPointers(v *Entry[K, V]) {
 			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress,
 		))
 		index := PointerIndex(v.item.KeyHash)
+		state := pointerNode.Pointers[index].State
+
+		switch {
+		case processDataNode:
+			if state == types.StateFree {
+				const lastIndexMask = NumOfPointers/2 - 1
+			loop:
+				for index&lastIndexMask != 0 {
+					newIndex := index & (uint64(math.MaxUint64) << (bits.TrailingZeros64(index) + 1)) // change first 1 to 0
+					switch pointerNode.Pointers[newIndex].State {
+					case types.StateFree:
+						index = newIndex
+					case types.StateData:
+						index = newIndex
+						break loop
+					default:
+						panic("this should not happen")
+					}
+				}
+			}
+		case state == types.StatePointer || state == types.StateData:
+		default:
+			return
+		}
+
 		v.item.KeyHash = PointerShift(v.item.KeyHash)
 
 		v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
 		v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
 		v.storeRequest.PointersToStore++
+		v.parentIndex = index
 	}
 }
 
@@ -449,10 +587,11 @@ type Entry[K, V comparable] struct {
 	space        *Space[K, V]
 	storeRequest pipeline.StoreRequest
 
-	itemP  *types.DataItem[K, V]
-	item   types.DataItem[K, V]
-	exists bool
-	level  uint8
+	itemP       *types.DataItem[K, V]
+	item        types.DataItem[K, V]
+	exists      bool
+	level       uint8
+	parentIndex uint64
 }
 
 // Value returns the value from entry.

@@ -17,7 +17,10 @@ const (
 	indexMask = NumOfPointers - 1
 )
 
-var rightShiftBits = -1 * bits.TrailingZeros64(NumOfPointers)
+var (
+	leftShiftBits  = bits.TrailingZeros64(NumOfPointers)
+	rightShiftBits = -1 * leftShiftBits
+)
 
 // PointerNode represents pointer node.
 type PointerNode struct {
@@ -39,4 +42,9 @@ func PointerIndex(hash types.KeyHash) uint64 {
 // PointerShift shifts bits in hash.
 func PointerShift(hash types.KeyHash) types.KeyHash {
 	return types.KeyHash(bits.RotateLeft64(uint64(hash), rightShiftBits))
+}
+
+// PointerUnshift shifts back bits in hash.
+func PointerUnshift(hash types.KeyHash) types.KeyHash {
+	return types.KeyHash(bits.RotateLeft64(uint64(hash), leftShiftBits))
 }
