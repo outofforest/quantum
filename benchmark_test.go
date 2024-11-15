@@ -63,7 +63,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			state, stateDeallocFunc, err := alloc.NewState(
 				size,
 				100,
-				3,
 				true,
 				5,
 			)
