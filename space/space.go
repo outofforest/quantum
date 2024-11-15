@@ -4,11 +4,9 @@ import (
 	"math"
 	"math/bits"
 	"sort"
-	"sync/atomic"
 	"unsafe"
 
 	"github.com/cespare/xxhash"
-	"github.com/samber/lo"
 
 	"github.com/outofforest/mass"
 	"github.com/outofforest/photon"
@@ -335,7 +333,7 @@ func (s *Space[K, V]) set(
 			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer.VolatileAddress),
 		)
 		originalIndex := index
-		trailingZeros := bits.TrailingZeros64(NumOfPointers / 2)
+		trailingZeros := bits.TrailingZeros64(NumOfPointers)
 		if trailingZeros2 := bits.TrailingZeros64(index); trailingZeros2 < trailingZeros {
 			trailingZeros = trailingZeros2
 		}
@@ -435,55 +433,21 @@ func (s *Space[K, V]) redistributeAndSet(
 	// Persistent address stays the same, so data node will be reused for pointer node if both are
 	// created in the same snapshot, or data node will be deallocated otherwise.
 
-	dataNodeAddress := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress
-	tx.AddStoreRequest(&pipeline.StoreRequest{
-		DeallocateVolatileAddress: dataNodeAddress,
-	})
+	pointerNode := ProjectPointerNode(s.config.State.Node(pointerNodeAddress))
+	pointerNode.Pointers[0] = *v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
 
 	// The new root must be temporary until all the items are moved. Otherwise, prepare tx goroutine might follow
 	// a wrong path.
-	pointerNodeRoot := v.storeRequest.Store[v.storeRequest.PointersToStore-1]
-	pointerNodeRoot.Pointer = lo.ToPtr(*pointerNodeRoot.Pointer)
-	pointerNodeRoot.Pointer.VolatileAddress = pointerNodeAddress
-	pointerNodeRoot.Pointer.State = types.StatePointer
-	if conflict {
-		pointerNodeRoot.Pointer.Flags = pointerNodeRoot.Pointer.Flags.Set(types.FlagHashMod)
-	}
-
-	for item := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(dataNodeAddress)) {
-		if item.State != types.StateData {
-			continue
-		}
-
-		if err := s.set(tx,
-			&Entry[K, V]{
-				space: s,
-				storeRequest: pipeline.StoreRequest{
-					Store:           [pipeline.StoreCapacity]types.NodeRoot{pointerNodeRoot},
-					PointersToStore: 1,
-				},
-				item:          *item,
-				level:         v.level,
-				dataNodeIndex: dataNodeIndex(item.KeyHash, s.numOfDataItems),
-			}, pool); err != nil {
-			return err
-		}
-	}
 
 	originalPointerNodeRootIndex := v.storeRequest.PointersToStore - 1
 	originalPointerNodeRoot := v.storeRequest.Store[originalPointerNodeRootIndex]
-
-	v.storeRequest.Store[originalPointerNodeRootIndex] = pointerNodeRoot
-
-	if err := s.set(tx, v, pool); err != nil {
-		return err
-	}
 
 	// It must (!!!) be done as a last step, after moving all the data items to their new positions and
 	// setting the revision by adding store request containing this pointer to the transaction request.
 	originalPointerNodeRoot.Pointer.VolatileAddress = pointerNodeAddress
 	originalPointerNodeRoot.Pointer.State = types.StatePointer
-	atomic.StoreUint32(&originalPointerNodeRoot.Pointer.Revision, pointerNodeRoot.Pointer.Revision)
+	originalPointerNodeRoot.Pointer.PersistentAddress = 0
+	originalPointerNodeRoot.Pointer.SnapshotID = 0
 
 	if conflict {
 		originalPointerNodeRoot.Pointer.Flags = originalPointerNodeRoot.Pointer.Flags.Set(types.FlagHashMod)
@@ -491,7 +455,7 @@ func (s *Space[K, V]) redistributeAndSet(
 
 	v.storeRequest.Store[originalPointerNodeRootIndex] = originalPointerNodeRoot
 
-	return nil
+	return s.set(tx, v, pool)
 }
 
 func (s *Space[K, V]) walkPointers(v *Entry[K, V], processDataNode bool) {
@@ -509,7 +473,7 @@ func (s *Space[K, V]) walkPointers(v *Entry[K, V], processDataNode bool) {
 		switch {
 		case processDataNode:
 			if state == types.StateFree {
-				const lastIndexMask = NumOfPointers/2 - 1
+				const lastIndexMask = NumOfPointers - 1
 			loop:
 				for index&lastIndexMask != 0 {
 					newIndex := index & (uint64(math.MaxUint64) << (bits.TrailingZeros64(index) + 1)) // change first 1 to 0
