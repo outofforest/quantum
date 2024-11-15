@@ -32,8 +32,9 @@ type Config[K, V comparable] struct {
 func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 	var k K
 	s := &Space[K, V]{
-		config:   config,
-		hashBuff: make([]byte, unsafe.Sizeof(k)+1),
+		config:         config,
+		hashBuff:       make([]byte, unsafe.Sizeof(k)+1),
+		numOfDataItems: config.DataNodeAssistant.NumOfItems(),
 	}
 
 	defaultInit := Entry[K, V]{
@@ -50,13 +51,12 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 	s.defaultInit = make([]byte, s.initSize)
 	copy(s.defaultInit, unsafe.Slice((*byte)(unsafe.Pointer(&defaultInit)), s.initSize))
 
-	numOfItems := config.DataNodeAssistant.NumOfItems()
-	s.trials = make([][trials]uint64, 0, numOfItems)
+	s.trials = make([][trials]uint64, 0, s.numOfDataItems)
 	// FIXME (wojciech): Prevent duplicates in the row and generate uniform distribution of each index across the rows.
 	for startIndex := range uint64(cap(s.trials)) {
 		var offsets [trials]uint64
 		for i := range uint64(trials) {
-			offsets[i] = config.DataNodeAssistant.ItemOffset((startIndex + 1<<i + i) % numOfItems)
+			offsets[i] = config.DataNodeAssistant.ItemOffset((startIndex + 1<<i + i) % s.numOfDataItems)
 		}
 		s.trials = append(s.trials, offsets)
 	}
@@ -66,12 +66,13 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 
 // Space represents the substate where values V are stored by key K.
 type Space[K, V comparable] struct {
-	config       Config[K, V]
-	hashBuff     []byte
-	initSize     uint64
-	defaultInit  []byte
-	defaultValue V
-	trials       [][trials]uint64
+	config         Config[K, V]
+	hashBuff       []byte
+	initSize       uint64
+	defaultInit    []byte
+	defaultValue   V
+	trials         [][trials]uint64
+	numOfDataItems uint64
 }
 
 // Find locates key in the space.
@@ -81,6 +82,7 @@ func (s *Space[K, V]) Find(key K) *Entry[K, V] {
 	copy(initBytes, s.defaultInit)
 	v.item.KeyHash = hashKey(&key, s.hashBuff, 0)
 	v.item.Key = key
+	v.dataNodeIndex = dataNodeIndex(v.item.KeyHash, s.numOfDataItems)
 
 	s.find(v, false)
 	return v
@@ -210,7 +212,6 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 func (s *Space[K, V]) valueExists(v *Entry[K, V]) bool {
 	// FIXME (wojciech): This might be done conditionally based on data node revision.
 	if v.storeRequest.PointersToStore > 1 {
-		v.item.KeyHash = PointerUnshift(v.item.KeyHash)
 		v.storeRequest.PointersToStore--
 		v.level--
 	}
@@ -222,7 +223,6 @@ func (s *Space[K, V]) valueExists(v *Entry[K, V]) bool {
 
 func (s *Space[K, V]) readValue(v *Entry[K, V]) V {
 	if v.storeRequest.PointersToStore > 1 {
-		v.item.KeyHash = PointerUnshift(v.item.KeyHash)
 		v.storeRequest.PointersToStore--
 		v.level--
 	}
@@ -234,7 +234,6 @@ func (s *Space[K, V]) readValue(v *Entry[K, V]) V {
 
 func (s *Space[K, V]) deleteValue(tx *pipeline.TransactionRequest, v *Entry[K, V]) error {
 	if v.storeRequest.PointersToStore > 1 {
-		v.item.KeyHash = PointerUnshift(v.item.KeyHash)
 		v.storeRequest.PointersToStore--
 		v.level--
 	}
@@ -265,7 +264,6 @@ func (s *Space[K, V]) setValue(
 	v.item.Value = value
 
 	if v.storeRequest.PointersToStore > 1 {
-		v.item.KeyHash = PointerUnshift(v.item.KeyHash)
 		v.storeRequest.PointersToStore--
 		v.level--
 	}
@@ -377,7 +375,7 @@ func (s *Space[K, V]) set(
 					continue
 				}
 
-				itemIndex := PointerIndex(PointerUnshift(item.KeyHash))
+				itemIndex := PointerIndex(item.KeyHash, v.level-1)
 				if itemIndex&mask != index {
 					continue
 				}
@@ -385,9 +383,6 @@ func (s *Space[K, V]) set(
 				// FIXME (wojciech): By doing this, following accesses must do a lot of hops to determine free slot.
 				// Consider rearranging items in the block to make slots to free instead of deleted.
 				item.State = types.StateDeleted
-
-				item := *item
-				item.KeyHash = PointerUnshift(item.KeyHash)
 
 				// FIXME (wojciech): This creates huge amount of transaction requests.
 				if err := s.set(tx,
@@ -399,9 +394,10 @@ func (s *Space[K, V]) set(
 							},
 							PointersToStore: 1,
 						},
-						item:        item,
-						level:       v.level - 1,
-						parentIndex: index,
+						item:          *item,
+						level:         v.level - 1,
+						parentIndex:   index,
+						dataNodeIndex: dataNodeIndex(item.KeyHash, s.numOfDataItems),
 					}, pool); err != nil {
 					return err
 				}
@@ -412,7 +408,6 @@ func (s *Space[K, V]) set(
 
 			// FIXME (wojciech): Avoid repeating the loop
 			// This must be done because the item to set might go to the newly created data node.
-			v.item.KeyHash = PointerUnshift(v.item.KeyHash)
 			v.storeRequest.PointersToStore--
 			v.level--
 
@@ -467,8 +462,9 @@ func (s *Space[K, V]) redistributeAndSet(
 					Store:           [pipeline.StoreCapacity]types.NodeRoot{pointerNodeRoot},
 					PointersToStore: 1,
 				},
-				item:  *item,
-				level: v.level,
+				item:          *item,
+				level:         v.level,
+				dataNodeIndex: dataNodeIndex(item.KeyHash, s.numOfDataItems),
 			}, pool); err != nil {
 			return err
 		}
@@ -500,7 +496,6 @@ func (s *Space[K, V]) redistributeAndSet(
 
 func (s *Space[K, V]) walkPointers(v *Entry[K, V], processDataNode bool) {
 	for v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StatePointer {
-		v.level++
 		if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Flags.IsSet(types.FlagHashMod) {
 			v.item.KeyHash = hashKey(&v.item.Key, s.hashBuff, v.level)
 		}
@@ -508,7 +503,7 @@ func (s *Space[K, V]) walkPointers(v *Entry[K, V], processDataNode bool) {
 		pointerNode := ProjectPointerNode(s.config.State.Node(
 			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress,
 		))
-		index := PointerIndex(v.item.KeyHash)
+		index := PointerIndex(v.item.KeyHash, v.level)
 		state := pointerNode.Pointers[index].State
 
 		switch {
@@ -534,8 +529,7 @@ func (s *Space[K, V]) walkPointers(v *Entry[K, V], processDataNode bool) {
 			return
 		}
 
-		v.item.KeyHash = PointerShift(v.item.KeyHash)
-
+		v.level++
 		v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
 		v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
 		v.storeRequest.PointersToStore++
@@ -550,8 +544,7 @@ func (s *Space[K, V]) walkDataItems(v *Entry[K, V]) bool {
 
 	var conflict bool
 	node := s.config.State.Node(v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress)
-	startIndex := s.config.DataNodeAssistant.Index(v.item.KeyHash)
-	for i, offsetP := 0, unsafe.Pointer(&s.trials[startIndex]); i < trials; i, offsetP = i+1,
+	for i, offsetP := 0, unsafe.Pointer(&s.trials[v.dataNodeIndex]); i < trials; i, offsetP = i+1,
 		unsafe.Add(offsetP, types.UInt64Length) {
 		item := (*types.DataItem[K, V])(unsafe.Add(node, *(*uint64)(offsetP)))
 
@@ -587,11 +580,12 @@ type Entry[K, V comparable] struct {
 	space        *Space[K, V]
 	storeRequest pipeline.StoreRequest
 
-	itemP       *types.DataItem[K, V]
-	item        types.DataItem[K, V]
-	exists      bool
-	level       uint8
-	parentIndex uint64
+	itemP         *types.DataItem[K, V]
+	item          types.DataItem[K, V]
+	exists        bool
+	level         uint8
+	parentIndex   uint64
+	dataNodeIndex uint64
 }
 
 // Value returns the value from entry.
@@ -645,6 +639,10 @@ func hashKey[K comparable](
 	}
 
 	return hash
+}
+
+func dataNodeIndex(keyHash types.KeyHash, numOfDataItems uint64) uint64 {
+	return (bits.RotateLeft64(uint64(keyHash), types.UInt64Length/2) ^ uint64(keyHash)) % numOfDataItems
 }
 
 func testHash(hash types.KeyHash) types.KeyHash {

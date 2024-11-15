@@ -18,8 +18,7 @@ const (
 )
 
 var (
-	leftShiftBits  = bits.TrailingZeros64(NumOfPointers)
-	rightShiftBits = -1 * leftShiftBits
+	rightShiftBits = -1 * bits.TrailingZeros64(NumOfPointers)
 )
 
 // PointerNode represents pointer node.
@@ -35,16 +34,6 @@ func ProjectPointerNode(n unsafe.Pointer) *PointerNode {
 }
 
 // PointerIndex returns index from hash.
-func PointerIndex(hash types.KeyHash) uint64 {
-	return uint64(hash) & indexMask
-}
-
-// PointerShift shifts bits in hash.
-func PointerShift(hash types.KeyHash) types.KeyHash {
-	return types.KeyHash(bits.RotateLeft64(uint64(hash), rightShiftBits))
-}
-
-// PointerUnshift shifts back bits in hash.
-func PointerUnshift(hash types.KeyHash) types.KeyHash {
-	return types.KeyHash(bits.RotateLeft64(uint64(hash), leftShiftBits))
+func PointerIndex(hash types.KeyHash, level uint8) uint64 {
+	return bits.RotateLeft64(uint64(hash), int(level)*rightShiftBits) & indexMask
 }
