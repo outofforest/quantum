@@ -61,11 +61,12 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 
 // Space represents the substate where values V are stored by key K.
 type Space[K, V comparable] struct {
-	config      Config[K, V]
-	hashBuff    []byte
-	initSize    uint64
-	defaultInit []byte
-	trials      [][trials]uint64
+	config       Config[K, V]
+	hashBuff     []byte
+	initSize     uint64
+	defaultInit  []byte
+	defaultValue V
+	trials       [][trials]uint64
 }
 
 // Find locates key in the space.
@@ -246,6 +247,11 @@ func (s *Space[K, V]) find(v *Entry[K, V], processDataNode bool) {
 	s.walkPointers(v)
 
 	if !processDataNode || v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State != types.StateData {
+		v.item.State = types.StateFree
+		v.itemP = nil
+		v.exists = false
+		v.item.Value = s.defaultValue
+
 		return
 	}
 
@@ -253,7 +259,10 @@ func (s *Space[K, V]) find(v *Entry[K, V], processDataNode bool) {
 
 	if v.item.State == types.StateData {
 		v.item.Value = v.itemP.Value
+		return
 	}
+
+	v.item.Value = s.defaultValue
 }
 
 func (s *Space[K, V]) set(
@@ -280,9 +289,13 @@ func (s *Space[K, V]) set(
 	if v.itemP != nil {
 		tx.AddStoreRequest(&v.storeRequest)
 
+		if v.item.State == types.StateData {
+			v.itemP.Value = v.item.Value
+			return nil
+		}
+
 		v.item.State = types.StateData
 		*v.itemP = v.item
-
 		return nil
 	}
 
