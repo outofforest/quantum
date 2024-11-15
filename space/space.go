@@ -335,17 +335,18 @@ func (s *Space[K, V]) redistributeAndSet(
 		}
 
 		index := PointerIndex(item.KeyHash)
-		root := types.NodeRoot{
-			Hash:    &pointerNode.Hashes[index],
-			Pointer: &pointerNode.Pointers[index],
-		}
 		item.KeyHash = PointerShift(item.KeyHash)
 
 		if err := s.set(tx,
 			&Entry[K, V]{
 				space: s,
 				storeRequest: pipeline.StoreRequest{
-					Store:           [pipeline.StoreCapacity]types.NodeRoot{root},
+					Store: [pipeline.StoreCapacity]types.NodeRoot{
+						{
+							Hash:    &pointerNode.Hashes[index],
+							Pointer: &pointerNode.Pointers[index],
+						},
+					},
 					PointersToStore: 1,
 				},
 				item:  *item,
