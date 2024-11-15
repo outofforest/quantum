@@ -17,7 +17,6 @@ import (
 func NewState(
 	size uint64,
 	nodesPerGroup uint64,
-	numOfSingularityNodes uint64,
 	useHugePages bool,
 	numOfEraseWorkers uint64,
 ) (*State, func(), error) {
@@ -26,45 +25,36 @@ func NewState(
 		// When using huge pages, the size must be a multiple of the hugepage size. Otherwise, munmap fails.
 		opts |= unix.MAP_HUGETLB
 	}
-	data, err := unix.Mmap(-1, 0, int(size), unix.PROT_READ|unix.PROT_WRITE, opts)
+	originalSize := uintptr(size)
+	dataP, err := unix.MmapPtr(-1, 0, nil, originalSize, unix.PROT_READ|unix.PROT_WRITE, opts)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "memory allocation failed")
 	}
 
-	dataOrig := data
+	dataPOrig := dataP
 
 	// Align allocated memory address to the node size. It might be required if using O_DIRECT option to open files.
-	p := uint64(uintptr(unsafe.Pointer(&data[0])))
-	p = (p+types.NodeLength-1)/types.NodeLength*types.NodeLength - p
-	data = data[p:]
+	diff := uint64((uintptr(dataP)+types.NodeLength-1)/types.NodeLength*types.NodeLength - uintptr(dataP))
+	dataP = unsafe.Add(dataP, diff)
+	size -= diff
 
-	size = uint64(len(data))
+	volatileAllocationCh, volatileSingularityNode := NewAllocationCh[types.VolatileAddress](size, nodesPerGroup)
+	persistentAllocationCh, persistentSingularityNode := NewAllocationCh[types.PersistentAddress](size, nodesPerGroup)
 
-	volatileAllocationCh, volatileReservedNodes := NewAllocationCh[types.VolatileAddress](size, nodesPerGroup,
-		1)
-	persistentAllocationCh, persistentReservedNodes := NewAllocationCh[types.PersistentAddress](size,
-		nodesPerGroup, numOfSingularityNodes)
-
-	sNode := (*types.SingularityNode)(unsafe.Add(unsafe.Pointer(&data[0]), volatileReservedNodes[0]))
-	singularityNodeRoots := make([]types.NodeRoot, 0, numOfSingularityNodes)
-	for i := range numOfSingularityNodes {
-		singularityNodeRoots = append(singularityNodeRoots, types.NodeRoot{
-			Hash: &sNode.Hash,
-			Pointer: &types.Pointer{
-				Revision:          1,
-				VolatileAddress:   volatileReservedNodes[0],
-				PersistentAddress: persistentReservedNodes[i%numOfSingularityNodes],
-			},
-		})
-	}
-
+	singularityNode := (*types.SingularityNode)(unsafe.Add(dataP, volatileSingularityNode))
 	return &State{
-			size:                       size,
-			nodesPerGroup:              nodesPerGroup,
-			singularityNodeRoots:       singularityNodeRoots,
+			size:          size,
+			nodesPerGroup: nodesPerGroup,
+			singularityNodeRoot: types.NodeRoot{
+				Hash: &singularityNode.Hash,
+				Pointer: &types.Pointer{
+					Revision:          1,
+					VolatileAddress:   volatileSingularityNode,
+					PersistentAddress: persistentSingularityNode,
+				},
+			},
 			numOfEraseWorkers:          numOfEraseWorkers,
-			data:                       data,
-			dataP:                      unsafe.Pointer(&data[0]),
+			dataP:                      dataP,
 			volatileAllocationCh:       volatileAllocationCh,
 			volatileDeallocationCh:     make(chan []types.VolatileAddress, 10),
 			volatileAllocationPoolCh:   make(chan []types.VolatileAddress, 1),
@@ -73,7 +63,7 @@ func NewState(
 			persistentAllocationPoolCh: make(chan []types.PersistentAddress, 1),
 			closedCh:                   make(chan struct{}),
 		}, func() {
-			_ = unix.Munmap(dataOrig)
+			_ = unix.MunmapPtr(dataPOrig, originalSize)
 		}, nil
 }
 
@@ -81,9 +71,8 @@ func NewState(
 type State struct {
 	size                       uint64
 	nodesPerGroup              uint64
-	singularityNodeRoots       []types.NodeRoot
+	singularityNodeRoot        types.NodeRoot
 	numOfEraseWorkers          uint64
-	data                       []byte
 	dataP                      unsafe.Pointer
 	volatileAllocationCh       chan []types.VolatileAddress
 	volatileDeallocationCh     chan []types.VolatileAddress
@@ -106,9 +95,8 @@ func (s *State) NewPersistentPool() *Pool[types.PersistentAddress] {
 
 // SingularityNodeRoot returns node root of singularity node.
 func (s *State) SingularityNodeRoot(snapshotID types.SnapshotID) types.NodeRoot {
-	root := s.singularityNodeRoots[snapshotID%types.SnapshotID(len(s.singularityNodeRoots))]
-	root.Pointer.SnapshotID = snapshotID // To prevent deallocation of the singularity node.
-	return root
+	s.singularityNodeRoot.Pointer.SnapshotID = snapshotID // To prevent deallocation of the singularity node.
+	return s.singularityNodeRoot
 }
 
 // Node returns node bytes.

@@ -13,26 +13,19 @@ type Address interface {
 func NewAllocationCh[A Address](
 	size uint64,
 	nodesPerGroup uint64,
-	numOfReservedNodes uint64,
-) (chan []A, []A) {
+) (chan []A, A) {
+	const singularityNodeCount = 1
+
 	numOfNodes := size / types.NodeLength
-	numOfNodes -= numOfReservedNodes
+	numOfNodes -= singularityNodeCount
 
 	numOfGroups := numOfNodes / nodesPerGroup
 	numOfNodes = numOfGroups * nodesPerGroup
-	totalNumOfNodes := numOfReservedNodes + numOfNodes
+	totalNumOfNodes := singularityNodeCount + numOfNodes
 
-	spreadFactor := totalNumOfNodes / numOfReservedNodes
-
-	reservedNodes := make([]A, 0, numOfReservedNodes)
 	availableNodes := make([]A, 0, numOfNodes)
-	for i := range totalNumOfNodes {
-		address := A(i * types.NodeLength)
-		if i%spreadFactor == 0 {
-			reservedNodes = append(reservedNodes, address)
-			continue
-		}
-		availableNodes = append(availableNodes, address)
+	for i := uint64(singularityNodeCount); i < totalNumOfNodes; i++ {
+		availableNodes = append(availableNodes, A(i*types.NodeLength))
 	}
 
 	availableNodesCh := make(chan []A, numOfGroups)
@@ -40,5 +33,6 @@ func NewAllocationCh[A Address](
 		availableNodesCh <- availableNodes[i : i+nodesPerGroup]
 	}
 
-	return availableNodesCh, reservedNodes
+	var singularityNode A
+	return availableNodesCh, singularityNode
 }
