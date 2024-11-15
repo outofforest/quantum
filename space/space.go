@@ -242,96 +242,51 @@ func (s *Space[K, V]) setValue(
 	return s.set(tx, v, pool)
 }
 
+func (s *Space[K, V]) find(v *Entry[K, V], processDataNode bool) {
+	s.walkPointers(v)
+
+	if !processDataNode || v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State != types.StateData {
+		return
+	}
+
+	s.walkDataItems(v)
+
+	if v.item.State == types.StateData {
+		v.item.Value = v.itemP.Value
+	}
+}
+
 func (s *Space[K, V]) set(
 	tx *pipeline.TransactionRequest,
 	v *Entry[K, V],
 	pool *alloc.Pool[types.VolatileAddress],
 ) error {
-	for {
-		switch v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State {
-		case types.StateFree:
-			dataNodeAddress, err := pool.Allocate()
-			if err != nil {
-				return err
-			}
+	s.walkPointers(v)
 
-			tx.AddStoreRequest(&v.storeRequest)
-
-			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress = dataNodeAddress
-			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State = types.StateData
-
-			item := s.config.DataNodeAssistant.Item(
-				s.config.State.Node(dataNodeAddress),
-				s.config.DataNodeAssistant.ItemOffset(s.config.DataNodeAssistant.Index(v.item.KeyHash+1)),
-			)
-
-			v.item.State = types.StateData
-			*item = v.item
-
-			v.itemP = item
-			v.exists = true
-
-			return nil
-		case types.StateData:
-			var conflict bool
-			node := s.config.State.Node(v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress)
-			startIndex := s.config.DataNodeAssistant.Index(v.item.KeyHash)
-			for i, offsetP := 0, unsafe.Pointer(&s.trials[startIndex]); i < trials; i, offsetP = i+1,
-				unsafe.Add(offsetP, types.UInt64Length) {
-				item := s.config.DataNodeAssistant.Item(node, *(*uint64)(offsetP))
-
-				if item.State <= types.StateDeleted {
-					tx.AddStoreRequest(&v.storeRequest)
-
-					v.item.State = types.StateData
-					*item = v.item
-
-					v.itemP = item
-					v.exists = true
-
-					return nil
-				}
-
-				if v.item.KeyHash == item.KeyHash {
-					if v.item.Key == item.Key {
-						tx.AddStoreRequest(&v.storeRequest)
-
-						item.Value = v.item.Value
-
-						v.itemP = item
-						v.exists = true
-
-						return nil
-					}
-
-					conflict = true
-				}
-			}
-
-			return s.redistributeAndSet(
-				tx,
-				v,
-				conflict,
-				pool,
-			)
-		default:
-			v.level++
-			if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Flags.IsSet(types.FlagHashMod) {
-				v.item.KeyHash = hashKey(&v.item.Key, s.hashBuff, v.level)
-			}
-
-			pointerNode := ProjectPointerNode(s.config.State.Node(
-				v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress,
-			))
-			index := PointerIndex(v.item.KeyHash)
-			v.item.KeyHash = PointerShift(v.item.KeyHash)
-
-			// FIXME (wojciech): What if by any chance number of pointers exceeds 10?
-			v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
-			v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
-			v.storeRequest.PointersToStore++
+	if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StateFree {
+		dataNodeAddress, err := pool.Allocate()
+		if err != nil {
+			return err
 		}
+
+		v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress = dataNodeAddress
+		v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State = types.StateData
 	}
+
+	// Starting from here the data node is allocated.
+
+	conflict := s.walkDataItems(v)
+
+	if v.itemP != nil {
+		tx.AddStoreRequest(&v.storeRequest)
+
+		v.item.State = types.StateData
+		*v.itemP = v.item
+
+		return nil
+	}
+
+	return s.redistributeAndSet(tx, v, conflict, pool)
 }
 
 func (s *Space[K, V]) redistributeAndSet(
@@ -417,60 +372,62 @@ func (s *Space[K, V]) redistributeAndSet(
 	return nil
 }
 
-func (s *Space[K, V]) find(v *Entry[K, V], processDataNode bool) {
-	for {
-		switch v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State {
-		case types.StatePointer:
-			v.level++
-			if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Flags.IsSet(types.FlagHashMod) {
-				v.item.KeyHash = hashKey(&v.item.Key, s.hashBuff, v.level)
+func (s *Space[K, V]) walkPointers(v *Entry[K, V]) {
+	for v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StatePointer {
+		v.level++
+		if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Flags.IsSet(types.FlagHashMod) {
+			v.item.KeyHash = hashKey(&v.item.Key, s.hashBuff, v.level)
+		}
+
+		pointerNode := ProjectPointerNode(s.config.State.Node(
+			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress,
+		))
+		index := PointerIndex(v.item.KeyHash)
+		v.item.KeyHash = PointerShift(v.item.KeyHash)
+
+		v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
+		v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
+		v.storeRequest.PointersToStore++
+	}
+}
+
+func (s *Space[K, V]) walkDataItems(v *Entry[K, V]) bool {
+	v.item.State = types.StateFree
+	v.itemP = nil
+	v.exists = false
+
+	var conflict bool
+	node := s.config.State.Node(v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress)
+	startIndex := s.config.DataNodeAssistant.Index(v.item.KeyHash)
+	for i, offsetP := 0, unsafe.Pointer(&s.trials[startIndex]); i < trials; i, offsetP = i+1,
+		unsafe.Add(offsetP, types.UInt64Length) {
+		item := (*types.DataItem[K, V])(unsafe.Add(node, *(*uint64)(offsetP)))
+
+		switch item.State {
+		case types.StateFree:
+			if v.itemP == nil {
+				v.itemP = item
 			}
-
-			pointerNode := ProjectPointerNode(s.config.State.Node(
-				v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress,
-			))
-			index := PointerIndex(v.item.KeyHash)
-			v.item.KeyHash = PointerShift(v.item.KeyHash)
-
-			v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
-			v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
-			v.storeRequest.PointersToStore++
+			v.item.State = v.itemP.State
+			return conflict
 		case types.StateData:
-			if !processDataNode {
-				return
-			}
-
-			node := s.config.State.Node(v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress)
-			startIndex := s.config.DataNodeAssistant.Index(v.item.KeyHash)
-			for i, offsetP := 0, unsafe.Pointer(&s.trials[startIndex]); i < trials; i, offsetP = i+1,
-				unsafe.Add(offsetP, types.UInt64Length) {
-				item := (*types.DataItem[K, V])(unsafe.Add(node, *(*uint64)(offsetP)))
-
-				switch item.State {
-				case types.StateFree:
-					if v.itemP == nil {
-						v.itemP = item
-					}
-					return
-				case types.StateData:
-					if item.KeyHash == v.item.KeyHash && item.Key == v.item.Key {
-						v.exists = true
-						v.itemP = item
-						v.item.Value = item.Value
-
-						return
-					}
-				default:
-					if v.itemP == nil {
-						v.itemP = item
-					}
+			if item.KeyHash == v.item.KeyHash {
+				if item.Key == v.item.Key {
+					v.exists = true
+					v.itemP = item
+					v.item.State = v.itemP.State
+					return conflict
 				}
+				conflict = true
 			}
-			return
 		default:
-			return
+			if v.itemP == nil {
+				v.itemP = item
+			}
 		}
 	}
+
+	return conflict
 }
 
 // Entry represents entry in the space.
