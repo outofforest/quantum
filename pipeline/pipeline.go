@@ -79,9 +79,8 @@ type StoreRequest struct {
 	PointersToStore       int8
 	Store                 [StoreCapacity]types.NodeRoot
 
-	RequestedRevision         uint32
-	DeallocateVolatileAddress types.VolatileAddress
-	Next                      *StoreRequest
+	RequestedRevision uint32
+	Next              *StoreRequest
 }
 
 // New creates new pipeline.

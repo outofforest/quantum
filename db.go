@@ -630,9 +630,6 @@ func (db *DB) processAllocationRequests(
 					}
 				}
 			}
-			if sr.DeallocateVolatileAddress != 0 {
-				volatilePool.Deallocate(sr.DeallocateVolatileAddress)
-			}
 		}
 
 		// Sync is here in the pipeline because allocation is the last step required before we may proceed
