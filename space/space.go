@@ -78,7 +78,7 @@ func (s *Space[K, V]) Find(key K) *Entry[K, V] {
 	v := s.config.MassEntry.New()
 	initBytes := unsafe.Slice((*byte)(unsafe.Pointer(v)), s.initSize)
 	copy(initBytes, s.defaultInit)
-	v.item.KeyHash = hashKey(&key, s.hashBuff, 0)
+	v.item.KeyHash = hashKey(&key, nil, 0)
 	v.item.Key = key
 	v.dataNodeIndex = dataNodeIndex(v.item.KeyHash, s.numOfDataItems)
 
@@ -583,14 +583,10 @@ func (v *Entry[K, V]) Delete(
 	return v.space.deleteValue(tx, v)
 }
 
-func hashKey[K comparable](
-	key *K,
-	buff []byte,
-	level uint8,
-) types.KeyHash {
+func hashKey[K comparable](key *K, buff []byte, level uint8) types.KeyHash {
 	var hash types.KeyHash
 	p := photon.NewFromValue[K](key)
-	if level == 0 {
+	if buff == nil {
 		hash = types.KeyHash(xxhash.Sum64(p.B))
 	} else {
 		buff[0] = level
