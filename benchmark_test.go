@@ -59,7 +59,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 		func() {
 			_, _ = rand.Read(accountBytes)
 
-			var size uint64 = 30 * 1024 * 1024 * 1024
+			var size uint64 = 20 * 1024 * 1024 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size,
 				100,
