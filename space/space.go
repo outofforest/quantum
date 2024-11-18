@@ -208,8 +208,8 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 }
 
 func (s *Space[K, V]) valueExists(v *Entry[K, V]) bool {
-	// FIXME (wojciech): This might be done conditionally based on data node revision.
-	if v.storeRequest.PointersToStore > 1 {
+	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
+	if v.storeRequest.PointersToStore > 1 && pointer.State == types.StateData && pointer.Revision != v.revision {
 		v.storeRequest.PointersToStore--
 		v.level--
 	}
@@ -220,7 +220,8 @@ func (s *Space[K, V]) valueExists(v *Entry[K, V]) bool {
 }
 
 func (s *Space[K, V]) readValue(v *Entry[K, V]) V {
-	if v.storeRequest.PointersToStore > 1 {
+	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
+	if v.storeRequest.PointersToStore > 1 && pointer.State == types.StateData && pointer.Revision != v.revision {
 		v.storeRequest.PointersToStore--
 		v.level--
 	}
@@ -231,7 +232,8 @@ func (s *Space[K, V]) readValue(v *Entry[K, V]) V {
 }
 
 func (s *Space[K, V]) deleteValue(tx *pipeline.TransactionRequest, v *Entry[K, V]) error {
-	if v.storeRequest.PointersToStore > 1 {
+	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
+	if v.storeRequest.PointersToStore > 1 && pointer.State == types.StateData && pointer.Revision != v.revision {
 		v.storeRequest.PointersToStore--
 		v.level--
 	}
@@ -261,7 +263,8 @@ func (s *Space[K, V]) setValue(
 ) error {
 	v.item.Value = value
 
-	if v.storeRequest.PointersToStore > 1 {
+	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
+	if v.storeRequest.PointersToStore > 1 && pointer.State == types.StateData && pointer.Revision != v.revision {
 		v.storeRequest.PointersToStore--
 		v.level--
 	}
@@ -458,6 +461,73 @@ func (s *Space[K, V]) redistributeAndSet(
 	return s.set(tx, v, pool)
 }
 
+var pointerHops = [NumOfPointers][]uint64{
+	{},
+	{0x0},
+	{0x0},
+	{0x2, 0x0},
+	{0x0},
+	{0x4, 0x0},
+	{0x4, 0x0},
+	{0x6, 0x4, 0x0},
+	{0x0},
+	{0x8, 0x0},
+	{0x8, 0x0},
+	{0xa, 0x8, 0x0},
+	{0x8, 0x0},
+	{0xc, 0x8, 0x0},
+	{0xc, 0x8, 0x0},
+	{0xe, 0xc, 0x8, 0x0},
+	{0x0},
+	{0x10, 0x0},
+	{0x10, 0x0},
+	{0x12, 0x10, 0x0},
+	{0x10, 0x0},
+	{0x14, 0x10, 0x0},
+	{0x14, 0x10, 0x0},
+	{0x16, 0x14, 0x10, 0x0},
+	{0x10, 0x0},
+	{0x18, 0x10, 0x0},
+	{0x18, 0x10, 0x0},
+	{0x1a, 0x18, 0x10, 0x0},
+	{0x18, 0x10, 0x0},
+	{0x1c, 0x18, 0x10, 0x0},
+	{0x1c, 0x18, 0x10, 0x0},
+	{0x1e, 0x1c, 0x18, 0x10, 0x0},
+	{0x0},
+	{0x20, 0x0},
+	{0x20, 0x0},
+	{0x22, 0x20, 0x0},
+	{0x20, 0x0},
+	{0x24, 0x20, 0x0},
+	{0x24, 0x20, 0x0},
+	{0x26, 0x24, 0x20, 0x0},
+	{0x20, 0x0},
+	{0x28, 0x20, 0x0},
+	{0x28, 0x20, 0x0},
+	{0x2a, 0x28, 0x20, 0x0},
+	{0x28, 0x20, 0x0},
+	{0x2c, 0x28, 0x20, 0x0},
+	{0x2c, 0x28, 0x20, 0x0},
+	{0x2e, 0x2c, 0x28, 0x20, 0x0},
+	{0x20, 0x0},
+	{0x30, 0x20, 0x0},
+	{0x30, 0x20, 0x0},
+	{0x32, 0x30, 0x20, 0x0},
+	{0x30, 0x20, 0x0},
+	{0x34, 0x30, 0x20, 0x0},
+	{0x34, 0x30, 0x20, 0x0},
+	{0x36, 0x34, 0x30, 0x20, 0x0},
+	{0x30, 0x20, 0x0},
+	{0x38, 0x30, 0x20, 0x0},
+	{0x38, 0x30, 0x20, 0x0},
+	{0x3a, 0x38, 0x30, 0x20, 0x0},
+	{0x38, 0x30, 0x20, 0x0},
+	{0x3c, 0x38, 0x30, 0x20, 0x0},
+	{0x3c, 0x38, 0x30, 0x20, 0x0},
+	{0x3e, 0x3c, 0x38, 0x30, 0x20, 0x0},
+}
+
 func (s *Space[K, V]) walkPointers(v *Entry[K, V], processDataNode bool) {
 	for v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StatePointer {
 		if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Flags.IsSet(types.FlagHashMod) {
@@ -470,25 +540,41 @@ func (s *Space[K, V]) walkPointers(v *Entry[K, V], processDataNode bool) {
 		index := PointerIndex(v.item.KeyHash, v.level)
 		state := pointerNode.Pointers[index].State
 
-		switch {
-		case processDataNode:
-			if state == types.StateFree {
-				const lastIndexMask = NumOfPointers - 1
-			loop:
-				for index&lastIndexMask != 0 {
-					newIndex := index & (uint64(math.MaxUint64) << (bits.TrailingZeros64(index) + 1)) // change first 1 to 0
-					switch pointerNode.Pointers[newIndex].State {
-					case types.StateFree:
+		switch state {
+		case types.StateFree:
+			if !processDataNode {
+				return
+			}
+
+			hops := pointerHops[index]
+			var dataFound bool
+			for {
+				hopIndex := len(hops) / 2
+				newIndex := hops[hopIndex]
+
+				switch pointerNode.Pointers[newIndex].State {
+				case types.StateFree:
+					if !dataFound {
 						index = newIndex
-					case types.StateData:
-						index = newIndex
-						break loop
-					default:
-						panic("this should not happen")
 					}
+					hops = hops[hopIndex+1:]
+				case types.StateData:
+					index = newIndex
+					hops = hops[:hopIndex]
+					dataFound = true
+				case types.StatePointer:
+					hops = hops[:hopIndex]
+				}
+
+				if len(hops) == 0 {
+					break
 				}
 			}
-		case state == types.StatePointer || state == types.StateData:
+		case types.StatePointer:
+		case types.StateData:
+			if !processDataNode {
+				return
+			}
 		default:
 			return
 		}
@@ -498,6 +584,7 @@ func (s *Space[K, V]) walkPointers(v *Entry[K, V], processDataNode bool) {
 		v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
 		v.storeRequest.PointersToStore++
 		v.parentIndex = index
+		v.revision = pointerNode.Pointers[index].Revision
 	}
 }
 
@@ -546,10 +633,11 @@ type Entry[K, V comparable] struct {
 
 	itemP         *types.DataItem[K, V]
 	item          types.DataItem[K, V]
-	exists        bool
-	level         uint8
 	parentIndex   uint64
 	dataNodeIndex uint64
+	revision      uint32
+	exists        bool
+	level         uint8
 }
 
 // Value returns the value from entry.
