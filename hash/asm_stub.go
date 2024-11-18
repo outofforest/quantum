@@ -2,7 +2,7 @@
 
 package hash
 
-// Blake3 implements blake3 for 16 1KB messages.
+// Blake3 implements blake3 for 16 4KB messages.
 func Blake3(b **byte, z **byte)
 
 // Transpose8x16 transposes 8x16 matrix made of vectors x0..x7 and stores the results in z0..z7.
