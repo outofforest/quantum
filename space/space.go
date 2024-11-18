@@ -354,62 +354,56 @@ func (s *Space[K, V]) set(
 
 		mask = uint64(math.MaxUint64) << bits.TrailingZeros64(mask)
 		if index != originalIndex {
-			dataNodeAddress, err := pool.Allocate()
+			newDataNodeAddress, err := pool.Allocate()
 			if err != nil {
 				return err
 			}
-			parentNode.Pointers[index].VolatileAddress = dataNodeAddress
-			parentNode.Pointers[index].State = types.StateData
 
-			tx.AddStoreRequest(&pipeline.StoreRequest{
-				Store: [pipeline.StoreCapacity]types.NodeRoot{
-					{
-						Hash:    &parentNode.Hashes[index],
-						Pointer: &parentNode.Pointers[index],
-					},
-				},
-				PointersToStore: 1,
-			})
+			newDataNode := s.config.State.Node(newDataNodeAddress)
 
+			var itemI uint64
 			for item := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(
 				v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress,
 			)) {
-				if item.State != types.StateData {
+				itemI++
+				if item.State == types.StateFree {
+					continue
+				}
+
+				newDataNodeItem := s.config.DataNodeAssistant.Item(newDataNode, s.config.DataNodeAssistant.ItemOffset(itemI-1))
+
+				if item.State == types.StateDeleted {
+					newDataNodeItem.State = types.StateDeleted
 					continue
 				}
 
 				itemIndex := PointerIndex(item.KeyHash, v.level-1)
 				if itemIndex&mask != index {
+					newDataNodeItem.State = types.StateDeleted
 					continue
 				}
 
 				// FIXME (wojciech): By doing this, following accesses must do a lot of hops to determine free slot.
 				// Consider rearranging items in the block to make slots to free instead of deleted.
+				*newDataNodeItem = *item
 				item.State = types.StateDeleted
-
-				// FIXME (wojciech): This creates huge amount of transaction requests.
-				if err := s.set(tx,
-					&Entry[K, V]{
-						space: s,
-						storeRequest: pipeline.StoreRequest{
-							Store: [pipeline.StoreCapacity]types.NodeRoot{
-								v.storeRequest.Store[v.storeRequest.PointersToStore-2],
-							},
-							PointersToStore: 1,
-						},
-						item:          *item,
-						level:         v.level - 1,
-						parentIndex:   index,
-						dataNodeIndex: dataNodeIndex(item.KeyHash, s.numOfDataItems),
-					}, pool); err != nil {
-					return err
-				}
 			}
 
-			// FIXME (wojciech): Store the distributed node, there is no guarantee it will be a part
-			// of the current update.
+			parentNode.Pointers[index].VolatileAddress = newDataNodeAddress
+			parentNode.Pointers[index].State = types.StateData
 
-			// FIXME (wojciech): Avoid repeating the loop
+			tx.AddStoreRequest(&pipeline.StoreRequest{
+				Store: [pipeline.StoreCapacity]types.NodeRoot{
+					v.storeRequest.Store[v.storeRequest.PointersToStore-1],
+					{
+						Hash:    &parentNode.Hashes[index],
+						Pointer: &parentNode.Pointers[index],
+					},
+				},
+				PointersToStore:       2,
+				ImmediateDeallocation: s.config.ImmediateDeallocation,
+			})
+
 			// This must be done because the item to set might go to the newly created data node.
 			v.storeRequest.PointersToStore--
 			v.level--
