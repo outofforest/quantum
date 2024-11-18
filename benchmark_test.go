@@ -32,7 +32,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 20_000_000
+		numOfAddresses = 5_000_000
 		txsPerCommit   = 20_000
 		balance        = 100_000
 	)
@@ -43,11 +43,11 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 	var accounts [numOfAddresses]txtypes.Account
 	accountBytes := unsafe.Slice(&accounts[0][0], unsafe.Sizeof(accounts))
 
-	// f, err := os.Open("accounts")
-	// require.NoError(b, err)
-	// _, err = f.Read(accountBytes)
-	// require.NoError(b, err)
-	// require.NoError(b, f.Close())
+	//f, err := os.Open("accounts")
+	//require.NoError(b, err)
+	//_, err = f.Read(accountBytes)
+	//require.NoError(b, err)
+	//require.NoError(b, f.Close())
 
 	defer func() {
 		if b.Failed() {
@@ -59,7 +59,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 		func() {
 			_, _ = rand.Read(accountBytes)
 
-			var size uint64 = 120 * 1024 * 1024 * 1024
+			var size uint64 = 30 * 1024 * 1024 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size,
 				100,
