@@ -15,7 +15,7 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-const trials = 50
+const trials = 20
 
 // Config stores space configuration.
 type Config[K, V comparable] struct {
@@ -318,6 +318,8 @@ func (s *Space[K, V]) set(
 	if v.itemP != nil {
 		tx.AddStoreRequest(&v.storeRequest)
 
+		v.revision = v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Revision
+
 		if v.item.State == types.StateData {
 			v.itemP.Value = v.item.Value
 			return nil
@@ -589,6 +591,10 @@ func (s *Space[K, V]) walkPointers(v *Entry[K, V], processDataNode bool) {
 }
 
 func (s *Space[K, V]) walkDataItems(v *Entry[K, V]) bool {
+	if v.itemP != nil && v.revision == v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Revision {
+		return false
+	}
+
 	v.item.State = types.StateFree
 	v.itemP = nil
 	v.exists = false
