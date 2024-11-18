@@ -330,79 +330,29 @@ func (s *Space[K, V]) set(
 		return nil
 	}
 
-	// Horizontal redistribution.
-	//nolint:nestif
+	// Try to split data node.
 	if v.storeRequest.PointersToStore > 1 {
-		index := v.parentIndex
-		parentNode := ProjectPointerNode(s.config.State.Node(
-			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer.VolatileAddress),
+		newIndex, mask := s.splitToIndex(
+			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer.VolatileAddress,
+			v.parentIndex,
 		)
-		originalIndex := index
-		trailingZeros := bits.TrailingZeros64(NumOfPointers)
-		if trailingZeros2 := bits.TrailingZeros64(index); trailingZeros2 < trailingZeros {
-			trailingZeros = trailingZeros2
-		}
-		mask := uint64(1) << trailingZeros
-		for mask > 1 {
-			mask >>= 1
-			newIndex := index | mask
-			if parentNode.Pointers[newIndex].State == types.StateFree {
-				index = newIndex
-				break
-			}
-		}
 
-		mask = uint64(math.MaxUint64) << bits.TrailingZeros64(mask)
-		if index != originalIndex {
+		if newIndex != v.parentIndex {
 			newDataNodeAddress, err := pool.Allocate()
 			if err != nil {
 				return err
 			}
 
-			newDataNode := s.config.State.Node(newDataNodeAddress)
-
-			var itemI uint64
-			for item := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(
+			s.splitDataNode(
+				tx,
+				v.parentIndex,
+				newIndex,
+				mask,
+				v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer.VolatileAddress,
 				v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress,
-			)) {
-				itemI++
-				if item.State == types.StateFree {
-					continue
-				}
-
-				newDataNodeItem := s.config.DataNodeAssistant.Item(newDataNode, s.config.DataNodeAssistant.ItemOffset(itemI-1))
-
-				if item.State == types.StateDeleted {
-					newDataNodeItem.State = types.StateDeleted
-					continue
-				}
-
-				itemIndex := PointerIndex(item.KeyHash, v.level-1)
-				if itemIndex&mask != index {
-					newDataNodeItem.State = types.StateDeleted
-					continue
-				}
-
-				// FIXME (wojciech): By doing this, following accesses must do a lot of hops to determine free slot.
-				// Consider rearranging items in the block to make slots to free instead of deleted.
-				*newDataNodeItem = *item
-				item.State = types.StateDeleted
-			}
-
-			parentNode.Pointers[index].VolatileAddress = newDataNodeAddress
-			parentNode.Pointers[index].State = types.StateData
-
-			tx.AddStoreRequest(&pipeline.StoreRequest{
-				Store: [pipeline.StoreCapacity]types.NodeRoot{
-					v.storeRequest.Store[v.storeRequest.PointersToStore-1],
-					{
-						Hash:    &parentNode.Hashes[index],
-						Pointer: &parentNode.Pointers[index],
-					},
-				},
-				PointersToStore:       2,
-				ImmediateDeallocation: s.config.ImmediateDeallocation,
-			})
+				newDataNodeAddress,
+				v.level,
+			)
 
 			// This must be done because the item to set might go to the newly created data node.
 			v.storeRequest.PointersToStore--
@@ -412,13 +362,92 @@ func (s *Space[K, V]) set(
 		}
 	}
 
-	// Vertical redistribution.
-	return s.redistributeAndSet(tx, v, conflict, pool)
+	// Add pointer node.
+	if err := s.addPointerNode(tx, v, conflict, pool); err != nil {
+		return err
+	}
+
+	return s.set(tx, v, pool)
 }
 
-// FIXME (wojciech): Vertical redistribution might be done by moving the data block to the first pointer
-// of new poitner node, followed by horizontal redistribution.
-func (s *Space[K, V]) redistributeAndSet(
+func (s *Space[K, V]) splitToIndex(parentNodeAddress types.VolatileAddress, index uint64) (uint64, uint64) {
+	trailingZeros := bits.TrailingZeros64(NumOfPointers)
+	if trailingZeros2 := bits.TrailingZeros64(index); trailingZeros2 < trailingZeros {
+		trailingZeros = trailingZeros2
+	}
+	mask := uint64(1) << trailingZeros
+
+	parentNode := ProjectPointerNode(s.config.State.Node(parentNodeAddress))
+	for mask > 1 {
+		mask >>= 1
+		newIndex := index | mask
+		if parentNode.Pointers[newIndex].State == types.StateFree {
+			index = newIndex
+			break
+		}
+	}
+
+	return index, uint64(math.MaxUint64) << bits.TrailingZeros64(mask)
+}
+
+func (s *Space[K, V]) splitDataNode(
+	tx *pipeline.TransactionRequest,
+	index uint64,
+	newIndex uint64,
+	mask uint64,
+	parentNodeAddress types.VolatileAddress,
+	existingNodeAddress, newNodeAddress types.VolatileAddress,
+	level uint8,
+) {
+	parentNode := ProjectPointerNode(s.config.State.Node(parentNodeAddress))
+	newDataNode := s.config.State.Node(newNodeAddress)
+
+	var itemI uint64
+	for item := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(existingNodeAddress)) {
+		itemI++
+		if item.State == types.StateFree {
+			continue
+		}
+
+		newDataNodeItem := s.config.DataNodeAssistant.Item(newDataNode, s.config.DataNodeAssistant.ItemOffset(itemI-1))
+
+		if item.State == types.StateDeleted {
+			newDataNodeItem.State = types.StateDeleted
+			continue
+		}
+
+		itemIndex := PointerIndex(item.KeyHash, level-1)
+		if itemIndex&mask != newIndex {
+			newDataNodeItem.State = types.StateDeleted
+			continue
+		}
+
+		// FIXME (wojciech): By doing this, following accesses must do a lot of hops to determine free slot.
+		// Consider rearranging items in the block to make slots to free instead of deleted.
+		*newDataNodeItem = *item
+		item.State = types.StateDeleted
+	}
+
+	parentNode.Pointers[newIndex].VolatileAddress = newNodeAddress
+	parentNode.Pointers[newIndex].State = types.StateData
+
+	tx.AddStoreRequest(&pipeline.StoreRequest{
+		Store: [pipeline.StoreCapacity]types.NodeRoot{
+			{
+				Hash:    &parentNode.Hashes[index],
+				Pointer: &parentNode.Pointers[index],
+			},
+			{
+				Hash:    &parentNode.Hashes[newIndex],
+				Pointer: &parentNode.Pointers[newIndex],
+			},
+		},
+		PointersToStore:       2,
+		ImmediateDeallocation: s.config.ImmediateDeallocation,
+	})
+}
+
+func (s *Space[K, V]) addPointerNode(
 	tx *pipeline.TransactionRequest,
 	v *Entry[K, V],
 	conflict bool,
@@ -429,32 +458,39 @@ func (s *Space[K, V]) redistributeAndSet(
 		return err
 	}
 
-	// Persistent address stays the same, so data node will be reused for pointer node if both are
-	// created in the same snapshot, or data node will be deallocated otherwise.
+	newDataNodeAddress, err := pool.Allocate()
+	if err != nil {
+		return err
+	}
 
 	pointerNode := ProjectPointerNode(s.config.State.Node(pointerNodeAddress))
 	pointerNode.Pointers[0] = *v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
 
-	// The new root must be temporary until all the items are moved. Otherwise, prepare tx goroutine might follow
-	// a wrong path.
+	pointerNodeRoot := &v.storeRequest.Store[v.storeRequest.PointersToStore-1]
 
-	originalPointerNodeRootIndex := v.storeRequest.PointersToStore - 1
-	originalPointerNodeRoot := v.storeRequest.Store[originalPointerNodeRootIndex]
-
-	// It must (!!!) be done as a last step, after moving all the data items to their new positions and
-	// setting the revision by adding store request containing this pointer to the transaction request.
-	originalPointerNodeRoot.Pointer.VolatileAddress = pointerNodeAddress
-	originalPointerNodeRoot.Pointer.State = types.StatePointer
-	originalPointerNodeRoot.Pointer.PersistentAddress = 0
-	originalPointerNodeRoot.Pointer.SnapshotID = 0
+	pointerNodeRoot.Pointer.VolatileAddress = pointerNodeAddress
+	pointerNodeRoot.Pointer.State = types.StatePointer
+	pointerNodeRoot.Pointer.PersistentAddress = 0
+	pointerNodeRoot.Pointer.SnapshotID = 0
 
 	if conflict {
-		originalPointerNodeRoot.Pointer.Flags = originalPointerNodeRoot.Pointer.Flags.Set(types.FlagHashMod)
+		pointerNodeRoot.Pointer.Flags = pointerNodeRoot.Pointer.Flags.Set(types.FlagHashMod)
 	}
 
-	v.storeRequest.Store[originalPointerNodeRootIndex] = originalPointerNodeRoot
+	newIndex, mask := s.splitToIndex(pointerNodeAddress, 0)
 
-	return s.set(tx, v, pool)
+	s.splitDataNode(
+		tx,
+		0,
+		newIndex,
+		mask,
+		pointerNodeAddress,
+		pointerNode.Pointers[0].VolatileAddress,
+		newDataNodeAddress,
+		v.level+1,
+	)
+
+	return nil
 }
 
 var pointerHops = [NumOfPointers][]uint64{
@@ -490,38 +526,38 @@ var pointerHops = [NumOfPointers][]uint64{
 	{0x1c, 0x18, 0x10, 0x0},
 	{0x1c, 0x18, 0x10, 0x0},
 	{0x1e, 0x1c, 0x18, 0x10, 0x0},
-	{0x0},
-	{0x20, 0x0},
-	{0x20, 0x0},
-	{0x22, 0x20, 0x0},
-	{0x20, 0x0},
-	{0x24, 0x20, 0x0},
-	{0x24, 0x20, 0x0},
-	{0x26, 0x24, 0x20, 0x0},
-	{0x20, 0x0},
-	{0x28, 0x20, 0x0},
-	{0x28, 0x20, 0x0},
-	{0x2a, 0x28, 0x20, 0x0},
-	{0x28, 0x20, 0x0},
-	{0x2c, 0x28, 0x20, 0x0},
-	{0x2c, 0x28, 0x20, 0x0},
-	{0x2e, 0x2c, 0x28, 0x20, 0x0},
-	{0x20, 0x0},
-	{0x30, 0x20, 0x0},
-	{0x30, 0x20, 0x0},
-	{0x32, 0x30, 0x20, 0x0},
-	{0x30, 0x20, 0x0},
-	{0x34, 0x30, 0x20, 0x0},
-	{0x34, 0x30, 0x20, 0x0},
-	{0x36, 0x34, 0x30, 0x20, 0x0},
-	{0x30, 0x20, 0x0},
-	{0x38, 0x30, 0x20, 0x0},
-	{0x38, 0x30, 0x20, 0x0},
-	{0x3a, 0x38, 0x30, 0x20, 0x0},
-	{0x38, 0x30, 0x20, 0x0},
-	{0x3c, 0x38, 0x30, 0x20, 0x0},
-	{0x3c, 0x38, 0x30, 0x20, 0x0},
-	{0x3e, 0x3c, 0x38, 0x30, 0x20, 0x0},
+	{},
+	{0x20},
+	{0x20},
+	{0x22, 0x20},
+	{0x20},
+	{0x24, 0x20},
+	{0x24, 0x20},
+	{0x26, 0x24, 0x20},
+	{0x20},
+	{0x28, 0x20},
+	{0x28, 0x20},
+	{0x2a, 0x28, 0x20},
+	{0x28, 0x20},
+	{0x2c, 0x28, 0x20},
+	{0x2c, 0x28, 0x20},
+	{0x2e, 0x2c, 0x28, 0x20},
+	{0x20},
+	{0x30, 0x20},
+	{0x30, 0x20},
+	{0x32, 0x30, 0x20},
+	{0x30, 0x20},
+	{0x34, 0x30, 0x20},
+	{0x34, 0x30, 0x20},
+	{0x36, 0x34, 0x30, 0x20},
+	{0x30, 0x20},
+	{0x38, 0x30, 0x20},
+	{0x38, 0x30, 0x20},
+	{0x3a, 0x38, 0x30, 0x20},
+	{0x38, 0x30, 0x20},
+	{0x3c, 0x38, 0x30, 0x20},
+	{0x3c, 0x38, 0x30, 0x20},
+	{0x3e, 0x3c, 0x38, 0x30, 0x20},
 }
 
 func (s *Space[K, V]) walkPointers(v *Entry[K, V], processDataNode bool) {

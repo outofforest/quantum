@@ -43,7 +43,7 @@ const (
 //     but well-defined portions of data, so we don't need it.
 func Blake3() {
 	TEXT("Blake3", NOSPLIT, "func(b **byte, z **byte)")
-	Doc("Blake3 implements blake3 for 16 1KB messages.")
+	Doc("Blake3 implements blake3 for 16 4KB messages.")
 
 	sInit := [16]uint32{
 		iv0, iv1, iv2, iv3, iv4, iv5, iv6, iv7, iv0, iv1, iv2, iv3, 0, 0, blockSize, 0,
