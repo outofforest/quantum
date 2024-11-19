@@ -3,6 +3,7 @@ package main
 //go:generate go run . -out ../asm.s -stubs ../asm_stub.go -pkg compare
 
 import (
+	"fmt"
 	"math"
 
 	. "github.com/mmcloughlin/avo/build"
@@ -11,22 +12,19 @@ import (
 )
 
 const (
-	uint64Size         = 8
-	numOfValuesInChunk = 8
-	chunkSize          = numOfValuesInChunk * uint64Size
+	uint64Size = 8
 
-	labelReturn    = "return"
-	labelExitZero  = "exitZero"
-	labelZeroFound = "zeroFound"
+	labelLoopChunks   = "loopChunks%d%t"
+	labelLoopBits     = "loopBits%d%t"
+	labelExitLoopBits = "exitLoopBits%d%t"
+	labelExitZero     = "exitZero%d"
+	labelZeroFound    = "zeroFound%d"
+	labelExit         = "exit%d"
 )
 
 // Compare compares uint64 array against value.
 func Compare() {
 	const (
-		labelLoopChunks   = "loopChunks"
-		labelLoopBits     = "loopBits"
-		labelExitLoopBits = "exitLoopBits"
-
 		outputZeroIndex = 0
 		outputCount     = 1
 	)
@@ -44,8 +42,9 @@ func Compare() {
 
 	// Prepare zero index.
 	// Set zero index to max uint64 to detect situation when 0 is not found.
-	rZeroIndex := GP64()
+	rMaxUint64, rZeroIndex := GP64(), GP64()
 	MOVD(U64(math.MaxUint64), rZeroIndex)
+	MOVD(U64(math.MaxUint64), rMaxUint64)
 
 	// Prepare rCmp0 register to compare with 0.
 	r0 := GP64()
@@ -61,25 +60,79 @@ func Compare() {
 	memZ := Mem{Base: Load(Param("z"), GP64())}
 	memX := Mem{Base: Load(Param("x"), GP64())}
 
+	// 8 elements
+
 	chunkLoop(
-		labelLoopChunks, labelLoopBits, labelExitLoopBits,
+		8,
 		memX, memZ,
 		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
-		rCmpV, rCmp0,
+		ZMM(), rCmpV, rCmp0,
 		true,
 	)
 
-	Label(labelZeroFound)
+	Label(fmt.Sprintf(labelZeroFound, 8))
 
 	chunkLoop(
-		labelLoopChunks+"2", labelLoopBits+"2", labelExitLoopBits+"2",
+		8,
 		memX, memZ,
 		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
-		rCmpV, rCmp0,
+		ZMM(), rCmpV, rCmp0,
 		false,
 	)
 
-	Label(labelReturn)
+	Label(fmt.Sprintf(labelExit, 8))
+
+	// 4 elements
+
+	CMPQ(rMaxUint64, rZeroIndex)
+	JNE(LabelRef(fmt.Sprintf(labelZeroFound, 4)))
+
+	chunkLoop(
+		4,
+		memX, memZ,
+		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
+		YMM(), rCmpV.AsY(), rCmp0.AsY(),
+		true,
+	)
+
+	Label(fmt.Sprintf(labelZeroFound, 4))
+
+	chunkLoop(
+		4,
+		memX, memZ,
+		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
+		YMM(), rCmpV.AsY(), rCmp0.AsY(),
+		false,
+	)
+
+	Label(fmt.Sprintf(labelExit, 4))
+
+	// 2 elements
+
+	CMPQ(rMaxUint64, rZeroIndex)
+	JNE(LabelRef(fmt.Sprintf(labelZeroFound, 2)))
+
+	chunkLoop(
+		2,
+		memX, memZ,
+		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
+		XMM(), rCmpV.AsX(), rCmp0.AsX(),
+		true,
+	)
+
+	Label(fmt.Sprintf(labelZeroFound, 2))
+
+	chunkLoop(
+		2,
+		memX, memZ,
+		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
+		XMM(), rCmpV.AsX(), rCmp0.AsX(),
+		false,
+	)
+
+	Label(fmt.Sprintf(labelExit, 2))
+
+	// Return
 
 	Store(rZeroIndex, ReturnIndex(outputZeroIndex))
 	Store(rOutputCounter, ReturnIndex(outputCount))
@@ -88,23 +141,22 @@ func Compare() {
 }
 
 func chunkLoop(
-	labelLoopChunks, labelLoopBits, labelExitLoopBits string,
+	numOfValuesInChunk uint8,
 	memX, memZ Mem,
 	rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex reg.GPVirtual,
-	rCmpV, rCmp0 reg.VecVirtual,
+	rX, rCmpV, rCmp0 reg.Register,
 	findZero bool,
 ) {
-	Label(labelLoopChunks)
+	Label(fmt.Sprintf(labelLoopChunks, numOfValuesInChunk, findZero))
 
 	// Return if there are no more chunks.
-	CMPQ(rChunkCounter, U8(8))
-	JL(LabelRef(labelReturn))
-	SUBQ(U8(8), rChunkCounter)
+	CMPQ(rChunkCounter, U8(numOfValuesInChunk))
+	JL(LabelRef(fmt.Sprintf(labelExit, numOfValuesInChunk)))
+	SUBQ(U8(numOfValuesInChunk), rChunkCounter)
 
 	// Load chunk and go to the next input.
-	rX := ZMM()
 	VMOVDQU64(memX, rX)
-	ADDQ(U8(chunkSize), memX.Base)
+	ADDQ(U8(numOfValuesInChunk*uint64Size), memX.Base)
 
 	// Compare values.
 	rKMask := K()
@@ -116,9 +168,9 @@ func chunkLoop(
 	MOVD(U64(0), rMask)
 	KMOVB(rKMask, rMask.As32())
 
-	Label(labelLoopBits)
+	Label(fmt.Sprintf(labelLoopBits, numOfValuesInChunk, findZero))
 	TESTQ(rMask, rMask)
-	JZ(LabelRef(labelExitLoopBits))
+	JZ(LabelRef(fmt.Sprintf(labelExitLoopBits, numOfValuesInChunk, findZero)))
 
 	// Find index of first 1 bit and reset it to 0.
 	BSFQ(rMask, rIndex)
@@ -130,9 +182,9 @@ func chunkLoop(
 	ADDQ(U8(uint64Size), memZ.Base)
 	INCQ(rOutputCounter)
 
-	JMP(LabelRef(labelLoopBits))
+	JMP(LabelRef(fmt.Sprintf(labelLoopBits, numOfValuesInChunk, findZero)))
 
-	Label(labelExitLoopBits)
+	Label(fmt.Sprintf(labelExitLoopBits, numOfValuesInChunk, findZero))
 
 	if findZero {
 		// Compare with 0.
@@ -141,20 +193,20 @@ func chunkLoop(
 
 		// Exit if 0 is not found.
 		TESTQ(rMask, rMask)
-		JZ(LabelRef(labelExitZero))
+		JZ(LabelRef(fmt.Sprintf(labelExitZero, numOfValuesInChunk)))
 
 		// Return index of first 0.
 		BSFQ(rMask, rZeroIndex)
 		ADDQ(rIndexCounter, rZeroIndex)
 
 		ADDQ(U8(numOfValuesInChunk), rIndexCounter)
-		JMP(LabelRef(labelZeroFound))
+		JMP(LabelRef(fmt.Sprintf(labelZeroFound, numOfValuesInChunk)))
 
-		Label(labelExitZero)
+		Label(fmt.Sprintf(labelExitZero, numOfValuesInChunk))
 	}
 
 	ADDQ(U8(numOfValuesInChunk), rIndexCounter)
-	JMP(LabelRef(labelLoopChunks))
+	JMP(LabelRef(fmt.Sprintf(labelLoopChunks, numOfValuesInChunk, findZero)))
 }
 
 func main() {
