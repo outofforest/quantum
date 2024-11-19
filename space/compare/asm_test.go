@@ -13,23 +13,38 @@ func TestCompare(t *testing.T) {
 	values := values
 
 	res := resDef
-	zeroIndex := Compare(0, &values[0], &res[0])
-	assert.Equal(t, [8]uint8{5, 6, m, m, m, m, m, m}, res)
-	assert.Equal(t, uint8(5), zeroIndex)
+	zeroIndex := Compare(0, &values[0], &res[0], 2)
+	assert.Equal(t, [32]uint64{
+		5, 6, 13, 14, m, m, m, m, m, m, m, m, m, m, m, m,
+		m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m,
+	}, res)
+	assert.Equal(t, uint64(5), zeroIndex)
 
 	res = resDef
-	Compare(1, &values[0], &res[0])
-	assert.Equal(t, [8]uint8{1, 4, m, m, m, m, m, m}, res)
+	Compare(1, &values[0], &res[0], 2)
+	assert.Equal(t, [32]uint64{
+		1, 4, 9, 12, m, m, m, m, m, m, m, m, m, m, m, m,
+		m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m,
+	}, res)
 
 	res = resDef
-	Compare(2, &values[0], &res[0])
-	assert.Equal(t, [8]uint8{0, 2, m, m, m, m, m, m}, res)
+	Compare(2, &values[0], &res[0], 2)
+	assert.Equal(t, [32]uint64{
+		0, 2, 8, 10, m, m, m, m, m, m, m, m, m, m, m, m,
+		m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m,
+	}, res)
 
 	res = resDef
-	Compare(3, &values[0], &res[0])
-	assert.Equal(t, [8]uint8{3, m, m, m, m, m, m, m}, res)
+	Compare(3, &values[0], &res[0], 2)
+	assert.Equal(t, [32]uint64{
+		3, 11, m, m, m, m, m, m, m, m, m, m, m, m, m, m,
+		m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m,
+	}, res)
 
 	res = resDef
-	Compare(4, &values[0], &res[0])
-	assert.Equal(t, [8]uint8{7, m, m, m, m, m, m, m}, res)
+	Compare(4, &values[0], &res[0], 2)
+	assert.Equal(t, [32]uint64{
+		7, 15, m, m, m, m, m, m, m, m, m, m, m, m, m, m,
+		m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m,
+	}, res)
 }

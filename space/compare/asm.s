@@ -2,36 +2,56 @@
 
 #include "textflag.h"
 
-// func Compare(v uint64, x *uint64, z *uint8) uint8
+// func Compare(v uint64, x *uint64, z *uint64, count uint64) uint64
 // Requires: AVX512DQ, AVX512F
-TEXT ·Compare(SB), NOSPLIT, $0-25
-	MOVQ         x+8(FP), AX
-	VMOVDQU64    (AX), Z0
-	MOVQ         z+16(FP), AX
-	MOVQ         v+0(FP), DX
-	VPBROADCASTQ DX, Z1
-	VPCMPEQQ     Z0, Z1, K1
-	MOVD         $0x0000000000000000, DX
-	KMOVB        K1, DX
+TEXT ·Compare(SB), NOSPLIT, $0-40
+	MOVQ         count+24(FP), AX
+	MOVD         $0x0000000000000000, CX
+	MOVD         $0xffffffffffffffff, DX
+	MOVD         $0xffffffffffffffff, BX
+	MOVQ         BX, ret+32(FP)
+	MOVD         $0x0000000000000000, SI
+	VPBROADCASTQ SI, Z0
+	MOVQ         v+0(FP), SI
+	VPBROADCASTQ SI, Z1
+	MOVQ         z+16(FP), SI
+	MOVQ         x+8(FP), R8
 
-loop:
-	TESTQ DX, DX
-	JZ    return
-	BSFQ  DX, CX
-	BTRQ  CX, DX
-	MOVB  CL, (AX)
-	ADDQ  $0x01, AX
-	JMP   loop
+loopChunks:
+	TESTQ     AX, AX
+	JZ        return
+	DECQ      AX
+	VMOVDQU64 (R8), Z2
+	ADDQ      $0x40, R8
+	VPCMPEQQ  Z2, Z1, K1
+	MOVD      $0x0000000000000000, R9
+	KMOVB     K1, R9
+
+loopBits:
+	TESTQ R9, R9
+	JZ    exitLoopBits
+	BSFQ  R9, DI
+	BTRQ  DI, R9
+	ADDQ  CX, DI
+	MOVD  DI, (SI)
+	ADDQ  $0x08, SI
+	JMP   loopBits
+
+exitLoopBits:
+	MOVD     BX, R9
+	XORQ     DX, R9
+	JNZ      exitZero
+	VPCMPEQQ Z2, Z0, K1
+	KMOVB    K1, R9
+	TESTQ    R9, R9
+	JZ       exitZero
+	BSFQ     R9, BX
+	ADDQ     CX, BX
+	MOVQ     BX, ret+32(FP)
+
+exitZero:
+	ADDQ $0x08, CX
+	JMP  loopChunks
 
 return:
-	MOVD         $0x0000000000000000, AX
-	VPBROADCASTQ AX, Z1
-	VPCMPEQQ     Z0, Z1, K1
-	KMOVB        K1, DX
-	TESTQ        DX, DX
-	JZ           return2
-	BSFQ         DX, CX
-	MOVB         CL, ret+24(FP)
-
-return2:
 	RET
