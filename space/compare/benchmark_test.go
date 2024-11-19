@@ -25,11 +25,11 @@ func BenchmarkCompareGo(b *testing.B) {
 
 	res := resDef
 	var foundZero bool
-	var zeroIndex uint64
+	var zeroIndex, count uint64
 
 	b.StartTimer()
 	for range b.N {
-		var j uint8
+		count = 0
 		for i, v := range values {
 			switch v {
 			case 0:
@@ -38,7 +38,8 @@ func BenchmarkCompareGo(b *testing.B) {
 					foundZero = true
 				}
 			case 2:
-				res[j] = uint64(i)
+				res[count] = uint64(i)
+				count++
 			}
 		}
 	}
@@ -46,6 +47,7 @@ func BenchmarkCompareGo(b *testing.B) {
 
 	_, _ = fmt.Fprint(io.Discard, res)
 	_, _ = fmt.Fprint(io.Discard, zeroIndex)
+	_, _ = fmt.Fprint(io.Discard, count)
 }
 
 func BenchmarkCompareAVX(b *testing.B) {
@@ -53,14 +55,15 @@ func BenchmarkCompareAVX(b *testing.B) {
 	b.ResetTimer()
 
 	res := resDef
-	var zeroIndex uint64
+	var zeroIndex, count uint64
 
 	b.StartTimer()
 	for range b.N {
-		zeroIndex = Compare(2, &values[0], &res[0], 4)
+		zeroIndex, count = Compare(2, &values[0], &res[0], 4)
 	}
 	b.StopTimer()
 
 	_, _ = fmt.Fprint(io.Discard, res)
 	_, _ = fmt.Fprint(io.Discard, zeroIndex)
+	_, _ = fmt.Fprint(io.Discard, count)
 }

@@ -23,22 +23,26 @@ func Compare() {
 		labelExitLoopBits = "exitLoopBits"
 		labelExitZero     = "exitZero"
 		labelReturn       = "return"
+
+		outputZeroIndex = 0
+		outputCount     = 1
 	)
 
-	TEXT("Compare", NOSPLIT, "func(v uint64, x *uint64, z *uint64, count uint64) uint64")
+	TEXT("Compare", NOSPLIT, "func(v uint64, x *uint64, z *uint64, count uint64) (uint64, uint64)")
 	Doc("Compare compares uint64 array against value.")
 
 	// Load counters.
 	rChunkCounter := Load(Param("count"), GP64())
 	rIndexCounter := GP64()
 	MOVD(U64(0), rIndexCounter)
+	rOutputCounter := GP64()
+	MOVD(U64(0), rOutputCounter)
 
 	// Prepare zero index.
 	// Set zero index to max uint64 to detect situation when 0 is not found.
 	rMaxUint64, rZeroIndex := GP64(), GP64()
 	MOVD(U64(math.MaxUint64), rMaxUint64)
 	MOVD(U64(math.MaxUint64), rZeroIndex)
-	Store(rZeroIndex, ReturnIndex(0))
 
 	// Prepare rCmp0 register to compare with 0.
 	r0 := GP64()
@@ -91,6 +95,7 @@ func Compare() {
 	ADDQ(rIndexCounter, rIndex)
 	MOVD(rIndex, memZ)
 	ADDQ(U8(uint64Size), memZ.Base)
+	INCQ(rOutputCounter)
 
 	JMP(LabelRef(labelLoopBits))
 
@@ -113,7 +118,6 @@ func Compare() {
 	// Return index of first 0.
 	BSFQ(rMask, rZeroIndex)
 	ADDQ(rIndexCounter, rZeroIndex)
-	Store(rZeroIndex, ReturnIndex(0))
 
 	Label(labelExitZero)
 
@@ -121,6 +125,10 @@ func Compare() {
 	JMP(LabelRef(labelLoopChunks))
 
 	Label(labelReturn)
+
+	Store(rZeroIndex, ReturnIndex(outputZeroIndex))
+	Store(rOutputCounter, ReturnIndex(outputCount))
+
 	RET()
 }
 
