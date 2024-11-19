@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/bits"
 	"sort"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/cespare/xxhash"
@@ -15,7 +16,7 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-const trials = 20
+const trials = 50
 
 // Config stores space configuration.
 type Config[K, V comparable] struct {
@@ -82,7 +83,7 @@ func (s *Space[K, V]) Find(key K) *Entry[K, V] {
 	v.item.Key = key
 	v.dataNodeIndex = dataNodeIndex(v.item.KeyHash, s.numOfDataItems)
 
-	s.find(v, false)
+	s.find(v)
 	return v
 }
 
@@ -209,36 +210,48 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 
 func (s *Space[K, V]) valueExists(v *Entry[K, V]) bool {
 	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
-	if v.storeRequest.PointersToStore > 1 && pointer.State == types.StateData && pointer.Revision != v.revision {
-		v.storeRequest.PointersToStore--
-		v.level--
+	if pointer.Revision != v.revision {
+		if v.storeRequest.PointersToStore > 1 {
+			v.storeRequest.PointersToStore--
+			v.level--
+		}
+
+		v.itemP = nil
 	}
 
-	s.find(v, true)
+	s.find(v)
 
 	return v.exists
 }
 
 func (s *Space[K, V]) readValue(v *Entry[K, V]) V {
 	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
-	if v.storeRequest.PointersToStore > 1 && pointer.State == types.StateData && pointer.Revision != v.revision {
-		v.storeRequest.PointersToStore--
-		v.level--
+	if pointer.Revision != v.revision {
+		if v.storeRequest.PointersToStore > 1 {
+			v.storeRequest.PointersToStore--
+			v.level--
+		}
+
+		v.itemP = nil
 	}
 
-	s.find(v, true)
+	s.find(v)
 
 	return v.item.Value
 }
 
 func (s *Space[K, V]) deleteValue(tx *pipeline.TransactionRequest, v *Entry[K, V]) error {
 	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
-	if v.storeRequest.PointersToStore > 1 && pointer.State == types.StateData && pointer.Revision != v.revision {
-		v.storeRequest.PointersToStore--
-		v.level--
+	if pointer.Revision != v.revision {
+		if v.storeRequest.PointersToStore > 1 {
+			v.storeRequest.PointersToStore--
+			v.level--
+		}
+
+		v.itemP = nil
 	}
 
-	s.find(v, true)
+	s.find(v)
 
 	switch {
 	case v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StateFree:
@@ -246,10 +259,10 @@ func (s *Space[K, V]) deleteValue(tx *pipeline.TransactionRequest, v *Entry[K, V
 	default:
 		// If we are here it means `s.find` found the slot with matching key so don't need to check hash and key again.
 
-		tx.AddStoreRequest(&v.storeRequest)
-
 		v.item.State = types.StateDeleted
 		v.itemP.State = types.StateDeleted
+
+		tx.AddStoreRequest(&v.storeRequest)
 	}
 
 	return nil
@@ -264,18 +277,22 @@ func (s *Space[K, V]) setValue(
 	v.item.Value = value
 
 	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
-	if v.storeRequest.PointersToStore > 1 && pointer.State == types.StateData && pointer.Revision != v.revision {
-		v.storeRequest.PointersToStore--
-		v.level--
+	if pointer.Revision != v.revision {
+		if v.storeRequest.PointersToStore > 1 {
+			v.storeRequest.PointersToStore--
+			v.level--
+		}
+
+		v.itemP = nil
 	}
 
 	return s.set(tx, v, pool)
 }
 
-func (s *Space[K, V]) find(v *Entry[K, V], processDataNode bool) {
-	s.walkPointers(v, processDataNode)
+func (s *Space[K, V]) find(v *Entry[K, V]) {
+	s.walkPointers(v)
 
-	if !processDataNode || v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State != types.StateData {
+	if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State != types.StateData {
 		v.item.State = types.StateFree
 		v.itemP = nil
 		v.exists = false
@@ -299,7 +316,7 @@ func (s *Space[K, V]) set(
 	v *Entry[K, V],
 	pool *alloc.Pool[types.VolatileAddress],
 ) error {
-	s.walkPointers(v, true)
+	s.walkPointers(v)
 
 	if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StateFree {
 		dataNodeAddress, err := pool.Allocate()
@@ -316,17 +333,16 @@ func (s *Space[K, V]) set(
 	conflict := s.walkDataItems(v)
 
 	if v.itemP != nil {
-		tx.AddStoreRequest(&v.storeRequest)
-
-		v.revision = v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Revision
-
 		if v.item.State == types.StateData {
 			v.itemP.Value = v.item.Value
-			return nil
+		} else {
+			v.item.State = types.StateData
+			*v.itemP = v.item
 		}
 
-		v.item.State = types.StateData
-		*v.itemP = v.item
+		tx.AddStoreRequest(&v.storeRequest)
+		v.revision = v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Revision
+
 		return nil
 	}
 
@@ -560,7 +576,7 @@ var pointerHops = [NumOfPointers][]uint64{
 	{0x3e, 0x3c, 0x38, 0x30, 0x20},
 }
 
-func (s *Space[K, V]) walkPointers(v *Entry[K, V], processDataNode bool) {
+func (s *Space[K, V]) walkPointers(v *Entry[K, V]) {
 	for v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StatePointer {
 		if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Flags.IsSet(types.FlagHashMod) {
 			v.item.KeyHash = hashKey(&v.item.Key, s.hashBuff, v.level)
@@ -574,13 +590,9 @@ func (s *Space[K, V]) walkPointers(v *Entry[K, V], processDataNode bool) {
 
 		switch state {
 		case types.StateFree:
-			if !processDataNode {
-				return
-			}
-
 			hops := pointerHops[index]
 			var dataFound bool
-			for {
+			for len(hops) > 0 {
 				hopIndex := len(hops) / 2
 				newIndex := hops[hopIndex]
 
@@ -597,16 +609,9 @@ func (s *Space[K, V]) walkPointers(v *Entry[K, V], processDataNode bool) {
 				case types.StatePointer:
 					hops = hops[:hopIndex]
 				}
-
-				if len(hops) == 0 {
-					break
-				}
 			}
 		case types.StatePointer:
 		case types.StateData:
-			if !processDataNode {
-				return
-			}
 		default:
 			return
 		}
@@ -616,12 +621,12 @@ func (s *Space[K, V]) walkPointers(v *Entry[K, V], processDataNode bool) {
 		v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
 		v.storeRequest.PointersToStore++
 		v.parentIndex = index
-		v.revision = pointerNode.Pointers[index].Revision
+		v.revision = atomic.LoadUint32(&pointerNode.Pointers[index].Revision)
 	}
 }
 
 func (s *Space[K, V]) walkDataItems(v *Entry[K, V]) bool {
-	if v.itemP != nil && v.revision == v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Revision {
+	if v.itemP != nil {
 		return false
 	}
 
@@ -652,10 +657,12 @@ func (s *Space[K, V]) walkDataItems(v *Entry[K, V]) bool {
 				}
 				conflict = true
 			}
-		default:
+		case types.StateDeleted:
 			if v.itemP == nil {
 				v.itemP = item
 			}
+		default:
+			return conflict
 		}
 	}
 
