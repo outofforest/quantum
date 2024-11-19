@@ -97,9 +97,9 @@ func chunkLoop(
 	Label(labelLoopChunks)
 
 	// Return if there are no more chunks.
-	TESTQ(rChunkCounter, rChunkCounter)
-	JZ(LabelRef(labelReturn))
-	DECQ(rChunkCounter)
+	CMPQ(rChunkCounter, U8(8))
+	JL(LabelRef(labelReturn))
+	SUBQ(U8(8), rChunkCounter)
 
 	// Load chunk and go to the next input.
 	rX := ZMM()

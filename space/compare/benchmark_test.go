@@ -59,7 +59,7 @@ func BenchmarkCompareAVX(b *testing.B) {
 
 	b.StartTimer()
 	for range b.N {
-		zeroIndex, count = Compare(2, &values[0], &res[0], 4)
+		zeroIndex, count = Compare(2, &values[0], &res[0], 32)
 	}
 	b.StopTimer()
 

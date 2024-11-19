@@ -17,9 +17,9 @@ TEXT ·Compare(SB), NOSPLIT, $0-48
 	MOVQ         x+8(FP), R9
 
 loopChunks:
-	TESTQ     AX, AX
-	JZ        return
-	DECQ      AX
+	CMPQ      AX, $0x08
+	JL        return
+	SUBQ      $0x08, AX
 	VMOVDQU64 (R9), Z2
 	ADDQ      $0x40, R9
 	VPCMPEQQ  Z2, Z1, K1
@@ -53,9 +53,9 @@ exitZero:
 
 zeroFound:
 loopChunks2:
-	TESTQ     AX, AX
-	JZ        return
-	DECQ      AX
+	CMPQ      AX, $0x08
+	JL        return
+	SUBQ      $0x08, AX
 	VMOVDQU64 (R9), Z0
 	ADDQ      $0x40, R9
 	VPCMPEQQ  Z0, Z1, K1
