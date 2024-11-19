@@ -24,12 +24,14 @@ func (t *Tx) Execute(
 	space *space.Space[txtypes.Account, txtypes.Amount],
 	tx *pipeline.TransactionRequest,
 	volatilePool *alloc.Pool[types.VolatileAddress],
+	hashMatches []uint64,
 ) error {
 	for _, a := range t.Accounts {
-		if err := space.Find(a.Account).Set(
+		if err := space.Find(a.Account, hashMatches).Set(
 			a.Amount,
 			tx,
 			volatilePool,
+			hashMatches,
 		); err != nil {
 			return err
 		}

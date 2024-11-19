@@ -32,7 +32,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 5_000_000
+		numOfAddresses = 20_000_000
 		txsPerCommit   = 20_000
 		balance        = 100_000
 	)
@@ -59,7 +59,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 		func() {
 			_, _ = rand.Read(accountBytes)
 
-			var size uint64 = 20 * 1024 * 1024 * 1024
+			var size uint64 = 120 * 1024 * 1024 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size,
 				100,
@@ -117,6 +117,8 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				panic(err)
 			}
 
+			hashMatches := s.NewHashMatches()
+
 			func() {
 				db.ApplyTransaction(&genesis.Tx{
 					Accounts: []genesis.InitialBalance{
@@ -133,9 +135,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				fmt.Println(s.Stats())
 				fmt.Println("===========================")
 
-				v := s.Find(txtypes.GenesisAccount)
-				require.True(b, v.Exists())
-				require.Equal(b, txtypes.Amount(numOfAddresses*balance), v.Value())
+				v := s.Find(txtypes.GenesisAccount, hashMatches)
+				require.True(b, v.Exists(hashMatches))
+				require.Equal(b, txtypes.Amount(numOfAddresses*balance), v.Value(hashMatches))
 			}()
 
 			txIndex := 0
@@ -172,14 +174,14 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			func() {
 				fmt.Println(s.Stats())
 
-				v := s.Find(txtypes.GenesisAccount)
-				require.True(b, v.Exists())
-				require.Equal(b, txtypes.Amount(0), v.Value())
+				v := s.Find(txtypes.GenesisAccount, hashMatches)
+				require.True(b, v.Exists(hashMatches))
+				require.Equal(b, txtypes.Amount(0), v.Value(hashMatches))
 
 				for _, addr := range accounts {
-					v := s.Find(addr)
-					require.True(b, v.Exists())
-					require.Equal(b, txtypes.Amount(balance), v.Value())
+					v := s.Find(addr, hashMatches)
+					require.True(b, v.Exists(hashMatches))
+					require.Equal(b, txtypes.Amount(balance), v.Value(hashMatches))
 				}
 			}()
 		}()
