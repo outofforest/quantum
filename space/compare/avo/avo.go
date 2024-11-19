@@ -62,7 +62,7 @@ func Compare() {
 
 	// 8 elements
 
-	chunkLoop(
+	processChunks(
 		8,
 		memX, memZ,
 		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
@@ -72,7 +72,7 @@ func Compare() {
 
 	Label(fmt.Sprintf(labelZeroFound, 8))
 
-	chunkLoop(
+	processChunks(
 		8,
 		memX, memZ,
 		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
@@ -87,7 +87,7 @@ func Compare() {
 	CMPQ(rMaxUint64, rZeroIndex)
 	JNE(LabelRef(fmt.Sprintf(labelZeroFound, 4)))
 
-	chunkLoop(
+	processChunks(
 		4,
 		memX, memZ,
 		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
@@ -97,7 +97,7 @@ func Compare() {
 
 	Label(fmt.Sprintf(labelZeroFound, 4))
 
-	chunkLoop(
+	processChunks(
 		4,
 		memX, memZ,
 		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
@@ -112,7 +112,7 @@ func Compare() {
 	CMPQ(rMaxUint64, rZeroIndex)
 	JNE(LabelRef(fmt.Sprintf(labelZeroFound, 2)))
 
-	chunkLoop(
+	processChunks(
 		2,
 		memX, memZ,
 		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
@@ -122,7 +122,7 @@ func Compare() {
 
 	Label(fmt.Sprintf(labelZeroFound, 2))
 
-	chunkLoop(
+	processChunks(
 		2,
 		memX, memZ,
 		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
@@ -132,6 +132,30 @@ func Compare() {
 
 	Label(fmt.Sprintf(labelExit, 2))
 
+	// 1 element
+
+	TESTQ(rChunkCounter, rChunkCounter)
+	JZ(LabelRef(fmt.Sprintf(labelExit, 1)))
+
+	rX := GP64()
+	MOVQ(memX, rX)
+	CMPQ(rX, rV)
+	JNE(LabelRef("checkZero"))
+
+	MOVQ(rIndexCounter, memZ)
+
+	Label("checkZero")
+
+	CMPQ(rMaxUint64, rZeroIndex)
+	JNE(LabelRef(fmt.Sprintf(labelExit, 1)))
+
+	TESTQ(rMaxUint64, rX)
+	JNZ(LabelRef(fmt.Sprintf(labelExit, 1)))
+
+	MOVQ(rIndexCounter, rZeroIndex)
+
+	Label(fmt.Sprintf(labelExit, 1))
+
 	// Return
 
 	Store(rZeroIndex, ReturnIndex(outputZeroIndex))
@@ -140,14 +164,16 @@ func Compare() {
 	RET()
 }
 
-func chunkLoop(
+func processChunks(
 	numOfValuesInChunk uint8,
 	memX, memZ Mem,
 	rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex reg.GPVirtual,
 	rX, rCmpV, rCmp0 reg.Register,
 	findZero bool,
 ) {
-	Label(fmt.Sprintf(labelLoopChunks, numOfValuesInChunk, findZero))
+	if numOfValuesInChunk == 8 {
+		Label(fmt.Sprintf(labelLoopChunks, numOfValuesInChunk, findZero))
+	}
 
 	// Return if there are no more chunks.
 	CMPQ(rChunkCounter, U8(numOfValuesInChunk))
@@ -206,7 +232,12 @@ func chunkLoop(
 	}
 
 	ADDQ(U8(numOfValuesInChunk), rIndexCounter)
-	JMP(LabelRef(fmt.Sprintf(labelLoopChunks, numOfValuesInChunk, findZero)))
+
+	if numOfValuesInChunk == 8 {
+		JMP(LabelRef(fmt.Sprintf(labelLoopChunks, numOfValuesInChunk, findZero)))
+	} else {
+		JMP(LabelRef(fmt.Sprintf(labelExit, numOfValuesInChunk)))
+	}
 }
 
 func main() {

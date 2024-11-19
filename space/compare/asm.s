@@ -4,7 +4,7 @@
 
 // func Compare(v uint64, x *uint64, z *uint64, count uint64) (uint64, uint64)
 // Requires: AVX512DQ, AVX512F, AVX512VL
-TEXT ·Compare(SB), NOSPLIT, $0-48
+TEXT ·Compare(SB), NOSPLIT, $8-48
 	MOVQ         count+24(FP), AX
 	MOVD         $0x0000000000000000, CX
 	MOVD         $0x0000000000000000, DX
@@ -14,36 +14,36 @@ TEXT ·Compare(SB), NOSPLIT, $0-48
 	VPBROADCASTQ DI, Z0
 	MOVQ         v+0(FP), DI
 	VPBROADCASTQ DI, Z1
-	MOVQ         z+16(FP), DI
-	MOVQ         x+8(FP), R14
+	MOVQ         z+16(FP), R14
+	MOVQ         x+8(FP), R15
 
 loopChunks8true:
 	CMPQ      AX, $0x08
 	JL        exit8
 	SUBQ      $0x08, AX
-	VMOVDQU64 (R14), Z2
-	ADDQ      $0x40, R14
+	VMOVDQU64 (R15), Z2
+	ADDQ      $0x40, R15
 	VPCMPEQQ  Z2, Z1, K1
-	MOVD      $0x0000000000000000, R15
-	KMOVB     K1, R15
+	MOVD      $0x0000000000000000, BP
+	KMOVB     K1, BP
 
 loopBits8true:
-	TESTQ R15, R15
+	TESTQ BP, BP
 	JZ    exitLoopBits8true
-	BSFQ  R15, R8
-	BTRQ  R8, R15
+	BSFQ  BP, R8
+	BTRQ  R8, BP
 	ADDQ  CX, R8
-	MOVD  R8, (DI)
-	ADDQ  $0x08, DI
+	MOVD  R8, (R14)
+	ADDQ  $0x08, R14
 	INCQ  DX
 	JMP   loopBits8true
 
 exitLoopBits8true:
 	VPCMPEQQ Z2, Z0, K1
-	KMOVB    K1, R15
-	TESTQ    R15, R15
+	KMOVB    K1, BP
+	TESTQ    BP, BP
 	JZ       exitZero8
-	BSFQ     R15, SI
+	BSFQ     BP, SI
 	ADDQ     CX, SI
 	ADDQ     $0x08, CX
 	JMP      zeroFound8
@@ -57,8 +57,8 @@ loopChunks8false:
 	CMPQ      AX, $0x08
 	JL        exit8
 	SUBQ      $0x08, AX
-	VMOVDQU64 (R14), Z2
-	ADDQ      $0x40, R14
+	VMOVDQU64 (R15), Z2
+	ADDQ      $0x40, R15
 	VPCMPEQQ  Z2, Z1, K1
 	MOVD      $0x0000000000000000, R8
 	KMOVB     K1, R8
@@ -69,8 +69,8 @@ loopBits8false:
 	BSFQ  R8, R9
 	BTRQ  R9, R8
 	ADDQ  CX, R9
-	MOVD  R9, (DI)
-	ADDQ  $0x08, DI
+	MOVD  R9, (R14)
+	ADDQ  $0x08, R14
 	INCQ  DX
 	JMP   loopBits8false
 
@@ -79,15 +79,13 @@ exitLoopBits8false:
 	JMP  loopChunks8false
 
 exit8:
-	CMPQ BX, SI
-	JNE  zeroFound4
-
-loopChunks4true:
+	CMPQ      BX, SI
+	JNE       zeroFound4
 	CMPQ      AX, $0x04
 	JL        exit4
 	SUBQ      $0x04, AX
-	VMOVDQU64 (R14), Y2
-	ADDQ      $0x20, R14
+	VMOVDQU64 (R15), Y2
+	ADDQ      $0x20, R15
 	VPCMPEQQ  Y2, Y1, K1
 	MOVD      $0x0000000000000000, R8
 	KMOVB     K1, R8
@@ -98,8 +96,8 @@ loopBits4true:
 	BSFQ  R8, R10
 	BTRQ  R10, R8
 	ADDQ  CX, R10
-	MOVD  R10, (DI)
-	ADDQ  $0x08, DI
+	MOVD  R10, (R14)
+	ADDQ  $0x08, R14
 	INCQ  DX
 	JMP   loopBits4true
 
@@ -115,15 +113,14 @@ exitLoopBits4true:
 
 exitZero4:
 	ADDQ $0x04, CX
-	JMP  loopChunks4true
+	JMP  exit4
 
 zeroFound4:
-loopChunks4false:
 	CMPQ      AX, $0x04
 	JL        exit4
 	SUBQ      $0x04, AX
-	VMOVDQU64 (R14), Y2
-	ADDQ      $0x20, R14
+	VMOVDQU64 (R15), Y2
+	ADDQ      $0x20, R15
 	VPCMPEQQ  Y2, Y1, K1
 	MOVD      $0x0000000000000000, R8
 	KMOVB     K1, R8
@@ -134,81 +131,91 @@ loopBits4false:
 	BSFQ  R8, R11
 	BTRQ  R11, R8
 	ADDQ  CX, R11
-	MOVD  R11, (DI)
-	ADDQ  $0x08, DI
+	MOVD  R11, (R14)
+	ADDQ  $0x08, R14
 	INCQ  DX
 	JMP   loopBits4false
 
 exitLoopBits4false:
 	ADDQ $0x04, CX
-	JMP  loopChunks4false
 
 exit4:
-	CMPQ BX, SI
-	JNE  zeroFound2
-
-loopChunks2true:
+	CMPQ      BX, SI
+	JNE       zeroFound2
 	CMPQ      AX, $0x02
 	JL        exit2
 	SUBQ      $0x02, AX
-	VMOVDQU64 (R14), X2
-	ADDQ      $0x10, R14
+	VMOVDQU64 (R15), X2
+	ADDQ      $0x10, R15
 	VPCMPEQQ  X2, X1, K1
-	MOVD      $0x0000000000000000, BX
-	KMOVB     K1, BX
+	MOVD      $0x0000000000000000, R8
+	KMOVB     K1, R8
 
 loopBits2true:
-	TESTQ BX, BX
+	TESTQ R8, R8
 	JZ    exitLoopBits2true
-	BSFQ  BX, R12
-	BTRQ  R12, BX
+	BSFQ  R8, R12
+	BTRQ  R12, R8
 	ADDQ  CX, R12
-	MOVD  R12, (DI)
-	ADDQ  $0x08, DI
+	MOVD  R12, (R14)
+	ADDQ  $0x08, R14
 	INCQ  DX
 	JMP   loopBits2true
 
 exitLoopBits2true:
 	VPCMPEQQ X2, X0, K1
-	KMOVB    K1, BX
-	TESTQ    BX, BX
+	KMOVB    K1, R8
+	TESTQ    R8, R8
 	JZ       exitZero2
-	BSFQ     BX, SI
+	BSFQ     R8, SI
 	ADDQ     CX, SI
 	ADDQ     $0x02, CX
 	JMP      zeroFound2
 
 exitZero2:
 	ADDQ $0x02, CX
-	JMP  loopChunks2true
+	JMP  exit2
 
 zeroFound2:
-loopChunks2false:
 	CMPQ      AX, $0x02
 	JL        exit2
 	SUBQ      $0x02, AX
-	VMOVDQU64 (R14), X0
-	ADDQ      $0x10, R14
+	VMOVDQU64 (R15), X0
+	ADDQ      $0x10, R15
 	VPCMPEQQ  X0, X1, K1
-	MOVD      $0x0000000000000000, BX
-	KMOVB     K1, BX
+	MOVD      $0x0000000000000000, R8
+	KMOVB     K1, R8
 
 loopBits2false:
-	TESTQ BX, BX
+	TESTQ R8, R8
 	JZ    exitLoopBits2false
-	BSFQ  BX, R13
-	BTRQ  R13, BX
+	BSFQ  R8, R13
+	BTRQ  R13, R8
 	ADDQ  CX, R13
-	MOVD  R13, (DI)
-	ADDQ  $0x08, DI
+	MOVD  R13, (R14)
+	ADDQ  $0x08, R14
 	INCQ  DX
 	JMP   loopBits2false
 
 exitLoopBits2false:
 	ADDQ $0x02, CX
-	JMP  loopChunks2false
 
 exit2:
+	TESTQ AX, AX
+	JZ    exit1
+	MOVQ  (R15), AX
+	CMPQ  AX, DI
+	JNE   checkZero
+	MOVQ  CX, (R14)
+
+checkZero:
+	CMPQ  BX, SI
+	JNE   exit1
+	TESTQ BX, AX
+	JNZ   exit1
+	MOVQ  CX, SI
+
+exit1:
 	MOVQ SI, ret+32(FP)
 	MOVQ DX, ret1+40(FP)
 	RET
