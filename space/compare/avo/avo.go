@@ -42,8 +42,9 @@ func Compare() {
 
 	// Prepare zero index.
 	// Set zero index to max uint64 to detect situation when 0 is not found.
-	rZeroIndex := GP64()
+	rMaxUint64, rZeroIndex := GP64(), GP64()
 	MOVD(U64(math.MaxUint64), rZeroIndex)
+	MOVD(U64(math.MaxUint64), rMaxUint64)
 
 	// Prepare rCmp0 register to compare with 0.
 	r0 := GP64()
@@ -59,11 +60,13 @@ func Compare() {
 	memZ := Mem{Base: Load(Param("z"), GP64())}
 	memX := Mem{Base: Load(Param("x"), GP64())}
 
+	// 8 elements
+
 	chunkLoop(
 		8,
 		memX, memZ,
 		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
-		rCmpV, rCmp0,
+		ZMM(), rCmpV, rCmp0,
 		true,
 	)
 
@@ -73,11 +76,63 @@ func Compare() {
 		8,
 		memX, memZ,
 		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
-		rCmpV, rCmp0,
+		ZMM(), rCmpV, rCmp0,
 		false,
 	)
 
 	Label(fmt.Sprintf(labelExit, 8))
+
+	// 4 elements
+
+	CMPQ(rMaxUint64, rZeroIndex)
+	JNE(LabelRef(fmt.Sprintf(labelZeroFound, 4)))
+
+	chunkLoop(
+		4,
+		memX, memZ,
+		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
+		YMM(), rCmpV.AsY(), rCmp0.AsY(),
+		true,
+	)
+
+	Label(fmt.Sprintf(labelZeroFound, 4))
+
+	chunkLoop(
+		4,
+		memX, memZ,
+		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
+		YMM(), rCmpV.AsY(), rCmp0.AsY(),
+		false,
+	)
+
+	Label(fmt.Sprintf(labelExit, 4))
+
+	// 2 elements
+
+	CMPQ(rMaxUint64, rZeroIndex)
+	JNE(LabelRef(fmt.Sprintf(labelZeroFound, 2)))
+
+	chunkLoop(
+		2,
+		memX, memZ,
+		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
+		XMM(), rCmpV.AsX(), rCmp0.AsX(),
+		true,
+	)
+
+	Label(fmt.Sprintf(labelZeroFound, 2))
+
+	chunkLoop(
+		2,
+		memX, memZ,
+		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
+		XMM(), rCmpV.AsX(), rCmp0.AsX(),
+		false,
+	)
+
+	Label(fmt.Sprintf(labelExit, 2))
+
+	// Return
 
 	Store(rZeroIndex, ReturnIndex(outputZeroIndex))
 	Store(rOutputCounter, ReturnIndex(outputCount))
@@ -89,7 +144,7 @@ func chunkLoop(
 	numOfValuesInChunk uint8,
 	memX, memZ Mem,
 	rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex reg.GPVirtual,
-	rCmpV, rCmp0 reg.VecVirtual,
+	rX, rCmpV, rCmp0 reg.Register,
 	findZero bool,
 ) {
 	Label(fmt.Sprintf(labelLoopChunks, numOfValuesInChunk, findZero))
@@ -100,7 +155,6 @@ func chunkLoop(
 	SUBQ(U8(numOfValuesInChunk), rChunkCounter)
 
 	// Load chunk and go to the next input.
-	rX := ZMM()
 	VMOVDQU64(memX, rX)
 	ADDQ(U8(numOfValuesInChunk*uint64Size), memX.Base)
 
