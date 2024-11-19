@@ -73,7 +73,7 @@ func BenchmarkChecksum4KAVX(b *testing.B) {
 	b.ResetTimer()
 
 	chP := make([]*byte, 0, 1024)
-	for i := range len(data4K) {
+	for i := range data4K {
 		for j := range 64 {
 			chP = append(chP, &data4K[i][j*64])
 		}

@@ -24,9 +24,6 @@ const (
 	// StateFree means slot is free.
 	StateFree State = iota
 
-	// StateDeleted means slot is free but was occupied before.
-	StateDeleted
-
 	// StateData means slot contains data.
 	StateData
 
@@ -99,10 +96,8 @@ type Root struct {
 
 // DataItem stores single key-value pair.
 type DataItem[K, V comparable] struct {
-	KeyHash KeyHash
-	Key     K
-	State   State
-	Value   V
+	Key   K
+	Value V
 }
 
 // SnapshotInfo stores information required to retrieve snapshot.

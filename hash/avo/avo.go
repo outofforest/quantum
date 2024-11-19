@@ -62,7 +62,7 @@ func Blake3() {
 	rS2Init := [numOfStates / 2]reg.GPVirtual{
 		GP64(), GP64(), GP64(), GP64(), GP64(), GP64(), GP64(), GP64(),
 	}
-	for i := range len(rS2Init) {
+	for i := range rS2Init {
 		MOVD(U32(sInit[numOfStates/2+i]), rS2Init[i])
 	}
 

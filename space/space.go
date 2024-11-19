@@ -55,7 +55,7 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 	for startIndex := range uint64(cap(s.trials)) {
 		var offsets [trials]uint64
 		for i := range uint64(trials) {
-			offsets[i] = config.DataNodeAssistant.ItemOffset((startIndex + 1<<i + i) % s.numOfDataItems)
+			offsets[i] = (startIndex + 1<<i + i) % s.numOfDataItems
 		}
 		s.trials = append(s.trials, offsets)
 	}
@@ -79,9 +79,9 @@ func (s *Space[K, V]) Find(key K) *Entry[K, V] {
 	v := s.config.MassEntry.New()
 	initBytes := unsafe.Slice((*byte)(unsafe.Pointer(v)), s.initSize)
 	copy(initBytes, s.defaultInit)
-	v.item.KeyHash = hashKey(&key, nil, 0)
+	v.keyHash = hashKey(&key, nil, 0)
 	v.item.Key = key
-	v.dataNodeIndex = dataNodeIndex(v.item.KeyHash, s.numOfDataItems)
+	v.dataNodeIndex = dataNodeIndex(v.keyHash, s.numOfDataItems)
 
 	s.find(v)
 	return v
@@ -107,10 +107,7 @@ func (s *Space[K, V]) iterate(pointer *types.Pointer, yield func(item *types.Dat
 			s.iterate(p, yield)
 		}
 	case types.StateData:
-		for item := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(pointer.VolatileAddress)) {
-			if item.State != types.StateData {
-				continue
-			}
+		for _, item := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(pointer.VolatileAddress)) {
 			if !yield(item) {
 				return
 			}
@@ -170,11 +167,11 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 	levels := map[types.VolatileAddress]uint64{
 		s.config.SpaceRoot.Pointer.VolatileAddress: 1,
 	}
-	var maxLevel, pointerNodes, dataNodes, dataItems, dataSlots uint64
+	var maxLevel, pointerNodes, dataNodes, dataItems uint64
 
 	for {
 		if len(stack) == 0 {
-			return maxLevel, pointerNodes, dataNodes, float64(dataItems) / float64(dataSlots)
+			return maxLevel, pointerNodes, dataNodes, float64(dataItems) / float64(dataNodes*s.numOfDataItems)
 		}
 
 		n := stack[len(stack)-1]
@@ -191,14 +188,11 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 				if level > maxLevel {
 					maxLevel = level
 				}
-
-				for dItem := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(
+				//nolint:gofmt,revive // looks like a bug in linter
+				for _, _ = range s.config.DataNodeAssistant.Iterator(s.config.State.Node(
 					pointerNode.Pointers[pi].VolatileAddress,
 				)) {
-					dataSlots++
-					if dItem.State == types.StateData {
-						dataItems++
-					}
+					dataItems++
 				}
 			case types.StatePointer:
 				stack = append(stack, pointerNode.Pointers[pi].VolatileAddress)
@@ -216,6 +210,7 @@ func (s *Space[K, V]) valueExists(v *Entry[K, V]) bool {
 			v.level--
 		}
 
+		v.keyHashP = nil
 		v.itemP = nil
 	}
 
@@ -232,6 +227,7 @@ func (s *Space[K, V]) readValue(v *Entry[K, V]) V {
 			v.level--
 		}
 
+		v.keyHashP = nil
 		v.itemP = nil
 	}
 
@@ -248,6 +244,7 @@ func (s *Space[K, V]) deleteValue(tx *pipeline.TransactionRequest, v *Entry[K, V
 			v.level--
 		}
 
+		v.keyHashP = nil
 		v.itemP = nil
 	}
 
@@ -255,12 +252,11 @@ func (s *Space[K, V]) deleteValue(tx *pipeline.TransactionRequest, v *Entry[K, V
 
 	switch {
 	case v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StateFree:
-	case v.itemP == nil || v.itemP.State <= types.StateDeleted:
+	case v.keyHashP == nil || *v.keyHashP == 0:
 	default:
 		// If we are here it means `s.find` found the slot with matching key so don't need to check hash and key again.
 
-		v.item.State = types.StateDeleted
-		v.itemP.State = types.StateDeleted
+		*v.keyHashP = 0
 
 		tx.AddStoreRequest(&v.storeRequest)
 	}
@@ -283,6 +279,7 @@ func (s *Space[K, V]) setValue(
 			v.level--
 		}
 
+		v.keyHashP = nil
 		v.itemP = nil
 	}
 
@@ -293,7 +290,7 @@ func (s *Space[K, V]) find(v *Entry[K, V]) {
 	s.walkPointers(v)
 
 	if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State != types.StateData {
-		v.item.State = types.StateFree
+		v.keyHashP = nil
 		v.itemP = nil
 		v.exists = false
 		v.item.Value = s.defaultValue
@@ -303,7 +300,7 @@ func (s *Space[K, V]) find(v *Entry[K, V]) {
 
 	s.walkDataItems(v)
 
-	if v.item.State == types.StateData {
+	if v.keyHashP != nil && *v.keyHashP != 0 {
 		v.item.Value = v.itemP.Value
 		return
 	}
@@ -332,12 +329,12 @@ func (s *Space[K, V]) set(
 
 	conflict := s.walkDataItems(v)
 
-	if v.itemP != nil {
-		if v.item.State == types.StateData {
-			v.itemP.Value = v.item.Value
-		} else {
-			v.item.State = types.StateData
+	if v.keyHashP != nil {
+		if *v.keyHashP == 0 {
+			*v.keyHashP = v.keyHash
 			*v.itemP = v.item
+		} else {
+			v.itemP.Value = v.item.Value
 		}
 
 		tx.AddStoreRequest(&v.storeRequest)
@@ -418,30 +415,19 @@ func (s *Space[K, V]) splitDataNode(
 	parentNode := ProjectPointerNode(s.config.State.Node(parentNodeAddress))
 	newDataNode := s.config.State.Node(newNodeAddress)
 
-	var itemI uint64
-	for item := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(existingNodeAddress)) {
-		itemI++
-		if item.State == types.StateFree {
-			continue
-		}
-
-		newDataNodeItem := s.config.DataNodeAssistant.Item(newDataNode, s.config.DataNodeAssistant.ItemOffset(itemI-1))
-
-		if item.State == types.StateDeleted {
-			newDataNodeItem.State = types.StateDeleted
-			continue
-		}
-
-		itemIndex := PointerIndex(item.KeyHash, level-1)
+	node := s.config.State.Node(existingNodeAddress)
+	keyHashes := s.config.DataNodeAssistant.KeyHashes(node)
+	newKeyHashes := s.config.DataNodeAssistant.KeyHashes(newDataNode)
+	for i, item := range s.config.DataNodeAssistant.Iterator(node) {
+		itemIndex := PointerIndex(keyHashes[i], level-1)
 		if itemIndex&mask != newIndex {
-			newDataNodeItem.State = types.StateDeleted
 			continue
 		}
 
-		// FIXME (wojciech): By doing this, following accesses must do a lot of hops to determine free slot.
-		// Consider rearranging items in the block to make slots to free instead of deleted.
+		newDataNodeItem := s.config.DataNodeAssistant.Item(newDataNode, s.config.DataNodeAssistant.ItemOffset(i))
 		*newDataNodeItem = *item
-		item.State = types.StateDeleted
+		newKeyHashes[i] = keyHashes[i]
+		keyHashes[i] = 0
 	}
 
 	parentNode.Pointers[newIndex].VolatileAddress = newNodeAddress
@@ -579,13 +565,13 @@ var pointerHops = [NumOfPointers][]uint64{
 func (s *Space[K, V]) walkPointers(v *Entry[K, V]) {
 	for v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StatePointer {
 		if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Flags.IsSet(types.FlagHashMod) {
-			v.item.KeyHash = hashKey(&v.item.Key, s.hashBuff, v.level)
+			v.keyHash = hashKey(&v.item.Key, s.hashBuff, v.level)
 		}
 
 		pointerNode := ProjectPointerNode(s.config.State.Node(
 			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress,
 		))
-		index := PointerIndex(v.item.KeyHash, v.level)
+		index := PointerIndex(v.keyHash, v.level)
 		state := pointerNode.Pointers[index].State
 
 		switch state {
@@ -626,43 +612,37 @@ func (s *Space[K, V]) walkPointers(v *Entry[K, V]) {
 }
 
 func (s *Space[K, V]) walkDataItems(v *Entry[K, V]) bool {
-	if v.itemP != nil {
+	if v.keyHashP != nil {
 		return false
 	}
 
-	v.item.State = types.StateFree
+	v.keyHashP = nil
 	v.itemP = nil
 	v.exists = false
 
 	var conflict bool
 	node := s.config.State.Node(v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress)
+	keyHashes := s.config.DataNodeAssistant.KeyHashes(node)
 	for i, offsetP := 0, unsafe.Pointer(&s.trials[v.dataNodeIndex]); i < trials; i, offsetP = i+1,
 		unsafe.Add(offsetP, types.UInt64Length) {
-		item := (*types.DataItem[K, V])(unsafe.Add(node, *(*uint64)(offsetP)))
+		index := *(*uint64)(offsetP)
 
-		switch item.State {
-		case types.StateFree:
-			if v.itemP == nil {
+		switch keyHashes[index] {
+		case 0:
+			if v.keyHashP == nil {
+				v.keyHashP = &keyHashes[index]
+				v.itemP = s.config.DataNodeAssistant.Item(node, s.config.DataNodeAssistant.ItemOffset(index))
+			}
+		case v.keyHash:
+			item := s.config.DataNodeAssistant.Item(node, s.config.DataNodeAssistant.ItemOffset(index))
+			if item.Key == v.item.Key {
+				v.exists = true
+				v.keyHashP = &keyHashes[index]
 				v.itemP = item
+
+				return conflict
 			}
-			v.item.State = v.itemP.State
-			return conflict
-		case types.StateData:
-			if item.KeyHash == v.item.KeyHash {
-				if item.Key == v.item.Key {
-					v.exists = true
-					v.itemP = item
-					v.item.State = v.itemP.State
-					return conflict
-				}
-				conflict = true
-			}
-		case types.StateDeleted:
-			if v.itemP == nil {
-				v.itemP = item
-			}
-		default:
-			return conflict
+			conflict = true
 		}
 	}
 
@@ -675,7 +655,9 @@ type Entry[K, V comparable] struct {
 	storeRequest pipeline.StoreRequest
 
 	itemP         *types.DataItem[K, V]
+	keyHashP      *types.KeyHash
 	item          types.DataItem[K, V]
+	keyHash       types.KeyHash
 	parentIndex   uint64
 	dataNodeIndex uint64
 	revision      uint32
@@ -723,6 +705,10 @@ func hashKey[K comparable](key *K, buff []byte, level uint8) types.KeyHash {
 		buff[0] = level
 		copy(buff[1:], p.B)
 		hash = types.KeyHash(xxhash.Sum64(buff))
+	}
+
+	if hash == 0 {
+		hash = 1 // FIXME (wojciech): Do sth smarter here.
 	}
 
 	if types.IsTesting {
