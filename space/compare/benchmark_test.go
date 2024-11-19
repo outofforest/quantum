@@ -8,9 +8,15 @@ import (
 )
 
 var (
-	m      uint8 = math.MaxUint8
-	resDef       = [8]uint8{m, m, m, m, m, m, m, m}
-	values       = []uint64{2, 1, 2, 3, 1, 0, 0, 4}
+	m      uint64 = math.MaxUint64
+	resDef        = [32]uint64{
+		m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m,
+		m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m,
+	}
+	values = []uint64{
+		2, 1, 2, 3, 1, 0, 0, 4, 2, 1, 2, 3, 1, 0, 0, 4,
+		2, 1, 2, 3, 1, 0, 0, 4, 2, 1, 2, 3, 1, 0, 0, 4,
+	}
 )
 
 func BenchmarkCompareGo(b *testing.B) {
@@ -19,7 +25,7 @@ func BenchmarkCompareGo(b *testing.B) {
 
 	res := resDef
 	var foundZero bool
-	var zeroIndex uint8
+	var zeroIndex uint64
 
 	b.StartTimer()
 	for range b.N {
@@ -28,11 +34,11 @@ func BenchmarkCompareGo(b *testing.B) {
 			switch v {
 			case 0:
 				if !foundZero {
-					zeroIndex = uint8(i)
+					zeroIndex = uint64(i)
 					foundZero = true
 				}
 			case 2:
-				res[j] = uint8(i)
+				res[j] = uint64(i)
 			}
 		}
 	}
@@ -47,11 +53,11 @@ func BenchmarkCompareAVX(b *testing.B) {
 	b.ResetTimer()
 
 	res := resDef
-	var zeroIndex uint8
+	var zeroIndex uint64
 
 	b.StartTimer()
 	for range b.N {
-		zeroIndex = Compare(2, &values[0], &res[0])
+		zeroIndex = Compare(2, &values[0], &res[0], 4)
 	}
 	b.StopTimer()
 

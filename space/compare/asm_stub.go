@@ -3,4 +3,4 @@
 package compare
 
 // Compare compares uint64 array against value.
-func Compare(v uint64, x *uint64, z *uint8) uint8
+func Compare(v uint64, x *uint64, z *uint64, count uint64) uint64
