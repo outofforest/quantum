@@ -16,9 +16,9 @@ TEXT ·Compare(SB), NOSPLIT, $0-48
 	MOVQ         z+16(FP), SI
 	MOVQ         x+8(FP), R9
 
-loopChunks:
+loopChunks8true:
 	CMPQ      AX, $0x08
-	JL        return
+	JL        exit8
 	SUBQ      $0x08, AX
 	VMOVDQU64 (R9), Z2
 	ADDQ      $0x40, R9
@@ -26,35 +26,35 @@ loopChunks:
 	MOVD      $0x0000000000000000, R10
 	KMOVB     K1, R10
 
-loopBits:
+loopBits8true:
 	TESTQ R10, R10
-	JZ    exitLoopBits
+	JZ    exitLoopBits8true
 	BSFQ  R10, DI
 	BTRQ  DI, R10
 	ADDQ  CX, DI
 	MOVD  DI, (SI)
 	ADDQ  $0x08, SI
 	INCQ  DX
-	JMP   loopBits
+	JMP   loopBits8true
 
-exitLoopBits:
+exitLoopBits8true:
 	VPCMPEQQ Z2, Z0, K1
 	KMOVB    K1, R10
 	TESTQ    R10, R10
-	JZ       exitZero
+	JZ       exitZero8
 	BSFQ     R10, BX
 	ADDQ     CX, BX
 	ADDQ     $0x08, CX
-	JMP      zeroFound
+	JMP      zeroFound8
 
-exitZero:
+exitZero8:
 	ADDQ $0x08, CX
-	JMP  loopChunks
+	JMP  loopChunks8true
 
-zeroFound:
-loopChunks2:
+zeroFound8:
+loopChunks8false:
 	CMPQ      AX, $0x08
-	JL        return
+	JL        exit8
 	SUBQ      $0x08, AX
 	VMOVDQU64 (R9), Z0
 	ADDQ      $0x40, R9
@@ -62,22 +62,22 @@ loopChunks2:
 	MOVD      $0x0000000000000000, DI
 	KMOVB     K1, DI
 
-loopBits2:
+loopBits8false:
 	TESTQ DI, DI
-	JZ    exitLoopBits2
+	JZ    exitLoopBits8false
 	BSFQ  DI, R8
 	BTRQ  R8, DI
 	ADDQ  CX, R8
 	MOVD  R8, (SI)
 	ADDQ  $0x08, SI
 	INCQ  DX
-	JMP   loopBits2
+	JMP   loopBits8false
 
-exitLoopBits2:
+exitLoopBits8false:
 	ADDQ $0x08, CX
-	JMP  loopChunks2
+	JMP  loopChunks8false
 
-return:
+exit8:
 	MOVQ BX, ret+32(FP)
 	MOVQ DX, ret1+40(FP)
 	RET
