@@ -9,12 +9,11 @@ TEXT ·Compare(SB), NOSPLIT, $0-48
 	MOVD         $0x0000000000000000, CX
 	MOVD         $0x0000000000000000, DX
 	MOVD         $0xffffffffffffffff, BX
-	MOVD         $0xffffffffffffffff, SI
-	MOVD         $0x0000000000000000, DI
-	VPBROADCASTQ DI, Z0
-	MOVQ         v+0(FP), DI
-	VPBROADCASTQ DI, Z1
-	MOVQ         z+16(FP), DI
+	MOVD         $0x0000000000000000, SI
+	VPBROADCASTQ SI, Z0
+	MOVQ         v+0(FP), SI
+	VPBROADCASTQ SI, Z1
+	MOVQ         z+16(FP), SI
 	MOVQ         x+8(FP), R9
 
 loopChunks:
@@ -30,30 +29,55 @@ loopChunks:
 loopBits:
 	TESTQ R10, R10
 	JZ    exitLoopBits
-	BSFQ  R10, R8
-	BTRQ  R8, R10
-	ADDQ  CX, R8
-	MOVD  R8, (DI)
-	ADDQ  $0x08, DI
+	BSFQ  R10, DI
+	BTRQ  DI, R10
+	ADDQ  CX, DI
+	MOVD  DI, (SI)
+	ADDQ  $0x08, SI
 	INCQ  DX
 	JMP   loopBits
 
 exitLoopBits:
-	MOVD     SI, R10
-	XORQ     BX, R10
-	JNZ      exitZero
 	VPCMPEQQ Z2, Z0, K1
 	KMOVB    K1, R10
 	TESTQ    R10, R10
 	JZ       exitZero
-	BSFQ     R10, SI
-	ADDQ     CX, SI
+	BSFQ     R10, BX
+	ADDQ     CX, BX
+	ADDQ     $0x08, CX
+	JMP      zeroFound
 
 exitZero:
 	ADDQ $0x08, CX
 	JMP  loopChunks
 
+zeroFound:
+loopChunks2:
+	TESTQ     AX, AX
+	JZ        return
+	DECQ      AX
+	VMOVDQU64 (R9), Z0
+	ADDQ      $0x40, R9
+	VPCMPEQQ  Z0, Z1, K1
+	MOVD      $0x0000000000000000, DI
+	KMOVB     K1, DI
+
+loopBits2:
+	TESTQ DI, DI
+	JZ    exitLoopBits2
+	BSFQ  DI, R8
+	BTRQ  R8, DI
+	ADDQ  CX, R8
+	MOVD  R8, (SI)
+	ADDQ  $0x08, SI
+	INCQ  DX
+	JMP   loopBits2
+
+exitLoopBits2:
+	ADDQ $0x08, CX
+	JMP  loopChunks2
+
 return:
-	MOVQ SI, ret+32(FP)
+	MOVQ BX, ret+32(FP)
 	MOVQ DX, ret1+40(FP)
 	RET

@@ -7,12 +7,17 @@ import (
 
 	. "github.com/mmcloughlin/avo/build"
 	. "github.com/mmcloughlin/avo/operand"
+	"github.com/mmcloughlin/avo/reg"
 )
 
 const (
 	uint64Size         = 8
 	numOfValuesInChunk = 8
 	chunkSize          = numOfValuesInChunk * uint64Size
+
+	labelReturn    = "return"
+	labelExitZero  = "exitZero"
+	labelZeroFound = "zeroFound"
 )
 
 // Compare compares uint64 array against value.
@@ -21,8 +26,6 @@ func Compare() {
 		labelLoopChunks   = "loopChunks"
 		labelLoopBits     = "loopBits"
 		labelExitLoopBits = "exitLoopBits"
-		labelExitZero     = "exitZero"
-		labelReturn       = "return"
 
 		outputZeroIndex = 0
 		outputCount     = 1
@@ -32,7 +35,8 @@ func Compare() {
 	Doc("Compare compares uint64 array against value.")
 
 	// Load counters.
-	rChunkCounter := Load(Param("count"), GP64())
+	rChunkCounter := GP64()
+	Load(Param("count"), rChunkCounter)
 	rIndexCounter := GP64()
 	MOVD(U64(0), rIndexCounter)
 	rOutputCounter := GP64()
@@ -40,8 +44,7 @@ func Compare() {
 
 	// Prepare zero index.
 	// Set zero index to max uint64 to detect situation when 0 is not found.
-	rMaxUint64, rZeroIndex := GP64(), GP64()
-	MOVD(U64(math.MaxUint64), rMaxUint64)
+	rZeroIndex := GP64()
 	MOVD(U64(math.MaxUint64), rZeroIndex)
 
 	// Prepare rCmp0 register to compare with 0.
@@ -55,13 +58,42 @@ func Compare() {
 	rCmpV := ZMM()
 	VPBROADCASTQ(rV, rCmpV)
 
-	// Prepare output.
 	memZ := Mem{Base: Load(Param("z"), GP64())}
-
-	// Load values to compare.
 	memX := Mem{Base: Load(Param("x"), GP64())}
-	rX := ZMM()
 
+	chunkLoop(
+		labelLoopChunks, labelLoopBits, labelExitLoopBits,
+		memX, memZ,
+		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
+		rCmpV, rCmp0,
+		true,
+	)
+
+	Label(labelZeroFound)
+
+	chunkLoop(
+		labelLoopChunks+"2", labelLoopBits+"2", labelExitLoopBits+"2",
+		memX, memZ,
+		rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex,
+		rCmpV, rCmp0,
+		false,
+	)
+
+	Label(labelReturn)
+
+	Store(rZeroIndex, ReturnIndex(outputZeroIndex))
+	Store(rOutputCounter, ReturnIndex(outputCount))
+
+	RET()
+}
+
+func chunkLoop(
+	labelLoopChunks, labelLoopBits, labelExitLoopBits string,
+	memX, memZ Mem,
+	rChunkCounter, rIndexCounter, rOutputCounter, rZeroIndex reg.GPVirtual,
+	rCmpV, rCmp0 reg.VecVirtual,
+	findZero bool,
+) {
 	Label(labelLoopChunks)
 
 	// Return if there are no more chunks.
@@ -70,6 +102,7 @@ func Compare() {
 	DECQ(rChunkCounter)
 
 	// Load chunk and go to the next input.
+	rX := ZMM()
 	VMOVDQU64(memX, rX)
 	ADDQ(U8(chunkSize), memX.Base)
 
@@ -101,35 +134,27 @@ func Compare() {
 
 	Label(labelExitLoopBits)
 
-	// Check if zero index has been already set.
-	rTest := GP64()
-	MOVD(rZeroIndex, rTest)
-	XORQ(rMaxUint64, rTest)
-	JNZ(LabelRef(labelExitZero))
+	if findZero {
+		// Compare with 0.
+		VPCMPEQQ(rX, rCmp0, rKMask)
+		KMOVB(rKMask, rMask.As32())
 
-	// Compare with 0.
-	VPCMPEQQ(rX, rCmp0, rKMask)
-	KMOVB(rKMask, rMask.As32())
+		// Exit if 0 is not found.
+		TESTQ(rMask, rMask)
+		JZ(LabelRef(labelExitZero))
 
-	// Exit if 0 is not found.
-	TESTQ(rMask, rMask)
-	JZ(LabelRef(labelExitZero))
+		// Return index of first 0.
+		BSFQ(rMask, rZeroIndex)
+		ADDQ(rIndexCounter, rZeroIndex)
 
-	// Return index of first 0.
-	BSFQ(rMask, rZeroIndex)
-	ADDQ(rIndexCounter, rZeroIndex)
+		ADDQ(U8(numOfValuesInChunk), rIndexCounter)
+		JMP(LabelRef(labelZeroFound))
 
-	Label(labelExitZero)
+		Label(labelExitZero)
+	}
 
 	ADDQ(U8(numOfValuesInChunk), rIndexCounter)
 	JMP(LabelRef(labelLoopChunks))
-
-	Label(labelReturn)
-
-	Store(rZeroIndex, ReturnIndex(outputZeroIndex))
-	Store(rOutputCounter, ReturnIndex(outputCount))
-
-	RET()
 }
 
 func main() {
