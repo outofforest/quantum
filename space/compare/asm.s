@@ -207,6 +207,7 @@ exit2:
 	CMPQ  AX, DI
 	JNE   checkZero
 	MOVQ  CX, (R14)
+	INCQ  DX
 
 checkZero:
 	CMPQ  BX, SI

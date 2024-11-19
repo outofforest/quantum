@@ -143,6 +143,7 @@ func Compare() {
 	JNE(LabelRef("checkZero"))
 
 	MOVQ(rIndexCounter, memZ)
+	INCQ(rOutputCounter)
 
 	Label("checkZero")
 

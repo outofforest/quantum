@@ -3,16 +3,11 @@ package compare
 import (
 	"fmt"
 	"io"
-	"math"
 	"testing"
 )
 
 var (
-	m      uint64 = math.MaxUint64
-	resDef        = [32]uint64{
-		m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m,
-		m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m,
-	}
+	resDef = [32]uint64{}
 	values = []uint64{
 		2, 1, 2, 3, 1, 0, 0, 4, 2, 1, 2, 3, 1, 0, 0, 4,
 		2, 1, 2, 3, 1, 0, 0, 4, 2, 1, 2, 3, 1, 0, 0, 4,

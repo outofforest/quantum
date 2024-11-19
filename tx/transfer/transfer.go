@@ -23,22 +23,23 @@ type Tx struct {
 }
 
 // Prepare prepares transaction for execution.
-func (t *Tx) Prepare(space *space.Space[txtypes.Account, txtypes.Amount]) {
-	t.from = space.Find(t.From)
-	t.to = space.Find(t.To)
+func (t *Tx) Prepare(space *space.Space[txtypes.Account, txtypes.Amount], hashMatches []uint64) {
+	t.from = space.Find(t.From, hashMatches)
+	t.to = space.Find(t.To, hashMatches)
 }
 
 // Execute executes transaction.
 func (t *Tx) Execute(
 	tx *pipeline.TransactionRequest,
 	volatilePool *alloc.Pool[types.VolatileAddress],
+	hashMatches []uint64,
 ) error {
-	fromBalance := t.from.Value()
+	fromBalance := t.from.Value(hashMatches)
 	if fromBalance < t.Amount {
 		return errors.Errorf("sender's balance is too low, balance: %d, amount to send: %d", fromBalance, t.Amount)
 	}
 
-	toBalance := t.to.Value()
+	toBalance := t.to.Value(hashMatches)
 	if math.MaxUint64-toBalance < t.Amount {
 		return errors.Errorf(
 			"transfer cannot be executed because it would cause an overflow on the recipient's balance, balance: %d, amount to send: %d", //nolint:lll
@@ -49,6 +50,7 @@ func (t *Tx) Execute(
 		fromBalance-t.Amount,
 		tx,
 		volatilePool,
+		hashMatches,
 	); err != nil {
 		return err
 	}
@@ -57,5 +59,6 @@ func (t *Tx) Execute(
 		toBalance+t.Amount,
 		tx,
 		volatilePool,
+		hashMatches,
 	)
 }
