@@ -14,7 +14,7 @@ func NewPool[A Address](
 		tapCh:   tapCh,
 		sinkCh:  sinkCh,
 		pool:    pool,
-		release: make([]A, 0, cap(pool)),
+		release: make([]A, 0, len(pool)),
 	}
 }
 

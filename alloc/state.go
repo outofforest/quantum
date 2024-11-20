@@ -85,7 +85,7 @@ type State struct {
 
 // NewVolatilePool creates new volatile allocation pool.
 func (s *State) NewVolatilePool() *Pool[types.VolatileAddress] {
-	return NewPool[types.VolatileAddress](s.volatileAllocationCh, s.volatileDeallocationCh)
+	return NewPool[types.VolatileAddress](s.volatileAllocationPoolCh, s.volatileDeallocationCh)
 }
 
 // NewPersistentPool creates new persistent allocation pool.
@@ -179,7 +179,6 @@ func (s *State) runVolatilePump(
 	allocationCh chan []types.VolatileAddress,
 	deallocationCh <-chan []types.VolatileAddress,
 	allocationPoolCh chan<- []types.VolatileAddress,
-
 ) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		spawn("allocator", parallel.Fail, func(ctx context.Context) error {
@@ -218,7 +217,6 @@ func (s *State) runPersistentPump(
 	allocationCh chan []types.PersistentAddress,
 	deallocationCh <-chan []types.PersistentAddress,
 	allocationPoolCh chan<- []types.PersistentAddress,
-
 ) error {
 	// Any address from the pool uniquely identifies entire pool, so I take the first one (allocated as the last one).
 	var invalidAddress types.PersistentAddress
