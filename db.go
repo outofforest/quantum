@@ -198,8 +198,9 @@ func (db *DB) Run(ctx context.Context) error {
 					hashReaders = append(hashReaders, pipeline.NewReader(executeTxReader))
 				}
 				storeQReaders := make([]*pipeline.Reader, 0, len(db.config.Stores))
+				parentReaders := append([]*pipeline.Reader{allocateReader}, hashReaders...)
 				for range cap(storeQReaders) {
-					storeQReaders = append(storeQReaders, pipeline.NewReader(hashReaders...))
+					storeQReaders = append(storeQReaders, pipeline.NewReader(parentReaders...))
 				}
 
 				spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
@@ -684,17 +685,23 @@ func (db *DB) processAllocationRequests(
 								deallocSr = nil
 							}
 						}
+
+						root.Pointer.PersistentAddress = 0
 					}
 					root.Pointer.SnapshotID = db.singularityNode.LastSnapshotID
+				}
 
-					var err error
-					root.Pointer.PersistentAddress, err = persistentPool.Allocate()
+				// On commit stage when singularity node is stored, 0 address is expected.
+				if root.Pointer.PersistentAddress == 0 && root.Pointer.VolatileAddress != 0 {
+					persistentAddress, err := persistentPool.Allocate()
 					if err != nil {
 						return err
 					}
+					root.Pointer.PersistentAddress = persistentAddress
 				}
 			}
 			if deallocSr != nil {
+				// FIXME (wojciech): Adding store requests in pipeline goroutine might break the counter.
 				req.AddStoreRequest(deallocSr)
 			}
 		}

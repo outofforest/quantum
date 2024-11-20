@@ -472,13 +472,12 @@ func (s *Space[K, V]) addPointerNode(
 
 	pointerNode := ProjectPointerNode(s.config.State.Node(pointerNodeAddress))
 	pointerNode.Pointers[0] = *v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
+	pointerNode.Pointers[0].PersistentAddress = 0
 
 	pointerNodeRoot := &v.storeRequest.Store[v.storeRequest.PointersToStore-1]
 
 	pointerNodeRoot.Pointer.VolatileAddress = pointerNodeAddress
 	pointerNodeRoot.Pointer.State = types.StatePointer
-	pointerNodeRoot.Pointer.PersistentAddress = 0
-	pointerNodeRoot.Pointer.SnapshotID = 0
 
 	if conflict {
 		pointerNodeRoot.Pointer.Flags = pointerNodeRoot.Pointer.Flags.Set(types.FlagHashMod)
