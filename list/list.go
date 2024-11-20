@@ -67,6 +67,8 @@ func (l *List) Add(
 	node.Header.NumOfSideLists = 1
 
 	l.config.ListRoot.Pointer.VolatileAddress = newNodeAddress
+	// FIXME (wojciech): It cannot be done like this.
+	l.config.ListRoot.Pointer.PersistentAddress = 0
 
 	return l.config.ListRoot, nil
 }
@@ -85,8 +87,8 @@ func (l *List) Attach(
 
 	l.config.NodeAssistant.Project(l.config.ListRoot.Pointer.VolatileAddress, node)
 	if node.Header.NumOfPointers+node.Header.NumOfSideLists < uint64(len(node.Pointers)) {
-		node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists-1] = *pointer
 		node.Header.NumOfSideLists++
+		node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists] = *pointer
 
 		return l.config.ListRoot, nil
 	}
@@ -102,6 +104,8 @@ func (l *List) Attach(
 	node.Header.NumOfSideLists = 2
 
 	l.config.ListRoot.Pointer.VolatileAddress = newNodeAddress
+	// FIXME (wojciech): It cannot be done like this.
+	l.config.ListRoot.Pointer.PersistentAddress = 0
 
 	return l.config.ListRoot, nil
 }
@@ -201,7 +205,7 @@ func Deallocate(
 			}
 
 			Deallocate(
-				listRoot,
+				p,
 				volatilePool,
 				persistentPool,
 				nodeAssistant,
