@@ -24,7 +24,7 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-// echo 120 | sudo tee /proc/sys/vm/nr_hugepages
+// echo 100 | sudo tee /proc/sys/vm/nr_hugepages
 // go test -benchtime=1x -timeout=24h -bench=. -run=^$ -cpuprofile profile.out
 // go tool pprof -http="localhost:8000" pprofbin ./profile.out
 // go test -c -o bench ./benchmark_test.go
@@ -40,8 +40,8 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 	b.StopTimer()
 	b.ResetTimer()
 
-	var accounts [numOfAddresses]txtypes.Account
-	accountBytes := unsafe.Slice(&accounts[0][0], unsafe.Sizeof(accounts))
+	accounts := make([]txtypes.Account, numOfAddresses)
+	accountBytes := unsafe.Slice(&accounts[0][0], uintptr(len(accounts))*unsafe.Sizeof(txtypes.Account{}))
 
 	// f, err := os.Open("accounts")
 	// require.NoError(b, err)
@@ -142,7 +142,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			}()
 
 			txIndex := 0
-			var snapshotID types.SnapshotID = 1
+			var snapshotID types.SnapshotID
 
 			func() {
 				b.StartTimer()
@@ -162,6 +162,8 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 						if snapshotID > 1 {
 							db.DeleteSnapshot(snapshotID - 2)
 						}
+
+						snapshotID++
 					}
 				}
 

@@ -193,7 +193,7 @@ func (db *DB) Run(ctx context.Context) error {
 				}
 				executeTxReader := pipeline.NewReader(prepareTxReaders...)
 				allocateReader := pipeline.NewReader(executeTxReader)
-				hashReaders := make([]*pipeline.Reader, 0, 3)
+				hashReaders := make([]*pipeline.Reader, 0, 4)
 				for range cap(hashReaders) {
 					hashReaders = append(hashReaders, pipeline.NewReader(executeTxReader))
 				}
@@ -281,14 +281,13 @@ func (db *DB) deleteSnapshot(
 ) error {
 	snapshotInfoValue := db.snapshots.Find(snapshotID, snapshotHashBuff, snapshotHashMatches)
 	if !snapshotInfoValue.Exists(snapshotHashBuff, snapshotHashMatches) {
-		return errors.Errorf("snapshot %d does not exist", snapshotID)
+		return errors.Errorf("snapshot %d to delete does not exist", snapshotID)
 	}
+	snapshotInfo := snapshotInfoValue.Value(snapshotHashBuff, snapshotHashMatches)
 
 	if err := snapshotInfoValue.Delete(tx, snapshotHashBuff, snapshotHashMatches); err != nil {
 		return err
 	}
-
-	snapshotInfo := snapshotInfoValue.Value(snapshotHashBuff, snapshotHashMatches)
 
 	var nextSnapshotInfo *types.SnapshotInfo
 	var nextDeallocationListRoot types.NodeRoot
@@ -296,7 +295,7 @@ func (db *DB) deleteSnapshot(
 	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
 		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, snapshotHashBuff, snapshotHashMatches)
 		if !nextSnapshotInfoValue.Exists(snapshotHashBuff, snapshotHashMatches) {
-			return errors.Errorf("snapshot %d does not exist", snapshotID)
+			return errors.Errorf("next snapshot %d does not exist", snapshotID)
 		}
 		tmpNextSnapshotInfo := nextSnapshotInfoValue.Value(snapshotHashBuff, snapshotHashMatches)
 		nextSnapshotInfo = &tmpNextSnapshotInfo
@@ -973,7 +972,6 @@ func (db *DB) deallocateNode(
 ) (types.NodeRoot, error) {
 	if db.snapshotInfo.PreviousSnapshotID == db.singularityNode.LastSnapshotID ||
 		pointer.SnapshotID > db.snapshotInfo.PreviousSnapshotID || immediateDeallocation {
-		volatilePool.Deallocate(pointer.VolatileAddress)
 		persistentPool.Deallocate(pointer.PersistentAddress)
 
 		return types.NodeRoot{}, nil
