@@ -671,7 +671,6 @@ func (db *DB) processAllocationRequests(
 							return err
 						}
 
-						//nolint:staticcheck
 						if nodeRootToStore.Pointer != nil {
 							if deallocSr == nil {
 								deallocSr = &pipeline.StoreRequest{
