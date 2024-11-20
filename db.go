@@ -73,7 +73,6 @@ func New(config Config) (*DB, error) {
 		snapshotInfoNodeAssistant:   snapshotInfoNodeAssistant,
 		snapshotToNodeNodeAssistant: snapshotToNodeNodeAssistant,
 		listNodeAssistant:           listNodeAssistant,
-		massSnapshotToNodeEntry:     mass.New[space.Entry[types.SnapshotID, types.Root]](1000),
 		deallocationListsToCommit:   map[types.SnapshotID]ListToCommit{},
 		queue:                       queue,
 		queueReader:                 queueReader,
@@ -122,8 +121,6 @@ type DB struct {
 	snapshotInfoNodeAssistant   *space.DataNodeAssistant[types.SnapshotID, types.SnapshotInfo]
 	snapshotToNodeNodeAssistant *space.DataNodeAssistant[types.SnapshotID, types.Root]
 	listNodeAssistant           *list.NodeAssistant
-
-	massSnapshotToNodeEntry *mass.Mass[space.Entry[types.SnapshotID, types.Root]]
 
 	deallocationListsToCommit map[types.SnapshotID]ListToCommit
 
@@ -276,6 +273,7 @@ func (db *DB) deleteSnapshot(
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
 	listNode *list.Node,
+	massSnapshotToNodeEntry *mass.Mass[space.Entry[types.SnapshotID, types.Root]],
 	snapshotHashBuff []byte,
 	snapshotHashMatches []uint64,
 	deallocationHashBuff []byte,
@@ -312,7 +310,7 @@ func (db *DB) deleteSnapshot(
 				SpaceRoot:         nextDeallocationListRoot,
 				State:             db.config.State,
 				DataNodeAssistant: db.snapshotToNodeNodeAssistant,
-				MassEntry:         db.massSnapshotToNodeEntry,
+				MassEntry:         massSnapshotToNodeEntry,
 			},
 		)
 	} else {
@@ -333,7 +331,7 @@ func (db *DB) deleteSnapshot(
 			SpaceRoot:         deallocationListsRoot,
 			State:             db.config.State,
 			DataNodeAssistant: db.snapshotToNodeNodeAssistant,
-			MassEntry:         db.massSnapshotToNodeEntry,
+			MassEntry:         massSnapshotToNodeEntry,
 		},
 	)
 
@@ -342,6 +340,7 @@ func (db *DB) deleteSnapshot(
 		startSnapshotID = snapshotInfo.PreviousSnapshotID + 1
 	}
 
+	var sr *pipeline.StoreRequest
 	for nextDeallocSnapshot := range nextDeallocationLists.Iterator() {
 		if nextDeallocSnapshot.Key >= startSnapshotID && nextDeallocSnapshot.Key <= snapshotID {
 			list.Deallocate(
@@ -373,11 +372,18 @@ func (db *DB) deleteSnapshot(
 			return err
 		}
 		if nodeRootToStore.Pointer != nil {
-			tx.AddStoreRequest(&pipeline.StoreRequest{
-				Store:                 [pipeline.StoreCapacity]types.NodeRoot{nodeRootToStore},
-				PointersToStore:       1,
-				ImmediateDeallocation: true,
-			})
+			if sr == nil {
+				sr = &pipeline.StoreRequest{
+					ImmediateDeallocation: true,
+				}
+			}
+			sr.Store[sr.PointersToStore] = nodeRootToStore
+			sr.PointersToStore++
+
+			if sr.PointersToStore == pipeline.StoreCapacity {
+				tx.AddStoreRequest(sr)
+				sr = nil
+			}
 		}
 		if newListNodeAddress.Pointer != listNodeAddress.Pointer {
 			if err := deallocationListValue.Set(
@@ -390,6 +396,10 @@ func (db *DB) deleteSnapshot(
 				return err
 			}
 		}
+	}
+	if sr != nil {
+		tx.AddStoreRequest(sr)
+		sr = nil
 	}
 
 	nextSnapshotInfo.DeallocationRoot = snapshotInfo.DeallocationRoot
@@ -468,7 +478,7 @@ func (db *DB) commit(
 		}
 		sort.Slice(lists, func(i, j int) bool { return lists[i] < lists[j] })
 
-		var sr pipeline.StoreRequest
+		var sr *pipeline.StoreRequest
 		for _, snapshotID := range lists {
 			deallocationListValue := db.deallocationLists.Find(snapshotID, deallocationHashBuff, deallocationHashMatches)
 			if deallocationListValue.Exists(deallocationHashBuff, deallocationHashMatches) {
@@ -481,8 +491,19 @@ func (db *DB) commit(
 					return err
 				}
 				if nodeRootToStore.Pointer != nil {
+					if sr == nil {
+						sr = &pipeline.StoreRequest{
+							ImmediateDeallocation: true,
+						}
+					}
+
 					sr.Store[sr.PointersToStore] = nodeRootToStore
 					sr.PointersToStore++
+
+					if sr.PointersToStore == pipeline.StoreCapacity {
+						tx.AddStoreRequest(sr)
+						sr = nil
+					}
 				}
 			}
 			if err := deallocationListValue.Set(
@@ -498,8 +519,8 @@ func (db *DB) commit(
 				return err
 			}
 		}
-		if sr.PointersToStore > 0 {
-			tx.AddStoreRequest(&sr)
+		if sr != nil {
+			tx.AddStoreRequest(sr)
 		}
 
 		clear(db.deallocationListsToCommit)
@@ -573,6 +594,7 @@ func (db *DB) executeTransactions(
 	deallocationHashBuff := db.deallocationLists.NewHashBuff()
 	deallocationHashMatches := db.deallocationLists.NewHashMatches()
 
+	massSnapshotToNodeEntry := mass.New[space.Entry[types.SnapshotID, types.Root]](1000)
 	listNode := db.listNodeAssistant.NewNode()
 
 	for processedCount := uint64(0); ; processedCount++ {
@@ -598,7 +620,8 @@ func (db *DB) executeTransactions(
 				}
 			case *deleteSnapshotTx:
 				if err := db.deleteSnapshot(tx.SnapshotID, req, volatilePool, persistentPool, listNode,
-					snapshotHashBuff, snapshotHashMatches, deallocationHashBuff, deallocationHashMatches); err != nil {
+					massSnapshotToNodeEntry, snapshotHashBuff, snapshotHashMatches, deallocationHashBuff,
+					deallocationHashMatches); err != nil {
 					return err
 				}
 			case *genesis.Tx:
@@ -630,6 +653,7 @@ func (db *DB) processAllocationRequests(
 		}
 
 		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+			var deallocSr *pipeline.StoreRequest
 			for i := range sr.PointersToStore {
 				root := sr.Store[i]
 
@@ -647,9 +671,19 @@ func (db *DB) processAllocationRequests(
 							return err
 						}
 
-						//nolint:staticcheck
 						if nodeRootToStore.Pointer != nil {
-							// FIXME (wojciech): This must be handled somehow
+							if deallocSr == nil {
+								deallocSr = &pipeline.StoreRequest{
+									ImmediateDeallocation: true,
+								}
+							}
+							deallocSr.Store[deallocSr.PointersToStore] = nodeRootToStore
+							deallocSr.PointersToStore++
+
+							if deallocSr.PointersToStore == pipeline.StoreCapacity {
+								req.AddStoreRequest(deallocSr)
+								deallocSr = nil
+							}
 						}
 					}
 					root.Pointer.SnapshotID = db.singularityNode.LastSnapshotID
@@ -660,6 +694,9 @@ func (db *DB) processAllocationRequests(
 						return err
 					}
 				}
+			}
+			if deallocSr != nil {
+				req.AddStoreRequest(deallocSr)
 			}
 		}
 
