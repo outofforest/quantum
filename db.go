@@ -276,29 +276,31 @@ func (db *DB) deleteSnapshot(
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
 	listNode *list.Node,
+	snapshotHashBuff []byte,
 	snapshotHashMatches []uint64,
+	deallocationHashBuff []byte,
 	deallocationHashMatches []uint64,
 ) error {
-	snapshotInfoValue := db.snapshots.Find(snapshotID, snapshotHashMatches)
-	if !snapshotInfoValue.Exists(snapshotHashMatches) {
+	snapshotInfoValue := db.snapshots.Find(snapshotID, snapshotHashBuff, snapshotHashMatches)
+	if !snapshotInfoValue.Exists(snapshotHashBuff, snapshotHashMatches) {
 		return errors.Errorf("snapshot %d does not exist", snapshotID)
 	}
 
-	if err := snapshotInfoValue.Delete(tx, snapshotHashMatches); err != nil {
+	if err := snapshotInfoValue.Delete(tx, snapshotHashBuff, snapshotHashMatches); err != nil {
 		return err
 	}
 
-	snapshotInfo := snapshotInfoValue.Value(snapshotHashMatches)
+	snapshotInfo := snapshotInfoValue.Value(snapshotHashBuff, snapshotHashMatches)
 
 	var nextSnapshotInfo *types.SnapshotInfo
 	var nextDeallocationListRoot types.NodeRoot
 	var nextDeallocationLists *space.Space[types.SnapshotID, types.Root]
 	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
-		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, snapshotHashMatches)
-		if !nextSnapshotInfoValue.Exists(snapshotHashMatches) {
+		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, snapshotHashBuff, snapshotHashMatches)
+		if !nextSnapshotInfoValue.Exists(snapshotHashBuff, snapshotHashMatches) {
 			return errors.Errorf("snapshot %d does not exist", snapshotID)
 		}
-		tmpNextSnapshotInfo := nextSnapshotInfoValue.Value(snapshotHashMatches)
+		tmpNextSnapshotInfo := nextSnapshotInfoValue.Value(snapshotHashBuff, snapshotHashMatches)
 		nextSnapshotInfo = &tmpNextSnapshotInfo
 
 		nextDeallocationListRoot = types.NodeRoot{
@@ -353,8 +355,9 @@ func (db *DB) deleteSnapshot(
 			continue
 		}
 
-		deallocationListValue := deallocationLists.Find(nextDeallocSnapshot.Key, deallocationHashMatches)
-		listNodeAddress := deallocationListValue.Value(deallocationHashMatches)
+		deallocationListValue := deallocationLists.Find(nextDeallocSnapshot.Key, deallocationHashBuff,
+			deallocationHashMatches)
+		listNodeAddress := deallocationListValue.Value(deallocationHashBuff, deallocationHashMatches)
 		newListNodeAddress := listNodeAddress
 		list := list.New(list.Config{
 			ListRoot: types.NodeRoot{
@@ -381,6 +384,7 @@ func (db *DB) deleteSnapshot(
 				newListNodeAddress,
 				tx,
 				volatilePool,
+				deallocationHashBuff,
 				deallocationHashMatches,
 			); err != nil {
 				return err
@@ -404,11 +408,12 @@ func (db *DB) deleteSnapshot(
 	}
 
 	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
-		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, snapshotHashMatches)
+		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, snapshotHashBuff, snapshotHashMatches)
 		if err := nextSnapshotInfoValue.Set(
 			*nextSnapshotInfo,
 			tx,
 			volatilePool,
+			snapshotHashBuff,
 			snapshotHashMatches,
 		); err != nil {
 			return err
@@ -416,18 +421,19 @@ func (db *DB) deleteSnapshot(
 	}
 
 	if snapshotID > db.singularityNode.FirstSnapshotID {
-		previousSnapshotInfoValue := db.snapshots.Find(snapshotInfo.PreviousSnapshotID, snapshotHashMatches)
-		if !previousSnapshotInfoValue.Exists(snapshotHashMatches) {
+		previousSnapshotInfoValue := db.snapshots.Find(snapshotInfo.PreviousSnapshotID, snapshotHashBuff, snapshotHashMatches)
+		if !previousSnapshotInfoValue.Exists(snapshotHashBuff, snapshotHashMatches) {
 			return errors.Errorf("snapshot %d does not exist", snapshotID)
 		}
 
-		previousSnapshotInfo := previousSnapshotInfoValue.Value(snapshotHashMatches)
+		previousSnapshotInfo := previousSnapshotInfoValue.Value(snapshotHashBuff, snapshotHashMatches)
 		previousSnapshotInfo.NextSnapshotID = snapshotInfo.NextSnapshotID
 
 		if err := previousSnapshotInfoValue.Set(
 			previousSnapshotInfo,
 			tx,
 			volatilePool,
+			snapshotHashBuff,
 			snapshotHashMatches,
 		); err != nil {
 			return err
@@ -449,7 +455,9 @@ func (db *DB) commit(
 	tx *pipeline.TransactionRequest,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	listNode *list.Node,
+	snapshotHashBuff []byte,
 	snapshotHashMatches []uint64,
+	deallocationHashBuff []byte,
 	deallocationHashMatches []uint64,
 ) error {
 	//nolint:nestif
@@ -462,10 +470,10 @@ func (db *DB) commit(
 
 		var sr pipeline.StoreRequest
 		for _, snapshotID := range lists {
-			deallocationListValue := db.deallocationLists.Find(snapshotID, deallocationHashMatches)
-			if deallocationListValue.Exists(deallocationHashMatches) {
+			deallocationListValue := db.deallocationLists.Find(snapshotID, deallocationHashBuff, deallocationHashMatches)
+			if deallocationListValue.Exists(deallocationHashBuff, deallocationHashMatches) {
 				nodeRootToStore, err := db.deallocationListsToCommit[snapshotID].List.Attach(
-					lo.ToPtr(deallocationListValue.Value(deallocationHashMatches).Pointer),
+					lo.ToPtr(deallocationListValue.Value(deallocationHashBuff, deallocationHashMatches).Pointer),
 					volatilePool,
 					listNode,
 				)
@@ -484,6 +492,7 @@ func (db *DB) commit(
 				},
 				tx,
 				volatilePool,
+				deallocationHashBuff,
 				deallocationHashMatches,
 			); err != nil {
 				return err
@@ -496,11 +505,12 @@ func (db *DB) commit(
 		clear(db.deallocationListsToCommit)
 	}
 
-	nextSnapshotInfoValue := db.snapshots.Find(db.singularityNode.LastSnapshotID, snapshotHashMatches)
+	nextSnapshotInfoValue := db.snapshots.Find(db.singularityNode.LastSnapshotID, snapshotHashBuff, snapshotHashMatches)
 	if err := nextSnapshotInfoValue.Set(
 		db.snapshotInfo,
 		tx,
 		volatilePool,
+		snapshotHashBuff,
 		snapshotHashMatches,
 	); err != nil {
 		return err
@@ -525,6 +535,7 @@ func (db *DB) prepareTransactions(
 		return err
 	}
 
+	hashBuff := s.NewHashBuff()
 	hashMatches := s.NewHashMatches()
 
 	for processedCount := uint64(0); ; processedCount++ {
@@ -535,7 +546,7 @@ func (db *DB) prepareTransactions(
 
 		if processedCount%divider == mod && req.Transaction != nil {
 			if transferTx, ok := req.Transaction.(*transfer.Tx); ok {
-				transferTx.Prepare(s, hashMatches)
+				transferTx.Prepare(s, hashBuff, hashMatches)
 			}
 		}
 
@@ -555,8 +566,11 @@ func (db *DB) executeTransactions(
 		return err
 	}
 
+	hashBuff := s.NewHashBuff()
 	hashMatches := s.NewHashMatches()
+	snapshotHashBuff := db.snapshots.NewHashBuff()
 	snapshotHashMatches := db.snapshots.NewHashMatches()
+	deallocationHashBuff := db.deallocationLists.NewHashBuff()
 	deallocationHashMatches := db.deallocationLists.NewHashMatches()
 
 	listNode := db.listNodeAssistant.NewNode()
@@ -570,25 +584,25 @@ func (db *DB) executeTransactions(
 		if req.Transaction != nil {
 			switch tx := req.Transaction.(type) {
 			case *transfer.Tx:
-				if err := tx.Execute(req, volatilePool, hashMatches); err != nil {
+				if err := tx.Execute(req, volatilePool, hashBuff, hashMatches); err != nil {
 					return err
 				}
 			case *commitTx:
 				// Syncing must be finished just before committing because inside commit we store the results
 				// of deallocations.
 				<-tx.SyncCh
-				if err := db.commit(tx.SnapshotID, req, volatilePool, listNode, snapshotHashMatches,
-					deallocationHashMatches); err != nil {
+				if err := db.commit(tx.SnapshotID, req, volatilePool, listNode, snapshotHashBuff, snapshotHashMatches,
+					deallocationHashBuff, deallocationHashMatches); err != nil {
 					req.CommitCh <- err
 					return err
 				}
 			case *deleteSnapshotTx:
 				if err := db.deleteSnapshot(tx.SnapshotID, req, volatilePool, persistentPool, listNode,
-					snapshotHashMatches, deallocationHashMatches); err != nil {
+					snapshotHashBuff, snapshotHashMatches, deallocationHashBuff, deallocationHashMatches); err != nil {
 					return err
 				}
 			case *genesis.Tx:
-				if err := tx.Execute(s, req, volatilePool, hashMatches); err != nil {
+				if err := tx.Execute(s, req, volatilePool, hashBuff, hashMatches); err != nil {
 					return err
 				}
 			default:

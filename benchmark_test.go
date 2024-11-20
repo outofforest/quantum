@@ -32,7 +32,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 20_000_000
+		numOfAddresses = 5_000_000
 		txsPerCommit   = 20_000
 		balance        = 100_000
 	)
@@ -59,7 +59,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 		func() {
 			_, _ = rand.Read(accountBytes)
 
-			var size uint64 = 120 * 1024 * 1024 * 1024
+			var size uint64 = 20 * 1024 * 1024 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size,
 				100,
@@ -117,6 +117,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				panic(err)
 			}
 
+			hashBuff := s.NewHashBuff()
 			hashMatches := s.NewHashMatches()
 
 			func() {
@@ -135,9 +136,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				fmt.Println(s.Stats())
 				fmt.Println("===========================")
 
-				v := s.Find(txtypes.GenesisAccount, hashMatches)
-				require.True(b, v.Exists(hashMatches))
-				require.Equal(b, txtypes.Amount(numOfAddresses*balance), v.Value(hashMatches))
+				v := s.Find(txtypes.GenesisAccount, hashBuff, hashMatches)
+				require.True(b, v.Exists(hashBuff, hashMatches))
+				require.Equal(b, txtypes.Amount(numOfAddresses*balance), v.Value(hashBuff, hashMatches))
 			}()
 
 			txIndex := 0
@@ -174,14 +175,14 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			func() {
 				fmt.Println(s.Stats())
 
-				v := s.Find(txtypes.GenesisAccount, hashMatches)
-				require.True(b, v.Exists(hashMatches))
-				require.Equal(b, txtypes.Amount(0), v.Value(hashMatches))
+				v := s.Find(txtypes.GenesisAccount, hashBuff, hashMatches)
+				require.True(b, v.Exists(hashBuff, hashMatches))
+				require.Equal(b, txtypes.Amount(0), v.Value(hashBuff, hashMatches))
 
 				for _, addr := range accounts {
-					v := s.Find(addr, hashMatches)
-					require.True(b, v.Exists(hashMatches))
-					require.Equal(b, txtypes.Amount(balance), v.Value(hashMatches))
+					v := s.Find(addr, hashBuff, hashMatches)
+					require.True(b, v.Exists(hashBuff, hashMatches))
+					require.Equal(b, txtypes.Amount(balance), v.Value(hashBuff, hashMatches))
 				}
 			}()
 		}()
