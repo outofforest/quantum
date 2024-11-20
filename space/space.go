@@ -621,8 +621,6 @@ func (s *Space[K, V]) walkDataItems(v *Entry[K, V], hashMatches []uint64) bool {
 		return false
 	}
 
-	v.keyHashP = nil
-	v.itemP = nil
 	v.exists = false
 
 	var conflict bool
