@@ -142,7 +142,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			}()
 
 			txIndex := 0
-			var snapshotID types.SnapshotID
+			var snapshotID types.SnapshotID = 1
 
 			func() {
 				b.StartTimer()
@@ -158,12 +158,11 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 						if err := db.Commit(); err != nil {
 							panic(err)
 						}
+						snapshotID++
 
 						if snapshotID > 1 {
-							db.DeleteSnapshot(snapshotID - 2)
+							db.DeleteSnapshot(snapshotID - 1)
 						}
-
-						snapshotID++
 					}
 				}
 
