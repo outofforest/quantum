@@ -75,7 +75,7 @@ func (s *Space[K, V]) Find(key K, hashBuff []byte, hashMatches []uint64) *Entry[
 	initBytes := unsafe.Slice((*byte)(unsafe.Pointer(v)), s.initSize)
 	copy(initBytes, s.defaultInit)
 	v.keyHash = hashKey(&key, nil, 0)
-	v.item.Key = key
+	v.key = key
 	v.dataItemIndex = dataItemIndex(v.keyHash, s.numOfDataItems)
 
 	s.find(v, hashBuff, hashMatches)
@@ -210,7 +210,11 @@ func (s *Space[K, V]) readValue(v *Entry[K, V], hashBuff []byte, hashMatches []u
 
 	s.find(v, hashBuff, hashMatches)
 
-	return v.item.Value
+	if v.keyHashP == nil || *v.keyHashP == 0 {
+		return s.defaultValue
+	}
+
+	return v.itemP.Value
 }
 
 func (s *Space[K, V]) deleteValue(
@@ -245,7 +249,7 @@ func (s *Space[K, V]) setValue(
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
-	v.item.Value = value
+	v.value = value
 
 	detectUpdate(v)
 
@@ -259,19 +263,11 @@ func (s *Space[K, V]) find(v *Entry[K, V], hashBuff []byte, hashMatches []uint64
 		v.keyHashP = nil
 		v.itemP = nil
 		v.exists = false
-		v.item.Value = s.defaultValue
 
 		return
 	}
 
 	s.walkDataItems(v, hashMatches)
-
-	if v.keyHashP != nil && *v.keyHashP != 0 {
-		v.item.Value = v.itemP.Value
-		return
-	}
-
-	v.item.Value = s.defaultValue
 }
 
 func (s *Space[K, V]) set(
@@ -300,10 +296,9 @@ func (s *Space[K, V]) set(
 	if v.keyHashP != nil {
 		if *v.keyHashP == 0 {
 			*v.keyHashP = v.keyHash
-			*v.itemP = v.item
-		} else {
-			v.itemP.Value = v.item.Value
+			v.itemP.Key = v.key
 		}
+		v.itemP.Value = v.value
 
 		tx.AddStoreRequest(&v.storeRequest)
 
@@ -531,7 +526,7 @@ var pointerHops = [NumOfPointers][]uint64{
 func (s *Space[K, V]) walkPointers(v *Entry[K, V], hashBuff []byte) {
 	for v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StatePointer {
 		if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Flags.IsSet(types.FlagHashMod) {
-			v.keyHash = hashKey(&v.item.Key, hashBuff, v.level)
+			v.keyHash = hashKey(&v.key, hashBuff, v.level)
 		}
 
 		pointerNode := ProjectPointerNode(s.config.State.Node(
@@ -612,7 +607,7 @@ func (s *Space[K, V]) walkDataItems(v *Entry[K, V], hashMatches []uint64) bool {
 	for i := range numOfMatches {
 		index := hashMatches[i]
 		item := s.config.DataNodeAssistant.Item(node, s.config.DataNodeAssistant.ItemOffset(index))
-		if item.Key == v.item.Key {
+		if item.Key == v.key {
 			v.exists = true
 			v.keyHashP = &keyHashes[index]
 			v.itemP = item
@@ -639,8 +634,9 @@ type Entry[K, V comparable] struct {
 
 	itemP             *types.DataItem[K, V]
 	keyHashP          *types.KeyHash
-	item              types.DataItem[K, V]
 	keyHash           types.KeyHash
+	key               K
+	value             V
 	nextDataNodeState *types.State
 	parentIndex       uint64
 	dataItemIndex     uint64
@@ -655,7 +651,7 @@ func (v *Entry[K, V]) Value(hashBuff []byte, hashMatches []uint64) V {
 
 // Key returns the key from entry.
 func (v *Entry[K, V]) Key() K {
-	return v.item.Key
+	return v.key
 }
 
 // Exists returns true if entry exists in the space.
@@ -723,7 +719,7 @@ func detectUpdate[K, V comparable](v *Entry[K, V]) {
 		v.keyHashP = nil
 		v.itemP = nil
 	case v.keyHashP != nil && (pointer.State != types.StateData ||
-		(*v.keyHashP != 0 && (*v.keyHashP != v.keyHash || v.itemP.Key != v.item.Key))):
+		(*v.keyHashP != 0 && (*v.keyHashP != v.keyHash || v.itemP.Key != v.key))):
 		v.keyHashP = nil
 		v.itemP = nil
 	}
