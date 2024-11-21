@@ -24,8 +24,12 @@ const (
 	Close
 )
 
-// StoreCapacity is the maximum capacity of store array in store request.
-const StoreCapacity = 10
+const (
+	// StoreCapacity is the maximum capacity of store array in store request.
+	StoreCapacity = 10
+
+	atomicDivider = 100
+)
 
 // NewTransactionRequestFactory creates transaction request factory.
 func NewTransactionRequestFactory() *TransactionRequestFactory {
@@ -101,7 +105,7 @@ func (p *Pipeline) Push(item *TransactionRequest) {
 	*p.tail = item
 	p.tail = &item.Next
 
-	if p.count%96 == 0 || item.Type != None {
+	if p.count%atomicDivider == 0 || item.Type != None {
 		atomic.StoreUint64(p.availableCount, p.count)
 	}
 }
@@ -154,7 +158,7 @@ func (qr *Reader) Read(ctx context.Context) (*TransactionRequest, error) {
 
 // Acknowledge acknowledges processing of requests so next worker in the pipeline might take them.
 func (qr *Reader) Acknowledge(count uint64, req *TransactionRequest) {
-	if *qr.processedCount+96 <= count || req.Type != None {
+	if *qr.processedCount+atomicDivider <= count || req.Type != None {
 		atomic.StoreUint64(qr.processedCount, count)
 	}
 }

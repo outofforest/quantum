@@ -100,7 +100,7 @@ func (s *State) SingularityNodeRoot() types.NodeRoot {
 
 // Node returns node bytes.
 func (s *State) Node(nodeAddress types.VolatileAddress) unsafe.Pointer {
-	return unsafe.Add(s.dataP, nodeAddress)
+	return unsafe.Add(s.dataP, nodeAddress*types.NodeLength)
 }
 
 // Bytes returns byte slice of a node.

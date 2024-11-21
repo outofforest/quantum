@@ -25,7 +25,7 @@ type FileStore struct {
 
 // Write writes data to the store.
 func (s *FileStore) Write(address types.PersistentAddress, data []byte) error {
-	if _, err := s.file.Seek(int64(address), io.SeekStart); err != nil {
+	if _, err := s.file.Seek(int64(address*types.NodeLength), io.SeekStart); err != nil {
 		return errors.WithStack(err)
 	}
 	_, err := s.file.Write(data)
