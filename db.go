@@ -54,7 +54,7 @@ func New(config Config) (*DB, error) {
 		return nil, err
 	}
 
-	snapshotToNodeNodeAssistant, err := space.NewDataNodeAssistant[types.SnapshotID, types.Root]()
+	snapshotToPointerNodeAssistant, err := space.NewDataNodeAssistant[types.SnapshotID, types.Pointer]()
 	if err != nil {
 		return nil, err
 	}
@@ -67,15 +67,15 @@ func New(config Config) (*DB, error) {
 	queue, queueReader := pipeline.New()
 
 	db := &DB{
-		config:                      config,
-		txRequestFactory:            pipeline.NewTransactionRequestFactory(),
-		singularityNode:             photon.FromPointer[types.SingularityNode](config.State.Node(0)),
-		snapshotInfoNodeAssistant:   snapshotInfoNodeAssistant,
-		snapshotToNodeNodeAssistant: snapshotToNodeNodeAssistant,
-		listNodeAssistant:           listNodeAssistant,
-		deallocationListsToCommit:   map[types.SnapshotID]ListToCommit{},
-		queue:                       queue,
-		queueReader:                 queueReader,
+		config:                         config,
+		txRequestFactory:               pipeline.NewTransactionRequestFactory(),
+		singularityNode:                photon.FromPointer[types.SingularityNode](config.State.Node(0)),
+		snapshotInfoNodeAssistant:      snapshotInfoNodeAssistant,
+		snapshotToPointerNodeAssistant: snapshotToPointerNodeAssistant,
+		listNodeAssistant:              listNodeAssistant,
+		deallocationListsToCommit:      map[types.SnapshotID]*ListToCommit{},
+		queue:                          queue,
+		queueReader:                    queueReader,
 	}
 
 	// Logical nodes might be deallocated immediately.
@@ -89,14 +89,14 @@ func New(config Config) (*DB, error) {
 		NoSnapshots:       true,
 	})
 
-	db.deallocationLists = space.New[types.SnapshotID, types.Root](
-		space.Config[types.SnapshotID, types.Root]{
+	db.deallocationLists = space.New[types.SnapshotID, types.Pointer](
+		space.Config[types.SnapshotID, types.Pointer]{
 			SpaceRoot: types.NodeRoot{
 				Pointer: &db.snapshotInfo.DeallocationRoot,
 			},
 			State:             config.State,
-			DataNodeAssistant: snapshotToNodeNodeAssistant,
-			MassEntry:         mass.New[space.Entry[types.SnapshotID, types.Root]](1000),
+			DataNodeAssistant: snapshotToPointerNodeAssistant,
+			MassEntry:         mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
 			NoSnapshots:       true,
 		},
 	)
@@ -114,13 +114,13 @@ type DB struct {
 	singularityNode   *types.SingularityNode
 	snapshotInfo      types.SnapshotInfo
 	snapshots         *space.Space[types.SnapshotID, types.SnapshotInfo]
-	deallocationLists *space.Space[types.SnapshotID, types.Root]
+	deallocationLists *space.Space[types.SnapshotID, types.Pointer]
 
-	snapshotInfoNodeAssistant   *space.DataNodeAssistant[types.SnapshotID, types.SnapshotInfo]
-	snapshotToNodeNodeAssistant *space.DataNodeAssistant[types.SnapshotID, types.Root]
-	listNodeAssistant           *list.NodeAssistant
+	snapshotInfoNodeAssistant      *space.DataNodeAssistant[types.SnapshotID, types.SnapshotInfo]
+	snapshotToPointerNodeAssistant *space.DataNodeAssistant[types.SnapshotID, types.Pointer]
+	listNodeAssistant              *list.NodeAssistant
 
-	deallocationListsToCommit map[types.SnapshotID]ListToCommit
+	deallocationListsToCommit map[types.SnapshotID]*ListToCommit
 
 	queueReader *pipeline.Reader
 	queue       *pipeline.Pipeline
@@ -274,7 +274,7 @@ func (db *DB) deleteSnapshot(
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
 	listNode *list.Node,
-	massSnapshotToNodeEntry *mass.Mass[space.Entry[types.SnapshotID, types.Root]],
+	massSnapshotToPointerEntry *mass.Mass[space.Entry[types.SnapshotID, types.Pointer]],
 	massStoreRequest *mass.Mass[pipeline.StoreRequest],
 	snapshotHashBuff []byte,
 	snapshotHashMatches []uint64,
@@ -293,7 +293,7 @@ func (db *DB) deleteSnapshot(
 
 	var nextSnapshotInfo *types.SnapshotInfo
 	var nextDeallocationListRoot types.NodeRoot
-	var nextDeallocationLists *space.Space[types.SnapshotID, types.Root]
+	var nextDeallocationLists *space.Space[types.SnapshotID, types.Pointer]
 	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
 		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, snapshotHashBuff, snapshotHashMatches)
 		if !nextSnapshotInfoValue.Exists(snapshotHashBuff, snapshotHashMatches) {
@@ -305,12 +305,12 @@ func (db *DB) deleteSnapshot(
 		nextDeallocationListRoot = types.NodeRoot{
 			Pointer: &nextSnapshotInfo.DeallocationRoot,
 		}
-		nextDeallocationLists = space.New[types.SnapshotID, types.Root](
-			space.Config[types.SnapshotID, types.Root]{
+		nextDeallocationLists = space.New[types.SnapshotID, types.Pointer](
+			space.Config[types.SnapshotID, types.Pointer]{
 				SpaceRoot:         nextDeallocationListRoot,
 				State:             db.config.State,
-				DataNodeAssistant: db.snapshotToNodeNodeAssistant,
-				MassEntry:         massSnapshotToNodeEntry,
+				DataNodeAssistant: db.snapshotToPointerNodeAssistant,
+				MassEntry:         massSnapshotToPointerEntry,
 			},
 		)
 	} else {
@@ -324,12 +324,12 @@ func (db *DB) deleteSnapshot(
 	deallocationListsRoot := types.NodeRoot{
 		Pointer: &snapshotInfo.DeallocationRoot,
 	}
-	deallocationLists := space.New[types.SnapshotID, types.Root](
-		space.Config[types.SnapshotID, types.Root]{
+	deallocationLists := space.New[types.SnapshotID, types.Pointer](
+		space.Config[types.SnapshotID, types.Pointer]{
 			SpaceRoot:         deallocationListsRoot,
 			State:             db.config.State,
-			DataNodeAssistant: db.snapshotToNodeNodeAssistant,
-			MassEntry:         massSnapshotToNodeEntry,
+			DataNodeAssistant: db.snapshotToPointerNodeAssistant,
+			MassEntry:         massSnapshotToPointerEntry,
 		},
 	)
 
@@ -337,7 +337,7 @@ func (db *DB) deleteSnapshot(
 	for nextDeallocSnapshot := range nextDeallocationLists.Iterator() {
 		if nextDeallocSnapshot.Key > snapshotInfo.PreviousSnapshotID && nextDeallocSnapshot.Key <= snapshotID {
 			list.Deallocate(
-				nextDeallocSnapshot.Value.Pointer,
+				nextDeallocSnapshot.Value,
 				volatilePool,
 				persistentPool,
 				db.listNodeAssistant,
@@ -350,14 +350,15 @@ func (db *DB) deleteSnapshot(
 		deallocationListValue := deallocationLists.Find(nextDeallocSnapshot.Key, deallocationHashBuff,
 			deallocationHashMatches)
 		listNodeAddress := deallocationListValue.Value(deallocationHashBuff, deallocationHashMatches)
-		newListNodeAddress := listNodeAddress
+		listNodeAddressP := &listNodeAddress
+		newListNodeAddressP := listNodeAddressP
 		list := list.New(list.Config{
-			Root:          &newListNodeAddress.Pointer,
+			Root:          newListNodeAddressP,
 			State:         db.config.State,
 			NodeAssistant: db.listNodeAssistant,
 		})
 
-		listRoot, err := list.Attach(&nextDeallocSnapshot.Value.Pointer, volatilePool, listNode)
+		listRoot, err := list.Attach(&nextDeallocSnapshot.Value, volatilePool, listNode)
 		if err != nil {
 			return err
 		}
@@ -373,10 +374,14 @@ func (db *DB) deleteSnapshot(
 				tx.AddStoreRequest(sr)
 				sr = nil
 			}
+
+			if listRoot != newListNodeAddressP {
+				newListNodeAddressP = listRoot
+			}
 		}
-		if newListNodeAddress.Pointer != listNodeAddress.Pointer {
+		if newListNodeAddressP != listNodeAddressP {
 			if err := deallocationListValue.Set(
-				newListNodeAddress,
+				*newListNodeAddressP,
 				tx,
 				volatilePool,
 				deallocationHashBuff,
@@ -458,10 +463,11 @@ func (db *DB) commit(
 
 		var sr *pipeline.StoreRequest
 		for _, snapshotID := range lists {
+			l := db.deallocationListsToCommit[snapshotID]
 			deallocationListValue := db.deallocationLists.Find(snapshotID, deallocationHashBuff, deallocationHashMatches)
 			if deallocationListValue.Exists(deallocationHashBuff, deallocationHashMatches) {
-				listRoot, err := db.deallocationListsToCommit[snapshotID].List.Attach(
-					lo.ToPtr(deallocationListValue.Value(deallocationHashBuff, deallocationHashMatches).Pointer),
+				listRoot, err := l.List.Attach(
+					lo.ToPtr(deallocationListValue.Value(deallocationHashBuff, deallocationHashMatches)),
 					volatilePool,
 					listNode,
 				)
@@ -481,12 +487,14 @@ func (db *DB) commit(
 						tx.AddStoreRequest(sr)
 						sr = nil
 					}
+
+					if listRoot != l.Root {
+						l.Root = listRoot
+					}
 				}
 			}
 			if err := deallocationListValue.Set(
-				types.Root{
-					Pointer: *db.deallocationListsToCommit[snapshotID].Root,
-				},
+				*l.Root,
 				tx,
 				volatilePool,
 				deallocationHashBuff,
@@ -570,7 +578,7 @@ func (db *DB) executeTransactions(
 	deallocationHashBuff := db.deallocationLists.NewHashBuff()
 	deallocationHashMatches := db.deallocationLists.NewHashMatches()
 
-	massSnapshotToNodeEntry := mass.New[space.Entry[types.SnapshotID, types.Root]](1000)
+	massSnapshotToPointerEntry := mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000)
 	massStoreRequest := mass.New[pipeline.StoreRequest](1000)
 	listNode := db.listNodeAssistant.NewNode()
 
@@ -597,7 +605,7 @@ func (db *DB) executeTransactions(
 				}
 			case *deleteSnapshotTx:
 				if err := db.deleteSnapshot(tx.SnapshotID, req, volatilePool, persistentPool, listNode,
-					massSnapshotToNodeEntry, massStoreRequest, snapshotHashBuff, snapshotHashMatches,
+					massSnapshotToPointerEntry, massStoreRequest, snapshotHashBuff, snapshotHashMatches,
 					deallocationHashBuff, deallocationHashMatches); err != nil {
 					return err
 				}
@@ -988,20 +996,32 @@ func (db *DB) deallocateNode(
 
 	l, exists := db.deallocationListsToCommit[pointer.SnapshotID]
 	if !exists {
-		l.Root = &types.Pointer{}
-		l.List = list.New(list.Config{
-			Root:          l.Root,
-			State:         db.config.State,
-			NodeAssistant: db.listNodeAssistant,
-		})
+		root := &types.Pointer{}
+		l = &ListToCommit{
+			Root: root,
+			List: list.New(list.Config{
+				Root:          root,
+				State:         db.config.State,
+				NodeAssistant: db.listNodeAssistant,
+			}),
+		}
 		db.deallocationListsToCommit[pointer.SnapshotID] = l
 	}
 
-	return l.List.Add(
+	listRoot, err := l.List.Add(
 		pointer,
 		volatilePool,
 		node,
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	if l.Root != listRoot {
+		l.Root = listRoot
+	}
+
+	return listRoot, nil
 }
 
 func (db *DB) prepareNextSnapshot() error {
