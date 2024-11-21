@@ -59,11 +59,6 @@ func New(config Config) (*DB, error) {
 		return nil, err
 	}
 
-	listNodeAssistant, err := list.NewNodeAssistant(config.State)
-	if err != nil {
-		return nil, err
-	}
-
 	queue, queueReader := pipeline.New()
 
 	db := &DB{
@@ -72,7 +67,6 @@ func New(config Config) (*DB, error) {
 		singularityNode:                photon.FromPointer[types.SingularityNode](config.State.Node(0)),
 		snapshotInfoNodeAssistant:      snapshotInfoNodeAssistant,
 		snapshotToPointerNodeAssistant: snapshotToPointerNodeAssistant,
-		listNodeAssistant:              listNodeAssistant,
 		deallocationListsToCommit:      map[types.SnapshotID]*ListToCommit{},
 		queue:                          queue,
 		queueReader:                    queueReader,
@@ -118,7 +112,6 @@ type DB struct {
 
 	snapshotInfoNodeAssistant      *space.DataNodeAssistant[types.SnapshotID, types.SnapshotInfo]
 	snapshotToPointerNodeAssistant *space.DataNodeAssistant[types.SnapshotID, types.Pointer]
-	listNodeAssistant              *list.NodeAssistant
 
 	deallocationListsToCommit map[types.SnapshotID]*ListToCommit
 
@@ -273,7 +266,6 @@ func (db *DB) deleteSnapshot(
 	tx *pipeline.TransactionRequest,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
-	listNode *list.Node,
 	massSnapshotToPointerEntry *mass.Mass[space.Entry[types.SnapshotID, types.Pointer]],
 	massStoreRequest *mass.Mass[pipeline.StoreRequest],
 	snapshotHashBuff []byte,
@@ -338,10 +330,9 @@ func (db *DB) deleteSnapshot(
 		if nextDeallocSnapshot.Key > snapshotInfo.PreviousSnapshotID && nextDeallocSnapshot.Key <= snapshotID {
 			list.Deallocate(
 				nextDeallocSnapshot.Value,
+				db.config.State,
 				volatilePool,
 				persistentPool,
-				db.listNodeAssistant,
-				listNode,
 			)
 
 			continue
@@ -353,12 +344,11 @@ func (db *DB) deleteSnapshot(
 		listNodeAddressP := &listNodeAddress
 		newListNodeAddressP := listNodeAddressP
 		list := list.New(list.Config{
-			Root:          newListNodeAddressP,
-			State:         db.config.State,
-			NodeAssistant: db.listNodeAssistant,
+			Root:  newListNodeAddressP,
+			State: db.config.State,
 		})
 
-		listRoot, err := list.Attach(&nextDeallocSnapshot.Value, volatilePool, listNode)
+		listRoot, err := list.Attach(&nextDeallocSnapshot.Value, volatilePool)
 		if err != nil {
 			return err
 		}
@@ -446,7 +436,6 @@ func (db *DB) deleteSnapshot(
 func (db *DB) commit(
 	tx *pipeline.TransactionRequest,
 	volatilePool *alloc.Pool[types.VolatileAddress],
-	listNode *list.Node,
 	massStoreRequest *mass.Mass[pipeline.StoreRequest],
 	snapshotHashBuff []byte,
 	snapshotHashMatches []uint64,
@@ -469,7 +458,6 @@ func (db *DB) commit(
 				listRoot, err := l.List.Attach(
 					lo.ToPtr(deallocationListValue.Value(deallocationHashBuff, deallocationHashMatches)),
 					volatilePool,
-					listNode,
 				)
 				if err != nil {
 					return err
@@ -580,7 +568,6 @@ func (db *DB) executeTransactions(
 
 	massSnapshotToPointerEntry := mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000)
 	massStoreRequest := mass.New[pipeline.StoreRequest](1000)
-	listNode := db.listNodeAssistant.NewNode()
 
 	for processedCount := uint64(0); ; processedCount++ {
 		req, err := pipeReader.Read(ctx)
@@ -598,15 +585,15 @@ func (db *DB) executeTransactions(
 				// Syncing must be finished just before committing because inside commit we store the results
 				// of deallocations.
 				<-tx.SyncCh
-				if err := db.commit(req, volatilePool, listNode, massStoreRequest, snapshotHashBuff, snapshotHashMatches,
+				if err := db.commit(req, volatilePool, massStoreRequest, snapshotHashBuff, snapshotHashMatches,
 					deallocationHashBuff, deallocationHashMatches); err != nil {
 					req.CommitCh <- err
 					return err
 				}
 			case *deleteSnapshotTx:
-				if err := db.deleteSnapshot(tx.SnapshotID, req, volatilePool, persistentPool, listNode,
-					massSnapshotToPointerEntry, massStoreRequest, snapshotHashBuff, snapshotHashMatches,
-					deallocationHashBuff, deallocationHashMatches); err != nil {
+				if err := db.deleteSnapshot(tx.SnapshotID, req, volatilePool, persistentPool, massSnapshotToPointerEntry,
+					massStoreRequest, snapshotHashBuff, snapshotHashMatches, deallocationHashBuff,
+					deallocationHashMatches); err != nil {
 					return err
 				}
 			case *genesis.Tx:
@@ -628,8 +615,6 @@ func (db *DB) processAllocationRequests(
 ) error {
 	volatilePool := db.config.State.NewVolatilePool()
 	persistentPool := db.config.State.NewPersistentPool()
-
-	listNode := db.listNodeAssistant.NewNode()
 
 	massStoreRequest := mass.New[pipeline.StoreRequest](1000)
 
@@ -654,7 +639,6 @@ func (db *DB) processAllocationRequests(
 								sr.NoSnapshots,
 								volatilePool,
 								persistentPool,
-								listNode,
 							)
 							if err != nil {
 								return err
@@ -985,7 +969,6 @@ func (db *DB) deallocateNode(
 	noSnapshots bool,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
-	node *list.Node,
 ) (*types.Pointer, error) {
 	if pointer.SnapshotID > db.snapshotInfo.PreviousSnapshotID || noSnapshots {
 		persistentPool.Deallocate(pointer.PersistentAddress)
@@ -1000,9 +983,8 @@ func (db *DB) deallocateNode(
 		l = &ListToCommit{
 			Root: root,
 			List: list.New(list.Config{
-				Root:          root,
-				State:         db.config.State,
-				NodeAssistant: db.listNodeAssistant,
+				Root:  root,
+				State: db.config.State,
 			}),
 		}
 		db.deallocationListsToCommit[pointer.SnapshotID] = l
@@ -1011,7 +993,6 @@ func (db *DB) deallocateNode(
 	listRoot, err := l.List.Add(
 		pointer,
 		volatilePool,
-		node,
 	)
 	if err != nil {
 		return nil, err
