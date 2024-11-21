@@ -24,8 +24,8 @@ func NewAllocationCh[A Address](
 	totalNumOfNodes := singularityNodeCount + numOfNodes
 
 	availableNodes := make([]A, 0, numOfNodes)
-	for i := uint64(singularityNodeCount); i < totalNumOfNodes; i++ {
-		availableNodes = append(availableNodes, A(i*types.NodeLength))
+	for i := A(singularityNodeCount); i < A(totalNumOfNodes); i++ {
+		availableNodes = append(availableNodes, i)
 	}
 
 	availableNodesCh := make(chan []A, numOfGroups)
