@@ -163,7 +163,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 						if snapshotID > 1 {
 							db.DeleteSnapshot(snapshotID - 1)
 						}
-
 					}
 				}
 
