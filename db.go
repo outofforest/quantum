@@ -43,8 +43,8 @@ type SpaceToCommit struct {
 
 // ListToCommit contains cached deallocation list.
 type ListToCommit struct {
-	List     *list.List
-	ListRoot types.NodeRoot
+	List *list.List
+	Root *types.Pointer
 }
 
 // New creates new database.
@@ -81,25 +81,23 @@ func New(config Config) (*DB, error) {
 	// Logical nodes might be deallocated immediately.
 	db.snapshots = space.New[types.SnapshotID, types.SnapshotInfo](space.Config[types.SnapshotID, types.SnapshotInfo]{
 		SpaceRoot: types.NodeRoot{
-			Hash:    &db.singularityNode.SnapshotRoot.Hash,
-			Pointer: &db.singularityNode.SnapshotRoot.Pointer,
+			Pointer: &db.singularityNode.SnapshotRoot,
 		},
-		State:                 config.State,
-		DataNodeAssistant:     snapshotInfoNodeAssistant,
-		MassEntry:             mass.New[space.Entry[types.SnapshotID, types.SnapshotInfo]](1000),
-		ImmediateDeallocation: true,
+		State:             config.State,
+		DataNodeAssistant: snapshotInfoNodeAssistant,
+		MassEntry:         mass.New[space.Entry[types.SnapshotID, types.SnapshotInfo]](1000),
+		NoSnapshots:       true,
 	})
 
 	db.deallocationLists = space.New[types.SnapshotID, types.Root](
 		space.Config[types.SnapshotID, types.Root]{
 			SpaceRoot: types.NodeRoot{
-				Hash:    &db.snapshotInfo.DeallocationRoot.Hash,
-				Pointer: &db.snapshotInfo.DeallocationRoot.Pointer,
+				Pointer: &db.snapshotInfo.DeallocationRoot,
 			},
-			State:                 config.State,
-			DataNodeAssistant:     snapshotToNodeNodeAssistant,
-			MassEntry:             mass.New[space.Entry[types.SnapshotID, types.Root]](1000),
-			ImmediateDeallocation: true,
+			State:             config.State,
+			DataNodeAssistant: snapshotToNodeNodeAssistant,
+			MassEntry:         mass.New[space.Entry[types.SnapshotID, types.Root]](1000),
+			NoSnapshots:       true,
 		},
 	)
 
@@ -306,8 +304,7 @@ func (db *DB) deleteSnapshot(
 		nextSnapshotInfo = &tmpNextSnapshotInfo
 
 		nextDeallocationListRoot = types.NodeRoot{
-			Hash:    &nextSnapshotInfo.DeallocationRoot.Hash,
-			Pointer: &nextSnapshotInfo.DeallocationRoot.Pointer,
+			Pointer: &nextSnapshotInfo.DeallocationRoot,
 		}
 		nextDeallocationLists = space.New[types.SnapshotID, types.Root](
 			space.Config[types.SnapshotID, types.Root]{
@@ -320,15 +317,13 @@ func (db *DB) deleteSnapshot(
 	} else {
 		nextSnapshotInfo = &db.snapshotInfo
 		nextDeallocationListRoot = types.NodeRoot{
-			Hash:    &db.snapshotInfo.DeallocationRoot.Hash,
-			Pointer: &db.snapshotInfo.DeallocationRoot.Pointer,
+			Pointer: &db.snapshotInfo.DeallocationRoot,
 		}
 		nextDeallocationLists = db.deallocationLists
 	}
 
 	deallocationListsRoot := types.NodeRoot{
-		Hash:    &snapshotInfo.DeallocationRoot.Hash,
-		Pointer: &snapshotInfo.DeallocationRoot.Pointer,
+		Pointer: &snapshotInfo.DeallocationRoot,
 	}
 	deallocationLists := space.New[types.SnapshotID, types.Root](
 		space.Config[types.SnapshotID, types.Root]{
@@ -363,25 +358,22 @@ func (db *DB) deleteSnapshot(
 		listNodeAddress := deallocationListValue.Value(deallocationHashBuff, deallocationHashMatches)
 		newListNodeAddress := listNodeAddress
 		list := list.New(list.Config{
-			ListRoot: types.NodeRoot{
-				Hash:    &newListNodeAddress.Hash,
-				Pointer: &newListNodeAddress.Pointer,
-			},
+			Root:          &newListNodeAddress.Pointer,
 			State:         db.config.State,
 			NodeAssistant: db.listNodeAssistant,
 		})
 
-		nodeRootToStore, err := list.Attach(&nextDeallocSnapshot.Value.Pointer, volatilePool, listNode)
+		listRoot, err := list.Attach(&nextDeallocSnapshot.Value.Pointer, volatilePool, listNode)
 		if err != nil {
 			return err
 		}
-		if nodeRootToStore.Pointer != nil {
+		if listRoot != nil {
 			if sr == nil {
 				sr = &pipeline.StoreRequest{
-					ImmediateDeallocation: true,
+					NoSnapshots: true,
 				}
 			}
-			sr.Store[sr.PointersToStore] = nodeRootToStore
+			sr.Store[sr.PointersToStore].Pointer = listRoot
 			sr.PointersToStore++
 
 			if sr.PointersToStore == pipeline.StoreCapacity {
@@ -486,7 +478,7 @@ func (db *DB) commit(
 		for _, snapshotID := range lists {
 			deallocationListValue := db.deallocationLists.Find(snapshotID, deallocationHashBuff, deallocationHashMatches)
 			if deallocationListValue.Exists(deallocationHashBuff, deallocationHashMatches) {
-				nodeRootToStore, err := db.deallocationListsToCommit[snapshotID].List.Attach(
+				listRoot, err := db.deallocationListsToCommit[snapshotID].List.Attach(
 					lo.ToPtr(deallocationListValue.Value(deallocationHashBuff, deallocationHashMatches).Pointer),
 					volatilePool,
 					listNode,
@@ -494,14 +486,14 @@ func (db *DB) commit(
 				if err != nil {
 					return err
 				}
-				if nodeRootToStore.Pointer != nil {
+				if listRoot != nil {
 					if sr == nil {
 						sr = &pipeline.StoreRequest{
-							ImmediateDeallocation: true,
+							NoSnapshots: true,
 						}
 					}
 
-					sr.Store[sr.PointersToStore] = nodeRootToStore
+					sr.Store[sr.PointersToStore].Pointer = listRoot
 					sr.PointersToStore++
 
 					if sr.PointersToStore == pipeline.StoreCapacity {
@@ -512,8 +504,7 @@ func (db *DB) commit(
 			}
 			if err := deallocationListValue.Set(
 				types.Root{
-					Hash:    *db.deallocationListsToCommit[snapshotID].ListRoot.Hash,
-					Pointer: *db.deallocationListsToCommit[snapshotID].ListRoot.Pointer,
+					Pointer: *db.deallocationListsToCommit[snapshotID].Root,
 				},
 				tx,
 				volatilePool,
@@ -692,9 +683,9 @@ func (db *DB) processAllocationRequests(
 				//nolint:nestif
 				if root.Pointer.SnapshotID != db.singularityNode.LastSnapshotID {
 					if root.Pointer.PersistentAddress != 0 {
-						nodeRootToStore, err := db.deallocateNode(
+						listRoot, err := db.deallocateNode(
 							root.Pointer,
-							sr.ImmediateDeallocation,
+							sr.NoSnapshots,
 							volatilePool,
 							persistentPool,
 							listNode,
@@ -703,19 +694,14 @@ func (db *DB) processAllocationRequests(
 							return err
 						}
 
-						if nodeRootToStore.Pointer != nil {
+						if listRoot != nil {
 							if deallocSr == nil {
 								deallocSr = &pipeline.StoreRequest{
-									ImmediateDeallocation: true,
+									NoSnapshots: true,
 								}
 							}
-							deallocSr.Store[deallocSr.PointersToStore] = nodeRootToStore
+							deallocSr.Store[deallocSr.PointersToStore].Pointer = listRoot
 							deallocSr.PointersToStore++
-
-							if deallocSr.PointersToStore == pipeline.StoreCapacity {
-								req.AddStoreRequest(deallocSr)
-								deallocSr = nil
-							}
 						}
 
 						root.Pointer.PersistentAddress = 0
@@ -733,7 +719,6 @@ func (db *DB) processAllocationRequests(
 				}
 			}
 			if deallocSr != nil {
-				// FIXME (wojciech): Adding store requests in pipeline goroutine might break the counter.
 				req.AddStoreRequest(deallocSr)
 			}
 		}
@@ -807,7 +792,7 @@ func (r *reader) Read(ctx context.Context) (request, error) {
 			}
 			r.read++
 		}
-		for r.storeRequest != nil && r.storeRequest.PointersToStore == 0 {
+		for r.storeRequest != nil && (r.storeRequest.PointersToStore == 0 || r.storeRequest.NoSnapshots) {
 			r.storeRequest = r.storeRequest.Next
 		}
 
@@ -1004,26 +989,23 @@ func (db *DB) processStoreRequests(
 
 func (db *DB) deallocateNode(
 	pointer *types.Pointer,
-	immediateDeallocation bool,
+	noSnapshots bool,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
 	node *list.Node,
-) (types.NodeRoot, error) {
+) (*types.Pointer, error) {
 	if db.snapshotInfo.PreviousSnapshotID == db.singularityNode.LastSnapshotID ||
-		pointer.SnapshotID > db.snapshotInfo.PreviousSnapshotID || immediateDeallocation {
+		pointer.SnapshotID > db.snapshotInfo.PreviousSnapshotID || noSnapshots {
 		persistentPool.Deallocate(pointer.PersistentAddress)
 
-		return types.NodeRoot{}, nil
+		return nil, nil
 	}
 
 	l, exists := db.deallocationListsToCommit[pointer.SnapshotID]
 	if !exists {
-		l.ListRoot = types.NodeRoot{
-			Hash:    &types.Hash{},
-			Pointer: &types.Pointer{},
-		}
+		l.Root = &types.Pointer{}
 		l.List = list.New(list.Config{
-			ListRoot:      l.ListRoot,
+			Root:          l.Root,
 			State:         db.config.State,
 			NodeAssistant: db.listNodeAssistant,
 		})
@@ -1039,13 +1021,13 @@ func (db *DB) deallocateNode(
 
 func (db *DB) prepareNextSnapshot() error {
 	var snapshotID types.SnapshotID
-	if db.singularityNode.SnapshotRoot.Pointer.State != types.StateFree {
+	if db.singularityNode.SnapshotRoot.State != types.StateFree {
 		snapshotID = db.singularityNode.LastSnapshotID + 1
 	}
 
 	db.snapshotInfo.PreviousSnapshotID = db.singularityNode.LastSnapshotID
 	db.snapshotInfo.NextSnapshotID = snapshotID + 1
-	db.snapshotInfo.DeallocationRoot = types.Root{}
+	db.snapshotInfo.DeallocationRoot = types.Pointer{}
 	db.singularityNode.LastSnapshotID = snapshotID
 
 	return nil

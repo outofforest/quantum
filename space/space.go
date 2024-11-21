@@ -18,11 +18,11 @@ import (
 
 // Config stores space configuration.
 type Config[K, V comparable] struct {
-	SpaceRoot             types.NodeRoot
-	State                 *alloc.State
-	DataNodeAssistant     *DataNodeAssistant[K, V]
-	MassEntry             *mass.Mass[Entry[K, V]]
-	ImmediateDeallocation bool
+	SpaceRoot         types.NodeRoot
+	State             *alloc.State
+	DataNodeAssistant *DataNodeAssistant[K, V]
+	MassEntry         *mass.Mass[Entry[K, V]]
+	NoSnapshots       bool
 }
 
 // New creates new space.
@@ -35,9 +35,9 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 	defaultInit := Entry[K, V]{
 		space: s,
 		storeRequest: pipeline.StoreRequest{
-			ImmediateDeallocation: s.config.ImmediateDeallocation,
-			PointersToStore:       1,
-			Store:                 [pipeline.StoreCapacity]types.NodeRoot{s.config.SpaceRoot},
+			NoSnapshots:     s.config.NoSnapshots,
+			PointersToStore: 1,
+			Store:           [pipeline.StoreCapacity]types.NodeRoot{s.config.SpaceRoot},
 		},
 	}
 
@@ -411,8 +411,8 @@ func (s *Space[K, V]) splitDataNode(
 				Pointer: &parentNode.Pointers[newIndex],
 			},
 		},
-		PointersToStore:       2,
-		ImmediateDeallocation: s.config.ImmediateDeallocation,
+		PointersToStore: 2,
+		NoSnapshots:     s.config.NoSnapshots,
 	})
 }
 

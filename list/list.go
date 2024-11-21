@@ -9,7 +9,7 @@ import (
 
 // Config stores list configuration.
 type Config struct {
-	ListRoot      types.NodeRoot
+	Root          *types.Pointer
 	State         *alloc.State
 	NodeAssistant *NodeAssistant
 }
@@ -31,46 +31,46 @@ func (l *List) Add(
 	pointer *types.Pointer,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	node *Node,
-) (types.NodeRoot, error) {
-	if l.config.ListRoot.Pointer.VolatileAddress == 0 {
+) (*types.Pointer, error) {
+	if l.config.Root.VolatileAddress == 0 {
 		newNodeAddress, err := volatilePool.Allocate()
 		if err != nil {
-			return types.NodeRoot{}, err
+			return nil, err
 		}
 		l.config.NodeAssistant.Project(newNodeAddress, node)
 
 		node.Pointers[0] = *pointer
 		node.Header.NumOfPointers = 1
 
-		l.config.ListRoot.Pointer.VolatileAddress = newNodeAddress
+		l.config.Root.VolatileAddress = newNodeAddress
 
-		return l.config.ListRoot, nil
+		return l.config.Root, nil
 	}
 
-	l.config.NodeAssistant.Project(l.config.ListRoot.Pointer.VolatileAddress, node)
+	l.config.NodeAssistant.Project(l.config.Root.VolatileAddress, node)
 	if node.Header.NumOfPointers+node.Header.NumOfSideLists < uint64(len(node.Pointers)) {
 		node.Pointers[node.Header.NumOfPointers] = *pointer
 		node.Header.NumOfPointers++
 
-		return l.config.ListRoot, nil
+		return l.config.Root, nil
 	}
 
 	newNodeAddress, err := volatilePool.Allocate()
 	if err != nil {
-		return types.NodeRoot{}, err
+		return nil, err
 	}
 	l.config.NodeAssistant.Project(newNodeAddress, node)
 
 	node.Pointers[0] = *pointer
-	node.Pointers[len(node.Pointers)-1] = *l.config.ListRoot.Pointer
+	node.Pointers[len(node.Pointers)-1] = *l.config.Root
 	node.Header.NumOfPointers = 1
 	node.Header.NumOfSideLists = 1
 
-	l.config.ListRoot.Pointer.VolatileAddress = newNodeAddress
+	l.config.Root.VolatileAddress = newNodeAddress
 	// FIXME (wojciech): It cannot be done like this.
-	l.config.ListRoot.Pointer.PersistentAddress = 0
+	l.config.Root.PersistentAddress = 0
 
-	return l.config.ListRoot, nil
+	return l.config.Root, nil
 }
 
 // Attach attaches another list.
@@ -78,46 +78,47 @@ func (l *List) Attach(
 	pointer *types.Pointer,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	node *Node,
-) (types.NodeRoot, error) {
-	if l.config.ListRoot.Pointer.VolatileAddress == 0 {
-		*l.config.ListRoot.Pointer = *pointer
+) (*types.Pointer, error) {
+	if l.config.Root.VolatileAddress == 0 {
+		*l.config.Root = *pointer
 
-		return types.NodeRoot{}, nil
+		//nolint:nilnil
+		return nil, nil
 	}
 
-	l.config.NodeAssistant.Project(l.config.ListRoot.Pointer.VolatileAddress, node)
+	l.config.NodeAssistant.Project(l.config.Root.VolatileAddress, node)
 	if node.Header.NumOfPointers+node.Header.NumOfSideLists < uint64(len(node.Pointers)) {
 		node.Header.NumOfSideLists++
 		node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists] = *pointer
 
-		return l.config.ListRoot, nil
+		return l.config.Root, nil
 	}
 
 	newNodeAddress, err := volatilePool.Allocate()
 	if err != nil {
-		return types.NodeRoot{}, err
+		return nil, err
 	}
 	l.config.NodeAssistant.Project(newNodeAddress, node)
 
-	node.Pointers[uint64(len(node.Pointers))-1] = *l.config.ListRoot.Pointer
+	node.Pointers[uint64(len(node.Pointers))-1] = *l.config.Root
 	node.Pointers[uint64(len(node.Pointers))-2] = *pointer
 	node.Header.NumOfSideLists = 2
 
-	l.config.ListRoot.Pointer.VolatileAddress = newNodeAddress
+	l.config.Root.VolatileAddress = newNodeAddress
 	// FIXME (wojciech): It cannot be done like this.
-	l.config.ListRoot.Pointer.PersistentAddress = 0
+	l.config.Root.PersistentAddress = 0
 
-	return l.config.ListRoot, nil
+	return l.config.Root, nil
 }
 
 // Iterator iterates over items in the list.
 func (l *List) Iterator(node *Node) func(func(types.Pointer) bool) {
 	return func(yield func(types.Pointer) bool) {
-		if l.config.ListRoot.Pointer.VolatileAddress == 0 {
+		if l.config.Root.VolatileAddress == 0 {
 			return
 		}
 
-		stack := []types.Pointer{*l.config.ListRoot.Pointer}
+		stack := []types.Pointer{*l.config.Root}
 		for {
 			if len(stack) == 0 {
 				return
@@ -140,12 +141,12 @@ func (l *List) Iterator(node *Node) func(func(types.Pointer) bool) {
 
 // Nodes returns list of nodes used by the list.
 func (l *List) Nodes(node *Node) []types.VolatileAddress {
-	if l.config.ListRoot.Pointer.VolatileAddress == 0 {
+	if l.config.Root.VolatileAddress == 0 {
 		return nil
 	}
 
 	nodes := []types.VolatileAddress{}
-	stack := []types.Pointer{*l.config.ListRoot.Pointer}
+	stack := []types.Pointer{*l.config.Root}
 
 	for {
 		if len(stack) == 0 {

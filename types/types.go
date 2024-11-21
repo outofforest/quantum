@@ -104,7 +104,7 @@ type DataItem[K, V comparable] struct {
 type SnapshotInfo struct {
 	PreviousSnapshotID SnapshotID
 	NextSnapshotID     SnapshotID
-	DeallocationRoot   Root
+	DeallocationRoot   Pointer
 
 	// FIXME (wojciech): Generalize this to any number of spaces.
 	Spaces [2]Root
@@ -115,5 +115,5 @@ type SingularityNode struct {
 	Hash            Hash
 	FirstSnapshotID SnapshotID
 	LastSnapshotID  SnapshotID
-	SnapshotRoot    Root
+	SnapshotRoot    Pointer
 }
