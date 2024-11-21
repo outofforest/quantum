@@ -36,22 +36,18 @@ func NewTransactionRequestFactory() *TransactionRequestFactory {
 
 // TransactionRequestFactory is used to create new transaction requests.
 type TransactionRequestFactory struct {
-	revision uint32
-	massTR   *mass.Mass[TransactionRequest]
+	massTR *mass.Mass[TransactionRequest]
 }
 
 // New creates transaction request.
 func (trf *TransactionRequestFactory) New() *TransactionRequest {
 	t := trf.massTR.New()
-	t.trf = trf
 	t.LastStoreRequest = &t.StoreRequest
 	return t
 }
 
 // TransactionRequest is used to request transaction execution.
 type TransactionRequest struct {
-	trf *TransactionRequestFactory
-
 	Transaction      any
 	StoreRequest     *StoreRequest
 	LastStoreRequest **StoreRequest
@@ -63,12 +59,6 @@ type TransactionRequest struct {
 
 // AddStoreRequest adds store request to the transaction.
 func (t *TransactionRequest) AddStoreRequest(sr *StoreRequest) {
-	sr.RequestedRevision = t.trf.revision
-	for i := range sr.PointersToStore {
-		atomic.StoreUint32(&sr.Store[i].Pointer.Revision, sr.RequestedRevision)
-	}
-	t.trf.revision++
-
 	*t.LastStoreRequest = sr
 	t.LastStoreRequest = &sr.Next
 }

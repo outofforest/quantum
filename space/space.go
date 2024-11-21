@@ -4,7 +4,6 @@ import (
 	"math"
 	"math/bits"
 	"sort"
-	"sync/atomic"
 	"unsafe"
 
 	"github.com/cespare/xxhash"
@@ -77,7 +76,7 @@ func (s *Space[K, V]) Find(key K, hashBuff []byte, hashMatches []uint64) *Entry[
 	copy(initBytes, s.defaultInit)
 	v.keyHash = hashKey(&key, nil, 0)
 	v.item.Key = key
-	v.dataNodeIndex = dataNodeIndex(v.keyHash, s.numOfDataItems)
+	v.dataItemIndex = dataItemIndex(v.keyHash, s.numOfDataItems)
 
 	s.find(v, hashBuff, hashMatches)
 	return v
@@ -199,16 +198,7 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 }
 
 func (s *Space[K, V]) valueExists(v *Entry[K, V], hashBuff []byte, hashMatches []uint64) bool {
-	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
-	if pointer.Revision != v.revision {
-		if v.storeRequest.PointersToStore > 1 {
-			v.storeRequest.PointersToStore--
-			v.level--
-		}
-
-		v.keyHashP = nil
-		v.itemP = nil
-	}
+	detectUpdate(v)
 
 	s.find(v, hashBuff, hashMatches)
 
@@ -216,16 +206,7 @@ func (s *Space[K, V]) valueExists(v *Entry[K, V], hashBuff []byte, hashMatches [
 }
 
 func (s *Space[K, V]) readValue(v *Entry[K, V], hashBuff []byte, hashMatches []uint64) V {
-	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
-	if pointer.Revision != v.revision {
-		if v.storeRequest.PointersToStore > 1 {
-			v.storeRequest.PointersToStore--
-			v.level--
-		}
-
-		v.keyHashP = nil
-		v.itemP = nil
-	}
+	detectUpdate(v)
 
 	s.find(v, hashBuff, hashMatches)
 
@@ -238,16 +219,7 @@ func (s *Space[K, V]) deleteValue(
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
-	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
-	if pointer.Revision != v.revision {
-		if v.storeRequest.PointersToStore > 1 {
-			v.storeRequest.PointersToStore--
-			v.level--
-		}
-
-		v.keyHashP = nil
-		v.itemP = nil
-	}
+	detectUpdate(v)
 
 	s.find(v, hashBuff, hashMatches)
 
@@ -275,16 +247,7 @@ func (s *Space[K, V]) setValue(
 ) error {
 	v.item.Value = value
 
-	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
-	if pointer.Revision != v.revision {
-		if v.storeRequest.PointersToStore > 1 {
-			v.storeRequest.PointersToStore--
-			v.level--
-		}
-
-		v.keyHashP = nil
-		v.itemP = nil
-	}
+	detectUpdate(v)
 
 	return s.set(tx, v, pool, hashBuff, hashMatches)
 }
@@ -343,7 +306,6 @@ func (s *Space[K, V]) set(
 		}
 
 		tx.AddStoreRequest(&v.storeRequest)
-		v.revision = v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Revision
 
 		return nil
 	}
@@ -577,27 +539,42 @@ func (s *Space[K, V]) walkPointers(v *Entry[K, V], hashBuff []byte) {
 		))
 		index := PointerIndex(v.keyHash, v.level)
 		state := pointerNode.Pointers[index].State
+		nextIndex := index
+		originalIndex := index
 
 		switch state {
 		case types.StateFree:
 			hops := pointerHops[index]
+			hopStart := 0
+			hopEnd := len(hops)
+
 			var dataFound bool
-			for len(hops) > 0 {
-				hopIndex := len(hops) / 2
+			for hopEnd > hopStart {
+				hopIndex := (hopEnd-hopStart)/2 + hopStart
 				newIndex := hops[hopIndex]
 
 				switch pointerNode.Pointers[newIndex].State {
 				case types.StateFree:
 					if !dataFound {
 						index = newIndex
+						if hopIndex == 0 {
+							nextIndex = originalIndex
+						} else {
+							nextIndex = hops[hopIndex-1]
+						}
 					}
-					hops = hops[hopIndex+1:]
+					hopStart = hopIndex + 1
 				case types.StateData:
 					index = newIndex
-					hops = hops[:hopIndex]
+					if hopIndex == 0 {
+						nextIndex = originalIndex
+					} else {
+						nextIndex = hops[hopIndex-1]
+					}
+					hopEnd = hopIndex
 					dataFound = true
 				case types.StatePointer:
-					hops = hops[:hopIndex]
+					hopEnd = hopIndex
 				}
 			}
 		case types.StatePointer:
@@ -611,7 +588,11 @@ func (s *Space[K, V]) walkPointers(v *Entry[K, V], hashBuff []byte) {
 		v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
 		v.storeRequest.PointersToStore++
 		v.parentIndex = index
-		v.revision = atomic.LoadUint32(&pointerNode.Pointers[index].Revision)
+		if nextIndex == index {
+			v.nextDataNodeState = nil
+		} else {
+			v.nextDataNodeState = &pointerNode.Pointers[nextIndex].State
+		}
 	}
 }
 
@@ -656,15 +637,15 @@ type Entry[K, V comparable] struct {
 	space        *Space[K, V]
 	storeRequest pipeline.StoreRequest
 
-	itemP         *types.DataItem[K, V]
-	keyHashP      *types.KeyHash
-	item          types.DataItem[K, V]
-	keyHash       types.KeyHash
-	parentIndex   uint64
-	dataNodeIndex uint64
-	revision      uint32
-	exists        bool
-	level         uint8
+	itemP             *types.DataItem[K, V]
+	keyHashP          *types.KeyHash
+	item              types.DataItem[K, V]
+	keyHash           types.KeyHash
+	nextDataNodeState *types.State
+	parentIndex       uint64
+	dataItemIndex     uint64
+	exists            bool
+	level             uint8
 }
 
 // Value returns the value from entry.
@@ -724,12 +705,28 @@ func hashKey[K comparable](key *K, buff []byte, level uint8) types.KeyHash {
 	return hash
 }
 
-func dataNodeIndex(keyHash types.KeyHash, numOfDataItems uint64) uint64 {
+func testHash(hash types.KeyHash) types.KeyHash {
+	return hash & 0x7fffffff
+}
+
+func dataItemIndex(keyHash types.KeyHash, numOfDataItems uint64) uint64 {
 	return (bits.RotateLeft64(uint64(keyHash), types.UInt64Length/2) ^ uint64(keyHash)) % numOfDataItems
 }
 
-func testHash(hash types.KeyHash) types.KeyHash {
-	return hash & 0x7fffffff
+func detectUpdate[K, V comparable](v *Entry[K, V]) {
+	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
+	switch {
+	case v.nextDataNodeState != nil && *v.nextDataNodeState != types.StateFree:
+		v.storeRequest.PointersToStore--
+		v.level--
+
+		v.keyHashP = nil
+		v.itemP = nil
+	case v.keyHashP != nil && (pointer.State != types.StateData ||
+		(*v.keyHashP != 0 && (*v.keyHashP != v.keyHash || v.itemP.Key != v.item.Key))):
+		v.keyHashP = nil
+		v.itemP = nil
+	}
 }
 
 // Deallocate deallocates all nodes used by the space.

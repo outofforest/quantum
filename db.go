@@ -192,10 +192,11 @@ func (db *DB) Run(ctx context.Context) error {
 					prepareTxReaders = append(prepareTxReaders, pipeline.CloneReader(db.queueReader))
 				}
 				executeTxReader := pipeline.NewReader(prepareTxReaders...)
-				allocateReader := pipeline.NewReader(executeTxReader)
+				incrementRevisionReader := pipeline.NewReader(executeTxReader)
+				allocateReader := pipeline.NewReader(incrementRevisionReader)
 				hashReaders := make([]*pipeline.Reader, 0, 4)
 				for range cap(hashReaders) {
-					hashReaders = append(hashReaders, pipeline.NewReader(executeTxReader))
+					hashReaders = append(hashReaders, pipeline.NewReader(incrementRevisionReader))
 				}
 				storeQReaders := make([]*pipeline.Reader, 0, len(db.config.Stores))
 				parentReaders := append([]*pipeline.Reader{allocateReader}, hashReaders...)
@@ -246,6 +247,9 @@ func (db *DB) Run(ctx context.Context) error {
 				}
 				spawn("executeTx", parallel.Fail, func(ctx context.Context) error {
 					return db.executeTransactions(ctx, executeTxReader)
+				})
+				spawn("incrementRevision", parallel.Fail, func(ctx context.Context) error {
+					return db.incrementRevisions(ctx, incrementRevisionReader)
 				})
 				spawn("allocate", parallel.Fail, func(ctx context.Context) error {
 					return db.processAllocationRequests(ctx, allocateReader)
@@ -630,6 +634,34 @@ func (db *DB) executeTransactions(
 				}
 			default:
 				return errors.New("unknown transaction type")
+			}
+		}
+
+		pipeReader.Acknowledge(processedCount+1, req)
+	}
+}
+
+func (db *DB) incrementRevisions(
+	ctx context.Context,
+	pipeReader *pipeline.Reader,
+) error {
+	var revisionCounter uint32
+
+	for processedCount := uint64(0); ; processedCount++ {
+		req, err := pipeReader.Read(ctx)
+		if err != nil {
+			return err
+		}
+
+		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+			if sr.PointersToStore == 0 {
+				continue
+			}
+
+			revisionCounter++
+			sr.RequestedRevision = revisionCounter
+			for i := range sr.PointersToStore {
+				atomic.StoreUint32(&sr.Store[i].Pointer.Revision, revisionCounter)
 			}
 		}
 
