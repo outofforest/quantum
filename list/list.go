@@ -32,7 +32,7 @@ func (l *List) Add(
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	node *Node,
 ) (*types.Pointer, error) {
-	if l.config.Root.VolatileAddress == 0 {
+	if l.config.Root.State == types.StateFree {
 		newNodeAddress, err := volatilePool.Allocate()
 		if err != nil {
 			return nil, err
@@ -43,6 +43,7 @@ func (l *List) Add(
 		node.Header.NumOfPointers = 1
 
 		l.config.Root.VolatileAddress = newNodeAddress
+		l.config.Root.State = types.StateData
 
 		return l.config.Root, nil
 	}
@@ -66,9 +67,10 @@ func (l *List) Add(
 	node.Header.NumOfPointers = 1
 	node.Header.NumOfSideLists = 1
 
-	l.config.Root.VolatileAddress = newNodeAddress
-	// FIXME (wojciech): It cannot be done like this.
-	l.config.Root.PersistentAddress = 0
+	l.config.Root = &types.Pointer{
+		VolatileAddress: newNodeAddress,
+		State:           types.StateData,
+	}
 
 	return l.config.Root, nil
 }
@@ -79,7 +81,7 @@ func (l *List) Attach(
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	node *Node,
 ) (*types.Pointer, error) {
-	if l.config.Root.VolatileAddress == 0 {
+	if l.config.Root.State == types.StateFree {
 		*l.config.Root = *pointer
 
 		//nolint:nilnil
@@ -104,9 +106,10 @@ func (l *List) Attach(
 	node.Pointers[uint64(len(node.Pointers))-2] = *pointer
 	node.Header.NumOfSideLists = 2
 
-	l.config.Root.VolatileAddress = newNodeAddress
-	// FIXME (wojciech): It cannot be done like this.
-	l.config.Root.PersistentAddress = 0
+	l.config.Root = &types.Pointer{
+		VolatileAddress: newNodeAddress,
+		State:           types.StateData,
+	}
 
 	return l.config.Root, nil
 }
