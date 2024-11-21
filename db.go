@@ -155,8 +155,7 @@ func (db *DB) Commit() error {
 	tx.Type = pipeline.Commit
 	tx.CommitCh = commitCh
 	tx.Transaction = &commitTx{
-		SnapshotID: db.singularityNode.LastSnapshotID,
-		SyncCh:     syncCh,
+		SyncCh: syncCh,
 	}
 	db.queue.Push(tx)
 
@@ -456,7 +455,6 @@ func (db *DB) deleteSnapshot(
 }
 
 func (db *DB) commit(
-	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	listNode *list.Node,
@@ -532,7 +530,7 @@ func (db *DB) commit(
 	}
 
 	tx.AddStoreRequest(&pipeline.StoreRequest{
-		Store:           [pipeline.StoreCapacity]types.NodeRoot{db.config.State.SingularityNodeRoot(snapshotID)},
+		Store:           [pipeline.StoreCapacity]types.NodeRoot{db.config.State.SingularityNodeRoot()},
 		PointersToStore: 1,
 	})
 
@@ -607,7 +605,7 @@ func (db *DB) executeTransactions(
 				// Syncing must be finished just before committing because inside commit we store the results
 				// of deallocations.
 				<-tx.SyncCh
-				if err := db.commit(tx.SnapshotID, req, volatilePool, listNode, snapshotHashBuff, snapshotHashMatches,
+				if err := db.commit(req, volatilePool, listNode, snapshotHashBuff, snapshotHashMatches,
 					deallocationHashBuff, deallocationHashMatches); err != nil {
 					req.CommitCh <- err
 					return err
@@ -651,42 +649,44 @@ func (db *DB) processAllocationRequests(
 			for i := range sr.PointersToStore {
 				root := sr.Store[i]
 
+				// 0 address is reserved for the singularity node. We don't do any (de)allocations for this address.
 				//nolint:nestif
-				if root.Pointer.SnapshotID != db.singularityNode.LastSnapshotID {
-					if root.Pointer.PersistentAddress != 0 {
-						listRoot, err := db.deallocateNode(
-							root.Pointer,
-							sr.NoSnapshots,
-							volatilePool,
-							persistentPool,
-							listNode,
-						)
+				if root.Pointer.VolatileAddress != 0 {
+					if root.Pointer.SnapshotID != db.singularityNode.LastSnapshotID {
+						if root.Pointer.PersistentAddress != 0 {
+							listRoot, err := db.deallocateNode(
+								root.Pointer,
+								sr.NoSnapshots,
+								volatilePool,
+								persistentPool,
+								listNode,
+							)
+							if err != nil {
+								return err
+							}
+
+							if listRoot != nil {
+								if deallocSr == nil {
+									deallocSr = &pipeline.StoreRequest{
+										NoSnapshots: true,
+									}
+								}
+								deallocSr.Store[deallocSr.PointersToStore].Pointer = listRoot
+								deallocSr.PointersToStore++
+							}
+
+							root.Pointer.PersistentAddress = 0
+						}
+						root.Pointer.SnapshotID = db.singularityNode.LastSnapshotID
+					}
+
+					if root.Pointer.PersistentAddress == 0 {
+						persistentAddress, err := persistentPool.Allocate()
 						if err != nil {
 							return err
 						}
-
-						if listRoot != nil {
-							if deallocSr == nil {
-								deallocSr = &pipeline.StoreRequest{
-									NoSnapshots: true,
-								}
-							}
-							deallocSr.Store[deallocSr.PointersToStore].Pointer = listRoot
-							deallocSr.PointersToStore++
-						}
-
-						root.Pointer.PersistentAddress = 0
+						root.Pointer.PersistentAddress = persistentAddress
 					}
-					root.Pointer.SnapshotID = db.singularityNode.LastSnapshotID
-				}
-
-				// On commit stage when singularity node is stored, 0 address is expected.
-				if root.Pointer.PersistentAddress == 0 && root.Pointer.VolatileAddress != 0 {
-					persistentAddress, err := persistentPool.Allocate()
-					if err != nil {
-						return err
-					}
-					root.Pointer.PersistentAddress = persistentAddress
 				}
 			}
 			if deallocSr != nil {
@@ -1056,8 +1056,7 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 }
 
 type commitTx struct {
-	SnapshotID types.SnapshotID
-	SyncCh     <-chan struct{}
+	SyncCh <-chan struct{}
 }
 
 type deleteSnapshotTx struct {

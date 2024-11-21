@@ -94,8 +94,7 @@ func (s *State) NewPersistentPool() *Pool[types.PersistentAddress] {
 }
 
 // SingularityNodeRoot returns node root of singularity node.
-func (s *State) SingularityNodeRoot(snapshotID types.SnapshotID) types.NodeRoot {
-	s.singularityNodeRoot.Pointer.SnapshotID = snapshotID // To prevent deallocation of the singularity node.
+func (s *State) SingularityNodeRoot() types.NodeRoot {
 	return s.singularityNodeRoot
 }
 
