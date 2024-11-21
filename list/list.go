@@ -9,9 +9,8 @@ import (
 
 // Config stores list configuration.
 type Config struct {
-	Root          *types.Pointer
-	State         *alloc.State
-	NodeAssistant *NodeAssistant
+	Root  *types.Pointer
+	State *alloc.State
 }
 
 // New creates new list.
@@ -30,17 +29,16 @@ type List struct {
 func (l *List) Add(
 	pointer *types.Pointer,
 	volatilePool *alloc.Pool[types.VolatileAddress],
-	node *Node,
 ) (*types.Pointer, error) {
 	if l.config.Root.State == types.StateFree {
 		newNodeAddress, err := volatilePool.Allocate()
 		if err != nil {
 			return nil, err
 		}
-		l.config.NodeAssistant.Project(newNodeAddress, node)
+		node := ProjectNode(l.config.State.Node(newNodeAddress))
 
-		node.Pointers[0] = *pointer
-		node.Header.NumOfPointers = 1
+		node.Slots[0] = uint64(pointer.PersistentAddress)
+		node.NumOfPointerSlots = 1
 
 		l.config.Root.VolatileAddress = newNodeAddress
 		l.config.Root.State = types.StateData
@@ -48,10 +46,10 @@ func (l *List) Add(
 		return l.config.Root, nil
 	}
 
-	l.config.NodeAssistant.Project(l.config.Root.VolatileAddress, node)
-	if node.Header.NumOfPointers+node.Header.NumOfSideLists < uint64(len(node.Pointers)) {
-		node.Pointers[node.Header.NumOfPointers] = *pointer
-		node.Header.NumOfPointers++
+	node := ProjectNode(l.config.State.Node(l.config.Root.VolatileAddress))
+	if node.NumOfPointerSlots+node.NumOfSideListSlots < NumOfSlots {
+		node.Slots[node.NumOfPointerSlots] = uint64(pointer.PersistentAddress)
+		node.NumOfPointerSlots++
 
 		return l.config.Root, nil
 	}
@@ -60,12 +58,13 @@ func (l *List) Add(
 	if err != nil {
 		return nil, err
 	}
-	l.config.NodeAssistant.Project(newNodeAddress, node)
+	node = ProjectNode(l.config.State.Node(newNodeAddress))
 
-	node.Pointers[0] = *pointer
-	node.Pointers[len(node.Pointers)-1] = *l.config.Root
-	node.Header.NumOfPointers = 1
-	node.Header.NumOfSideLists = 1
+	node.Slots[0] = uint64(pointer.PersistentAddress)
+	node.Slots[NumOfSlots-2] = uint64(l.config.Root.VolatileAddress)
+	node.Slots[NumOfSlots-1] = uint64(l.config.Root.PersistentAddress)
+	node.NumOfPointerSlots = 1
+	node.NumOfSideListSlots = 2
 
 	l.config.Root = &types.Pointer{
 		VolatileAddress: newNodeAddress,
@@ -79,7 +78,6 @@ func (l *List) Add(
 func (l *List) Attach(
 	pointer *types.Pointer,
 	volatilePool *alloc.Pool[types.VolatileAddress],
-	node *Node,
 ) (*types.Pointer, error) {
 	if l.config.Root.State == types.StateFree {
 		*l.config.Root = *pointer
@@ -88,10 +86,11 @@ func (l *List) Attach(
 		return nil, nil
 	}
 
-	l.config.NodeAssistant.Project(l.config.Root.VolatileAddress, node)
-	if node.Header.NumOfPointers+node.Header.NumOfSideLists < uint64(len(node.Pointers)) {
-		node.Header.NumOfSideLists++
-		node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists] = *pointer
+	node := ProjectNode(l.config.State.Node(l.config.Root.VolatileAddress))
+	if node.NumOfPointerSlots+node.NumOfSideListSlots < NumOfSlots-1 {
+		node.NumOfSideListSlots += 2
+		node.Slots[NumOfSlots-node.NumOfSideListSlots] = uint64(pointer.VolatileAddress)
+		node.Slots[NumOfSlots-node.NumOfSideListSlots+1] = uint64(pointer.PersistentAddress)
 
 		return l.config.Root, nil
 	}
@@ -100,11 +99,13 @@ func (l *List) Attach(
 	if err != nil {
 		return nil, err
 	}
-	l.config.NodeAssistant.Project(newNodeAddress, node)
+	node = ProjectNode(l.config.State.Node(newNodeAddress))
 
-	node.Pointers[uint64(len(node.Pointers))-1] = *l.config.Root
-	node.Pointers[uint64(len(node.Pointers))-2] = *pointer
-	node.Header.NumOfSideLists = 2
+	node.Slots[NumOfSlots-4] = uint64(l.config.Root.VolatileAddress)
+	node.Slots[NumOfSlots-3] = uint64(l.config.Root.PersistentAddress)
+	node.Slots[NumOfSlots-2] = uint64(pointer.VolatileAddress)
+	node.Slots[NumOfSlots-1] = uint64(pointer.PersistentAddress)
+	node.NumOfSideListSlots = 4
 
 	l.config.Root = &types.Pointer{
 		VolatileAddress: newNodeAddress,
@@ -115,41 +116,43 @@ func (l *List) Attach(
 }
 
 // Iterator iterates over items in the list.
-func (l *List) Iterator(node *Node) func(func(types.Pointer) bool) {
-	return func(yield func(types.Pointer) bool) {
+func (l *List) Iterator() func(func(types.VolatileAddress) bool) {
+	return func(yield func(types.VolatileAddress) bool) {
 		if l.config.Root.VolatileAddress == 0 {
 			return
 		}
 
-		stack := []types.Pointer{*l.config.Root}
+		stack := []types.VolatileAddress{l.config.Root.VolatileAddress}
 		for {
 			if len(stack) == 0 {
 				return
 			}
 
-			pointer := stack[len(stack)-1]
+			volatileAddress := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 
-			l.config.NodeAssistant.Project(pointer.VolatileAddress, node)
-			for i := range node.Header.NumOfPointers {
-				if !yield(node.Pointers[i]) {
+			node := ProjectNode(l.config.State.Node(volatileAddress))
+			for i := range node.NumOfPointerSlots {
+				if !yield(types.VolatileAddress(node.Slots[i])) {
 					return
 				}
 			}
 
-			stack = append(stack, node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists:]...)
+			for i, j := uint16(0), NumOfSlots-2; i < node.NumOfSideListSlots; i, j = i+2, j-2 {
+				stack = append(stack, types.VolatileAddress(node.Slots[j]))
+			}
 		}
 	}
 }
 
 // Nodes returns list of nodes used by the list.
-func (l *List) Nodes(node *Node) []types.VolatileAddress {
+func (l *List) Nodes() []types.VolatileAddress {
 	if l.config.Root.VolatileAddress == 0 {
 		return nil
 	}
 
 	nodes := []types.VolatileAddress{}
-	stack := []types.Pointer{*l.config.Root}
+	stack := []types.VolatileAddress{l.config.Root.VolatileAddress}
 
 	for {
 		if len(stack) == 0 {
@@ -160,22 +163,23 @@ func (l *List) Nodes(node *Node) []types.VolatileAddress {
 			return nodes
 		}
 
-		pointer := stack[len(stack)-1]
+		volatileAddress := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		nodes = append(nodes, pointer.VolatileAddress)
+		nodes = append(nodes, volatileAddress)
 
-		l.config.NodeAssistant.Project(pointer.VolatileAddress, node)
-		stack = append(stack, node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists:]...)
+		node := ProjectNode(l.config.State.Node(volatileAddress))
+		for i, j := uint16(0), NumOfSlots-2; i < node.NumOfSideListSlots; i, j = i+2, j-2 {
+			stack = append(stack, types.VolatileAddress(node.Slots[j]))
+		}
 	}
 }
 
 // Deallocate deallocates nodes referenced by the list.
 func Deallocate(
 	listRoot types.Pointer,
+	state *alloc.State,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
-	nodeAssistant *NodeAssistant,
-	node *Node,
 ) {
 	if listRoot.VolatileAddress == 0 {
 		return
@@ -192,32 +196,35 @@ func Deallocate(
 		}
 
 		stackLen--
-		pointer := stack[stackLen]
+		p := stack[stackLen]
+		node := ProjectNode(state.Node(p.VolatileAddress))
 
-		nodeAssistant.Project(pointer.VolatileAddress, node)
-		for i := range node.Header.NumOfPointers {
+		for i := range node.NumOfPointerSlots {
 			// We don't deallocate from volatile pool here, because those nodes are still used by next revisions.
-			persistentPool.Deallocate(node.Pointers[i].PersistentAddress)
+			persistentPool.Deallocate(types.PersistentAddress(node.Slots[i]))
 		}
 
-		for _, p := range node.Pointers[uint64(len(node.Pointers))-node.Header.NumOfSideLists:] {
+		for i, j := uint16(0), NumOfSlots-2; i < node.NumOfSideListSlots; i, j = i+2, j-2 {
 			if stackLen < maxStackSize {
-				stack[stackLen] = p
+				stack[stackLen].VolatileAddress = types.VolatileAddress(node.Slots[j])
+				stack[stackLen].PersistentAddress = types.PersistentAddress(node.Slots[j+1])
 				stackLen++
 
 				continue
 			}
 
 			Deallocate(
-				p,
+				types.Pointer{
+					VolatileAddress:   types.VolatileAddress(node.Slots[j]),
+					PersistentAddress: types.PersistentAddress(node.Slots[j+1]),
+				},
+				state,
 				volatilePool,
 				persistentPool,
-				nodeAssistant,
-				node,
 			)
 		}
 
-		volatilePool.Deallocate(pointer.VolatileAddress)
-		persistentPool.Deallocate(pointer.PersistentAddress)
+		volatilePool.Deallocate(p.VolatileAddress)
+		persistentPool.Deallocate(p.PersistentAddress)
 	}
 }
