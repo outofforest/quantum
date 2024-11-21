@@ -615,8 +615,8 @@ func (db *DB) processAllocationRequests(
 ) error {
 	volatilePool := db.config.State.NewVolatilePool()
 	persistentPool := db.config.State.NewPersistentPool()
-
 	massStoreRequest := mass.New[pipeline.StoreRequest](1000)
+	listNodesToStore := map[types.VolatileAddress]struct{}{}
 
 	for processedCount := uint64(0); ; processedCount++ {
 		req, err := pipeReader.Read(ctx)
@@ -626,6 +626,8 @@ func (db *DB) processAllocationRequests(
 
 		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
 			var deallocSr *pipeline.StoreRequest
+			clear(listNodesToStore)
+
 			for i := range sr.PointersToStore {
 				root := sr.Store[i]
 
@@ -649,8 +651,13 @@ func (db *DB) processAllocationRequests(
 									deallocSr = massStoreRequest.New()
 									deallocSr.NoSnapshots = true
 								}
-								deallocSr.Store[deallocSr.PointersToStore].Pointer = listRoot
-								deallocSr.PointersToStore++
+
+								if _, exists := listNodesToStore[listRoot.VolatileAddress]; !exists {
+									listNodesToStore[listRoot.VolatileAddress] = struct{}{}
+
+									deallocSr.Store[deallocSr.PointersToStore].Pointer = listRoot
+									deallocSr.PointersToStore++
+								}
 							}
 
 							root.Pointer.PersistentAddress = 0
