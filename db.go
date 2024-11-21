@@ -275,6 +275,7 @@ func (db *DB) deleteSnapshot(
 	persistentPool *alloc.Pool[types.PersistentAddress],
 	listNode *list.Node,
 	massSnapshotToNodeEntry *mass.Mass[space.Entry[types.SnapshotID, types.Root]],
+	massStoreRequest *mass.Mass[pipeline.StoreRequest],
 	snapshotHashBuff []byte,
 	snapshotHashMatches []uint64,
 	deallocationHashBuff []byte,
@@ -367,9 +368,8 @@ func (db *DB) deleteSnapshot(
 		}
 		if listRoot != nil {
 			if sr == nil {
-				sr = &pipeline.StoreRequest{
-					NoSnapshots: true,
-				}
+				sr = massStoreRequest.New()
+				sr.NoSnapshots = true
 			}
 			sr.Store[sr.PointersToStore].Pointer = listRoot
 			sr.PointersToStore++
@@ -458,6 +458,7 @@ func (db *DB) commit(
 	tx *pipeline.TransactionRequest,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	listNode *list.Node,
+	massStoreRequest *mass.Mass[pipeline.StoreRequest],
 	snapshotHashBuff []byte,
 	snapshotHashMatches []uint64,
 	deallocationHashBuff []byte,
@@ -485,9 +486,8 @@ func (db *DB) commit(
 				}
 				if listRoot != nil {
 					if sr == nil {
-						sr = &pipeline.StoreRequest{
-							NoSnapshots: true,
-						}
+						sr = massStoreRequest.New()
+						sr.NoSnapshots = true
 					}
 
 					sr.Store[sr.PointersToStore].Pointer = listRoot
@@ -529,10 +529,10 @@ func (db *DB) commit(
 		return err
 	}
 
-	tx.AddStoreRequest(&pipeline.StoreRequest{
-		Store:           [pipeline.StoreCapacity]types.NodeRoot{db.config.State.SingularityNodeRoot()},
-		PointersToStore: 1,
-	})
+	sr := massStoreRequest.New()
+	sr.Store[0] = db.config.State.SingularityNodeRoot()
+	sr.PointersToStore = 1
+	tx.AddStoreRequest(sr)
 
 	return nil
 }
@@ -587,6 +587,7 @@ func (db *DB) executeTransactions(
 	deallocationHashMatches := db.deallocationLists.NewHashMatches()
 
 	massSnapshotToNodeEntry := mass.New[space.Entry[types.SnapshotID, types.Root]](1000)
+	massStoreRequest := mass.New[pipeline.StoreRequest](1000)
 	listNode := db.listNodeAssistant.NewNode()
 
 	for processedCount := uint64(0); ; processedCount++ {
@@ -605,15 +606,15 @@ func (db *DB) executeTransactions(
 				// Syncing must be finished just before committing because inside commit we store the results
 				// of deallocations.
 				<-tx.SyncCh
-				if err := db.commit(req, volatilePool, listNode, snapshotHashBuff, snapshotHashMatches,
+				if err := db.commit(req, volatilePool, listNode, massStoreRequest, snapshotHashBuff, snapshotHashMatches,
 					deallocationHashBuff, deallocationHashMatches); err != nil {
 					req.CommitCh <- err
 					return err
 				}
 			case *deleteSnapshotTx:
 				if err := db.deleteSnapshot(tx.SnapshotID, req, volatilePool, persistentPool, listNode,
-					massSnapshotToNodeEntry, snapshotHashBuff, snapshotHashMatches, deallocationHashBuff,
-					deallocationHashMatches); err != nil {
+					massSnapshotToNodeEntry, massStoreRequest, snapshotHashBuff, snapshotHashMatches,
+					deallocationHashBuff, deallocationHashMatches); err != nil {
 					return err
 				}
 			case *genesis.Tx:
@@ -637,6 +638,8 @@ func (db *DB) processAllocationRequests(
 	persistentPool := db.config.State.NewPersistentPool()
 
 	listNode := db.listNodeAssistant.NewNode()
+
+	massStoreRequest := mass.New[pipeline.StoreRequest](1000)
 
 	for processedCount := uint64(0); ; processedCount++ {
 		req, err := pipeReader.Read(ctx)
@@ -667,9 +670,8 @@ func (db *DB) processAllocationRequests(
 
 							if listRoot != nil {
 								if deallocSr == nil {
-									deallocSr = &pipeline.StoreRequest{
-										NoSnapshots: true,
-									}
+									deallocSr = massStoreRequest.New()
+									deallocSr.NoSnapshots = true
 								}
 								deallocSr.Store[deallocSr.PointersToStore].Pointer = listRoot
 								deallocSr.PointersToStore++
