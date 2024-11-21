@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	"github.com/cespare/xxhash"
+	"github.com/samber/lo"
 
 	"github.com/outofforest/mass"
 	"github.com/outofforest/photon"
@@ -33,7 +34,8 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 	}
 
 	defaultInit := Entry[K, V]{
-		space: s,
+		space:             s,
+		nextDataNodeState: lo.ToPtr(types.StateFree),
 		storeRequest: pipeline.StoreRequest{
 			NoSnapshots:     s.config.NoSnapshots,
 			PointersToStore: 1,
@@ -584,7 +586,7 @@ func (s *Space[K, V]) walkPointers(v *Entry[K, V], hashBuff []byte) {
 		v.storeRequest.PointersToStore++
 		v.parentIndex = index
 		if nextIndex == index {
-			v.nextDataNodeState = nil
+			v.nextDataNodeState = lo.ToPtr(types.StateFree)
 		} else {
 			v.nextDataNodeState = &pointerNode.Pointers[nextIndex].State
 		}
@@ -629,19 +631,19 @@ func (s *Space[K, V]) walkDataItems(v *Entry[K, V], hashMatches []uint64) bool {
 
 // Entry represents entry in the space.
 type Entry[K, V comparable] struct {
-	space        *Space[K, V]
-	storeRequest pipeline.StoreRequest
-
-	itemP             *types.DataItem[K, V]
-	keyHashP          *types.KeyHash
-	keyHash           types.KeyHash
-	key               K
-	value             V
+	space             *Space[K, V]
 	nextDataNodeState *types.State
-	parentIndex       uint64
-	dataItemIndex     uint64
-	exists            bool
-	level             uint8
+	storeRequest      pipeline.StoreRequest
+
+	itemP         *types.DataItem[K, V]
+	keyHashP      *types.KeyHash
+	keyHash       types.KeyHash
+	key           K
+	value         V
+	parentIndex   uint64
+	dataItemIndex uint64
+	exists        bool
+	level         uint8
 }
 
 // Value returns the value from entry.
@@ -710,15 +712,14 @@ func dataItemIndex(keyHash types.KeyHash, numOfDataItems uint64) uint64 {
 }
 
 func detectUpdate[K, V comparable](v *Entry[K, V]) {
-	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
 	switch {
-	case v.nextDataNodeState != nil && *v.nextDataNodeState != types.StateFree:
+	case *v.nextDataNodeState != types.StateFree:
 		v.storeRequest.PointersToStore--
 		v.level--
 
 		v.keyHashP = nil
 		v.itemP = nil
-	case v.keyHashP != nil && (pointer.State != types.StateData ||
+	case v.keyHashP != nil && (v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State != types.StateData ||
 		(*v.keyHashP != 0 && (*v.keyHashP != v.keyHash || v.itemP.Key != v.key))):
 		v.keyHashP = nil
 		v.itemP = nil

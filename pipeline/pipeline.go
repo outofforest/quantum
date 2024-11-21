@@ -28,6 +28,7 @@ const (
 	// StoreCapacity is the maximum capacity of store array in store request.
 	StoreCapacity = 10
 
+	sleepDuration = 10 * time.Microsecond
 	atomicDivider = 100
 )
 
@@ -143,7 +144,7 @@ func (qr *Reader) Read(ctx context.Context) (*TransactionRequest, error) {
 				break
 			}
 
-			time.Sleep(10 * time.Microsecond)
+			time.Sleep(sleepDuration)
 
 			if ctx.Err() != nil {
 				return nil, errors.WithStack(ctx.Err())
