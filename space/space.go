@@ -198,18 +198,7 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 }
 
 func (s *Space[K, V]) valueExists(v *Entry[K, V], hashBuff []byte, hashMatches []uint64) bool {
-	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
-	switch {
-	case v.nextDataNodeState != nil && *v.nextDataNodeState != types.StateFree:
-		v.storeRequest.PointersToStore--
-		v.level--
-
-		v.keyHashP = nil
-		v.itemP = nil
-	case v.keyHashP != nil && (pointer.State != types.StateData || (*v.keyHashP != 0 && (*v.keyHashP != v.keyHash || v.itemP.Key != v.item.Key))):
-		v.keyHashP = nil
-		v.itemP = nil
-	}
+	detectUpdate(v)
 
 	s.find(v, hashBuff, hashMatches)
 
@@ -217,18 +206,7 @@ func (s *Space[K, V]) valueExists(v *Entry[K, V], hashBuff []byte, hashMatches [
 }
 
 func (s *Space[K, V]) readValue(v *Entry[K, V], hashBuff []byte, hashMatches []uint64) V {
-	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
-	switch {
-	case v.nextDataNodeState != nil && *v.nextDataNodeState != types.StateFree:
-		v.storeRequest.PointersToStore--
-		v.level--
-
-		v.keyHashP = nil
-		v.itemP = nil
-	case v.keyHashP != nil && (pointer.State != types.StateData || (*v.keyHashP != 0 && (*v.keyHashP != v.keyHash || v.itemP.Key != v.item.Key))):
-		v.keyHashP = nil
-		v.itemP = nil
-	}
+	detectUpdate(v)
 
 	s.find(v, hashBuff, hashMatches)
 
@@ -241,18 +219,7 @@ func (s *Space[K, V]) deleteValue(
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
-	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
-	switch {
-	case v.nextDataNodeState != nil && *v.nextDataNodeState != types.StateFree:
-		v.storeRequest.PointersToStore--
-		v.level--
-
-		v.keyHashP = nil
-		v.itemP = nil
-	case v.keyHashP != nil && (pointer.State != types.StateData || (*v.keyHashP != 0 && (*v.keyHashP != v.keyHash || v.itemP.Key != v.item.Key))):
-		v.keyHashP = nil
-		v.itemP = nil
-	}
+	detectUpdate(v)
 
 	s.find(v, hashBuff, hashMatches)
 
@@ -280,18 +247,7 @@ func (s *Space[K, V]) setValue(
 ) error {
 	v.item.Value = value
 
-	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
-	switch {
-	case v.nextDataNodeState != nil && *v.nextDataNodeState != types.StateFree:
-		v.storeRequest.PointersToStore--
-		v.level--
-
-		v.keyHashP = nil
-		v.itemP = nil
-	case v.keyHashP != nil && (pointer.State != types.StateData || (*v.keyHashP != 0 && (*v.keyHashP != v.keyHash || v.itemP.Key != v.item.Key))):
-		v.keyHashP = nil
-		v.itemP = nil
-	}
+	detectUpdate(v)
 
 	return s.set(tx, v, pool, hashBuff, hashMatches)
 }
@@ -749,12 +705,28 @@ func hashKey[K comparable](key *K, buff []byte, level uint8) types.KeyHash {
 	return hash
 }
 
+func testHash(hash types.KeyHash) types.KeyHash {
+	return hash & 0x7fffffff
+}
+
 func dataItemIndex(keyHash types.KeyHash, numOfDataItems uint64) uint64 {
 	return (bits.RotateLeft64(uint64(keyHash), types.UInt64Length/2) ^ uint64(keyHash)) % numOfDataItems
 }
 
-func testHash(hash types.KeyHash) types.KeyHash {
-	return hash & 0x7fffffff
+func detectUpdate[K, V comparable](v *Entry[K, V]) {
+	pointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
+	switch {
+	case v.nextDataNodeState != nil && *v.nextDataNodeState != types.StateFree:
+		v.storeRequest.PointersToStore--
+		v.level--
+
+		v.keyHashP = nil
+		v.itemP = nil
+	case v.keyHashP != nil && (pointer.State != types.StateData ||
+		(*v.keyHashP != 0 && (*v.keyHashP != v.keyHash || v.itemP.Key != v.item.Key))):
+		v.keyHashP = nil
+		v.itemP = nil
+	}
 }
 
 // Deallocate deallocates all nodes used by the space.
