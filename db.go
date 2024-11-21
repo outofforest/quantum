@@ -333,14 +333,9 @@ func (db *DB) deleteSnapshot(
 		},
 	)
 
-	var startSnapshotID types.SnapshotID
-	if snapshotID != db.singularityNode.FirstSnapshotID {
-		startSnapshotID = snapshotInfo.PreviousSnapshotID + 1
-	}
-
 	var sr *pipeline.StoreRequest
 	for nextDeallocSnapshot := range nextDeallocationLists.Iterator() {
-		if nextDeallocSnapshot.Key >= startSnapshotID && nextDeallocSnapshot.Key <= snapshotID {
+		if nextDeallocSnapshot.Key > snapshotInfo.PreviousSnapshotID && nextDeallocSnapshot.Key <= snapshotID {
 			list.Deallocate(
 				nextDeallocSnapshot.Value.Pointer,
 				volatilePool,
@@ -405,11 +400,7 @@ func (db *DB) deleteSnapshot(
 		db.config.State,
 	)
 
-	if snapshotID == db.singularityNode.FirstSnapshotID {
-		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.NextSnapshotID
-	} else {
-		nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
-	}
+	nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
 
 	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
 		nextSnapshotInfoValue := db.snapshots.Find(snapshotInfo.NextSnapshotID, snapshotHashBuff, snapshotHashMatches)
@@ -424,10 +415,10 @@ func (db *DB) deleteSnapshot(
 		}
 	}
 
-	if snapshotID > db.singularityNode.FirstSnapshotID {
+	if snapshotInfo.PreviousSnapshotID > 0 {
 		previousSnapshotInfoValue := db.snapshots.Find(snapshotInfo.PreviousSnapshotID, snapshotHashBuff, snapshotHashMatches)
 		if !previousSnapshotInfoValue.Exists(snapshotHashBuff, snapshotHashMatches) {
-			return errors.Errorf("snapshot %d does not exist", snapshotID)
+			return errors.Errorf("previous snapshot %d does not exist", snapshotID)
 		}
 
 		previousSnapshotInfo := previousSnapshotInfoValue.Value(snapshotHashBuff, snapshotHashMatches)
@@ -442,13 +433,6 @@ func (db *DB) deleteSnapshot(
 		); err != nil {
 			return err
 		}
-	}
-
-	if snapshotID == db.singularityNode.FirstSnapshotID {
-		db.singularityNode.FirstSnapshotID = snapshotInfo.NextSnapshotID
-	}
-	if snapshotID == db.snapshotInfo.PreviousSnapshotID {
-		db.snapshotInfo.PreviousSnapshotID = db.singularityNode.LastSnapshotID
 	}
 
 	return nil
@@ -995,8 +979,7 @@ func (db *DB) deallocateNode(
 	persistentPool *alloc.Pool[types.PersistentAddress],
 	node *list.Node,
 ) (*types.Pointer, error) {
-	if db.snapshotInfo.PreviousSnapshotID == db.singularityNode.LastSnapshotID ||
-		pointer.SnapshotID > db.snapshotInfo.PreviousSnapshotID || noSnapshots {
+	if pointer.SnapshotID > db.snapshotInfo.PreviousSnapshotID || noSnapshots {
 		persistentPool.Deallocate(pointer.PersistentAddress)
 
 		//nolint:nilnil
@@ -1022,15 +1005,10 @@ func (db *DB) deallocateNode(
 }
 
 func (db *DB) prepareNextSnapshot() error {
-	var snapshotID types.SnapshotID
-	if db.singularityNode.SnapshotRoot.State != types.StateFree {
-		snapshotID = db.singularityNode.LastSnapshotID + 1
-	}
-
 	db.snapshotInfo.PreviousSnapshotID = db.singularityNode.LastSnapshotID
-	db.snapshotInfo.NextSnapshotID = snapshotID + 1
+	db.singularityNode.LastSnapshotID++
+	db.snapshotInfo.NextSnapshotID = db.singularityNode.LastSnapshotID + 1
 	db.snapshotInfo.DeallocationRoot = types.Pointer{}
-	db.singularityNode.LastSnapshotID = snapshotID
 
 	return nil
 }

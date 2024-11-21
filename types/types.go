@@ -112,8 +112,7 @@ type SnapshotInfo struct {
 
 // SingularityNode is the root of the store.
 type SingularityNode struct {
-	Hash            Hash
-	FirstSnapshotID SnapshotID
-	LastSnapshotID  SnapshotID
-	SnapshotRoot    Pointer
+	Hash           Hash
+	LastSnapshotID SnapshotID
+	SnapshotRoot   Pointer
 }
