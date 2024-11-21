@@ -998,6 +998,7 @@ func (db *DB) deallocateNode(
 		pointer.SnapshotID > db.snapshotInfo.PreviousSnapshotID || noSnapshots {
 		persistentPool.Deallocate(pointer.PersistentAddress)
 
+		//nolint:nilnil
 		return nil, nil
 	}
 
