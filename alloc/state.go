@@ -98,6 +98,11 @@ func (s *State) SingularityNodeRoot() types.NodeRoot {
 	return s.singularityNodeRoot
 }
 
+// Origin returns the pointer to the allocated memory.
+func (s *State) Origin() unsafe.Pointer {
+	return s.dataP
+}
+
 // Node returns node bytes.
 func (s *State) Node(nodeAddress types.VolatileAddress) unsafe.Pointer {
 	return unsafe.Add(s.dataP, nodeAddress*types.NodeLength)

@@ -239,11 +239,7 @@ func (s *Space[K, V]) deleteValue(
 
 		*v.keyHashP = 0
 
-		if err := walRecorder.VolatileAddress(tx,
-			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress); err != nil {
-			return err
-		}
-		if _, err := walRecorder.Set8(tx, 0); err != nil {
+		if _, err := walRecorder.Set8(tx, unsafe.Pointer(v.keyHashP)); err != nil {
 			return err
 		}
 
@@ -309,25 +305,22 @@ func (s *Space[K, V]) set(
 
 	//nolint:nestif
 	if v.keyHashP != nil {
-		if err := walRecorder.VolatileAddress(tx,
-			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress); err != nil {
-			return err
-		}
-
 		if *v.keyHashP == 0 {
-			if _, err := walRecorder.Set8(tx, 0); err != nil {
-				return err
-			}
-			if _, err := walRecorder.Set(tx, 0, unsafe.Sizeof(v.item)); err != nil {
-				return err
-			}
 			*v.keyHashP = v.keyHash
 			*v.itemP = v.item
-		} else {
-			if _, err := walRecorder.Set(tx, 0, unsafe.Sizeof(v.item.Value)); err != nil {
+
+			if _, err := walRecorder.Set8(tx, unsafe.Pointer(v.keyHashP)); err != nil {
 				return err
 			}
+			if _, err := walRecorder.Set(tx, unsafe.Pointer(v.itemP), unsafe.Sizeof(v.item)); err != nil {
+				return err
+			}
+		} else {
 			v.itemP.Value = v.item.Value
+
+			if _, err := walRecorder.Set(tx, unsafe.Pointer(&v.itemP.Value), unsafe.Sizeof(v.item.Value)); err != nil {
+				return err
+			}
 		}
 
 		tx.AddStoreRequest(&v.storeRequest)
@@ -421,25 +414,21 @@ func (s *Space[K, V]) splitDataNode(
 			continue
 		}
 
-		// FIXME (wojciech): Write all the changes related to one node first,
-		// and then all the changes related to other node.
-		if err := walRecorder.VolatileAddress(tx, existingNodeAddress); err != nil {
-			return err
-		}
-		if _, err := walRecorder.Set8(tx, 0); err != nil {
-			return err
-		}
-		if err := walRecorder.VolatileAddress(tx, newNodeAddress); err != nil {
-			return err
-		}
-		if _, err := walRecorder.Set8(tx, 0); err != nil {
-			return err
-		}
-
 		newDataNodeItem := s.config.DataNodeAssistant.Item(newDataNode, s.config.DataNodeAssistant.ItemOffset(i))
 		*newDataNodeItem = *item
 		newKeyHashes[i] = keyHashes[i]
 		keyHashes[i] = 0
+
+		if _, err := walRecorder.Set(tx, unsafe.Pointer(newDataNodeItem),
+			unsafe.Sizeof(types.DataItem[K, V]{})); err != nil {
+			return err
+		}
+		if _, err := walRecorder.Set8(tx, unsafe.Pointer(&newKeyHashes[i])); err != nil {
+			return err
+		}
+		if _, err := walRecorder.Set8(tx, unsafe.Pointer(&keyHashes[i])); err != nil {
+			return err
+		}
 	}
 
 	parentNode.Pointers[newIndex].VolatileAddress = newNodeAddress
@@ -480,14 +469,17 @@ func (s *Space[K, V]) addPointerNode(
 		return err
 	}
 
+	dataPointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
 	pointerNode := ProjectPointerNode(s.config.State.Node(pointerNodeAddress))
-	pointerNode.Pointers[0] = *v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
-	pointerNode.Pointers[0].PersistentAddress = 0
+	pointerNode.Pointers[0] = types.Pointer{
+		VolatileAddress: dataPointer.VolatileAddress,
+		State:           types.StateData,
+	}
 
-	if err := walRecorder.VolatileAddress(tx, pointerNodeAddress); err != nil {
+	if _, err := walRecorder.Set8(tx, unsafe.Pointer(&pointerNode.Pointers[0].VolatileAddress)); err != nil {
 		return err
 	}
-	if _, err := walRecorder.Set(tx, 0, unsafe.Sizeof(pointerNode.Pointers[0])); err != nil {
+	if _, err := walRecorder.Set1(tx, unsafe.Pointer(&pointerNode.Pointers[0].State)); err != nil {
 		return err
 	}
 
@@ -496,16 +488,19 @@ func (s *Space[K, V]) addPointerNode(
 	pointerNodeRoot.Pointer.VolatileAddress = pointerNodeAddress
 	pointerNodeRoot.Pointer.State = types.StatePointer
 
-	if conflict {
-		pointerNodeRoot.Pointer.Flags = pointerNodeRoot.Pointer.Flags.Set(types.FlagHashMod)
+	if _, err := walRecorder.Set8(tx, unsafe.Pointer(&pointerNodeRoot.Pointer.VolatileAddress)); err != nil {
+		return err
+	}
+	if _, err := walRecorder.Set1(tx, unsafe.Pointer(&pointerNodeRoot.Pointer.State)); err != nil {
+		return err
 	}
 
-	if err := walRecorder.VolatileAddress(tx,
-		v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress); err != nil {
-		return err
-	}
-	if _, err := walRecorder.Set(tx, 0, unsafe.Sizeof(types.Pointer{})); err != nil {
-		return err
+	if conflict {
+		pointerNodeRoot.Pointer.Flags = pointerNodeRoot.Pointer.Flags.Set(types.FlagHashMod)
+
+		if _, err := walRecorder.Set1(tx, unsafe.Pointer(&pointerNodeRoot.Pointer.Flags)); err != nil {
+			return err
+		}
 	}
 
 	newIndex, mask := s.splitToIndex(pointerNodeAddress, 0)

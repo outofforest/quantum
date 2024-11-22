@@ -662,17 +662,12 @@ func (db *DB) allocatePersistentAddress(
 		pointer.SnapshotID = db.singularityNode.LastSnapshotID
 
 		if walRecorder != nil {
-			// FIXME (wojciech): We don't know the address.
-			if err := walRecorder.VolatileAddress(tx, 0); err != nil {
-				return err
-			}
-			if _, err := walRecorder.Set8(tx, 0); err != nil {
+			if _, err := walRecorder.Set8(tx, unsafe.Pointer(&pointer.SnapshotID)); err != nil {
 				return err
 			}
 		}
 	}
 
-	//nolint:nestif
 	if pointer.PersistentAddress == 0 {
 		persistentAddress, err := persistentPool.Allocate()
 		if err != nil {
@@ -681,13 +676,7 @@ func (db *DB) allocatePersistentAddress(
 		pointer.PersistentAddress = persistentAddress
 
 		if walRecorder != nil {
-			// FIXME (wojciech): We don't know the address.
-			// FIXME (wojciech): If address was recorded above, where snapshot ID is set,
-			// don't do it again here.
-			if err := walRecorder.VolatileAddress(tx, 0); err != nil {
-				return err
-			}
-			if _, err := walRecorder.Set8(tx, 0); err != nil {
+			if _, err := walRecorder.Set8(tx, unsafe.Pointer(&pointer.PersistentAddress)); err != nil {
 				return err
 			}
 		}
@@ -956,6 +945,7 @@ func (db *DB) updateHashes(
 		}
 
 		if nilSlots == len(slots) {
+			// FIXME (wojciech): Data race, all hashing goroutines try to add their WAL nodes to the tx at the same time.
 			walRecorder.Commit(commitReq.TxRequest)
 			r.Acknowledge(commitReq.Count, commitReq.TxRequest, true)
 		} else {
@@ -966,11 +956,7 @@ func (db *DB) updateHashes(
 				}
 
 				// FIXME (wojciech): Blake3 should store the copy of hash.
-				// FIXME (wojciech): Address is unknown.
-				if err := walRecorder.VolatileAddress(minReq.TxRequest, 0); err != nil {
-					return err
-				}
-				if _, err := walRecorder.Set32(minReq.TxRequest, 0); err != nil {
+				if _, err := walRecorder.Set32(minReq.TxRequest, unsafe.Pointer(h)); err != nil {
 					return err
 				}
 			}
@@ -992,9 +978,9 @@ func (db *DB) processStoreRequests(
 			return err
 		}
 
-		// for wr := req.WALRequest; wr != nil; wr = wr.Next {
-		//	numOfWrites++
-		// }
+		for wr := req.WALRequest; wr != nil; wr = wr.Next {
+			// numOfWrites++
+		}
 
 		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
 			for i := range sr.ListsToStore {
