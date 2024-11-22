@@ -134,8 +134,8 @@ func (r *Recorder) ensureSize(tx *pipeline.TransactionRequest, size uintptr) err
 	return nil
 }
 
-// Record reserves space in the WAL node and returns pointer to it.
-func Record[T comparable](recorder *Recorder, tx *pipeline.TransactionRequest, pointer *T) (*T, error) {
+// Reserve reserves space in the WAL node and returns pointer to it.
+func Reserve[T comparable](recorder *Recorder, tx *pipeline.TransactionRequest, pointer *T) (*T, error) {
 	var t T
 
 	switch size := unsafe.Sizeof(t); size {
@@ -169,4 +169,116 @@ func Record[T comparable](recorder *Recorder, tx *pipeline.TransactionRequest, p
 
 		return (*T)(p), nil
 	}
+}
+
+// Set1 copies one object and stores changes in WAL node.
+func Set1[T comparable](
+	recorder *Recorder, tx *pipeline.TransactionRequest,
+	dst, src *T,
+) error {
+	dst2, err := Reserve(recorder, tx, dst)
+	if err != nil {
+		return err
+	}
+
+	*dst = *src
+	*dst2 = *src
+
+	return nil
+}
+
+// Set2 copies two objects and stores changes in WAL node.
+func Set2[T1, T2 comparable](
+	recorder *Recorder, tx *pipeline.TransactionRequest,
+	dst1, src1 *T1,
+	dst2, src2 *T2,
+) error {
+	dst1B, err := Reserve(recorder, tx, dst1)
+	if err != nil {
+		return err
+	}
+	dst2B, err := Reserve(recorder, tx, dst2)
+	if err != nil {
+		return err
+	}
+
+	*dst1 = *src1
+	*dst1B = *src1
+
+	*dst2 = *src2
+	*dst2B = *src2
+
+	return nil
+}
+
+// Set3 copies three objects and stores changes in WAL node.
+func Set3[T1, T2, T3 comparable](
+	recorder *Recorder, tx *pipeline.TransactionRequest,
+	dst1, src1 *T1,
+	dst2, src2 *T2,
+	dst3, src3 *T3,
+) error {
+	dst1B, err := Reserve(recorder, tx, dst1)
+	if err != nil {
+		return err
+	}
+	dst2B, err := Reserve(recorder, tx, dst2)
+	if err != nil {
+		return err
+	}
+	dst3B, err := Reserve(recorder, tx, dst3)
+	if err != nil {
+		return err
+	}
+
+	*dst1 = *src1
+	*dst1B = *src1
+
+	*dst2 = *src2
+	*dst2B = *src2
+
+	*dst3 = *src3
+	*dst3B = *src3
+
+	return nil
+}
+
+// Set4 copies four objects and stores changes in WAL node.
+func Set4[T1, T2, T3, T4 comparable](
+	recorder *Recorder, tx *pipeline.TransactionRequest,
+	dst1, src1 *T1,
+	dst2, src2 *T2,
+	dst3, src3 *T3,
+	dst4, src4 *T4,
+) error {
+	dst1B, err := Reserve(recorder, tx, dst1)
+	if err != nil {
+		return err
+	}
+	dst2B, err := Reserve(recorder, tx, dst2)
+	if err != nil {
+		return err
+	}
+	dst3B, err := Reserve(recorder, tx, dst3)
+	if err != nil {
+		return err
+	}
+	dst4B, err := Reserve(recorder, tx, dst4)
+	if err != nil {
+		return err
+	}
+
+	*dst1 = *src1
+	*dst1B = *src1
+
+	*dst2 = *src2
+	*dst2B = *src2
+
+	*dst3 = *src3
+	*dst3B = *src3
+
+	*dst4 = *src4
+	*dst4B = *src4
+
+	return nil
 }

@@ -659,12 +659,12 @@ func (db *DB) allocatePersistentAddress(
 
 			pointer.PersistentAddress = 0
 		}
-		pointer.SnapshotID = db.singularityNode.LastSnapshotID
-
-		if walRecorder != nil {
-			if _, err := wal.Record(walRecorder, tx, &pointer.SnapshotID); err != nil {
-				return err
-			}
+		if walRecorder == nil {
+			pointer.SnapshotID = db.singularityNode.LastSnapshotID
+		} else if err := wal.Set1(walRecorder, tx,
+			&pointer.SnapshotID, &db.singularityNode.LastSnapshotID,
+		); err != nil {
+			return err
 		}
 	}
 
@@ -673,12 +673,12 @@ func (db *DB) allocatePersistentAddress(
 		if err != nil {
 			return err
 		}
-		pointer.PersistentAddress = persistentAddress
-
-		if walRecorder != nil {
-			if _, err := wal.Record(walRecorder, tx, &pointer.PersistentAddress); err != nil {
-				return err
-			}
+		if walRecorder == nil {
+			pointer.PersistentAddress = persistentAddress
+		} else if err := wal.Set1(walRecorder, tx,
+			&pointer.PersistentAddress, &persistentAddress,
+		); err != nil {
+			return err
 		}
 	}
 
@@ -945,7 +945,7 @@ func (db *DB) updateHashes(
 				matrix[ri][bi] = (*byte)(unsafe.Add(node, bi*types.BlockLength))
 			}
 			hashes1[ri] = &hash[0]
-			walHash, err := wal.Record(walRecorder, minReq.TxRequest, hash)
+			walHash, err := wal.Reserve(walRecorder, minReq.TxRequest, hash)
 			hashes2[ri] = &walHash[0]
 			if err != nil {
 				return err
