@@ -2,6 +2,8 @@ package hash
 
 import (
 	"crypto/rand"
+	"fmt"
+	"io"
 	"testing"
 
 	blake3zeebo "github.com/zeebo/blake3"
@@ -79,15 +81,22 @@ func BenchmarkChecksum4KAVX(b *testing.B) {
 		}
 	}
 
-	var z [16][32]byte
-	zP := [16]*byte{
-		&z[0][0], &z[1][0], &z[2][0], &z[3][0], &z[4][0], &z[5][0], &z[6][0], &z[7][0],
-		&z[8][0], &z[9][0], &z[10][0], &z[11][0], &z[12][0], &z[13][0], &z[14][0], &z[15][0],
+	var z1, z2 [16][32]byte
+	zP1 := [16]*byte{
+		&z1[0][0], &z1[1][0], &z1[2][0], &z1[3][0], &z1[4][0], &z1[5][0], &z1[6][0], &z1[7][0],
+		&z1[8][0], &z1[9][0], &z1[10][0], &z1[11][0], &z1[12][0], &z1[13][0], &z1[14][0], &z1[15][0],
+	}
+	zP2 := [16]*byte{
+		&z2[0][0], &z2[1][0], &z2[2][0], &z2[3][0], &z2[4][0], &z2[5][0], &z2[6][0], &z2[7][0],
+		&z2[8][0], &z2[9][0], &z2[10][0], &z2[11][0], &z2[12][0], &z2[13][0], &z2[14][0], &z2[15][0],
 	}
 
 	b.StartTimer()
 	for range b.N {
-		Blake3(&chP[0], &zP[0])
+		Blake3(&chP[0], &zP1[0], &zP2[0])
 	}
 	b.StopTimer()
+
+	_, _ = fmt.Fprint(io.Discard, z1)
+	_, _ = fmt.Fprint(io.Discard, z2)
 }

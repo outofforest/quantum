@@ -2,9 +2,9 @@
 
 #include "textflag.h"
 
-// func Blake3(b **byte, z **byte)
+// func Blake3(blocks **byte, out1 **byte, out2 **byte)
 // Requires: AVX512F, AVX512VL
-TEXT ·Blake3(SB), NOSPLIT, $0-16
+TEXT ·Blake3(SB), NOSPLIT, $0-24
 	MOVD         $0x6a09e667, AX
 	VPBROADCASTD AX, Z0
 	MOVD         $0xbb67ae85, AX
@@ -29,7 +29,7 @@ TEXT ·Blake3(SB), NOSPLIT, $0-16
 	MOVD         $0x00000000, DI
 	MOVD         $0x00000040, R8
 	MOVD         $0x00000000, R9
-	MOVQ         b+0(FP), R10
+	MOVQ         blocks+0(FP), R10
 	MOVB         $0x40, R11
 
 loopStart:
@@ -964,47 +964,80 @@ loopStart:
 	VSHUFI32X4   $0xdd, Z8, Z7, Z7
 	VSHUFI32X4   $0x88, Z0, Z1, Z8
 	VSHUFI32X4   $0xdd, Z0, Z1, Z1
-	MOVQ         z+8(FP), AX
-	MOVQ         (AX), CX
-	VMOVDQU64    Y4, (CX)
-	MOVQ         8(AX), CX
+	MOVQ         out1+8(FP), AX
+	MOVQ         out2+16(FP), CX
+	MOVQ         (AX), DX
+	VMOVDQU64    Y4, (DX)
+	MOVQ         (CX), DX
+	VMOVDQU64    Y4, (DX)
 	VSHUFI32X4   $0xee, Z4, Z4, Z4
-	VMOVDQU64    Y4, (CX)
-	MOVQ         16(AX), CX
-	VMOVDQU64    Y2, (CX)
-	MOVQ         24(AX), CX
+	MOVQ         8(AX), DX
+	VMOVDQU64    Y4, (DX)
+	MOVQ         8(CX), DX
+	VMOVDQU64    Y4, (DX)
+	MOVQ         16(AX), DX
+	VMOVDQU64    Y2, (DX)
+	MOVQ         16(CX), DX
+	VMOVDQU64    Y2, (DX)
 	VSHUFI32X4   $0xee, Z2, Z2, Z2
-	VMOVDQU64    Y2, (CX)
-	MOVQ         32(AX), CX
-	VMOVDQU64    Y6, (CX)
-	MOVQ         40(AX), CX
+	MOVQ         24(AX), DX
+	VMOVDQU64    Y2, (DX)
+	MOVQ         24(CX), DX
+	VMOVDQU64    Y2, (DX)
+	MOVQ         32(AX), DX
+	VMOVDQU64    Y6, (DX)
+	MOVQ         32(CX), DX
+	VMOVDQU64    Y6, (DX)
 	VSHUFI32X4   $0xee, Z6, Z6, Z6
-	VMOVDQU64    Y6, (CX)
-	MOVQ         48(AX), CX
-	VMOVDQU64    Y3, (CX)
-	MOVQ         56(AX), CX
+	MOVQ         40(AX), DX
+	VMOVDQU64    Y6, (DX)
+	MOVQ         40(CX), DX
+	VMOVDQU64    Y6, (DX)
+	MOVQ         48(AX), DX
+	VMOVDQU64    Y3, (DX)
+	MOVQ         48(CX), DX
+	VMOVDQU64    Y3, (DX)
 	VSHUFI32X4   $0xee, Z3, Z3, Z3
-	VMOVDQU64    Y3, (CX)
-	MOVQ         64(AX), CX
-	VMOVDQU64    Y5, (CX)
-	MOVQ         72(AX), CX
+	MOVQ         56(AX), DX
+	VMOVDQU64    Y3, (DX)
+	MOVQ         56(CX), DX
+	VMOVDQU64    Y3, (DX)
+	MOVQ         64(AX), DX
+	VMOVDQU64    Y5, (DX)
+	MOVQ         64(CX), DX
+	VMOVDQU64    Y5, (DX)
 	VSHUFI32X4   $0xee, Z5, Z5, Z5
-	VMOVDQU64    Y5, (CX)
-	MOVQ         80(AX), CX
-	VMOVDQU64    Y8, (CX)
-	MOVQ         88(AX), CX
+	MOVQ         72(AX), DX
+	VMOVDQU64    Y5, (DX)
+	MOVQ         72(CX), DX
+	VMOVDQU64    Y5, (DX)
+	MOVQ         80(AX), DX
+	VMOVDQU64    Y8, (DX)
+	MOVQ         80(CX), DX
+	VMOVDQU64    Y8, (DX)
 	VSHUFI32X4   $0xee, Z8, Z8, Z8
-	VMOVDQU64    Y8, (CX)
-	MOVQ         96(AX), CX
-	VMOVDQU64    Y7, (CX)
-	MOVQ         104(AX), CX
+	MOVQ         88(AX), DX
+	VMOVDQU64    Y8, (DX)
+	MOVQ         88(CX), DX
+	VMOVDQU64    Y8, (DX)
+	MOVQ         96(AX), DX
+	VMOVDQU64    Y7, (DX)
+	MOVQ         96(CX), DX
+	VMOVDQU64    Y7, (DX)
 	VSHUFI32X4   $0xee, Z7, Z7, Z7
-	VMOVDQU64    Y7, (CX)
-	MOVQ         112(AX), CX
-	VMOVDQU64    Y1, (CX)
-	MOVQ         120(AX), CX
+	MOVQ         104(AX), DX
+	VMOVDQU64    Y7, (DX)
+	MOVQ         104(CX), DX
+	VMOVDQU64    Y7, (DX)
+	MOVQ         112(AX), DX
+	VMOVDQU64    Y1, (DX)
+	MOVQ         112(CX), DX
+	VMOVDQU64    Y1, (DX)
 	VSHUFI32X4   $0xee, Z1, Z1, Z1
-	VMOVDQU64    Y1, (CX)
+	MOVQ         120(AX), DX
+	VMOVDQU64    Y1, (DX)
+	MOVQ         120(CX), DX
+	VMOVDQU64    Y1, (DX)
 	RET
 
 // func Transpose8x16(x *uint32, z *uint32)

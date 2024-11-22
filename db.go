@@ -863,8 +863,8 @@ func (db *DB) updateHashes(
 ) error {
 	var matrix [16][types.NumOfBlocks]*byte
 	matrixP := &matrix[0][0]
-	var hashes [16]*byte
-	hashesP := &hashes[0]
+	var hashes1, hashes2 [16]*byte
+	hashesP1, hashesP2 := &hashes1[0], &hashes2[0]
 
 	walRecorder := wal.NewRecorder(db.config.State, db.config.State.NewVolatilePool())
 
@@ -878,7 +878,7 @@ func (db *DB) updateHashes(
 
 	for {
 		matrix = zeroMatrix
-		hashes = zeroHashes
+		hashes1, hashes2 = zeroHashes, zeroHashes
 
 		var commitReq request
 		minReq := request{
@@ -944,7 +944,12 @@ func (db *DB) updateHashes(
 			for bi := range numOfBlocks {
 				matrix[ri][bi] = (*byte)(unsafe.Add(node, bi*types.BlockLength))
 			}
-			hashes[ri] = &hash[0]
+			hashes1[ri] = &hash[0]
+			walHash, err := wal.Record(walRecorder, minReq.TxRequest, hash)
+			hashes2[ri] = &walHash[0]
+			if err != nil {
+				return err
+			}
 		}
 
 		if nilSlots == len(slots) {
@@ -952,17 +957,7 @@ func (db *DB) updateHashes(
 			walRecorder.Commit(commitReq.TxRequest)
 			r.Acknowledge(commitReq.Count, commitReq.TxRequest, true)
 		} else {
-			hash.Blake3(matrixP, hashesP)
-			for _, h := range hashes {
-				if h == zh {
-					continue
-				}
-
-				// FIXME (wojciech): Blake3 should store the copy of hash.
-				if _, err := wal.Record(walRecorder, minReq.TxRequest, h); err != nil {
-					return err
-				}
-			}
+			hash.Blake3(matrixP, hashesP1, hashesP2)
 			r.Acknowledge(minReq.Count-1, minReq.TxRequest, false)
 		}
 	}
