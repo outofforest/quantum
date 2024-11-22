@@ -57,18 +57,29 @@ func TestBlake3OneMessage(t *testing.T) {
 		matrix := zeroMatrix
 		matrix[i] = oneMessage
 
-		var hashes [16]types.Hash
-		var hashPointers [16]*byte
-		for j := range hashes {
-			hashPointers[j] = &hashes[j][0]
+		var hashes1, hashes2 [16]types.Hash
+		var hashPointers1, hashPointers2 [16]*byte
+		for j := range hashes1 {
+			hashPointers1[j] = &hashes1[j][0]
+		}
+		for j := range hashes2 {
+			hashPointers2[j] = &hashes2[j][0]
 		}
 
 		matrixP := &matrix[0][0]
-		hashesP := &hashPointers[0]
+		hashesP1 := &hashPointers1[0]
+		hashesP2 := &hashPointers2[0]
 
-		Blake3(matrixP, hashesP)
+		Blake3(matrixP, hashesP1, hashesP2)
 
-		for j, h := range hashes {
+		for j, h := range hashes1 {
+			if j == i {
+				assert.Equal(t, oneValueHash, h, "false zero i: %d, j: %d", i, j)
+			} else {
+				assert.Equal(t, zeroValueHash, h, "false one, i: %d, j: %d", i, j)
+			}
+		}
+		for j, h := range hashes2 {
 			if j == i {
 				assert.Equal(t, oneValueHash, h, "false zero i: %d, j: %d", i, j)
 			} else {
@@ -80,18 +91,25 @@ func TestBlake3OneMessage(t *testing.T) {
 
 func TestBlake3Zeros(t *testing.T) {
 	matrix := zeroMatrix
-	var hashes [16]types.Hash
-	var hashPointers [16]*byte
-	for i := range hashes {
-		hashPointers[i] = &hashes[i][0]
+	var hashes1, hashes2 [16]types.Hash
+	var hashPointers1, hashPointers2 [16]*byte
+	for i := range hashes1 {
+		hashPointers1[i] = &hashes1[i][0]
+	}
+	for i := range hashes2 {
+		hashPointers2[i] = &hashes2[i][0]
 	}
 
 	matrixP := &matrix[0][0]
-	hashesP := &hashPointers[0]
+	hashesP1 := &hashPointers1[0]
+	hashesP2 := &hashPointers2[0]
 
-	Blake3(matrixP, hashesP)
+	Blake3(matrixP, hashesP1, hashesP2)
 
-	for _, h := range hashes {
+	for _, h := range hashes1 {
+		assert.Equal(t, zeroValueHash, h)
+	}
+	for _, h := range hashes2 {
 		assert.Equal(t, zeroValueHash, h)
 	}
 }

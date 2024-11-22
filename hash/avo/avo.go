@@ -42,7 +42,7 @@ const (
 //     situation where shift in data might produce conflicting hash. Here we don't deal with data streams,
 //     but well-defined portions of data, so we don't need it.
 func Blake3() {
-	TEXT("Blake3", NOSPLIT, "func(b **byte, z **byte)")
+	TEXT("Blake3", NOSPLIT, "func(blocks, out1, out2 **byte)")
 	Doc("Blake3 implements blake3 for 16 4KB messages.")
 
 	sInit := [16]uint32{
@@ -71,7 +71,7 @@ func Blake3() {
 		ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(),
 	}
 
-	memB := Mem{Base: Load(Param("b"), GP64())}
+	memBlocks := Mem{Base: Load(Param("blocks"), GP64())}
 
 	loopCounterR := GP8()
 	MOVB(U8(numOfBlocksInMessage), loopCounterR)
@@ -84,10 +84,10 @@ func Blake3() {
 	// Load and transpose blocks.
 	for i := range numOfMessages {
 		m := Mem{Base: GP64()}
-		MOVQ(memB.Offset(i*numOfBlocksInMessage*uint64Size), m.Base)
+		MOVQ(memBlocks.Offset(i*numOfBlocksInMessage*uint64Size), m.Base)
 		VMOVDQU64(m, rB[i])
 	}
-	ADDQ(U8(uint64Size), memB.Base)
+	ADDQ(U8(uint64Size), memBlocks.Base)
 
 	rB = transpose16x16(rB)
 
@@ -177,14 +177,19 @@ func Blake3() {
 
 	rS1 = transpose8x16(rS1)
 
-	memZ := Mem{Base: Load(Param("z"), GP64())}
+	memOut1 := Mem{Base: Load(Param("out1"), GP64())}
+	memOut2 := Mem{Base: Load(Param("out2"), GP64())}
 	for i := range numOfMessages / 2 {
 		m := Mem{Base: GP64()}
-		MOVQ(memZ.Offset((2*i)*uint64Size), m.Base)
+		MOVQ(memOut1.Offset((2*i)*uint64Size), m.Base)
+		VMOVDQU64(rS1[i].AsY(), m)
+		MOVQ(memOut2.Offset((2*i)*uint64Size), m.Base)
 		VMOVDQU64(rS1[i].AsY(), m)
 
-		MOVQ(memZ.Offset((2*i+1)*uint64Size), m.Base)
 		VSHUFI32X4(U8(0xee), rS1[i], rS1[i], rS1[i])
+		MOVQ(memOut1.Offset((2*i+1)*uint64Size), m.Base)
+		VMOVDQU64(rS1[i].AsY(), m)
+		MOVQ(memOut2.Offset((2*i+1)*uint64Size), m.Base)
 		VMOVDQU64(rS1[i].AsY(), m)
 	}
 
