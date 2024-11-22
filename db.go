@@ -852,6 +852,9 @@ func (r *reader) Acknowledge(count uint64, req *pipeline.TransactionRequest, com
 	r.pipeReader.Acknowledge(count, req)
 }
 
+// FIXME (wojciech): Fix data races:
+// - same parent node where hash is updated must always go to the same goroutine
+// - pointer present later in a pipeline must be included in later slot
 func (db *DB) updateHashes(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
