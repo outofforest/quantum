@@ -662,7 +662,7 @@ func (db *DB) allocatePersistentAddress(
 		pointer.SnapshotID = db.singularityNode.LastSnapshotID
 
 		if walRecorder != nil {
-			if _, err := walRecorder.Set8(tx, unsafe.Pointer(&pointer.SnapshotID)); err != nil {
+			if _, err := wal.Record(walRecorder, tx, &pointer.SnapshotID); err != nil {
 				return err
 			}
 		}
@@ -676,7 +676,7 @@ func (db *DB) allocatePersistentAddress(
 		pointer.PersistentAddress = persistentAddress
 
 		if walRecorder != nil {
-			if _, err := walRecorder.Set8(tx, unsafe.Pointer(&pointer.PersistentAddress)); err != nil {
+			if _, err := wal.Record(walRecorder, tx, &pointer.PersistentAddress); err != nil {
 				return err
 			}
 		}
@@ -956,7 +956,7 @@ func (db *DB) updateHashes(
 				}
 
 				// FIXME (wojciech): Blake3 should store the copy of hash.
-				if _, err := walRecorder.Set32(minReq.TxRequest, unsafe.Pointer(h)); err != nil {
+				if _, err := wal.Record(walRecorder, minReq.TxRequest, h); err != nil {
 					return err
 				}
 			}
