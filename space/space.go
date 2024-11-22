@@ -239,7 +239,7 @@ func (s *Space[K, V]) deleteValue(
 
 		*v.keyHashP = 0
 
-		if _, err := walRecorder.Set8(tx, unsafe.Pointer(v.keyHashP)); err != nil {
+		if _, err := wal.Record(walRecorder, tx, v.keyHashP); err != nil {
 			return err
 		}
 
@@ -309,16 +309,16 @@ func (s *Space[K, V]) set(
 			*v.keyHashP = v.keyHash
 			*v.itemP = v.item
 
-			if _, err := walRecorder.Set8(tx, unsafe.Pointer(v.keyHashP)); err != nil {
+			if _, err := wal.Record(walRecorder, tx, v.keyHashP); err != nil {
 				return err
 			}
-			if _, err := walRecorder.Set(tx, unsafe.Pointer(v.itemP), unsafe.Sizeof(v.item)); err != nil {
+			if _, err := wal.Record(walRecorder, tx, v.itemP); err != nil {
 				return err
 			}
 		} else {
 			v.itemP.Value = v.item.Value
 
-			if _, err := walRecorder.Set(tx, unsafe.Pointer(&v.itemP.Value), unsafe.Sizeof(v.item.Value)); err != nil {
+			if _, err := wal.Record(walRecorder, tx, &v.itemP.Value); err != nil {
 				return err
 			}
 		}
@@ -419,14 +419,13 @@ func (s *Space[K, V]) splitDataNode(
 		newKeyHashes[i] = keyHashes[i]
 		keyHashes[i] = 0
 
-		if _, err := walRecorder.Set(tx, unsafe.Pointer(newDataNodeItem),
-			unsafe.Sizeof(types.DataItem[K, V]{})); err != nil {
+		if _, err := wal.Record(walRecorder, tx, newDataNodeItem); err != nil {
 			return err
 		}
-		if _, err := walRecorder.Set8(tx, unsafe.Pointer(&newKeyHashes[i])); err != nil {
+		if _, err := wal.Record(walRecorder, tx, &newKeyHashes[i]); err != nil {
 			return err
 		}
-		if _, err := walRecorder.Set8(tx, unsafe.Pointer(&keyHashes[i])); err != nil {
+		if _, err := wal.Record(walRecorder, tx, &keyHashes[i]); err != nil {
 			return err
 		}
 	}
@@ -476,10 +475,10 @@ func (s *Space[K, V]) addPointerNode(
 		State:           types.StateData,
 	}
 
-	if _, err := walRecorder.Set8(tx, unsafe.Pointer(&pointerNode.Pointers[0].VolatileAddress)); err != nil {
+	if _, err := wal.Record(walRecorder, tx, &pointerNode.Pointers[0].VolatileAddress); err != nil {
 		return err
 	}
-	if _, err := walRecorder.Set1(tx, unsafe.Pointer(&pointerNode.Pointers[0].State)); err != nil {
+	if _, err := wal.Record(walRecorder, tx, &pointerNode.Pointers[0].State); err != nil {
 		return err
 	}
 
@@ -488,17 +487,17 @@ func (s *Space[K, V]) addPointerNode(
 	pointerNodeRoot.Pointer.VolatileAddress = pointerNodeAddress
 	pointerNodeRoot.Pointer.State = types.StatePointer
 
-	if _, err := walRecorder.Set8(tx, unsafe.Pointer(&pointerNodeRoot.Pointer.VolatileAddress)); err != nil {
+	if _, err := wal.Record(walRecorder, tx, &pointerNodeRoot.Pointer.VolatileAddress); err != nil {
 		return err
 	}
-	if _, err := walRecorder.Set1(tx, unsafe.Pointer(&pointerNodeRoot.Pointer.State)); err != nil {
+	if _, err := wal.Record(walRecorder, tx, &pointerNodeRoot.Pointer.State); err != nil {
 		return err
 	}
 
 	if conflict {
 		pointerNodeRoot.Pointer.Flags = pointerNodeRoot.Pointer.Flags.Set(types.FlagHashMod)
 
-		if _, err := walRecorder.Set1(tx, unsafe.Pointer(&pointerNodeRoot.Pointer.Flags)); err != nil {
+		if _, err := wal.Record(walRecorder, tx, &pointerNodeRoot.Pointer.Flags); err != nil {
 			return err
 		}
 	}

@@ -53,46 +53,6 @@ type Recorder struct {
 	sizeCounter     uintptr
 }
 
-// Set1 records modification of 1-byte value.
-func (r *Recorder) Set1(tx *pipeline.TransactionRequest, pointer unsafe.Pointer) (unsafe.Pointer, error) {
-	p, err := r.insertWithOffset(tx, RecordSet8, uintptr(pointer)-r.stateOrigin, 1)
-	if err != nil {
-		return nil, err
-	}
-
-	return p, nil
-}
-
-// Set8 records modification of 8-byte value.
-func (r *Recorder) Set8(tx *pipeline.TransactionRequest, pointer unsafe.Pointer) (unsafe.Pointer, error) {
-	p, err := r.insertWithOffset(tx, RecordSet8, uintptr(pointer)-r.stateOrigin, 8)
-	if err != nil {
-		return nil, err
-	}
-
-	return p, nil
-}
-
-// Set32 records modification of 32-byte value.
-func (r *Recorder) Set32(tx *pipeline.TransactionRequest, pointer unsafe.Pointer) (unsafe.Pointer, error) {
-	p, err := r.insertWithOffset(tx, RecordSet32, uintptr(pointer)-r.stateOrigin, 32)
-	if err != nil {
-		return nil, err
-	}
-
-	return p, nil
-}
-
-// Set records modification of variable-length value.
-func (r *Recorder) Set(tx *pipeline.TransactionRequest, pointer unsafe.Pointer, size uintptr) (unsafe.Pointer, error) {
-	p, err := r.insertWithOffsetAndSize(tx, RecordSet, uintptr(pointer)-r.stateOrigin, size)
-	if err != nil {
-		return nil, err
-	}
-
-	return p, nil
-}
-
 // Commit commits pending node.
 func (r *Recorder) Commit(tx *pipeline.TransactionRequest) {
 	if r.node != nil {
@@ -172,4 +132,41 @@ func (r *Recorder) ensureSize(tx *pipeline.TransactionRequest, size uintptr) err
 	r.sizeCounter = 0
 
 	return nil
+}
+
+// Record reserves space in the WAL node and returns pointer to it.
+func Record[T comparable](recorder *Recorder, tx *pipeline.TransactionRequest, pointer *T) (*T, error) {
+	var t T
+
+	switch size := unsafe.Sizeof(t); size {
+	case 1:
+		p, err := recorder.insertWithOffset(tx, RecordSet1, uintptr(unsafe.Pointer(pointer))-recorder.stateOrigin, 1)
+		if err != nil {
+			return nil, err
+		}
+
+		return (*T)(p), nil
+	case 8:
+		p, err := recorder.insertWithOffset(tx, RecordSet8, uintptr(unsafe.Pointer(pointer))-recorder.stateOrigin, 8)
+		if err != nil {
+			return nil, err
+		}
+
+		return (*T)(p), nil
+	case 32:
+		p, err := recorder.insertWithOffset(tx, RecordSet32, uintptr(unsafe.Pointer(pointer))-recorder.stateOrigin, 32)
+		if err != nil {
+			return nil, err
+		}
+
+		return (*T)(p), nil
+	default:
+		p, err := recorder.insertWithOffsetAndSize(tx, RecordSet, uintptr(unsafe.Pointer(pointer))-recorder.stateOrigin,
+			size)
+		if err != nil {
+			return nil, err
+		}
+
+		return (*T)(p), nil
+	}
 }
