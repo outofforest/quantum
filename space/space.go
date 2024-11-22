@@ -236,10 +236,9 @@ func (s *Space[K, V]) deleteValue(
 	case v.keyHashP == nil || *v.keyHashP == 0:
 	default:
 		// If we are here it means `s.find` found the slot with matching key so don't need to check hash and key again.
-
-		*v.keyHashP = 0
-
-		if _, err := wal.Record(walRecorder, tx, v.keyHashP); err != nil {
+		if err := wal.Set1(walRecorder, tx,
+			v.keyHashP, lo.ToPtr[types.KeyHash](0),
+		); err != nil {
 			return err
 		}
 
@@ -303,24 +302,18 @@ func (s *Space[K, V]) set(
 
 	conflict := s.walkDataItems(v, hashMatches)
 
-	//nolint:nestif
 	if v.keyHashP != nil {
 		if *v.keyHashP == 0 {
-			*v.keyHashP = v.keyHash
-			*v.itemP = v.item
-
-			if _, err := wal.Record(walRecorder, tx, v.keyHashP); err != nil {
+			if err := wal.Set2(walRecorder, tx,
+				v.keyHashP, &v.keyHash,
+				v.itemP, &v.item,
+			); err != nil {
 				return err
 			}
-			if _, err := wal.Record(walRecorder, tx, v.itemP); err != nil {
-				return err
-			}
-		} else {
-			v.itemP.Value = v.item.Value
-
-			if _, err := wal.Record(walRecorder, tx, &v.itemP.Value); err != nil {
-				return err
-			}
+		} else if err := wal.Set1(walRecorder, tx,
+			&v.itemP.Value, &v.item.Value,
+		); err != nil {
+			return err
 		}
 
 		tx.AddStoreRequest(&v.storeRequest)
@@ -415,17 +408,11 @@ func (s *Space[K, V]) splitDataNode(
 		}
 
 		newDataNodeItem := s.config.DataNodeAssistant.Item(newDataNode, s.config.DataNodeAssistant.ItemOffset(i))
-		*newDataNodeItem = *item
-		newKeyHashes[i] = keyHashes[i]
-		keyHashes[i] = 0
-
-		if _, err := wal.Record(walRecorder, tx, newDataNodeItem); err != nil {
-			return err
-		}
-		if _, err := wal.Record(walRecorder, tx, &newKeyHashes[i]); err != nil {
-			return err
-		}
-		if _, err := wal.Record(walRecorder, tx, &keyHashes[i]); err != nil {
+		if err := wal.Set3(walRecorder, tx,
+			newDataNodeItem, item,
+			&newKeyHashes[i], &keyHashes[i],
+			&keyHashes[i], lo.ToPtr[types.KeyHash](0),
+		); err != nil {
 			return err
 		}
 	}
@@ -470,34 +457,21 @@ func (s *Space[K, V]) addPointerNode(
 
 	dataPointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
 	pointerNode := ProjectPointerNode(s.config.State.Node(pointerNodeAddress))
-	pointerNode.Pointers[0] = types.Pointer{
-		VolatileAddress: dataPointer.VolatileAddress,
-		State:           types.StateData,
-	}
-
-	if _, err := wal.Record(walRecorder, tx, &pointerNode.Pointers[0].VolatileAddress); err != nil {
-		return err
-	}
-	if _, err := wal.Record(walRecorder, tx, &pointerNode.Pointers[0].State); err != nil {
-		return err
-	}
-
 	pointerNodeRoot := &v.storeRequest.Store[v.storeRequest.PointersToStore-1]
 
-	pointerNodeRoot.Pointer.VolatileAddress = pointerNodeAddress
-	pointerNodeRoot.Pointer.State = types.StatePointer
-
-	if _, err := wal.Record(walRecorder, tx, &pointerNodeRoot.Pointer.VolatileAddress); err != nil {
-		return err
-	}
-	if _, err := wal.Record(walRecorder, tx, &pointerNodeRoot.Pointer.State); err != nil {
+	if err := wal.Set4(walRecorder, tx,
+		&pointerNode.Pointers[0].VolatileAddress, &dataPointer.VolatileAddress,
+		&pointerNode.Pointers[0].State, &dataPointer.State,
+		&pointerNodeRoot.Pointer.VolatileAddress, &pointerNodeAddress,
+		&pointerNodeRoot.Pointer.State, lo.ToPtr(types.StatePointer),
+	); err != nil {
 		return err
 	}
 
 	if conflict {
-		pointerNodeRoot.Pointer.Flags = pointerNodeRoot.Pointer.Flags.Set(types.FlagHashMod)
-
-		if _, err := wal.Record(walRecorder, tx, &pointerNodeRoot.Pointer.Flags); err != nil {
+		if err := wal.Set1(walRecorder, tx,
+			&pointerNodeRoot.Pointer.Flags, lo.ToPtr(pointerNodeRoot.Pointer.Flags.Set(types.FlagHashMod)),
+		); err != nil {
 			return err
 		}
 	}
