@@ -48,6 +48,7 @@ type TransactionRequestFactory struct {
 func (trf *TransactionRequestFactory) New() *TransactionRequest {
 	t := trf.massTR.New()
 	t.LastStoreRequest = &t.StoreRequest
+	t.LastWALRequest = &t.WALRequest
 	return t
 }
 
@@ -56,6 +57,8 @@ type TransactionRequest struct {
 	Transaction      any
 	StoreRequest     *StoreRequest
 	LastStoreRequest **StoreRequest
+	WALRequest       *WALRequest
+	LastWALRequest   **WALRequest
 	SyncCh           chan<- struct{}
 	CommitCh         chan<- error
 	Next             *TransactionRequest
@@ -68,14 +71,31 @@ func (t *TransactionRequest) AddStoreRequest(sr *StoreRequest) {
 	t.LastStoreRequest = &sr.Next
 }
 
+// AddWALRequest adds WAL request to the transaction.
+func (t *TransactionRequest) AddWALRequest(volatileAddress types.VolatileAddress) {
+	wr := &WALRequest{
+		VolatileAddress: volatileAddress,
+	}
+	*t.LastWALRequest = wr
+	t.LastWALRequest = &wr.Next
+}
+
 // StoreRequest is used to request writing nodes to the store.
 type StoreRequest struct {
-	NoSnapshots     bool
-	PointersToStore int8
-	Store           [StoreCapacity]types.NodeRoot
-
+	NoSnapshots       bool
+	PointersToStore   int8
+	Store             [StoreCapacity]types.NodeRoot
+	ListsToStore      int8
+	ListStore         [StoreCapacity]*types.Pointer
 	RequestedRevision uint32
+	WALsToStore       uint8
 	Next              *StoreRequest
+}
+
+// WALRequest is used to request writing WAL node to the store.
+type WALRequest struct {
+	VolatileAddress types.VolatileAddress
+	Next            *WALRequest
 }
 
 // New creates new pipeline.

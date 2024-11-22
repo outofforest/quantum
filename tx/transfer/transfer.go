@@ -10,6 +10,7 @@ import (
 	"github.com/outofforest/quantum/space"
 	txtypes "github.com/outofforest/quantum/tx/types"
 	"github.com/outofforest/quantum/types"
+	"github.com/outofforest/quantum/wal"
 )
 
 // Tx defines transfer transaction.
@@ -31,6 +32,7 @@ func (t *Tx) Prepare(space *space.Space[txtypes.Account, txtypes.Amount], hashBu
 // Execute executes transaction.
 func (t *Tx) Execute(
 	tx *pipeline.TransactionRequest,
+	rf *wal.Recorder,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	hashBuff []byte,
 	hashMatches []uint64,
@@ -50,6 +52,7 @@ func (t *Tx) Execute(
 	if err := t.from.Set(
 		fromBalance-t.Amount,
 		tx,
+		rf,
 		volatilePool,
 		hashBuff,
 		hashMatches,
@@ -60,6 +63,7 @@ func (t *Tx) Execute(
 	return t.to.Set(
 		toBalance+t.Amount,
 		tx,
+		rf,
 		volatilePool,
 		hashBuff,
 		hashMatches,
