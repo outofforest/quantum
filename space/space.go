@@ -15,6 +15,7 @@ import (
 	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space/compare"
 	"github.com/outofforest/quantum/types"
+	"github.com/outofforest/quantum/wal"
 )
 
 // Config stores space configuration.
@@ -77,7 +78,7 @@ func (s *Space[K, V]) Find(key K, hashBuff []byte, hashMatches []uint64) *Entry[
 	initBytes := unsafe.Slice((*byte)(unsafe.Pointer(v)), s.initSize)
 	copy(initBytes, s.defaultInit)
 	v.keyHash = hashKey(&key, nil, 0)
-	v.key = key
+	v.item.Key = key
 	v.dataItemIndex = dataItemIndex(v.keyHash, s.numOfDataItems)
 
 	s.find(v, hashBuff, hashMatches)
@@ -221,6 +222,7 @@ func (s *Space[K, V]) readValue(v *Entry[K, V], hashBuff []byte, hashMatches []u
 
 func (s *Space[K, V]) deleteValue(
 	tx *pipeline.TransactionRequest,
+	walRecorder *wal.Recorder,
 	v *Entry[K, V],
 	hashBuff []byte,
 	hashMatches []uint64,
@@ -237,6 +239,14 @@ func (s *Space[K, V]) deleteValue(
 
 		*v.keyHashP = 0
 
+		if err := walRecorder.VolatileAddress(tx,
+			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress); err != nil {
+			return err
+		}
+		if _, err := walRecorder.Set8(tx, 0); err != nil {
+			return err
+		}
+
 		tx.AddStoreRequest(&v.storeRequest)
 	}
 
@@ -245,17 +255,18 @@ func (s *Space[K, V]) deleteValue(
 
 func (s *Space[K, V]) setValue(
 	tx *pipeline.TransactionRequest,
+	walRecorder *wal.Recorder,
 	v *Entry[K, V],
 	value V,
 	pool *alloc.Pool[types.VolatileAddress],
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
-	v.value = value
+	v.item.Value = value
 
 	detectUpdate(v)
 
-	return s.set(tx, v, pool, hashBuff, hashMatches)
+	return s.set(tx, walRecorder, v, pool, hashBuff, hashMatches)
 }
 
 func (s *Space[K, V]) find(v *Entry[K, V], hashBuff []byte, hashMatches []uint64) {
@@ -274,6 +285,7 @@ func (s *Space[K, V]) find(v *Entry[K, V], hashBuff []byte, hashMatches []uint64
 
 func (s *Space[K, V]) set(
 	tx *pipeline.TransactionRequest,
+	walRecorder *wal.Recorder,
 	v *Entry[K, V],
 	pool *alloc.Pool[types.VolatileAddress],
 	hashBuff []byte,
@@ -295,12 +307,28 @@ func (s *Space[K, V]) set(
 
 	conflict := s.walkDataItems(v, hashMatches)
 
+	//nolint:nestif
 	if v.keyHashP != nil {
-		if *v.keyHashP == 0 {
-			*v.keyHashP = v.keyHash
-			v.itemP.Key = v.key
+		if err := walRecorder.VolatileAddress(tx,
+			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress); err != nil {
+			return err
 		}
-		v.itemP.Value = v.value
+
+		if *v.keyHashP == 0 {
+			if _, err := walRecorder.Set8(tx, 0); err != nil {
+				return err
+			}
+			if _, err := walRecorder.Set(tx, 0, unsafe.Sizeof(v.item)); err != nil {
+				return err
+			}
+			*v.keyHashP = v.keyHash
+			*v.itemP = v.item
+		} else {
+			if _, err := walRecorder.Set(tx, 0, unsafe.Sizeof(v.item.Value)); err != nil {
+				return err
+			}
+			v.itemP.Value = v.item.Value
+		}
 
 		tx.AddStoreRequest(&v.storeRequest)
 
@@ -308,6 +336,7 @@ func (s *Space[K, V]) set(
 	}
 
 	// Try to split data node.
+	//nolint:nestif
 	if v.storeRequest.PointersToStore > 1 {
 		newIndex, mask := s.splitToIndex(
 			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer.VolatileAddress,
@@ -320,8 +349,9 @@ func (s *Space[K, V]) set(
 				return err
 			}
 
-			s.splitDataNode(
+			if err := s.splitDataNode(
 				tx,
+				walRecorder,
 				v.parentIndex,
 				newIndex,
 				mask,
@@ -329,22 +359,24 @@ func (s *Space[K, V]) set(
 				v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress,
 				newDataNodeAddress,
 				v.level,
-			)
+			); err != nil {
+				return err
+			}
 
 			// This must be done because the item to set might go to the newly created data node.
 			v.storeRequest.PointersToStore--
 			v.level--
 
-			return s.set(tx, v, pool, hashBuff, hashMatches)
+			return s.set(tx, walRecorder, v, pool, hashBuff, hashMatches)
 		}
 	}
 
 	// Add pointer node.
-	if err := s.addPointerNode(tx, v, conflict, pool); err != nil {
+	if err := s.addPointerNode(tx, walRecorder, v, conflict, pool); err != nil {
 		return err
 	}
 
-	return s.set(tx, v, pool, hashBuff, hashMatches)
+	return s.set(tx, walRecorder, v, pool, hashBuff, hashMatches)
 }
 
 func (s *Space[K, V]) splitToIndex(parentNodeAddress types.VolatileAddress, index uint64) (uint64, uint64) {
@@ -369,13 +401,14 @@ func (s *Space[K, V]) splitToIndex(parentNodeAddress types.VolatileAddress, inde
 
 func (s *Space[K, V]) splitDataNode(
 	tx *pipeline.TransactionRequest,
+	walRecorder *wal.Recorder,
 	index uint64,
 	newIndex uint64,
 	mask uint64,
 	parentNodeAddress types.VolatileAddress,
 	existingNodeAddress, newNodeAddress types.VolatileAddress,
 	level uint8,
-) {
+) error {
 	parentNode := ProjectPointerNode(s.config.State.Node(parentNodeAddress))
 	newDataNode := s.config.State.Node(newNodeAddress)
 
@@ -386,6 +419,21 @@ func (s *Space[K, V]) splitDataNode(
 		itemIndex := PointerIndex(keyHashes[i], level-1)
 		if itemIndex&mask != newIndex {
 			continue
+		}
+
+		// FIXME (wojciech): Write all the changes related to one node first,
+		// and then all the changes related to other node.
+		if err := walRecorder.VolatileAddress(tx, existingNodeAddress); err != nil {
+			return err
+		}
+		if _, err := walRecorder.Set8(tx, 0); err != nil {
+			return err
+		}
+		if err := walRecorder.VolatileAddress(tx, newNodeAddress); err != nil {
+			return err
+		}
+		if _, err := walRecorder.Set8(tx, 0); err != nil {
+			return err
 		}
 
 		newDataNodeItem := s.config.DataNodeAssistant.Item(newDataNode, s.config.DataNodeAssistant.ItemOffset(i))
@@ -411,10 +459,13 @@ func (s *Space[K, V]) splitDataNode(
 		PointersToStore: 2,
 		NoSnapshots:     s.config.NoSnapshots,
 	})
+
+	return nil
 }
 
 func (s *Space[K, V]) addPointerNode(
 	tx *pipeline.TransactionRequest,
+	walRecorder *wal.Recorder,
 	v *Entry[K, V],
 	conflict bool,
 	pool *alloc.Pool[types.VolatileAddress],
@@ -433,6 +484,13 @@ func (s *Space[K, V]) addPointerNode(
 	pointerNode.Pointers[0] = *v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
 	pointerNode.Pointers[0].PersistentAddress = 0
 
+	if err := walRecorder.VolatileAddress(tx, pointerNodeAddress); err != nil {
+		return err
+	}
+	if _, err := walRecorder.Set(tx, 0, unsafe.Sizeof(pointerNode.Pointers[0])); err != nil {
+		return err
+	}
+
 	pointerNodeRoot := &v.storeRequest.Store[v.storeRequest.PointersToStore-1]
 
 	pointerNodeRoot.Pointer.VolatileAddress = pointerNodeAddress
@@ -442,10 +500,19 @@ func (s *Space[K, V]) addPointerNode(
 		pointerNodeRoot.Pointer.Flags = pointerNodeRoot.Pointer.Flags.Set(types.FlagHashMod)
 	}
 
+	if err := walRecorder.VolatileAddress(tx,
+		v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress); err != nil {
+		return err
+	}
+	if _, err := walRecorder.Set(tx, 0, unsafe.Sizeof(types.Pointer{})); err != nil {
+		return err
+	}
+
 	newIndex, mask := s.splitToIndex(pointerNodeAddress, 0)
 
-	s.splitDataNode(
+	return s.splitDataNode(
 		tx,
+		walRecorder,
 		0,
 		newIndex,
 		mask,
@@ -454,8 +521,6 @@ func (s *Space[K, V]) addPointerNode(
 		newDataNodeAddress,
 		v.level+1,
 	)
-
-	return nil
 }
 
 var pointerHops = [NumOfPointers][]uint64{
@@ -528,7 +593,7 @@ var pointerHops = [NumOfPointers][]uint64{
 func (s *Space[K, V]) walkPointers(v *Entry[K, V], hashBuff []byte) {
 	for v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StatePointer {
 		if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Flags.IsSet(types.FlagHashMod) {
-			v.keyHash = hashKey(&v.key, hashBuff, v.level)
+			v.keyHash = hashKey(&v.item.Key, hashBuff, v.level)
 		}
 
 		pointerNode := ProjectPointerNode(s.config.State.Node(
@@ -609,7 +674,7 @@ func (s *Space[K, V]) walkDataItems(v *Entry[K, V], hashMatches []uint64) bool {
 	for i := range numOfMatches {
 		index := hashMatches[i]
 		item := s.config.DataNodeAssistant.Item(node, s.config.DataNodeAssistant.ItemOffset(index))
-		if item.Key == v.key {
+		if item.Key == v.item.Key {
 			v.exists = true
 			v.keyHashP = &keyHashes[index]
 			v.itemP = item
@@ -638,8 +703,7 @@ type Entry[K, V comparable] struct {
 	itemP         *types.DataItem[K, V]
 	keyHashP      *types.KeyHash
 	keyHash       types.KeyHash
-	key           K
-	value         V
+	item          types.DataItem[K, V]
 	parentIndex   uint64
 	dataItemIndex uint64
 	exists        bool
@@ -653,7 +717,7 @@ func (v *Entry[K, V]) Value(hashBuff []byte, hashMatches []uint64) V {
 
 // Key returns the key from entry.
 func (v *Entry[K, V]) Key() K {
-	return v.key
+	return v.item.Key
 }
 
 // Exists returns true if entry exists in the space.
@@ -665,20 +729,22 @@ func (v *Entry[K, V]) Exists(hashBuff []byte, hashMatches []uint64) bool {
 func (v *Entry[K, V]) Set(
 	value V,
 	tx *pipeline.TransactionRequest,
+	walRecorder *wal.Recorder,
 	pool *alloc.Pool[types.VolatileAddress],
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
-	return v.space.setValue(tx, v, value, pool, hashBuff, hashMatches)
+	return v.space.setValue(tx, walRecorder, v, value, pool, hashBuff, hashMatches)
 }
 
 // Delete deletes the entry.
 func (v *Entry[K, V]) Delete(
 	tx *pipeline.TransactionRequest,
+	walRecorder *wal.Recorder,
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
-	return v.space.deleteValue(tx, v, hashBuff, hashMatches)
+	return v.space.deleteValue(tx, walRecorder, v, hashBuff, hashMatches)
 }
 
 func hashKey[K comparable](key *K, buff []byte, level uint8) types.KeyHash {
@@ -720,7 +786,7 @@ func detectUpdate[K, V comparable](v *Entry[K, V]) {
 		v.keyHashP = nil
 		v.itemP = nil
 	case v.keyHashP != nil && (v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State != types.StateData ||
-		(*v.keyHashP != 0 && (*v.keyHashP != v.keyHash || v.itemP.Key != v.key))):
+		(*v.keyHashP != 0 && (*v.keyHashP != v.keyHash || v.itemP.Key != v.item.Key))):
 		v.keyHashP = nil
 		v.itemP = nil
 	}

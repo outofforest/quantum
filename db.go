@@ -25,6 +25,7 @@ import (
 	txtypes "github.com/outofforest/quantum/tx/types"
 	"github.com/outofforest/quantum/tx/types/spaces"
 	"github.com/outofforest/quantum/types"
+	"github.com/outofforest/quantum/wal"
 )
 
 // Config stores snapshot configuration.
@@ -264,6 +265,7 @@ func (db *DB) Run(ctx context.Context) error {
 func (db *DB) deleteSnapshot(
 	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
+	walRecorder *wal.Recorder,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	persistentPool *alloc.Pool[types.PersistentAddress],
 	massSnapshotToPointerEntry *mass.Mass[space.Entry[types.SnapshotID, types.Pointer]],
@@ -279,7 +281,7 @@ func (db *DB) deleteSnapshot(
 	}
 	snapshotInfo := snapshotInfoValue.Value(snapshotHashBuff, snapshotHashMatches)
 
-	if err := snapshotInfoValue.Delete(tx, snapshotHashBuff, snapshotHashMatches); err != nil {
+	if err := snapshotInfoValue.Delete(tx, walRecorder, snapshotHashBuff, snapshotHashMatches); err != nil {
 		return err
 	}
 
@@ -357,10 +359,10 @@ func (db *DB) deleteSnapshot(
 				sr = massStoreRequest.New()
 				sr.NoSnapshots = true
 			}
-			sr.Store[sr.PointersToStore].Pointer = listRoot
-			sr.PointersToStore++
+			sr.ListStore[sr.ListsToStore] = listRoot
+			sr.ListsToStore++
 
-			if sr.PointersToStore == pipeline.StoreCapacity {
+			if sr.ListsToStore == pipeline.StoreCapacity {
 				tx.AddStoreRequest(sr)
 				sr = nil
 			}
@@ -373,6 +375,7 @@ func (db *DB) deleteSnapshot(
 			if err := deallocationListValue.Set(
 				*newListNodeAddressP,
 				tx,
+				walRecorder,
 				volatilePool,
 				deallocationHashBuff,
 				deallocationHashMatches,
@@ -402,6 +405,7 @@ func (db *DB) deleteSnapshot(
 		if err := nextSnapshotInfoValue.Set(
 			*nextSnapshotInfo,
 			tx,
+			walRecorder,
 			volatilePool,
 			snapshotHashBuff,
 			snapshotHashMatches,
@@ -411,7 +415,8 @@ func (db *DB) deleteSnapshot(
 	}
 
 	if snapshotInfo.PreviousSnapshotID > 0 {
-		previousSnapshotInfoValue := db.snapshots.Find(snapshotInfo.PreviousSnapshotID, snapshotHashBuff, snapshotHashMatches)
+		previousSnapshotInfoValue := db.snapshots.Find(snapshotInfo.PreviousSnapshotID, snapshotHashBuff,
+			snapshotHashMatches)
 		if !previousSnapshotInfoValue.Exists(snapshotHashBuff, snapshotHashMatches) {
 			return errors.Errorf("previous snapshot %d does not exist", snapshotID)
 		}
@@ -422,6 +427,7 @@ func (db *DB) deleteSnapshot(
 		if err := previousSnapshotInfoValue.Set(
 			previousSnapshotInfo,
 			tx,
+			walRecorder,
 			volatilePool,
 			snapshotHashBuff,
 			snapshotHashMatches,
@@ -435,6 +441,7 @@ func (db *DB) deleteSnapshot(
 
 func (db *DB) commit(
 	tx *pipeline.TransactionRequest,
+	walRecorder *wal.Recorder,
 	volatilePool *alloc.Pool[types.VolatileAddress],
 	massStoreRequest *mass.Mass[pipeline.StoreRequest],
 	snapshotHashBuff []byte,
@@ -468,10 +475,10 @@ func (db *DB) commit(
 						sr.NoSnapshots = true
 					}
 
-					sr.Store[sr.PointersToStore].Pointer = listRoot
-					sr.PointersToStore++
+					sr.ListStore[sr.ListsToStore] = listRoot
+					sr.ListsToStore++
 
-					if sr.PointersToStore == pipeline.StoreCapacity {
+					if sr.ListsToStore == pipeline.StoreCapacity {
 						tx.AddStoreRequest(sr)
 						sr = nil
 					}
@@ -484,6 +491,7 @@ func (db *DB) commit(
 			if err := deallocationListValue.Set(
 				*l.Root,
 				tx,
+				walRecorder,
 				volatilePool,
 				deallocationHashBuff,
 				deallocationHashMatches,
@@ -502,6 +510,7 @@ func (db *DB) commit(
 	if err := nextSnapshotInfoValue.Set(
 		db.snapshotInfo,
 		tx,
+		walRecorder,
 		volatilePool,
 		snapshotHashBuff,
 		snapshotHashMatches,
@@ -569,6 +578,8 @@ func (db *DB) executeTransactions(
 	massSnapshotToPointerEntry := mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000)
 	massStoreRequest := mass.New[pipeline.StoreRequest](1000)
 
+	walRecorder := wal.NewRecorder(db.config.State, volatilePool)
+
 	for processedCount := uint64(0); ; processedCount++ {
 		req, err := pipeReader.Read(ctx)
 		if err != nil {
@@ -578,26 +589,27 @@ func (db *DB) executeTransactions(
 		if req.Transaction != nil {
 			switch tx := req.Transaction.(type) {
 			case *transfer.Tx:
-				if err := tx.Execute(req, volatilePool, hashBuff, hashMatches); err != nil {
+				if err := tx.Execute(req, walRecorder, volatilePool, hashBuff, hashMatches); err != nil {
 					return err
 				}
 			case *commitTx:
 				// Syncing must be finished just before committing because inside commit we store the results
 				// of deallocations.
 				<-tx.SyncCh
-				if err := db.commit(req, volatilePool, massStoreRequest, snapshotHashBuff, snapshotHashMatches,
+				if err := db.commit(req, walRecorder, volatilePool, massStoreRequest, snapshotHashBuff, snapshotHashMatches,
 					deallocationHashBuff, deallocationHashMatches); err != nil {
 					req.CommitCh <- err
 					return err
 				}
+				walRecorder.Commit(req)
 			case *deleteSnapshotTx:
-				if err := db.deleteSnapshot(tx.SnapshotID, req, volatilePool, persistentPool, massSnapshotToPointerEntry,
-					massStoreRequest, snapshotHashBuff, snapshotHashMatches, deallocationHashBuff,
-					deallocationHashMatches); err != nil {
+				if err := db.deleteSnapshot(tx.SnapshotID, req, walRecorder, volatilePool, persistentPool,
+					massSnapshotToPointerEntry, massStoreRequest, snapshotHashBuff, snapshotHashMatches,
+					deallocationHashBuff, deallocationHashMatches); err != nil {
 					return err
 				}
 			case *genesis.Tx:
-				if err := tx.Execute(s, req, volatilePool, hashBuff, hashMatches); err != nil {
+				if err := tx.Execute(s, req, walRecorder, volatilePool, hashBuff, hashMatches); err != nil {
 					return err
 				}
 			default:
@@ -609,14 +621,90 @@ func (db *DB) executeTransactions(
 	}
 }
 
+func (db *DB) allocatePersistentAddress(
+	tx *pipeline.TransactionRequest,
+	sr *pipeline.StoreRequest,
+	walRecorder *wal.Recorder,
+	pointer *types.Pointer,
+	volatilePool *alloc.Pool[types.VolatileAddress],
+	persistentPool *alloc.Pool[types.PersistentAddress],
+	listNodesToStore map[types.VolatileAddress]struct{},
+) error {
+	// 0 address is reserved for the singularity node. We don't do any (de)allocations for this address.
+	if pointer.VolatileAddress == 0 {
+		return nil
+	}
+
+	//nolint:nestif
+	if pointer.SnapshotID != db.singularityNode.LastSnapshotID {
+		if pointer.PersistentAddress != 0 {
+			listRoot, err := db.deallocateNode(
+				pointer,
+				sr.NoSnapshots,
+				volatilePool,
+				persistentPool,
+			)
+			if err != nil {
+				return err
+			}
+
+			if listRoot != nil {
+				if _, exists := listNodesToStore[listRoot.VolatileAddress]; !exists {
+					listNodesToStore[listRoot.VolatileAddress] = struct{}{}
+
+					sr.ListStore[sr.ListsToStore] = listRoot
+					sr.ListsToStore++
+				}
+			}
+
+			pointer.PersistentAddress = 0
+		}
+		pointer.SnapshotID = db.singularityNode.LastSnapshotID
+
+		if walRecorder != nil {
+			// FIXME (wojciech): We don't know the address.
+			if err := walRecorder.VolatileAddress(tx, 0); err != nil {
+				return err
+			}
+			if _, err := walRecorder.Set8(tx, 0); err != nil {
+				return err
+			}
+		}
+	}
+
+	//nolint:nestif
+	if pointer.PersistentAddress == 0 {
+		persistentAddress, err := persistentPool.Allocate()
+		if err != nil {
+			return err
+		}
+		pointer.PersistentAddress = persistentAddress
+
+		if walRecorder != nil {
+			// FIXME (wojciech): We don't know the address.
+			// FIXME (wojciech): If address was recorded above, where snapshot ID is set,
+			// don't do it again here.
+			if err := walRecorder.VolatileAddress(tx, 0); err != nil {
+				return err
+			}
+			if _, err := walRecorder.Set8(tx, 0); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (db *DB) processAllocationRequests(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
 ) error {
 	volatilePool := db.config.State.NewVolatilePool()
 	persistentPool := db.config.State.NewPersistentPool()
-	massStoreRequest := mass.New[pipeline.StoreRequest](1000)
 	listNodesToStore := map[types.VolatileAddress]struct{}{}
+
+	walRecorder := wal.NewRecorder(db.config.State, volatilePool)
 
 	for processedCount := uint64(0); ; processedCount++ {
 		req, err := pipeReader.Read(ctx)
@@ -625,64 +713,29 @@ func (db *DB) processAllocationRequests(
 		}
 
 		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-			var deallocSr *pipeline.StoreRequest
 			clear(listNodesToStore)
 
 			for i := range sr.PointersToStore {
-				root := sr.Store[i]
-
-				// 0 address is reserved for the singularity node. We don't do any (de)allocations for this address.
-				//nolint:nestif
-				if root.Pointer.VolatileAddress != 0 {
-					if root.Pointer.SnapshotID != db.singularityNode.LastSnapshotID {
-						if root.Pointer.PersistentAddress != 0 {
-							listRoot, err := db.deallocateNode(
-								root.Pointer,
-								sr.NoSnapshots,
-								volatilePool,
-								persistentPool,
-							)
-							if err != nil {
-								return err
-							}
-
-							if listRoot != nil {
-								if deallocSr == nil {
-									deallocSr = massStoreRequest.New()
-									deallocSr.NoSnapshots = true
-								}
-
-								if _, exists := listNodesToStore[listRoot.VolatileAddress]; !exists {
-									listNodesToStore[listRoot.VolatileAddress] = struct{}{}
-
-									deallocSr.Store[deallocSr.PointersToStore].Pointer = listRoot
-									deallocSr.PointersToStore++
-								}
-							}
-
-							root.Pointer.PersistentAddress = 0
-						}
-						root.Pointer.SnapshotID = db.singularityNode.LastSnapshotID
-					}
-
-					if root.Pointer.PersistentAddress == 0 {
-						persistentAddress, err := persistentPool.Allocate()
-						if err != nil {
-							return err
-						}
-						root.Pointer.PersistentAddress = persistentAddress
-					}
+				if err := db.allocatePersistentAddress(req, sr, walRecorder, sr.Store[i].Pointer, volatilePool, persistentPool,
+					listNodesToStore); err != nil {
+					return err
 				}
 			}
-			if deallocSr != nil {
-				req.AddStoreRequest(deallocSr)
+			for i := range sr.ListsToStore {
+				if err := db.allocatePersistentAddress(req, nil, nil, sr.ListStore[i], volatilePool,
+					persistentPool, nil); err != nil {
+					return err
+				}
 			}
 		}
 
 		// Sync is here in the pipeline because allocation is the last step required before we may proceed
 		// with the commit.
-		if req.Type == pipeline.Sync {
+		switch req.Type {
+		case pipeline.Sync:
 			req.SyncCh <- struct{}{}
+		case pipeline.Commit:
+			walRecorder.Commit(req)
 		}
 
 		pipeReader.Acknowledge(processedCount+1, req)
@@ -702,7 +755,7 @@ func (db *DB) incrementRevisions(
 		}
 
 		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-			if sr.PointersToStore == 0 {
+			if sr.PointersToStore == 0 && sr.ListsToStore == 0 {
 				continue
 			}
 
@@ -710,6 +763,9 @@ func (db *DB) incrementRevisions(
 			sr.RequestedRevision = revisionCounter
 			for i := range sr.PointersToStore {
 				atomic.StoreUint32(&sr.Store[i].Pointer.Revision, revisionCounter)
+			}
+			for i := range sr.ListsToStore {
+				atomic.StoreUint32(&sr.ListStore[i].Revision, revisionCounter)
 			}
 		}
 
@@ -818,6 +874,8 @@ func (db *DB) updateHashes(
 	var hashes [16]*byte
 	hashesP := &hashes[0]
 
+	walRecorder := wal.NewRecorder(db.config.State, db.config.State.NewVolatilePool())
+
 	r := &reader{
 		pipeReader: pipeReader,
 		divider:    divider,
@@ -898,9 +956,24 @@ func (db *DB) updateHashes(
 		}
 
 		if nilSlots == len(slots) {
+			walRecorder.Commit(commitReq.TxRequest)
 			r.Acknowledge(commitReq.Count, commitReq.TxRequest, true)
 		} else {
 			hash.Blake3(matrixP, hashesP)
+			for _, h := range hashes {
+				if h == zh {
+					continue
+				}
+
+				// FIXME (wojciech): Blake3 should store the copy of hash.
+				// FIXME (wojciech): Address is unknown.
+				if err := walRecorder.VolatileAddress(minReq.TxRequest, 0); err != nil {
+					return err
+				}
+				if _, err := walRecorder.Set32(minReq.TxRequest, 0); err != nil {
+					return err
+				}
+			}
 			r.Acknowledge(minReq.Count-1, minReq.TxRequest, false)
 		}
 	}
@@ -911,7 +984,6 @@ func (db *DB) processStoreRequests(
 	store persistent.Store,
 	pipeReader *pipeline.Reader,
 ) error {
-	// uniqueNodes := map[types.VolatileAddress]struct{}{}
 	// var numOfWrites uint
 
 	for processedCount := uint64(0); ; processedCount++ {
@@ -920,10 +992,13 @@ func (db *DB) processStoreRequests(
 			return err
 		}
 
+		// for wr := req.WALRequest; wr != nil; wr = wr.Next {
+		//	numOfWrites++
+		// }
+
 		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-			// We process starting from the data node, which is the last one.
-			for i := sr.PointersToStore - 1; i >= 0; i-- {
-				root := sr.Store[i]
+			for i := range sr.ListsToStore {
+				pointer := sr.ListStore[i]
 
 				// Volatile address must be copied before verifying revision. Otherwise, the address might be
 				// concurrently overwritten by another transaction between revision verification and
@@ -931,20 +1006,19 @@ func (db *DB) processStoreRequests(
 				// Persistent address is safe to be used even without atomic, because it is guaranteed that
 				// in the same snapshot it is set only once on the first time node is processed by the goroutine
 				// allocating persistent addresses,
-				volatileAddress := root.Pointer.VolatileAddress
+				volatileAddress := pointer.VolatileAddress
 
-				if atomic.LoadUint32(&root.Pointer.Revision) != sr.RequestedRevision {
+				if atomic.LoadUint32(&pointer.Revision) != sr.RequestedRevision {
 					// Pointers are processed from the data node up t the root node. If at any level
 					// revision test fails, it doesn't make sense to process parent nodes because revision
 					// test will fail there for sure.
 					break
 				}
 
-				// uniqueNodes[volatileAddress] = struct{}{}
 				// numOfWrites++
 
 				if err := store.Write(
-					root.Pointer.PersistentAddress,
+					pointer.PersistentAddress,
 					db.config.State.Bytes(volatileAddress),
 				); err != nil {
 					return err
@@ -953,11 +1027,7 @@ func (db *DB) processStoreRequests(
 		}
 
 		if req.Type == pipeline.Commit {
-			// fmt.Println("========== STORE")
-			// fmt.Println(len(uniqueNodes))
-			// fmt.Println(numOfWrites)
-			// fmt.Println(float64(numOfWrites) / float64(len(uniqueNodes)))
-			// clear(uniqueNodes)
+			// fmt.Println("========== STORE", numOfWrites)
 			// numOfWrites = 0
 
 			err := store.Sync()

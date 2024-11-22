@@ -6,9 +6,27 @@
 // Requires: AVX512F
 TEXT ·Copy(SB), NOSPLIT, $0-24
 	MOVQ      z+16(FP), AX
+	MOVQ      x+0(FP), CX
+	MOVQ      y+8(FP), DX
 	VMOVDQU64 (AX), Z0
-	MOVQ      x+0(FP), AX
-	VMOVDQU64 Z0, (AX)
-	MOVQ      y+8(FP), AX
-	VMOVDQU64 Z0, (AX)
+	VMOVDQU64 Z0, (CX)
+	VMOVDQU64 Z0, (DX)
+	ADDQ      $0x40, AX
+	ADDQ      $0x40, CX
+	ADDQ      $0x40, DX
+	VMOVDQU64 (AX), Z0
+	VMOVDQU64 Z0, (CX)
+	VMOVDQU64 Z0, (DX)
+	ADDQ      $0x40, AX
+	ADDQ      $0x40, CX
+	ADDQ      $0x40, DX
+	VMOVDQU64 (AX), Z0
+	VMOVDQU64 Z0, (CX)
+	VMOVDQU64 Z0, (DX)
+	ADDQ      $0x40, AX
+	ADDQ      $0x40, CX
+	ADDQ      $0x40, DX
+	VMOVDQU64 (AX), Z0
+	VMOVDQU64 Z0, (CX)
+	VMOVDQU64 Z0, (DX)
 	RET

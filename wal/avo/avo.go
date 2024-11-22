@@ -14,11 +14,35 @@ func Copy() {
 
 	r := ZMM()
 	memZ := Mem{Base: Load(Param("z"), GP64())}
-	VMOVDQU64(memZ, r)
-
 	memX := Mem{Base: Load(Param("x"), GP64())}
-	VMOVDQU64(r, memX)
 	memY := Mem{Base: Load(Param("y"), GP64())}
+
+	VMOVDQU64(memZ, r)
+	VMOVDQU64(r, memX)
+	VMOVDQU64(r, memY)
+
+	ADDQ(U8(64), memZ.Base)
+	ADDQ(U8(64), memX.Base)
+	ADDQ(U8(64), memY.Base)
+
+	VMOVDQU64(memZ, r)
+	VMOVDQU64(r, memX)
+	VMOVDQU64(r, memY)
+
+	ADDQ(U8(64), memZ.Base)
+	ADDQ(U8(64), memX.Base)
+	ADDQ(U8(64), memY.Base)
+
+	VMOVDQU64(memZ, r)
+	VMOVDQU64(r, memX)
+	VMOVDQU64(r, memY)
+
+	ADDQ(U8(64), memZ.Base)
+	ADDQ(U8(64), memX.Base)
+	ADDQ(U8(64), memY.Base)
+
+	VMOVDQU64(memZ, r)
+	VMOVDQU64(r, memX)
 	VMOVDQU64(r, memY)
 
 	RET()
