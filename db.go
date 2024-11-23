@@ -189,10 +189,7 @@ func (db *DB) Run(ctx context.Context) error {
 				for range cap(hashReaders) {
 					hashReaders = append(hashReaders, pipeline.NewReader(incrementRevisionReader))
 				}
-				storeQReaders := make([]*pipeline.Reader, 0, len(db.config.Stores))
-				for range cap(storeQReaders) {
-					storeQReaders = append(storeQReaders, pipeline.NewReader(hashReaders...))
-				}
+				copyReader := pipeline.NewReader(hashReaders...)
 
 				spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
 					var lastSyncCh chan<- struct{}
@@ -249,11 +246,10 @@ func (db *DB) Run(ctx context.Context) error {
 						return db.updateHashes(ctx, reader, uint64(len(hashReaders)), uint64(i))
 					})
 				}
-				for i, store := range db.config.Stores {
-					spawn(fmt.Sprintf("store-%02d", i), parallel.Fail, func(ctx context.Context) error {
-						return db.processStoreRequests(ctx, store, storeQReaders[i])
-					})
-				}
+				spawn("copy", parallel.Fail, func(ctx context.Context) error {
+					return db.copyNodes(ctx, copyReader)
+				})
+
 				return nil
 			})
 		})
@@ -554,10 +550,7 @@ func (db *DB) prepareTransactions(
 	}
 }
 
-func (db *DB) executeTransactions(
-	ctx context.Context,
-	pipeReader *pipeline.Reader,
-) error {
+func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Reader) error {
 	allocator := db.config.State.NewAllocator(true)
 	deallocator := db.config.State.NewDeallocator()
 
@@ -683,10 +676,7 @@ func (db *DB) allocatePersistentAddress(
 	return nil
 }
 
-func (db *DB) processAllocationRequests(
-	ctx context.Context,
-	pipeReader *pipeline.Reader,
-) error {
+func (db *DB) processAllocationRequests(ctx context.Context, pipeReader *pipeline.Reader) error {
 	allocator := db.config.State.NewAllocator(false)
 	deallocator := db.config.State.NewDeallocator()
 	listNodesToStore := map[types.NodeAddress]struct{}{}
@@ -729,10 +719,7 @@ func (db *DB) processAllocationRequests(
 	}
 }
 
-func (db *DB) incrementRevisions(
-	ctx context.Context,
-	pipeReader *pipeline.Reader,
-) error {
+func (db *DB) incrementRevisions(ctx context.Context, pipeReader *pipeline.Reader) error {
 	var revisionCounter uint32
 
 	for processedCount := uint64(0); ; processedCount++ {
@@ -961,61 +948,57 @@ func (db *DB) updateHashes(
 	}
 }
 
-func (db *DB) processStoreRequests(
-	ctx context.Context,
-	store persistent.Store,
-	pipeReader *pipeline.Reader,
-) error {
-	// var numOfWrites uint
+func (db *DB) copyNode(pointer *types.Pointer, requestedRevision uint32) bool {
+	// Volatile address must be copied before verifying revision. Otherwise, the address might be
+	// concurrently overwritten by another transaction between revision verification and
+	// store write.
+	// Persistent address is safe to be used even without atomic, because it is guaranteed that
+	// in the same snapshot it is set only once on the first time node is processed by the goroutine
+	// allocating persistent addresses,
+	volatileAddress := pointer.VolatileAddress
 
+	if atomic.LoadUint32(&pointer.Revision) != requestedRevision {
+		// Pointers are processed from the data node up t the root node. If at any level
+		// revision test fails, it doesn't make sense to process parent nodes because revision
+		// test will fail there for sure.
+		return false
+	}
+
+	copy(db.config.State.Bytes(pointer.PersistentAddress), db.config.State.Bytes(volatileAddress))
+
+	return true
+}
+
+func (db *DB) copyNodes(ctx context.Context, pipeReader *pipeline.Reader) error {
 	for processedCount := uint64(0); ; processedCount++ {
 		req, err := pipeReader.Read(ctx)
 		if err != nil {
 			return err
 		}
 
-		for wr := req.WALRequest; wr != nil; wr = wr.Next {
-			// numOfWrites++
-		}
+		// WAL nodes are not copied because they should go directly to persistent store.
 
 		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-			for i := range sr.ListsToStore {
-				pointer := sr.ListStore[i]
-
-				// Volatile address must be copied before verifying revision. Otherwise, the address might be
-				// concurrently overwritten by another transaction between revision verification and
-				// store write.
-				// Persistent address is safe to be used even without atomic, because it is guaranteed that
-				// in the same snapshot it is set only once on the first time node is processed by the goroutine
-				// allocating persistent addresses,
-				volatileAddress := pointer.VolatileAddress
-
-				if atomic.LoadUint32(&pointer.Revision) != sr.RequestedRevision {
-					// Pointers are processed from the data node up t the root node. If at any level
-					// revision test fails, it doesn't make sense to process parent nodes because revision
-					// test will fail there for sure.
+			// Pointers are processed from data node up to the root order, because
+			// if any revision test fails it doesn't make sense to process other nodes in the stack.
+			for i := sr.PointersToStore - 1; i >= 0; i-- {
+				if !db.copyNode(sr.Store[i].Pointer, sr.RequestedRevision) {
 					break
 				}
-
-				// numOfWrites++
-
-				if err := store.Write(
-					pointer.PersistentAddress,
-					db.config.State.Bytes(volatileAddress),
-				); err != nil {
-					return err
-				}
+			}
+			for i := range sr.ListsToStore {
+				db.copyNode(sr.ListStore[i], sr.RequestedRevision)
 			}
 		}
 
+		// FIXME (wojciech): Move this code to the place where WAL nodes are stored in persistent store.
 		if req.Type == pipeline.Commit {
-			// fmt.Println("========== STORE", numOfWrites)
-			// numOfWrites = 0
-
-			err := store.Sync()
-			req.CommitCh <- err
-			if err != nil {
-				return err
+			for _, store := range db.config.Stores {
+				err := store.Sync()
+				req.CommitCh <- err
+				if err != nil {
+					return err
+				}
 			}
 		}
 
