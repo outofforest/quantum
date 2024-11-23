@@ -56,11 +56,8 @@ type (
 	// SnapshotID is the type for snapshot ID.
 	SnapshotID uint64
 
-	// VolatileAddress represents the address of a node in RAM.
-	VolatileAddress uint64
-
-	// PersistentAddress represents the address of a node in persistent store.
-	PersistentAddress uint64
+	// NodeAddress represents the address of a node.
+	NodeAddress uint64
 
 	// KeyHash is the type for key hash.
 	KeyHash uint64
@@ -75,8 +72,8 @@ type (
 // Pointer is the pointer to another block.
 type Pointer struct {
 	SnapshotID        SnapshotID
-	VolatileAddress   VolatileAddress
-	PersistentAddress PersistentAddress
+	VolatileAddress   NodeAddress
+	PersistentAddress NodeAddress
 	Revision          uint32
 	State             State
 	Flags             Flags

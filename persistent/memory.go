@@ -32,7 +32,7 @@ type MemoryStore struct {
 }
 
 // Write writes data to the store.
-func (s *MemoryStore) Write(address types.PersistentAddress, data []byte) error {
+func (s *MemoryStore) Write(address types.NodeAddress, data []byte) error {
 	copy(s.data[address*types.NodeLength:], data)
 	return nil
 }

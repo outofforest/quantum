@@ -2,7 +2,6 @@ package alloc
 
 import (
 	"context"
-	"fmt"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -18,7 +17,6 @@ func NewState(
 	size uint64,
 	nodesPerGroup uint64,
 	useHugePages bool,
-	numOfEraseWorkers uint64,
 ) (*State, func(), error) {
 	opts := unix.MAP_SHARED | unix.MAP_ANONYMOUS | unix.MAP_POPULATE
 	if useHugePages {
@@ -38,10 +36,9 @@ func NewState(
 	dataP = unsafe.Add(dataP, diff)
 	size -= diff
 
-	volatileAllocationCh, volatileSingularityNode := NewAllocationCh[types.VolatileAddress](size, nodesPerGroup)
-	persistentAllocationCh, persistentSingularityNode := NewAllocationCh[types.PersistentAddress](size, nodesPerGroup)
+	allocationCh, singularityNodeAddress := NewAllocationCh(size, nodesPerGroup)
 
-	singularityNode := (*types.SingularityNode)(unsafe.Add(dataP, volatileSingularityNode))
+	singularityNode := (*types.SingularityNode)(unsafe.Add(dataP, types.NodeLength*singularityNodeAddress))
 	return &State{
 			size:          size,
 			nodesPerGroup: nodesPerGroup,
@@ -49,19 +46,15 @@ func NewState(
 				Hash: &singularityNode.Hash,
 				Pointer: &types.Pointer{
 					Revision:          1,
-					VolatileAddress:   volatileSingularityNode,
-					PersistentAddress: persistentSingularityNode,
+					VolatileAddress:   singularityNodeAddress,
+					PersistentAddress: singularityNodeAddress,
 				},
 			},
-			numOfEraseWorkers:          numOfEraseWorkers,
-			dataP:                      dataP,
-			volatileAllocationCh:       volatileAllocationCh,
-			volatileDeallocationCh:     make(chan []types.VolatileAddress, 10),
-			volatileAllocationPoolCh:   make(chan []types.VolatileAddress, 1),
-			persistentAllocationCh:     persistentAllocationCh,
-			persistentDeallocationCh:   make(chan []types.PersistentAddress, 10),
-			persistentAllocationPoolCh: make(chan []types.PersistentAddress, 1),
-			closedCh:                   make(chan struct{}),
+			dataP:            dataP,
+			allocationCh:     allocationCh,
+			deallocationCh:   make(chan []types.NodeAddress, 10),
+			allocationPoolCh: make(chan []types.NodeAddress, 1),
+			closedCh:         make(chan struct{}),
 		}, func() {
 			_ = unix.MunmapPtr(dataPOrig, originalSize)
 		}, nil
@@ -69,28 +62,24 @@ func NewState(
 
 // State stores the DB state.
 type State struct {
-	size                       uint64
-	nodesPerGroup              uint64
-	singularityNodeRoot        types.NodeRoot
-	numOfEraseWorkers          uint64
-	dataP                      unsafe.Pointer
-	volatileAllocationCh       chan []types.VolatileAddress
-	volatileDeallocationCh     chan []types.VolatileAddress
-	volatileAllocationPoolCh   chan []types.VolatileAddress
-	persistentAllocationCh     chan []types.PersistentAddress
-	persistentDeallocationCh   chan []types.PersistentAddress
-	persistentAllocationPoolCh chan []types.PersistentAddress
-	closedCh                   chan struct{}
+	size                uint64
+	nodesPerGroup       uint64
+	singularityNodeRoot types.NodeRoot
+	dataP               unsafe.Pointer
+	allocationCh        chan []types.NodeAddress
+	deallocationCh      chan []types.NodeAddress
+	allocationPoolCh    chan []types.NodeAddress
+	closedCh            chan struct{}
 }
 
-// NewVolatilePool creates new volatile allocation pool.
-func (s *State) NewVolatilePool() *Pool[types.VolatileAddress] {
-	return NewPool[types.VolatileAddress](s.volatileAllocationPoolCh, s.volatileDeallocationCh)
+// NewAllocator creates new node allocator.
+func (s *State) NewAllocator(zeroNode bool) *Allocator {
+	return newAllocator(s, zeroNode, s.allocationPoolCh)
 }
 
-// NewPersistentPool creates new persistent allocation pool.
-func (s *State) NewPersistentPool() *Pool[types.PersistentAddress] {
-	return NewPool[types.PersistentAddress](s.persistentAllocationPoolCh, s.persistentDeallocationCh)
+// NewDeallocator creates new node deallocator.
+func (s *State) NewDeallocator() *Deallocator {
+	return newDeallocator(s.nodesPerGroup, s.deallocationCh)
 }
 
 // SingularityNodeRoot returns node root of singularity node.
@@ -104,12 +93,12 @@ func (s *State) Origin() unsafe.Pointer {
 }
 
 // Node returns node bytes.
-func (s *State) Node(nodeAddress types.VolatileAddress) unsafe.Pointer {
+func (s *State) Node(nodeAddress types.NodeAddress) unsafe.Pointer {
 	return unsafe.Add(s.dataP, nodeAddress*types.NodeLength)
 }
 
 // Bytes returns byte slice of a node.
-func (s *State) Bytes(nodeAddress types.VolatileAddress) []byte {
+func (s *State) Bytes(nodeAddress types.NodeAddress) []byte {
 	return photon.SliceFromPointer[byte](s.Node(nodeAddress), types.NodeLength)
 }
 
@@ -118,45 +107,29 @@ func (s *State) Run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
 			ctxDone := ctx.Done()
-			var volatileDeallocationCh <-chan []types.VolatileAddress
-			var persistentDeallocationCh <-chan []types.PersistentAddress
+			var deallocationCh <-chan []types.NodeAddress
 			for {
 				select {
 				case <-ctxDone:
 					ctxDone = nil
-					volatileDeallocationCh = s.volatileDeallocationCh
-					persistentDeallocationCh = s.persistentDeallocationCh
-				case <-volatileDeallocationCh:
-				case <-persistentDeallocationCh:
+					deallocationCh = s.deallocationCh
+				case <-deallocationCh:
 				case <-s.closedCh:
-					close(s.volatileDeallocationCh)
-					for range s.volatileAllocationPoolCh {
-					}
-
-					close(s.persistentDeallocationCh)
-					for range s.persistentAllocationPoolCh {
+					close(s.deallocationCh)
+					for range s.allocationPoolCh {
 					}
 
 					return errors.WithStack(ctx.Err())
 				}
 			}
 		})
-		spawn("volatilePump", parallel.Continue, func(ctx context.Context) error {
-			defer close(s.volatileAllocationPoolCh)
-			return s.runVolatilePump(
+		spawn("pump", parallel.Continue, func(ctx context.Context) error {
+			defer close(s.allocationPoolCh)
+			return s.runPump(
 				ctx,
-				s.volatileAllocationCh,
-				s.volatileDeallocationCh,
-				s.volatileAllocationPoolCh,
-			)
-		})
-		spawn("persistentPump", parallel.Continue, func(ctx context.Context) error {
-			defer close(s.persistentAllocationPoolCh)
-			return s.runPersistentPump(
-				ctx,
-				s.persistentAllocationCh,
-				s.persistentDeallocationCh,
-				s.persistentAllocationPoolCh,
+				s.allocationCh,
+				s.deallocationCh,
+				s.allocationPoolCh,
 			)
 		})
 
@@ -166,7 +139,7 @@ func (s *State) Run(ctx context.Context) error {
 
 // Commit is called when new snapshot starts to mark point where invalid physical address is present in the queue.
 func (s *State) Commit() {
-	s.persistentDeallocationCh <- nil
+	s.deallocationCh <- nil
 }
 
 // Close tells that there will be no more operations done.
@@ -178,54 +151,16 @@ func (s *State) Close() {
 	}
 }
 
-func (s *State) runVolatilePump(
+func (s *State) runPump(
 	ctx context.Context,
-	allocationCh chan []types.VolatileAddress,
-	deallocationCh <-chan []types.VolatileAddress,
-	allocationPoolCh chan<- []types.VolatileAddress,
-) error {
-	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-		spawn("allocator", parallel.Fail, func(ctx context.Context) error {
-			for {
-				select {
-				case <-ctx.Done():
-					return errors.WithStack(ctx.Err())
-				case allocatedPool := <-allocationCh:
-					allocationPoolCh <- allocatedPool
-				default:
-					// If we are here it means there was no available pool in `allocationCh`.
-					return errors.New("out of space")
-				}
-			}
-		})
-
-		for i := range s.numOfEraseWorkers {
-			spawn(fmt.Sprintf("eraser-%02d", i), parallel.Fail, func(ctx context.Context) error {
-				for nodes := range deallocationCh {
-					for _, n := range nodes {
-						clear(photon.SliceFromPointer[byte](s.Node(n), types.NodeLength))
-					}
-					allocationCh <- nodes
-				}
-
-				return errors.WithStack(ctx.Err())
-			})
-		}
-
-		return nil
-	})
-}
-
-func (s *State) runPersistentPump(
-	ctx context.Context,
-	allocationCh chan []types.PersistentAddress,
-	deallocationCh <-chan []types.PersistentAddress,
-	allocationPoolCh chan<- []types.PersistentAddress,
+	allocationCh chan []types.NodeAddress,
+	deallocationCh <-chan []types.NodeAddress,
+	allocationPoolCh chan<- []types.NodeAddress,
 ) error {
 	// Any address from the pool uniquely identifies entire pool, so I take the first one (allocated as the last one).
-	var invalidAddress types.PersistentAddress
+	var invalidAddress types.NodeAddress
 	// Trick to save on `if` later in the handler.
-	previousDeallocatedPool := []types.PersistentAddress{0}
+	previousDeallocatedPool := []types.NodeAddress{0}
 
 loop:
 	for {

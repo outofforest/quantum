@@ -2,17 +2,19 @@ package list
 
 import (
 	"unsafe"
+
+	"github.com/outofforest/quantum/types"
 )
 
-// NumOfSlots defines number of available slots in the list node.
-const NumOfSlots = 511
+// NumOfAddresses defines number of available slots in the list node.
+const NumOfAddresses = 511
 
 // Node represents list node.
 type Node struct {
-	Slots [NumOfSlots]uint64
+	Slots [NumOfAddresses]types.NodeAddress
 
-	NumOfPointerSlots  uint16
-	NumOfSideListSlots uint16
+	NumOfPointerAddresses  uint16
+	NumOfSideListAddresses uint16
 }
 
 // ProjectNode projects node to list node.
