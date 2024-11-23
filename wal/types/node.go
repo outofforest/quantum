@@ -7,19 +7,13 @@ import (
 )
 
 // BlobSize defines the size of space available in node.
-const BlobSize = 4080
-
-// Pointer points to the next node.
-type Pointer struct {
-	VolatileAddress   types.VolatileAddress
-	PersistentAddress types.PersistentAddress
-}
+const BlobSize = 4088
 
 // Node represents list node.
 type Node struct {
 	Blob [BlobSize]byte
 
-	Next Pointer
+	Next types.NodeAddress
 }
 
 // ProjectNode projects node to list node.

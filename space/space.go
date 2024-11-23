@@ -114,16 +114,16 @@ func (s *Space[K, V]) iterate(pointer *types.Pointer, yield func(item *types.Dat
 }
 
 // Nodes returns list of nodes used by the space.
-func (s *Space[K, V]) Nodes() []types.VolatileAddress {
+func (s *Space[K, V]) Nodes() []types.NodeAddress {
 	switch s.config.SpaceRoot.Pointer.State {
 	case types.StateFree:
 		return nil
 	case types.StateData:
-		return []types.VolatileAddress{s.config.SpaceRoot.Pointer.VolatileAddress}
+		return []types.NodeAddress{s.config.SpaceRoot.Pointer.VolatileAddress}
 	}
 
-	nodes := []types.VolatileAddress{}
-	stack := []types.VolatileAddress{s.config.SpaceRoot.Pointer.VolatileAddress}
+	nodes := []types.NodeAddress{}
+	stack := []types.NodeAddress{s.config.SpaceRoot.Pointer.VolatileAddress}
 
 	for {
 		if len(stack) == 0 {
@@ -160,9 +160,9 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 		return 1, 0, 1, 0
 	}
 
-	stack := []types.VolatileAddress{s.config.SpaceRoot.Pointer.VolatileAddress}
+	stack := []types.NodeAddress{s.config.SpaceRoot.Pointer.VolatileAddress}
 
-	levels := map[types.VolatileAddress]uint64{
+	levels := map[types.NodeAddress]uint64{
 		s.config.SpaceRoot.Pointer.VolatileAddress: 1,
 	}
 	var maxLevel, pointerNodes, dataNodes, dataItems uint64
@@ -253,7 +253,7 @@ func (s *Space[K, V]) setValue(
 	walRecorder *wal.Recorder,
 	v *Entry[K, V],
 	value V,
-	pool *alloc.Pool[types.VolatileAddress],
+	allocator *alloc.Allocator,
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
@@ -261,7 +261,7 @@ func (s *Space[K, V]) setValue(
 
 	detectUpdate(v)
 
-	return s.set(tx, walRecorder, v, pool, hashBuff, hashMatches)
+	return s.set(tx, walRecorder, v, allocator, hashBuff, hashMatches)
 }
 
 func (s *Space[K, V]) find(v *Entry[K, V], hashBuff []byte, hashMatches []uint64) {
@@ -282,14 +282,14 @@ func (s *Space[K, V]) set(
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	v *Entry[K, V],
-	pool *alloc.Pool[types.VolatileAddress],
+	allocator *alloc.Allocator,
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
 	s.walkPointers(v, hashBuff)
 
 	if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StateFree {
-		dataNodeAddress, err := pool.Allocate()
+		dataNodeAddress, err := allocator.Allocate()
 		if err != nil {
 			return err
 		}
@@ -330,7 +330,7 @@ func (s *Space[K, V]) set(
 		)
 
 		if newIndex != v.parentIndex {
-			newDataNodeAddress, err := pool.Allocate()
+			newDataNodeAddress, err := allocator.Allocate()
 			if err != nil {
 				return err
 			}
@@ -353,19 +353,19 @@ func (s *Space[K, V]) set(
 			v.storeRequest.PointersToStore--
 			v.level--
 
-			return s.set(tx, walRecorder, v, pool, hashBuff, hashMatches)
+			return s.set(tx, walRecorder, v, allocator, hashBuff, hashMatches)
 		}
 	}
 
 	// Add pointer node.
-	if err := s.addPointerNode(tx, walRecorder, v, conflict, pool); err != nil {
+	if err := s.addPointerNode(tx, walRecorder, v, conflict, allocator); err != nil {
 		return err
 	}
 
-	return s.set(tx, walRecorder, v, pool, hashBuff, hashMatches)
+	return s.set(tx, walRecorder, v, allocator, hashBuff, hashMatches)
 }
 
-func (s *Space[K, V]) splitToIndex(parentNodeAddress types.VolatileAddress, index uint64) (uint64, uint64) {
+func (s *Space[K, V]) splitToIndex(parentNodeAddress types.NodeAddress, index uint64) (uint64, uint64) {
 	trailingZeros := bits.TrailingZeros64(NumOfPointers)
 	if trailingZeros2 := bits.TrailingZeros64(index); trailingZeros2 < trailingZeros {
 		trailingZeros = trailingZeros2
@@ -391,8 +391,8 @@ func (s *Space[K, V]) splitDataNode(
 	index uint64,
 	newIndex uint64,
 	mask uint64,
-	parentNodeAddress types.VolatileAddress,
-	existingNodeAddress, newNodeAddress types.VolatileAddress,
+	parentNodeAddress types.NodeAddress,
+	existingNodeAddress, newNodeAddress types.NodeAddress,
 	level uint8,
 ) error {
 	parentNode := ProjectPointerNode(s.config.State.Node(parentNodeAddress))
@@ -443,14 +443,14 @@ func (s *Space[K, V]) addPointerNode(
 	walRecorder *wal.Recorder,
 	v *Entry[K, V],
 	conflict bool,
-	pool *alloc.Pool[types.VolatileAddress],
+	allocator *alloc.Allocator,
 ) error {
-	pointerNodeAddress, err := pool.Allocate()
+	pointerNodeAddress, err := allocator.Allocate()
 	if err != nil {
 		return err
 	}
 
-	newDataNodeAddress, err := pool.Allocate()
+	newDataNodeAddress, err := allocator.Allocate()
 	if err != nil {
 		return err
 	}
@@ -698,11 +698,11 @@ func (v *Entry[K, V]) Set(
 	value V,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
-	pool *alloc.Pool[types.VolatileAddress],
+	allocator *alloc.Allocator,
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
-	return v.space.setValue(tx, walRecorder, v, value, pool, hashBuff, hashMatches)
+	return v.space.setValue(tx, walRecorder, v, value, allocator, hashBuff, hashMatches)
 }
 
 // Delete deletes the entry.
@@ -763,26 +763,24 @@ func detectUpdate[K, V comparable](v *Entry[K, V]) {
 // Deallocate deallocates all nodes used by the space.
 func Deallocate(
 	spaceRoot *types.Pointer,
-	volatilePool *alloc.Pool[types.VolatileAddress],
-	persistentPool *alloc.Pool[types.PersistentAddress],
+	deallocator *alloc.Deallocator,
 	state *alloc.State,
 ) {
 	switch spaceRoot.State {
 	case types.StateFree:
 		return
 	case types.StateData:
-		volatilePool.Deallocate(spaceRoot.VolatileAddress)
-		persistentPool.Deallocate(spaceRoot.PersistentAddress)
+		deallocator.Deallocate(spaceRoot.VolatileAddress)
+		deallocator.Deallocate(spaceRoot.PersistentAddress)
 		return
 	}
 
-	deallocatePointerNode(spaceRoot, volatilePool, persistentPool, state)
+	deallocatePointerNode(spaceRoot, deallocator, state)
 }
 
 func deallocatePointerNode(
 	pointer *types.Pointer,
-	volatilePool *alloc.Pool[types.VolatileAddress],
-	persistentPool *alloc.Pool[types.PersistentAddress],
+	deallocator *alloc.Deallocator,
 	state *alloc.State,
 ) {
 	pointerNode := ProjectPointerNode(state.Node(pointer.VolatileAddress))
@@ -791,12 +789,12 @@ func deallocatePointerNode(
 
 		switch p.State {
 		case types.StateData:
-			volatilePool.Deallocate(pointer.VolatileAddress)
-			persistentPool.Deallocate(p.PersistentAddress)
+			deallocator.Deallocate(pointer.VolatileAddress)
+			deallocator.Deallocate(p.PersistentAddress)
 		case types.StatePointer:
-			deallocatePointerNode(p, volatilePool, persistentPool, state)
+			deallocatePointerNode(p, deallocator, state)
 		}
 	}
-	volatilePool.Deallocate(pointer.VolatileAddress)
-	persistentPool.Deallocate(pointer.PersistentAddress)
+	deallocator.Deallocate(pointer.VolatileAddress)
+	deallocator.Deallocate(pointer.PersistentAddress)
 }

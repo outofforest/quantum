@@ -266,8 +266,8 @@ func (db *DB) deleteSnapshot(
 	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
-	volatilePool *alloc.Pool[types.VolatileAddress],
-	persistentPool *alloc.Pool[types.PersistentAddress],
+	allocator *alloc.Allocator,
+	deallocator *alloc.Deallocator,
 	massSnapshotToPointerEntry *mass.Mass[space.Entry[types.SnapshotID, types.Pointer]],
 	massStoreRequest *mass.Mass[pipeline.StoreRequest],
 	snapshotHashBuff []byte,
@@ -333,8 +333,7 @@ func (db *DB) deleteSnapshot(
 			list.Deallocate(
 				nextDeallocSnapshot.Value,
 				db.config.State,
-				volatilePool,
-				persistentPool,
+				deallocator,
 			)
 
 			continue
@@ -350,7 +349,7 @@ func (db *DB) deleteSnapshot(
 			State: db.config.State,
 		})
 
-		listRoot, err := list.Attach(&nextDeallocSnapshot.Value, volatilePool)
+		listRoot, err := list.Attach(&nextDeallocSnapshot.Value, allocator)
 		if err != nil {
 			return err
 		}
@@ -376,7 +375,7 @@ func (db *DB) deleteSnapshot(
 				*newListNodeAddressP,
 				tx,
 				walRecorder,
-				volatilePool,
+				allocator,
 				deallocationHashBuff,
 				deallocationHashMatches,
 			); err != nil {
@@ -393,8 +392,7 @@ func (db *DB) deleteSnapshot(
 
 	space.Deallocate(
 		nextDeallocationListRoot.Pointer,
-		volatilePool,
-		persistentPool,
+		deallocator,
 		db.config.State,
 	)
 
@@ -406,7 +404,7 @@ func (db *DB) deleteSnapshot(
 			*nextSnapshotInfo,
 			tx,
 			walRecorder,
-			volatilePool,
+			allocator,
 			snapshotHashBuff,
 			snapshotHashMatches,
 		); err != nil {
@@ -428,7 +426,7 @@ func (db *DB) deleteSnapshot(
 			previousSnapshotInfo,
 			tx,
 			walRecorder,
-			volatilePool,
+			allocator,
 			snapshotHashBuff,
 			snapshotHashMatches,
 		); err != nil {
@@ -442,7 +440,7 @@ func (db *DB) deleteSnapshot(
 func (db *DB) commit(
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
-	volatilePool *alloc.Pool[types.VolatileAddress],
+	allocator *alloc.Allocator,
 	massStoreRequest *mass.Mass[pipeline.StoreRequest],
 	snapshotHashBuff []byte,
 	snapshotHashMatches []uint64,
@@ -464,7 +462,7 @@ func (db *DB) commit(
 			if deallocationListValue.Exists(deallocationHashBuff, deallocationHashMatches) {
 				listRoot, err := l.List.Attach(
 					lo.ToPtr(deallocationListValue.Value(deallocationHashBuff, deallocationHashMatches)),
-					volatilePool,
+					allocator,
 				)
 				if err != nil {
 					return err
@@ -492,7 +490,7 @@ func (db *DB) commit(
 				*l.Root,
 				tx,
 				walRecorder,
-				volatilePool,
+				allocator,
 				deallocationHashBuff,
 				deallocationHashMatches,
 			); err != nil {
@@ -511,7 +509,7 @@ func (db *DB) commit(
 		db.snapshotInfo,
 		tx,
 		walRecorder,
-		volatilePool,
+		allocator,
 		snapshotHashBuff,
 		snapshotHashMatches,
 	); err != nil {
@@ -560,8 +558,8 @@ func (db *DB) executeTransactions(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
 ) error {
-	volatilePool := db.config.State.NewVolatilePool()
-	persistentPool := db.config.State.NewPersistentPool()
+	allocator := db.config.State.NewAllocator(true)
+	deallocator := db.config.State.NewDeallocator()
 
 	s, err := GetSpace[txtypes.Account, txtypes.Amount](spaces.Balances, db)
 	if err != nil {
@@ -578,7 +576,7 @@ func (db *DB) executeTransactions(
 	massSnapshotToPointerEntry := mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000)
 	massStoreRequest := mass.New[pipeline.StoreRequest](1000)
 
-	walRecorder := wal.NewRecorder(db.config.State, volatilePool)
+	walRecorder := wal.NewRecorder(db.config.State, db.config.State.NewAllocator(false))
 
 	for processedCount := uint64(0); ; processedCount++ {
 		req, err := pipeReader.Read(ctx)
@@ -589,27 +587,27 @@ func (db *DB) executeTransactions(
 		if req.Transaction != nil {
 			switch tx := req.Transaction.(type) {
 			case *transfer.Tx:
-				if err := tx.Execute(req, walRecorder, volatilePool, hashBuff, hashMatches); err != nil {
+				if err := tx.Execute(req, walRecorder, allocator, hashBuff, hashMatches); err != nil {
 					return err
 				}
 			case *commitTx:
 				// Syncing must be finished just before committing because inside commit we store the results
 				// of deallocations.
 				<-tx.SyncCh
-				if err := db.commit(req, walRecorder, volatilePool, massStoreRequest, snapshotHashBuff, snapshotHashMatches,
+				if err := db.commit(req, walRecorder, allocator, massStoreRequest, snapshotHashBuff, snapshotHashMatches,
 					deallocationHashBuff, deallocationHashMatches); err != nil {
 					req.CommitCh <- err
 					return err
 				}
 				walRecorder.Commit(req)
 			case *deleteSnapshotTx:
-				if err := db.deleteSnapshot(tx.SnapshotID, req, walRecorder, volatilePool, persistentPool,
+				if err := db.deleteSnapshot(tx.SnapshotID, req, walRecorder, allocator, deallocator,
 					massSnapshotToPointerEntry, massStoreRequest, snapshotHashBuff, snapshotHashMatches,
 					deallocationHashBuff, deallocationHashMatches); err != nil {
 					return err
 				}
 			case *genesis.Tx:
-				if err := tx.Execute(s, req, walRecorder, volatilePool, hashBuff, hashMatches); err != nil {
+				if err := tx.Execute(s, req, walRecorder, allocator, hashBuff, hashMatches); err != nil {
 					return err
 				}
 			default:
@@ -626,9 +624,9 @@ func (db *DB) allocatePersistentAddress(
 	sr *pipeline.StoreRequest,
 	walRecorder *wal.Recorder,
 	pointer *types.Pointer,
-	volatilePool *alloc.Pool[types.VolatileAddress],
-	persistentPool *alloc.Pool[types.PersistentAddress],
-	listNodesToStore map[types.VolatileAddress]struct{},
+	allocator *alloc.Allocator,
+	deallocator *alloc.Deallocator,
+	listNodesToStore map[types.NodeAddress]struct{},
 ) error {
 	// 0 address is reserved for the singularity node. We don't do any (de)allocations for this address.
 	if pointer.VolatileAddress == 0 {
@@ -641,8 +639,8 @@ func (db *DB) allocatePersistentAddress(
 			listRoot, err := db.deallocateNode(
 				pointer,
 				sr.NoSnapshots,
-				volatilePool,
-				persistentPool,
+				allocator,
+				deallocator,
 			)
 			if err != nil {
 				return err
@@ -669,7 +667,7 @@ func (db *DB) allocatePersistentAddress(
 	}
 
 	if pointer.PersistentAddress == 0 {
-		persistentAddress, err := persistentPool.Allocate()
+		persistentAddress, err := allocator.Allocate()
 		if err != nil {
 			return err
 		}
@@ -689,11 +687,11 @@ func (db *DB) processAllocationRequests(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
 ) error {
-	volatilePool := db.config.State.NewVolatilePool()
-	persistentPool := db.config.State.NewPersistentPool()
-	listNodesToStore := map[types.VolatileAddress]struct{}{}
+	allocator := db.config.State.NewAllocator(false)
+	deallocator := db.config.State.NewDeallocator()
+	listNodesToStore := map[types.NodeAddress]struct{}{}
 
-	walRecorder := wal.NewRecorder(db.config.State, volatilePool)
+	walRecorder := wal.NewRecorder(db.config.State, allocator)
 
 	for processedCount := uint64(0); ; processedCount++ {
 		req, err := pipeReader.Read(ctx)
@@ -705,14 +703,14 @@ func (db *DB) processAllocationRequests(
 			clear(listNodesToStore)
 
 			for i := range sr.PointersToStore {
-				if err := db.allocatePersistentAddress(req, sr, walRecorder, sr.Store[i].Pointer, volatilePool, persistentPool,
-					listNodesToStore); err != nil {
+				if err := db.allocatePersistentAddress(req, sr, walRecorder, sr.Store[i].Pointer, allocator,
+					deallocator, listNodesToStore); err != nil {
 					return err
 				}
 			}
 			for i := range sr.ListsToStore {
-				if err := db.allocatePersistentAddress(req, nil, nil, sr.ListStore[i], volatilePool,
-					persistentPool, nil); err != nil {
+				if err := db.allocatePersistentAddress(req, nil, nil, sr.ListStore[i], allocator,
+					deallocator, nil); err != nil {
 					return err
 				}
 			}
@@ -866,7 +864,7 @@ func (db *DB) updateHashes(
 	var hashes1, hashes2 [16]*byte
 	hashesP1, hashesP2 := &hashes1[0], &hashes2[0]
 
-	walRecorder := wal.NewRecorder(db.config.State, db.config.State.NewVolatilePool())
+	walRecorder := wal.NewRecorder(db.config.State, db.config.State.NewAllocator(false))
 
 	r := &reader{
 		pipeReader: pipeReader,
@@ -891,7 +889,7 @@ func (db *DB) updateHashes(
 			req := slots[ri]
 
 			var state types.State
-			var volatileAddress types.VolatileAddress
+			var volatileAddress types.NodeAddress
 			var hash *types.Hash
 			for {
 				if req.PointerIndex == 0 {
@@ -1028,11 +1026,11 @@ func (db *DB) processStoreRequests(
 func (db *DB) deallocateNode(
 	pointer *types.Pointer,
 	noSnapshots bool,
-	volatilePool *alloc.Pool[types.VolatileAddress],
-	persistentPool *alloc.Pool[types.PersistentAddress],
+	allocator *alloc.Allocator,
+	deallocator *alloc.Deallocator,
 ) (*types.Pointer, error) {
 	if pointer.SnapshotID > db.snapshotInfo.PreviousSnapshotID || noSnapshots {
-		persistentPool.Deallocate(pointer.PersistentAddress)
+		deallocator.Deallocate(pointer.PersistentAddress)
 
 		//nolint:nilnil
 		return nil, nil
@@ -1053,7 +1051,7 @@ func (db *DB) deallocateNode(
 
 	listRoot, err := l.List.Add(
 		pointer,
-		volatilePool,
+		allocator,
 	)
 	if err != nil {
 		return nil, err

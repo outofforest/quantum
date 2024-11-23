@@ -5,7 +5,6 @@ import (
 	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space"
 	txtypes "github.com/outofforest/quantum/tx/types"
-	"github.com/outofforest/quantum/types"
 	"github.com/outofforest/quantum/wal"
 )
 
@@ -25,7 +24,7 @@ func (t *Tx) Execute(
 	space *space.Space[txtypes.Account, txtypes.Amount],
 	tx *pipeline.TransactionRequest,
 	rf *wal.Recorder,
-	volatilePool *alloc.Pool[types.VolatileAddress],
+	allocator *alloc.Allocator,
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
@@ -34,7 +33,7 @@ func (t *Tx) Execute(
 			a.Amount,
 			tx,
 			rf,
-			volatilePool,
+			allocator,
 			hashBuff,
 			hashMatches,
 		); err != nil {

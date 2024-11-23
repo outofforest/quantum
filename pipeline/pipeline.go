@@ -72,9 +72,9 @@ func (t *TransactionRequest) AddStoreRequest(sr *StoreRequest) {
 }
 
 // AddWALRequest adds WAL request to the transaction.
-func (t *TransactionRequest) AddWALRequest(volatileAddress types.VolatileAddress) {
+func (t *TransactionRequest) AddWALRequest(nodeAddress types.NodeAddress) {
 	wr := &WALRequest{
-		VolatileAddress: volatileAddress,
+		NodeAddress: nodeAddress,
 	}
 	*t.LastWALRequest = wr
 	t.LastWALRequest = &wr.Next
@@ -94,8 +94,8 @@ type StoreRequest struct {
 
 // WALRequest is used to request writing WAL node to the store.
 type WALRequest struct {
-	VolatileAddress types.VolatileAddress
-	Next            *WALRequest
+	NodeAddress types.NodeAddress
+	Next        *WALRequest
 }
 
 // New creates new pipeline.

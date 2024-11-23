@@ -64,7 +64,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				size,
 				100,
 				true,
-				5,
 			)
 			if err != nil {
 				panic(err)

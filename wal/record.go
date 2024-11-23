@@ -32,25 +32,25 @@ const (
 // NewRecorder creates new WAL recorder.
 func NewRecorder(
 	state *alloc.State,
-	volatilePool *alloc.Pool[qtypes.VolatileAddress],
+	allocator *alloc.Allocator,
 ) *Recorder {
 	return &Recorder{
-		state:        state,
-		stateOrigin:  uintptr(state.Origin()),
-		volatilePool: volatilePool,
-		sizeCounter:  types.BlobSize,
+		state:       state,
+		stateOrigin: uintptr(state.Origin()),
+		allocator:   allocator,
+		sizeCounter: types.BlobSize,
 	}
 }
 
 // Recorder records changes to be stored in WAL.
 type Recorder struct {
-	state        *alloc.State
-	stateOrigin  uintptr
-	volatilePool *alloc.Pool[qtypes.VolatileAddress]
+	state       *alloc.State
+	stateOrigin uintptr
+	allocator   *alloc.Allocator
 
-	volatileAddress qtypes.VolatileAddress
-	node            *types.Node
-	sizeCounter     uintptr
+	nodeAddress qtypes.NodeAddress
+	node        *types.Node
+	sizeCounter uintptr
 }
 
 // Commit commits pending node.
@@ -59,7 +59,7 @@ func (r *Recorder) Commit(tx *pipeline.TransactionRequest) {
 		if r.sizeCounter < types.BlobSize {
 			r.node.Blob[r.sizeCounter] = byte(RecordEnd)
 		}
-		tx.AddWALRequest(r.volatileAddress)
+		tx.AddWALRequest(r.nodeAddress)
 	}
 
 	r.node = nil
@@ -119,16 +119,16 @@ func (r *Recorder) ensureSize(tx *pipeline.TransactionRequest, size uintptr) err
 		if r.sizeCounter < types.BlobSize {
 			r.node.Blob[r.sizeCounter] = byte(RecordEnd)
 		}
-		tx.AddWALRequest(r.volatileAddress)
+		tx.AddWALRequest(r.nodeAddress)
 	}
 
 	var err error
-	r.volatileAddress, err = r.volatilePool.Allocate()
+	r.nodeAddress, err = r.allocator.Allocate()
 	if err != nil {
 		return err
 	}
 
-	r.node = types.ProjectNode(r.state.Node(r.volatileAddress))
+	r.node = types.ProjectNode(r.state.Node(r.nodeAddress))
 	r.sizeCounter = 0
 
 	return nil
