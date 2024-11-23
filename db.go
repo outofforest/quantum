@@ -979,8 +979,12 @@ func (db *DB) copyNodes(ctx context.Context, pipeReader *pipeline.Reader) error 
 		// WAL nodes are not copied because they should go directly to persistent store.
 
 		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-			for i := range sr.PointersToStore {
-				db.copyNode(sr.Store[i].Pointer, sr.RequestedRevision)
+			// Pointers are processed from data node up to the root order, because
+			// if any revision test fails it doesn't make sense to process other nodes in the stack.
+			for i := sr.PointersToStore - 1; i >= 0; i-- {
+				if !db.copyNode(sr.Store[i].Pointer, sr.RequestedRevision) {
+					break
+				}
 			}
 			for i := range sr.ListsToStore {
 				db.copyNode(sr.ListStore[i], sr.RequestedRevision)
