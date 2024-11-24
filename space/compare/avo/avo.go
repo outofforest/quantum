@@ -47,10 +47,8 @@ func Compare() {
 	MOVD(U64(math.MaxUint64), rMaxUint64)
 
 	// Prepare rCmp0 register to compare with 0.
-	r0 := GP64()
-	MOVD(U64(0), r0)
 	rCmp0 := ZMM()
-	VPBROADCASTQ(r0, rCmp0)
+	VPXORD(rCmp0, rCmp0, rCmp0)
 
 	// Prepare rCmpV register to compare with v.
 	rV := Load(Param("v"), GP64())

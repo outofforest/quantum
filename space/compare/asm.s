@@ -10,40 +10,39 @@ TEXT ·Compare(SB), NOSPLIT, $8-48
 	MOVD         $0x0000000000000000, DX
 	MOVD         $0xffffffffffffffff, SI
 	MOVD         $0xffffffffffffffff, BX
-	MOVD         $0x0000000000000000, DI
-	VPBROADCASTQ DI, Z0
+	VPXORD       Z0, Z0, Z0
 	MOVQ         v+0(FP), DI
 	VPBROADCASTQ DI, Z1
-	MOVQ         z+16(FP), R14
-	MOVQ         x+8(FP), R15
+	MOVQ         z+16(FP), R8
+	MOVQ         x+8(FP), R9
 
 loopChunks8true:
 	CMPQ      AX, $0x08
 	JL        exit8
 	SUBQ      $0x08, AX
-	VMOVDQU64 (R15), Z2
-	ADDQ      $0x40, R15
+	VMOVDQU64 (R9), Z2
+	ADDQ      $0x40, R9
 	VPCMPEQQ  Z2, Z1, K1
-	MOVD      $0x0000000000000000, BP
-	KMOVB     K1, BP
+	MOVD      $0x0000000000000000, R10
+	KMOVB     K1, R10
 
 loopBits8true:
-	TESTQ BP, BP
+	TESTQ R10, R10
 	JZ    exitLoopBits8true
-	BSFQ  BP, R8
-	BTRQ  R8, BP
-	ADDQ  CX, R8
-	MOVD  R8, (R14)
-	ADDQ  $0x08, R14
+	BSFQ  R10, R11
+	BTRQ  R11, R10
+	ADDQ  CX, R11
+	MOVD  R11, (R8)
+	ADDQ  $0x08, R8
 	INCQ  DX
 	JMP   loopBits8true
 
 exitLoopBits8true:
 	VPCMPEQQ Z2, Z0, K1
-	KMOVB    K1, BP
-	TESTQ    BP, BP
+	KMOVB    K1, R10
+	TESTQ    R10, R10
 	JZ       exitZero8
-	BSFQ     BP, SI
+	BSFQ     R10, SI
 	ADDQ     CX, SI
 	ADDQ     $0x08, CX
 	JMP      zeroFound8
@@ -57,20 +56,20 @@ loopChunks8false:
 	CMPQ      AX, $0x08
 	JL        exit8
 	SUBQ      $0x08, AX
-	VMOVDQU64 (R15), Z2
-	ADDQ      $0x40, R15
+	VMOVDQU64 (R9), Z2
+	ADDQ      $0x40, R9
 	VPCMPEQQ  Z2, Z1, K1
-	MOVD      $0x0000000000000000, R8
-	KMOVB     K1, R8
+	MOVD      $0x0000000000000000, R10
+	KMOVB     K1, R10
 
 loopBits8false:
-	TESTQ R8, R8
+	TESTQ R10, R10
 	JZ    exitLoopBits8false
-	BSFQ  R8, R9
-	BTRQ  R9, R8
-	ADDQ  CX, R9
-	MOVD  R9, (R14)
-	ADDQ  $0x08, R14
+	BSFQ  R10, R12
+	BTRQ  R12, R10
+	ADDQ  CX, R12
+	MOVD  R12, (R8)
+	ADDQ  $0x08, R8
 	INCQ  DX
 	JMP   loopBits8false
 
@@ -84,29 +83,29 @@ exit8:
 	CMPQ      AX, $0x04
 	JL        exit4
 	SUBQ      $0x04, AX
-	VMOVDQU64 (R15), Y2
-	ADDQ      $0x20, R15
+	VMOVDQU64 (R9), Y2
+	ADDQ      $0x20, R9
 	VPCMPEQQ  Y2, Y1, K1
-	MOVD      $0x0000000000000000, R8
-	KMOVB     K1, R8
+	MOVD      $0x0000000000000000, R10
+	KMOVB     K1, R10
 
 loopBits4true:
-	TESTQ R8, R8
+	TESTQ R10, R10
 	JZ    exitLoopBits4true
-	BSFQ  R8, R10
-	BTRQ  R10, R8
-	ADDQ  CX, R10
-	MOVD  R10, (R14)
-	ADDQ  $0x08, R14
+	BSFQ  R10, R13
+	BTRQ  R13, R10
+	ADDQ  CX, R13
+	MOVD  R13, (R8)
+	ADDQ  $0x08, R8
 	INCQ  DX
 	JMP   loopBits4true
 
 exitLoopBits4true:
 	VPCMPEQQ Y2, Y0, K1
-	KMOVB    K1, R8
-	TESTQ    R8, R8
+	KMOVB    K1, R10
+	TESTQ    R10, R10
 	JZ       exitZero4
-	BSFQ     R8, SI
+	BSFQ     R10, SI
 	ADDQ     CX, SI
 	ADDQ     $0x04, CX
 	JMP      zeroFound4
@@ -119,20 +118,20 @@ zeroFound4:
 	CMPQ      AX, $0x04
 	JL        exit4
 	SUBQ      $0x04, AX
-	VMOVDQU64 (R15), Y2
-	ADDQ      $0x20, R15
+	VMOVDQU64 (R9), Y2
+	ADDQ      $0x20, R9
 	VPCMPEQQ  Y2, Y1, K1
-	MOVD      $0x0000000000000000, R8
-	KMOVB     K1, R8
+	MOVD      $0x0000000000000000, R10
+	KMOVB     K1, R10
 
 loopBits4false:
-	TESTQ R8, R8
+	TESTQ R10, R10
 	JZ    exitLoopBits4false
-	BSFQ  R8, R11
-	BTRQ  R11, R8
-	ADDQ  CX, R11
-	MOVD  R11, (R14)
-	ADDQ  $0x08, R14
+	BSFQ  R10, R14
+	BTRQ  R14, R10
+	ADDQ  CX, R14
+	MOVD  R14, (R8)
+	ADDQ  $0x08, R8
 	INCQ  DX
 	JMP   loopBits4false
 
@@ -145,29 +144,29 @@ exit4:
 	CMPQ      AX, $0x02
 	JL        exit2
 	SUBQ      $0x02, AX
-	VMOVDQU64 (R15), X2
-	ADDQ      $0x10, R15
+	VMOVDQU64 (R9), X2
+	ADDQ      $0x10, R9
 	VPCMPEQQ  X2, X1, K1
-	MOVD      $0x0000000000000000, R8
-	KMOVB     K1, R8
+	MOVD      $0x0000000000000000, R10
+	KMOVB     K1, R10
 
 loopBits2true:
-	TESTQ R8, R8
+	TESTQ R10, R10
 	JZ    exitLoopBits2true
-	BSFQ  R8, R12
-	BTRQ  R12, R8
-	ADDQ  CX, R12
-	MOVD  R12, (R14)
-	ADDQ  $0x08, R14
+	BSFQ  R10, R15
+	BTRQ  R15, R10
+	ADDQ  CX, R15
+	MOVD  R15, (R8)
+	ADDQ  $0x08, R8
 	INCQ  DX
 	JMP   loopBits2true
 
 exitLoopBits2true:
 	VPCMPEQQ X2, X0, K1
-	KMOVB    K1, R8
-	TESTQ    R8, R8
+	KMOVB    K1, R10
+	TESTQ    R10, R10
 	JZ       exitZero2
-	BSFQ     R8, SI
+	BSFQ     R10, SI
 	ADDQ     CX, SI
 	ADDQ     $0x02, CX
 	JMP      zeroFound2
@@ -180,20 +179,20 @@ zeroFound2:
 	CMPQ      AX, $0x02
 	JL        exit2
 	SUBQ      $0x02, AX
-	VMOVDQU64 (R15), X0
-	ADDQ      $0x10, R15
+	VMOVDQU64 (R9), X0
+	ADDQ      $0x10, R9
 	VPCMPEQQ  X0, X1, K1
-	MOVD      $0x0000000000000000, R8
-	KMOVB     K1, R8
+	MOVD      $0x0000000000000000, R10
+	KMOVB     K1, R10
 
 loopBits2false:
-	TESTQ R8, R8
+	TESTQ R10, R10
 	JZ    exitLoopBits2false
-	BSFQ  R8, R13
-	BTRQ  R13, R8
-	ADDQ  CX, R13
-	MOVD  R13, (R14)
-	ADDQ  $0x08, R14
+	BSFQ  R10, BP
+	BTRQ  BP, R10
+	ADDQ  CX, BP
+	MOVD  BP, (R8)
+	ADDQ  $0x08, R8
 	INCQ  DX
 	JMP   loopBits2false
 
@@ -203,10 +202,10 @@ exitLoopBits2false:
 exit2:
 	TESTQ AX, AX
 	JZ    exit1
-	MOVQ  (R15), AX
+	MOVQ  (R9), AX
 	CMPQ  AX, DI
 	JNE   checkZero
-	MOVQ  CX, (R14)
+	MOVQ  CX, (R8)
 	INCQ  DX
 
 checkZero:
