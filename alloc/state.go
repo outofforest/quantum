@@ -73,8 +73,8 @@ type State struct {
 }
 
 // NewAllocator creates new node allocator.
-func (s *State) NewAllocator(zeroNode bool) *Allocator {
-	return newAllocator(s, zeroNode, s.allocationPoolCh)
+func (s *State) NewAllocator() *Allocator {
+	return newAllocator(s, s.allocationPoolCh)
 }
 
 // NewDeallocator creates new node deallocator.
@@ -100,6 +100,11 @@ func (s *State) Node(nodeAddress types.NodeAddress) unsafe.Pointer {
 // Bytes returns byte slice of a node.
 func (s *State) Bytes(nodeAddress types.NodeAddress) []byte {
 	return photon.SliceFromPointer[byte](s.Node(nodeAddress), types.NodeLength)
+}
+
+// Clear sets all the bytes of the node to zero.
+func (s *State) Clear(nodeAddress types.NodeAddress) {
+	clear(s.Bytes(nodeAddress))
 }
 
 // Run runs node eraser.

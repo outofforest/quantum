@@ -551,7 +551,7 @@ func (db *DB) prepareTransactions(
 }
 
 func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Reader) error {
-	allocator := db.config.State.NewAllocator(true)
+	allocator := db.config.State.NewAllocator()
 	deallocator := db.config.State.NewDeallocator()
 
 	s, err := GetSpace[txtypes.Account, txtypes.Amount](spaces.Balances, db)
@@ -569,7 +569,7 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 	massSnapshotToPointerEntry := mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000)
 	massStoreRequest := mass.New[pipeline.StoreRequest](1000)
 
-	walRecorder := wal.NewRecorder(db.config.State, db.config.State.NewAllocator(false))
+	walRecorder := wal.NewRecorder(db.config.State, allocator)
 
 	for processedCount := uint64(0); ; processedCount++ {
 		req, err := pipeReader.Read(ctx)
@@ -677,7 +677,7 @@ func (db *DB) allocatePersistentAddress(
 }
 
 func (db *DB) processAllocationRequests(ctx context.Context, pipeReader *pipeline.Reader) error {
-	allocator := db.config.State.NewAllocator(false)
+	allocator := db.config.State.NewAllocator()
 	deallocator := db.config.State.NewDeallocator()
 	listNodesToStore := map[types.NodeAddress]struct{}{}
 
@@ -851,7 +851,7 @@ func (db *DB) updateHashes(
 	var hashes1, hashes2 [16]*byte
 	hashesP1, hashesP2 := &hashes1[0], &hashes2[0]
 
-	walRecorder := wal.NewRecorder(db.config.State, db.config.State.NewAllocator(false))
+	walRecorder := wal.NewRecorder(db.config.State, db.config.State.NewAllocator())
 
 	r := &reader{
 		pipeReader: pipeReader,
