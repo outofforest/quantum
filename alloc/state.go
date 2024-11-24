@@ -107,6 +107,11 @@ func (s *State) Clear(nodeAddress types.NodeAddress) {
 	clear(s.Bytes(nodeAddress))
 }
 
+// Copy copies node between addresses.
+func (s *State) Copy(dstNodeAddress, srcNodeAddress types.NodeAddress) {
+	copy(s.Bytes(dstNodeAddress), s.Bytes(srcNodeAddress))
+}
+
 // Run runs node eraser.
 func (s *State) Run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
