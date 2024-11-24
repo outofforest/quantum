@@ -293,6 +293,7 @@ func (s *Space[K, V]) set(
 		if err != nil {
 			return err
 		}
+		s.config.State.Clear(dataNodeAddress)
 
 		v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress = dataNodeAddress
 		v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State = types.StateData
@@ -334,6 +335,7 @@ func (s *Space[K, V]) set(
 			if err != nil {
 				return err
 			}
+			s.config.State.Clear(newDataNodeAddress)
 
 			if err := s.splitDataNode(
 				tx,
@@ -449,11 +451,13 @@ func (s *Space[K, V]) addPointerNode(
 	if err != nil {
 		return err
 	}
+	s.config.State.Clear(pointerNodeAddress)
 
 	newDataNodeAddress, err := allocator.Allocate()
 	if err != nil {
 		return err
 	}
+	s.config.State.Clear(newDataNodeAddress)
 
 	dataPointer := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer
 	pointerNode := ProjectPointerNode(s.config.State.Node(pointerNodeAddress))

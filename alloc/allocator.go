@@ -34,26 +34,20 @@ func NewAllocationCh(
 	return availableNodesCh, singularityNode
 }
 
-func newAllocator(
-	state *State,
-	zeroNode bool,
-	tapCh <-chan []types.NodeAddress,
-) *Allocator {
+func newAllocator(state *State, tapCh <-chan []types.NodeAddress) *Allocator {
 	pool := <-tapCh
 	return &Allocator{
-		state:    state,
-		zeroNode: zeroNode,
-		tapCh:    tapCh,
-		pool:     pool,
+		state: state,
+		tapCh: tapCh,
+		pool:  pool,
 	}
 }
 
 // Allocator allocates nodes in chunks.
 type Allocator struct {
-	state    *State
-	zeroNode bool
-	tapCh    <-chan []types.NodeAddress
-	pool     []types.NodeAddress
+	state *State
+	tapCh <-chan []types.NodeAddress
+	pool  []types.NodeAddress
 }
 
 // Allocate allocates single node.
@@ -66,10 +60,6 @@ func (a *Allocator) Allocate() (types.NodeAddress, error) {
 		if a.pool, ok = <-a.tapCh; !ok {
 			return 0, errors.New("allocation failed")
 		}
-	}
-
-	if a.zeroNode {
-		clear(a.state.Bytes(nodeAddress))
 	}
 
 	return nodeAddress, nil
