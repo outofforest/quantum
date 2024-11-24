@@ -964,7 +964,7 @@ func (db *DB) copyNode(pointer *types.Pointer, requestedRevision uint32) bool {
 		return false
 	}
 
-	copy(db.config.State.Bytes(pointer.PersistentAddress), db.config.State.Bytes(volatileAddress))
+	db.config.State.Copy(pointer.PersistentAddress, volatileAddress)
 
 	return true
 }
