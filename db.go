@@ -6,7 +6,6 @@ import (
 	"math"
 	"sort"
 	"sync/atomic"
-	"unsafe"
 
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -185,11 +184,12 @@ func (db *DB) Run(ctx context.Context) error {
 				executeTxReader := pipeline.NewReader(prepareTxReaders...)
 				allocateReader := pipeline.NewReader(executeTxReader)
 				incrementRevisionReader := pipeline.NewReader(allocateReader)
-				hashReaders := make([]*pipeline.Reader, 0, 4)
+				hashReaders := make([]*pipeline.Reader, 0, 2)
 				for range cap(hashReaders) {
 					hashReaders = append(hashReaders, pipeline.NewReader(incrementRevisionReader))
 				}
-				copyReader := pipeline.NewReader(hashReaders...)
+				pointerHashReader := pipeline.NewReader(hashReaders...)
+				commitSyncReader := pipeline.NewReader(pointerHashReader)
 
 				spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
 					var lastSyncCh chan<- struct{}
@@ -243,11 +243,14 @@ func (db *DB) Run(ctx context.Context) error {
 				})
 				for i, reader := range hashReaders {
 					spawn(fmt.Sprintf("hash-%02d", i), parallel.Fail, func(ctx context.Context) error {
-						return db.updateHashes(ctx, reader, uint64(len(hashReaders)), uint64(i))
+						return db.updateHashes(ctx, reader, uint64(len(hashReaders)), uint64(i), types.StateData)
 					})
 				}
-				spawn("copy", parallel.Fail, func(ctx context.Context) error {
-					return db.copyNodes(ctx, copyReader)
+				spawn("pointerHash", parallel.Fail, func(ctx context.Context) error {
+					return db.updateHashes(ctx, pointerHashReader, 1, 0, types.StatePointer)
+				})
+				spawn("commitSync", parallel.Fail, func(ctx context.Context) error {
+					return db.syncOnCommit(ctx, commitSyncReader)
 				})
 
 				return nil
@@ -748,29 +751,15 @@ func (db *DB) incrementRevisions(ctx context.Context, pipeReader *pipeline.Reade
 }
 
 var (
-	zeroHash   [types.HashLength]byte
-	zh         = &zeroHash[0]
-	zeroBlock  [types.BlockLength]byte
-	zb         = &zeroBlock[0]
-	zeroMatrix = [16][types.NumOfBlocks]*byte{
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-	}
-	zeroHashes = [16]*byte{zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh}
+	zeroHash     [types.HashLength]byte
+	zh           = &zeroHash[0]
+	zeroNode     [types.NodeLength]byte
+	zn           = &zeroNode[0]
+	zeroCopyNode [types.NodeLength]byte
+	zc           = &zeroCopyNode[0]
+	zeroMatrix   = [16]*byte{zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn}
+	zeroCopy     = [16]*byte{zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc}
+	zeroHashes   = [16]*byte{zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh}
 )
 
 type request struct {
@@ -784,6 +773,7 @@ type reader struct {
 	pipeReader *pipeline.Reader
 	divider    uint64
 	mod        uint64
+	nodeType   types.State
 	read       uint64
 
 	txRequest    *pipeline.TransactionRequest
@@ -845,9 +835,10 @@ func (db *DB) updateHashes(
 	pipeReader *pipeline.Reader,
 	divider uint64,
 	mod uint64,
+	nodeType types.State,
 ) error {
-	var matrix [16][types.NumOfBlocks]*byte
-	matrixP := &matrix[0][0]
+	var matrix, copyMatrix [16]*byte
+	matrixP, copyMatrixP := &matrix[0], &copyMatrix[0]
 	var hashes1, hashes2 [16]*byte
 	hashesP1, hashesP2 := &hashes1[0], &hashes2[0]
 
@@ -857,12 +848,13 @@ func (db *DB) updateHashes(
 		pipeReader: pipeReader,
 		divider:    divider,
 		mod:        mod,
+		nodeType:   nodeType,
 	}
 
 	var slots [16]request
 
 	for {
-		matrix = zeroMatrix
+		matrix, copyMatrix = zeroMatrix, zeroCopy
 		hashes1, hashes2 = zeroHashes, zeroHashes
 
 		var commitReq request
@@ -875,8 +867,7 @@ func (db *DB) updateHashes(
 		for ri := range slots {
 			req := slots[ri]
 
-			var state types.State
-			var volatileAddress types.NodeAddress
+			var volatileAddress, persistentAddress types.NodeAddress
 			var hash *types.Hash
 			for {
 				if req.PointerIndex == 0 {
@@ -908,27 +899,27 @@ func (db *DB) updateHashes(
 					continue
 				}
 
+				if root.Pointer.State != nodeType {
+					if nodeType == types.StateData {
+						req.PointerIndex = 0
+					}
+					continue
+				}
+
 				if req.Count < minReq.Count {
 					minReq = req
 				}
 
-				state = root.Pointer.State
+				persistentAddress = root.Pointer.PersistentAddress
 				hash = root.Hash
 
 				break
 			}
 
 			slots[ri] = req
-			node := db.config.State.Node(volatileAddress)
 
-			numOfBlocks := types.NumOfBlocks
-			if state == types.StatePointer {
-				numOfBlocks = space.NumOfBlocksForPointerNode
-			}
-
-			for bi := range numOfBlocks {
-				matrix[ri][bi] = (*byte)(unsafe.Add(node, bi*types.BlockLength))
-			}
+			matrix[ri] = (*byte)(db.config.State.Node(volatileAddress))
+			copyMatrix[ri] = (*byte)(db.config.State.Node(persistentAddress))
 			hashes1[ri] = &hash[0]
 			walHash, err := wal.Reserve(walRecorder, minReq.TxRequest, hash)
 			hashes2[ri] = &walHash[0]
@@ -942,56 +933,23 @@ func (db *DB) updateHashes(
 			walRecorder.Commit(commitReq.TxRequest)
 			r.Acknowledge(commitReq.Count, commitReq.TxRequest, true)
 		} else {
-			hash.Blake3(matrixP, hashesP1, hashesP2)
+			if nodeType == types.StateData {
+				hash.Blake3AndCopy4096(matrixP, copyMatrixP, hashesP1, hashesP2)
+			} else {
+				hash.Blake3AndCopy2048(matrixP, copyMatrixP, hashesP1, hashesP2)
+			}
 			r.Acknowledge(minReq.Count-1, minReq.TxRequest, false)
 		}
 	}
 }
 
-func (db *DB) copyNode(pointer *types.Pointer, requestedRevision uint32) bool {
-	// Volatile address must be copied before verifying revision. Otherwise, the address might be
-	// concurrently overwritten by another transaction between revision verification and
-	// store write.
-	// Persistent address is safe to be used even without atomic, because it is guaranteed that
-	// in the same snapshot it is set only once on the first time node is processed by the goroutine
-	// allocating persistent addresses,
-	volatileAddress := pointer.VolatileAddress
-
-	if atomic.LoadUint32(&pointer.Revision) != requestedRevision {
-		// Pointers are processed from the data node up t the root node. If at any level
-		// revision test fails, it doesn't make sense to process parent nodes because revision
-		// test will fail there for sure.
-		return false
-	}
-
-	db.config.State.Copy(pointer.PersistentAddress, volatileAddress)
-
-	return true
-}
-
-func (db *DB) copyNodes(ctx context.Context, pipeReader *pipeline.Reader) error {
+func (db *DB) syncOnCommit(ctx context.Context, pipeReader *pipeline.Reader) error {
 	for processedCount := uint64(0); ; processedCount++ {
 		req, err := pipeReader.Read(ctx)
 		if err != nil {
 			return err
 		}
 
-		// WAL nodes are not copied because they should go directly to persistent store.
-
-		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-			// Pointers are processed from data node up to the root order, because
-			// if any revision test fails it doesn't make sense to process other nodes in the stack.
-			for i := sr.PointersToStore - 1; i >= 0; i-- {
-				if !db.copyNode(sr.Store[i].Pointer, sr.RequestedRevision) {
-					break
-				}
-			}
-			for i := range sr.ListsToStore {
-				db.copyNode(sr.ListStore[i], sr.RequestedRevision)
-			}
-		}
-
-		// FIXME (wojciech): Move this code to the place where WAL nodes are stored in persistent store.
 		if req.Type == pipeline.Commit {
 			for _, store := range db.config.Stores {
 				err := store.Sync()
