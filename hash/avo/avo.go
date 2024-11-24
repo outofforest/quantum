@@ -17,6 +17,7 @@ const (
 	numOfBlocksInMessage        = numOfChunksInMessage * numOfBlocksInChunk
 	numOfStates                 = 16
 	blockSize                   = 16 * uint32Size
+	messageSize                 = blockSize * numOfBlocksInMessage
 	iv0                  uint32 = 0x6A09E667
 	iv1                  uint32 = 0xBB67AE85
 	iv2                  uint32 = 0x3C6EF372
@@ -33,7 +34,56 @@ const (
 	f                           = 0xf
 )
 
-// Blake3 implements blake3 for 16 4KB messages.
+// Blake3AndCopy4096 implements blake3 for 16 4KB messages.
+func Blake3AndCopy4096() {
+	TEXT("Blake3AndCopy4096", NOSPLIT, "func(blocks, copy, hash1, hash2 **byte)")
+	Doc("Blake3AndCopy4096 implements blake3 for 16 4KB messages.")
+
+	memBlocks := Mem{Base: Load(Param("blocks"), GP64())}
+	memCopy := Mem{Base: Load(Param("copy"), GP64())}
+
+	blake3AndCopy(messageSize, memBlocks, memCopy, GP64())
+
+	RET()
+}
+
+// Blake3AndCopy2048 implements blake3 for 16 2KB messages.
+func Blake3AndCopy2048() {
+	TEXT("Blake3AndCopy2048", NOSPLIT, "func(blocks, copy, hash1, hash2 **byte)")
+	Doc("Blake3AndCopy2048 implements blake3 for 16 2KB messages.")
+
+	memBlocks := Mem{Base: Load(Param("blocks"), GP64())}
+	memCopy := Mem{Base: Load(Param("copy"), GP64())}
+	offsetR := GP64()
+
+	blake3AndCopy(2048, memBlocks, memCopy, offsetR)
+
+	// Copy remaining 2KB.
+
+	const loopCopyStartLabel = "loopCopyStart"
+	Label(loopCopyStartLabel)
+
+	copyR := ZMM()
+	for i := range numOfMessages {
+		m := Mem{Base: GP64()}
+		MOVQ(memBlocks.Offset(i*uint64Size), m.Base)
+		ADDQ(offsetR, m.Base)
+		VMOVDQU64(m, copyR)
+
+		MOVQ(memCopy.Offset(i*uint64Size), m.Base)
+		ADDQ(offsetR, m.Base)
+		VMOVDQU64(copyR, m)
+	}
+	ADDQ(U8(blockSize), offsetR)
+
+	CMPQ(offsetR, U32(messageSize))
+	JNE(LabelRef(loopCopyStartLabel))
+
+	RET()
+}
+
+// blake3 implements blake3 for 16 4KB messages.
+// Additionally, it stores computed hashes in two location and also copy the messages.
 // There are some modifications against original blake3:
 //   - blake3 hashes each 1KB chunk independently and then forms a tree to compute final hash. That design might improve
 //     concurrency in some scenarios. Here it only overcomplicates things, so instead we treat full 4KB message
@@ -41,9 +91,12 @@ const (
 //   - due to that chunk independence blake3 uses flags to mark places where chunk starts and ends to protect against
 //     situation where shift in data might produce conflicting hash. Here we don't deal with data streams,
 //     but well-defined portions of data, so we don't need it.
-func Blake3() {
-	TEXT("Blake3", NOSPLIT, "func(blocks, out1, out2 **byte)")
-	Doc("Blake3 implements blake3 for 16 4KB messages.")
+func blake3AndCopy(
+	messageSize uint16,
+	memBlocks, memCopy Mem,
+	offsetR reg.GPVirtual,
+) {
+	XORQ(offsetR, offsetR)
 
 	sInit := [16]uint32{
 		iv0, iv1, iv2, iv3, iv4, iv5, iv6, iv7, iv0, iv1, iv2, iv3, 0, 0, blockSize, 0,
@@ -71,11 +124,6 @@ func Blake3() {
 		ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(),
 	}
 
-	memBlocks := Mem{Base: Load(Param("blocks"), GP64())}
-
-	loopCounterR := GP8()
-	MOVB(U8(numOfBlocksInMessage), loopCounterR)
-
 	// Loop starts here
 
 	const loopStartLabel = "loopStart"
@@ -84,10 +132,16 @@ func Blake3() {
 	// Load and transpose blocks.
 	for i := range numOfMessages {
 		m := Mem{Base: GP64()}
-		MOVQ(memBlocks.Offset(i*numOfBlocksInMessage*uint64Size), m.Base)
+		MOVQ(memBlocks.Offset(i*uint64Size), m.Base)
+		ADDQ(offsetR, m.Base)
 		VMOVDQU64(m, rB[i])
+
+		// Copy block.
+		MOVQ(memCopy.Offset(i*uint64Size), m.Base)
+		ADDQ(offsetR, m.Base)
+		VMOVDQU64(rB[i], m)
 	}
-	ADDQ(U8(uint64Size), memBlocks.Base)
+	ADDQ(U8(blockSize), offsetR)
 
 	rB = transpose16x16(rB)
 
@@ -170,30 +224,28 @@ func Blake3() {
 	VPXORD(rS1[6], rS2[6], rS1[6])
 	VPXORD(rS1[7], rS2[7], rS1[7])
 
-	DECB(loopCounterR)
-	JNZ(LabelRef(loopStartLabel))
+	CMPQ(offsetR, U32(messageSize))
+	JNE(LabelRef(loopStartLabel))
 
 	// Loop ends here
 
 	rS1 = transpose8x16(rS1)
 
-	memOut1 := Mem{Base: Load(Param("out1"), GP64())}
-	memOut2 := Mem{Base: Load(Param("out2"), GP64())}
+	memHash1 := Mem{Base: Load(Param("hash1"), GP64())}
+	memHash2 := Mem{Base: Load(Param("hash2"), GP64())}
 	for i := range numOfMessages / 2 {
 		m := Mem{Base: GP64()}
-		MOVQ(memOut1.Offset((2*i)*uint64Size), m.Base)
+		MOVQ(memHash1.Offset((2*i)*uint64Size), m.Base)
 		VMOVDQU64(rS1[i].AsY(), m)
-		MOVQ(memOut2.Offset((2*i)*uint64Size), m.Base)
+		MOVQ(memHash2.Offset((2*i)*uint64Size), m.Base)
 		VMOVDQU64(rS1[i].AsY(), m)
 
 		VSHUFI32X4(U8(0xee), rS1[i], rS1[i], rS1[i])
-		MOVQ(memOut1.Offset((2*i+1)*uint64Size), m.Base)
+		MOVQ(memHash1.Offset((2*i+1)*uint64Size), m.Base)
 		VMOVDQU64(rS1[i].AsY(), m)
-		MOVQ(memOut2.Offset((2*i+1)*uint64Size), m.Base)
+		MOVQ(memHash2.Offset((2*i+1)*uint64Size), m.Base)
 		VMOVDQU64(rS1[i].AsY(), m)
 	}
-
-	RET()
 }
 
 // Transpose16x16 transposes 16x16 matrix made of vectors x0..xf and stores the results in z0..zf.
@@ -598,7 +650,8 @@ func g(a, b, c, d, mx, my reg.VecVirtual) {
 }
 
 func main() {
-	Blake3()
+	Blake3AndCopy4096()
+	Blake3AndCopy2048()
 	Transpose8x16()
 	Transpose16x16()
 	G()

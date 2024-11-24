@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"io"
 	"testing"
+	"unsafe"
 
 	blake3zeebo "github.com/zeebo/blake3"
 	blake3luke "lukechampine.com/blake3"
+
+	"github.com/outofforest/quantum/types"
 )
 
 //nolint:unparam
@@ -74,11 +77,15 @@ func BenchmarkChecksum4KAVX(b *testing.B) {
 	b.StopTimer()
 	b.ResetTimer()
 
-	chP := make([]*byte, 0, 1024)
+	var matrixCopy [16]*byte
+	for j := range matrixCopy {
+		var rn [types.NodeLength]byte
+		matrixCopy[j] = &rn[0]
+	}
+
+	chP := make([]*byte, 0, 16)
 	for i := range data4K {
-		for j := range 64 {
-			chP = append(chP, &data4K[i][j*64])
-		}
+		chP = append(chP, &data4K[i][0])
 	}
 
 	var z1, z2 [16][32]byte
@@ -93,7 +100,7 @@ func BenchmarkChecksum4KAVX(b *testing.B) {
 
 	b.StartTimer()
 	for range b.N {
-		Blake3(&chP[0], &zP1[0], &zP2[0])
+		Blake3AndCopy4096(&chP[0], (**byte)(unsafe.Pointer(&matrixCopy)), &zP1[0], &zP2[0])
 	}
 	b.StopTimer()
 

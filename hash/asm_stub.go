@@ -2,8 +2,11 @@
 
 package hash
 
-// Blake3 implements blake3 for 16 4KB messages.
-func Blake3(blocks **byte, out1 **byte, out2 **byte)
+// Blake3AndCopy4096 implements blake3 for 16 4KB messages.
+func Blake3AndCopy4096(blocks **byte, copy **byte, hash1 **byte, hash2 **byte)
+
+// Blake3AndCopy2048 implements blake3 for 16 2KB messages.
+func Blake3AndCopy2048(blocks **byte, copy **byte, hash1 **byte, hash2 **byte)
 
 // Transpose8x16 transposes 8x16 matrix made of vectors x0..x7 and stores the results in z0..z7.
 func Transpose8x16(x *uint32, z *uint32)

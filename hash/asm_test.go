@@ -7,8 +7,10 @@ package hash
 
 import (
 	"bytes"
+	"crypto/rand"
 	"math/bits"
 	"testing"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,31 +19,11 @@ import (
 )
 
 var (
-	zeroBlock  [types.BlockLength]byte
-	zb         = &zeroBlock[0]
-	oneBlock   = bytes.Repeat([]byte{0xff}, types.BlockLength)
-	ob         = &oneBlock[0]
-	oneMessage = [64]*byte{
-		ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, ob, //nolint:lll
-	}
-	zeroMatrix = [16][64]*byte{
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-		{zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb, zb}, //nolint:lll
-	}
+	zeroNode      [types.NodeLength]byte
+	zn            = &zeroNode[0]
+	oneNode       = bytes.Repeat([]byte{0xff}, types.NodeLength)
+	on            = &oneNode[0]
+	zeroMatrix    = [16]*byte{zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn}
 	zeroValueHash = types.Hash{
 		0x4f, 0x7e, 0xdc, 0x36, 0xd0, 0xd2, 0xfa, 0x0f, 0x14, 0xc9, 0x33, 0xba, 0x7f, 0x41, 0xe6, 0x5c,
 		0xa5, 0x83, 0xf7, 0x79, 0xc9, 0x38, 0xda, 0x75, 0x3c, 0xd4, 0xab, 0x51, 0x3e, 0x82, 0x0e, 0x7d,
@@ -55,7 +37,7 @@ var (
 func TestBlake3OneMessage(t *testing.T) {
 	for i := range len(zeroMatrix) {
 		matrix := zeroMatrix
-		matrix[i] = oneMessage
+		matrix[i] = on
 
 		var hashes1, hashes2 [16]types.Hash
 		var hashPointers1, hashPointers2 [16]*byte
@@ -66,12 +48,19 @@ func TestBlake3OneMessage(t *testing.T) {
 			hashPointers2[j] = &hashes2[j][0]
 		}
 
-		matrixP := &matrix[0][0]
-		hashesP1 := &hashPointers1[0]
-		hashesP2 := &hashPointers2[0]
+		var randomNode [types.NodeLength]byte
+		_, _ = rand.Read(randomNode[:])
+		var matrixCopy [16]*byte
+		for j := range matrixCopy {
+			rn := randomNode
+			matrixCopy[j] = &rn[0]
+		}
 
-		Blake3(matrixP, hashesP1, hashesP2)
+		Blake3AndCopy4096(&matrix[0], (**byte)(unsafe.Pointer(&matrixCopy)), &hashPointers1[0], &hashPointers2[0])
 
+		for j, n := range matrix {
+			assert.Equal(t, unsafe.Slice(n, types.NodeLength), unsafe.Slice(matrixCopy[j], types.NodeLength))
+		}
 		for j, h := range hashes1 {
 			if j == i {
 				assert.Equal(t, oneValueHash, h, "false zero i: %d, j: %d", i, j)
@@ -100,12 +89,19 @@ func TestBlake3Zeros(t *testing.T) {
 		hashPointers2[i] = &hashes2[i][0]
 	}
 
-	matrixP := &matrix[0][0]
-	hashesP1 := &hashPointers1[0]
-	hashesP2 := &hashPointers2[0]
+	var randomNode [types.NodeLength]byte
+	_, _ = rand.Read(randomNode[:])
+	var matrixCopy [16]*byte
+	for j := range matrixCopy {
+		rn := randomNode
+		matrixCopy[j] = &rn[0]
+	}
 
-	Blake3(matrixP, hashesP1, hashesP2)
+	Blake3AndCopy4096(&matrix[0], (**byte)(unsafe.Pointer(&matrixCopy)), &hashPointers1[0], &hashPointers2[0])
 
+	for j, n := range matrix {
+		assert.Equal(t, unsafe.Slice(n, types.NodeLength), unsafe.Slice(matrixCopy[j], types.NodeLength))
+	}
 	for _, h := range hashes1 {
 		assert.Equal(t, zeroValueHash, h)
 	}
