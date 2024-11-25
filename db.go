@@ -185,12 +185,11 @@ func (db *DB) Run(ctx context.Context) error {
 				allocateReader := pipeline.NewReader(executeTxReader)
 				incrementRevisionReader := pipeline.NewReader(allocateReader)
 				dataHashReaders := make([]*pipeline.Reader, 0, 2)
+				pointerHashReaders := make([]*pipeline.Reader, 0, cap(dataHashReaders))
 				for range cap(dataHashReaders) {
-					dataHashReaders = append(dataHashReaders, pipeline.NewReader(incrementRevisionReader))
-				}
-				pointerHashReaders := make([]*pipeline.Reader, 0, 2)
-				for range cap(pointerHashReaders) {
-					pointerHashReaders = append(pointerHashReaders, pipeline.NewReader(dataHashReaders...))
+					dataHashReader := pipeline.NewReader(incrementRevisionReader)
+					dataHashReaders = append(dataHashReaders, dataHashReader)
+					pointerHashReaders = append(pointerHashReaders, pipeline.NewReader(dataHashReader))
 				}
 				commitSyncReader := pipeline.NewReader(pointerHashReaders...)
 
