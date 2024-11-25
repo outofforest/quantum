@@ -68,11 +68,11 @@ func Blake3AndCopy2048() {
 		m := Mem{Base: GP64()}
 		MOVQ(memBlocks.Offset(i*uint64Size), m.Base)
 		ADDQ(offsetR, m.Base)
-		VMOVDQU64(m, copyR)
+		VMOVDQA64(m, copyR)
 
 		MOVQ(memCopy.Offset(i*uint64Size), m.Base)
 		ADDQ(offsetR, m.Base)
-		VMOVDQU64(copyR, m)
+		VMOVDQA64(copyR, m)
 	}
 	ADDQ(U8(blockSize), offsetR)
 
@@ -134,12 +134,12 @@ func blake3AndCopy(
 		m := Mem{Base: GP64()}
 		MOVQ(memBlocks.Offset(i*uint64Size), m.Base)
 		ADDQ(offsetR, m.Base)
-		VMOVDQU64(m, rB[i])
+		VMOVDQA64(m, rB[i])
 
 		// Copy block.
 		MOVQ(memCopy.Offset(i*uint64Size), m.Base)
 		ADDQ(offsetR, m.Base)
-		VMOVDQU64(rB[i], m)
+		VMOVDQA64(rB[i], m)
 	}
 	ADDQ(U8(blockSize), offsetR)
 
@@ -236,95 +236,16 @@ func blake3AndCopy(
 	for i := range numOfMessages / 2 {
 		m := Mem{Base: GP64()}
 		MOVQ(memHash1.Offset((2*i)*uint64Size), m.Base)
-		VMOVDQU64(rS1[i].AsY(), m)
+		VMOVDQA64(rS1[i].AsY(), m)
 		MOVQ(memHash2.Offset((2*i)*uint64Size), m.Base)
-		VMOVDQU64(rS1[i].AsY(), m)
+		VMOVDQU64(rS1[i].AsY(), m) // second hash location is not aligned
 
 		VSHUFI32X4(U8(0xee), rS1[i], rS1[i], rS1[i])
 		MOVQ(memHash1.Offset((2*i+1)*uint64Size), m.Base)
-		VMOVDQU64(rS1[i].AsY(), m)
+		VMOVDQA64(rS1[i].AsY(), m)
 		MOVQ(memHash2.Offset((2*i+1)*uint64Size), m.Base)
-		VMOVDQU64(rS1[i].AsY(), m)
+		VMOVDQU64(rS1[i].AsY(), m) // second hash location is not aligned
 	}
-}
-
-// Transpose16x16 transposes 16x16 matrix made of vectors x0..xf and stores the results in z0..zf.
-func Transpose16x16() {
-	TEXT("Transpose16x16", NOSPLIT, "func(x *uint32, z *uint32)")
-	Doc("Transpose16x16 transposes 16x16 matrix made of vectors x0..xf and stores the results in z0..zf.")
-
-	// Load matrix to registers
-	rX := [numOfBlocksInChunk]reg.VecVirtual{
-		ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(),
-	}
-	memX := Mem{Base: Load(Param("x"), GP64())}
-	for i := range numOfBlocksInChunk {
-		VMOVDQU64(memX.Offset(i*blockSize), rX[i])
-	}
-
-	rB := transpose16x16(rX)
-
-	// Store results
-	memZ := Mem{Base: Load(Param("z"), GP64())}
-	for i := range numOfBlocksInChunk {
-		VMOVDQU64(rB[i], memZ.Offset(i*blockSize))
-	}
-
-	RET()
-}
-
-// Transpose8x16 transposes 8x16 matrix made of vectors x0..x7 and stores the results in z0..z7.
-func Transpose8x16() {
-	TEXT("Transpose8x16", NOSPLIT, "func(x *uint32, z *uint32)")
-	Doc("Transpose8x16 transposes 8x16 matrix made of vectors x0..x7 and stores the results in z0..z7.")
-
-	// Load matrix to registers
-	rX := [numOfBlocksInChunk / 2]reg.VecVirtual{
-		ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM(),
-	}
-	memX := Mem{Base: Load(Param("x"), GP64())}
-	for i := range numOfBlocksInChunk / 2 {
-		VMOVDQU64(memX.Offset(i*blockSize), rX[i])
-	}
-
-	rB := transpose8x16(rX)
-
-	// Store results
-	memZ := Mem{Base: Load(Param("z"), GP64())}
-	for i := range numOfBlocksInChunk / 2 {
-		VMOVDQU64(rB[i], memZ.Offset(i*blockSize))
-	}
-
-	RET()
-}
-
-// G implements g function of blake3.
-func G() {
-	TEXT("G", NOSPLIT, "func(a, b, c, d, mx, my *[16]uint32)")
-	Doc("G implements g function of blake3.")
-
-	a, b, c, d, mx, my := ZMM(), ZMM(), ZMM(), ZMM(), ZMM(), ZMM()
-
-	memA := Mem{Base: Load(Param("a"), GP64())}
-	memB := Mem{Base: Load(Param("b"), GP64())}
-	memC := Mem{Base: Load(Param("c"), GP64())}
-	memD := Mem{Base: Load(Param("d"), GP64())}
-
-	VMOVDQU64(memA, a)
-	VMOVDQU64(memB, b)
-	VMOVDQU64(memC, c)
-	VMOVDQU64(memD, d)
-	VMOVDQU64(Mem{Base: Load(Param("mx"), GP64())}, mx)
-	VMOVDQU64(Mem{Base: Load(Param("my"), GP64())}, my)
-
-	g(a, b, c, d, mx, my)
-
-	VMOVDQU64(a, memA)
-	VMOVDQU64(b, memB)
-	VMOVDQU64(c, memC)
-	VMOVDQU64(d, memD)
-
-	RET()
 }
 
 func transpose8x16(m [numOfStates / 2]reg.VecVirtual) [numOfMessages / 2]reg.VecVirtual {
@@ -652,9 +573,6 @@ func g(a, b, c, d, mx, my reg.VecVirtual) {
 func main() {
 	Blake3AndCopy4096()
 	Blake3AndCopy2048()
-	Transpose8x16()
-	Transpose16x16()
-	G()
 
 	Generate()
 }

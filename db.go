@@ -754,18 +754,6 @@ func (db *DB) incrementRevisions(ctx context.Context, pipeReader *pipeline.Reade
 	}
 }
 
-var (
-	zeroHash     [types.HashLength]byte
-	zh           = &zeroHash[0]
-	zeroNode     [types.NodeLength]byte
-	zn           = &zeroNode[0]
-	zeroCopyNode [types.NodeLength]byte
-	zc           = &zeroCopyNode[0]
-	zeroMatrix   = [16]*byte{zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn}
-	zeroCopy     = [16]*byte{zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc}
-	zeroHashes   = [16]*byte{zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh}
-)
-
 type request struct {
 	TxRequest    *pipeline.TransactionRequest
 	Count        uint64
@@ -841,6 +829,31 @@ func (db *DB) updateHashes(
 	mod uint64,
 	nodeType types.State,
 ) error {
+	zeroHash, zeroHashDealloc, err := alloc.Allocate(types.HashLength, 64, false)
+	if err != nil {
+		return err
+	}
+	defer zeroHashDealloc()
+	zeroNode, zeroNodeDealloc, err := alloc.Allocate(types.NodeLength, 64, false)
+	if err != nil {
+		return err
+	}
+	defer zeroNodeDealloc()
+	zeroCopyNode, zeroCopyNodeDealloc, err := alloc.Allocate(types.NodeLength, 64, false)
+	if err != nil {
+		return err
+	}
+	defer zeroCopyNodeDealloc()
+
+	var (
+		zh         = (*byte)(zeroHash)
+		zn         = (*byte)(zeroNode)
+		zc         = (*byte)(zeroCopyNode)
+		zeroMatrix = [16]*byte{zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn}
+		zeroCopy   = [16]*byte{zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc}
+		zeroHashes = [16]*byte{zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh}
+	)
+
 	var matrix, copyMatrix [16]*byte
 	matrixP, copyMatrixP := &matrix[0], &copyMatrix[0]
 	var hashes1, hashes2 [16]*byte
@@ -867,6 +880,7 @@ func (db *DB) updateHashes(
 		}
 
 		var nilSlots int
+
 	riLoop:
 		for ri := range slots {
 			req := slots[ri]

@@ -5,7 +5,6 @@ import (
 	"unsafe"
 
 	"github.com/pkg/errors"
-	"golang.org/x/sys/unix"
 
 	"github.com/outofforest/parallel"
 	"github.com/outofforest/photon"
@@ -18,46 +17,33 @@ func NewState(
 	nodesPerGroup uint64,
 	useHugePages bool,
 ) (*State, func(), error) {
-	opts := unix.MAP_SHARED | unix.MAP_ANONYMOUS | unix.MAP_POPULATE
-	if useHugePages {
-		// When using huge pages, the size must be a multiple of the hugepage size. Otherwise, munmap fails.
-		opts |= unix.MAP_HUGETLB
-	}
-	originalSize := uintptr(size)
-	dataP, err := unix.MmapPtr(-1, 0, nil, originalSize, unix.PROT_READ|unix.PROT_WRITE, opts)
+	// Align allocated memory address to the node size. It might be required if using O_DIRECT option to open files.
+	// As a side effect it is also 64-byte aligned which is required by the AVX512 instructions.
+	dataP, deallocateFunc, err := Allocate(size, types.NodeLength, useHugePages)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "memory allocation failed")
 	}
-
-	dataPOrig := dataP
-
-	// Align allocated memory address to the node size. It might be required if using O_DIRECT option to open files.
-	diff := uint64((uintptr(dataP)+types.NodeLength-1)/types.NodeLength*types.NodeLength - uintptr(dataP))
-	dataP = unsafe.Add(dataP, diff)
-	size -= diff
 
 	allocationCh, singularityNodeAddress := NewAllocationCh(size, nodesPerGroup)
 
 	singularityNode := (*types.SingularityNode)(unsafe.Add(dataP, types.NodeLength*singularityNodeAddress))
 	return &State{
-			size:          size,
-			nodesPerGroup: nodesPerGroup,
-			singularityNodeRoot: types.NodeRoot{
-				Hash: &singularityNode.Hash,
-				Pointer: &types.Pointer{
-					Revision:          1,
-					VolatileAddress:   singularityNodeAddress,
-					PersistentAddress: singularityNodeAddress,
-				},
+		size:          size,
+		nodesPerGroup: nodesPerGroup,
+		singularityNodeRoot: types.NodeRoot{
+			Hash: &singularityNode.Hash,
+			Pointer: &types.Pointer{
+				Revision:          1,
+				VolatileAddress:   singularityNodeAddress,
+				PersistentAddress: singularityNodeAddress,
 			},
-			dataP:            dataP,
-			allocationCh:     allocationCh,
-			deallocationCh:   make(chan []types.NodeAddress, 10),
-			allocationPoolCh: make(chan []types.NodeAddress, 1),
-			closedCh:         make(chan struct{}),
-		}, func() {
-			_ = unix.MunmapPtr(dataPOrig, originalSize)
-		}, nil
+		},
+		dataP:            dataP,
+		allocationCh:     allocationCh,
+		deallocationCh:   make(chan []types.NodeAddress, 10),
+		allocationPoolCh: make(chan []types.NodeAddress, 1),
+		closedCh:         make(chan struct{}),
+	}, deallocateFunc, nil
 }
 
 // State stores the DB state.

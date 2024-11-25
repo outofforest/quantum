@@ -23,7 +23,8 @@ var (
 
 // PointerNode represents pointer node.
 type PointerNode struct {
-	// Hashes must go first because this is the hashed portion of the pointer node.
+	// Hashes must go first because this is the hashed portion of the pointer node
+	// because this is the hashed region.
 	Hashes   [NumOfPointers]types.Hash
 	Pointers [NumOfPointers]types.Pointer
 }

@@ -51,6 +51,8 @@ func (na *DataNodeAssistant[K, V]) Item(n unsafe.Pointer, offset uint64) *types.
 
 // KeyHashes returns slice of key hashes stored in the node.
 func (na *DataNodeAssistant[K, V]) KeyHashes(n unsafe.Pointer) []types.KeyHash {
+	// Key hashes must start at the beginning of the node because we use AVX512 instructions requiring 64-byte
+	// alignment to compare them.
 	return unsafe.Slice((*types.KeyHash)(n), na.numOfItems)
 }
 

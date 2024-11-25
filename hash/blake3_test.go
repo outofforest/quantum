@@ -7,15 +7,18 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/stretchr/testify/require"
 	blake3zeebo "github.com/zeebo/blake3"
 	blake3luke "lukechampine.com/blake3"
 
+	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/types"
 )
 
 //nolint:unparam
-func randData(size uint) []byte {
-	data := make([]byte, size)
+func randData(size uint64) []byte {
+	dataP, _, _ := alloc.Allocate(size, 64, false)
+	data := unsafe.Slice((*byte)(dataP), size)
 	if _, err := rand.Read(data); err != nil {
 		panic(err)
 	}
@@ -79,8 +82,10 @@ func BenchmarkChecksum4KAVX(b *testing.B) {
 
 	var matrixCopy [16]*byte
 	for j := range matrixCopy {
-		var rn [types.NodeLength]byte
-		matrixCopy[j] = &rn[0]
+		rn, dealloc, err := alloc.Allocate(types.NodeLength, 64, false)
+		require.NoError(b, err)
+		b.Cleanup(dealloc)
+		matrixCopy[j] = (*byte)(rn)
 	}
 
 	chP := make([]*byte, 0, 16)
@@ -88,19 +93,23 @@ func BenchmarkChecksum4KAVX(b *testing.B) {
 		chP = append(chP, &data4K[i][0])
 	}
 
-	var z1, z2 [16][32]byte
-	zP1 := [16]*byte{
-		&z1[0][0], &z1[1][0], &z1[2][0], &z1[3][0], &z1[4][0], &z1[5][0], &z1[6][0], &z1[7][0],
-		&z1[8][0], &z1[9][0], &z1[10][0], &z1[11][0], &z1[12][0], &z1[13][0], &z1[14][0], &z1[15][0],
+	var z1, z2 [16]*byte
+	for i := range z1 {
+		z, dealloc, err := alloc.Allocate(types.HashLength, 32, false)
+		require.NoError(b, err)
+		b.Cleanup(dealloc)
+		z1[i] = (*byte)(z)
 	}
-	zP2 := [16]*byte{
-		&z2[0][0], &z2[1][0], &z2[2][0], &z2[3][0], &z2[4][0], &z2[5][0], &z2[6][0], &z2[7][0],
-		&z2[8][0], &z2[9][0], &z2[10][0], &z2[11][0], &z2[12][0], &z2[13][0], &z2[14][0], &z2[15][0],
+	for i := range z2 {
+		z, dealloc, err := alloc.Allocate(types.HashLength, 32, false)
+		require.NoError(b, err)
+		b.Cleanup(dealloc)
+		z2[i] = (*byte)(z)
 	}
 
 	b.StartTimer()
 	for range b.N {
-		Blake3AndCopy4096(&chP[0], (**byte)(unsafe.Pointer(&matrixCopy)), &zP1[0], &zP2[0])
+		Blake3AndCopy4096(&chP[0], (**byte)(unsafe.Pointer(&matrixCopy)), &z1[0], &z2[0])
 	}
 	b.StopTimer()
 

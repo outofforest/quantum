@@ -180,7 +180,7 @@ func processChunks(
 	SUBQ(U8(numOfValuesInChunk), rChunkCounter)
 
 	// Load chunk and go to the next input.
-	VMOVDQU64(memX, rX)
+	VMOVDQA64(memX, rX)
 	ADDQ(U8(numOfValuesInChunk*uint64Size), memX.Base)
 
 	// Compare values.

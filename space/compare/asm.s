@@ -20,7 +20,7 @@ loopChunks8true:
 	CMPQ      AX, $0x08
 	JL        exit8
 	SUBQ      $0x08, AX
-	VMOVDQU64 (R9), Z2
+	VMOVDQA64 (R9), Z2
 	ADDQ      $0x40, R9
 	VPCMPEQQ  Z2, Z1, K1
 	MOVD      $0x0000000000000000, R10
@@ -56,7 +56,7 @@ loopChunks8false:
 	CMPQ      AX, $0x08
 	JL        exit8
 	SUBQ      $0x08, AX
-	VMOVDQU64 (R9), Z2
+	VMOVDQA64 (R9), Z2
 	ADDQ      $0x40, R9
 	VPCMPEQQ  Z2, Z1, K1
 	MOVD      $0x0000000000000000, R10
@@ -83,7 +83,7 @@ exit8:
 	CMPQ      AX, $0x04
 	JL        exit4
 	SUBQ      $0x04, AX
-	VMOVDQU64 (R9), Y2
+	VMOVDQA64 (R9), Y2
 	ADDQ      $0x20, R9
 	VPCMPEQQ  Y2, Y1, K1
 	MOVD      $0x0000000000000000, R10
@@ -118,7 +118,7 @@ zeroFound4:
 	CMPQ      AX, $0x04
 	JL        exit4
 	SUBQ      $0x04, AX
-	VMOVDQU64 (R9), Y2
+	VMOVDQA64 (R9), Y2
 	ADDQ      $0x20, R9
 	VPCMPEQQ  Y2, Y1, K1
 	MOVD      $0x0000000000000000, R10
@@ -144,7 +144,7 @@ exit4:
 	CMPQ      AX, $0x02
 	JL        exit2
 	SUBQ      $0x02, AX
-	VMOVDQU64 (R9), X2
+	VMOVDQA64 (R9), X2
 	ADDQ      $0x10, R9
 	VPCMPEQQ  X2, X1, K1
 	MOVD      $0x0000000000000000, R10
@@ -179,7 +179,7 @@ zeroFound2:
 	CMPQ      AX, $0x02
 	JL        exit2
 	SUBQ      $0x02, AX
-	VMOVDQU64 (R9), X0
+	VMOVDQA64 (R9), X0
 	ADDQ      $0x10, R9
 	VPCMPEQQ  X0, X1, K1
 	MOVD      $0x0000000000000000, R10
