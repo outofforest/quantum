@@ -184,12 +184,15 @@ func (db *DB) Run(ctx context.Context) error {
 				executeTxReader := pipeline.NewReader(prepareTxReaders...)
 				allocateReader := pipeline.NewReader(executeTxReader)
 				incrementRevisionReader := pipeline.NewReader(allocateReader)
-				hashReaders := make([]*pipeline.Reader, 0, 2)
-				for range cap(hashReaders) {
-					hashReaders = append(hashReaders, pipeline.NewReader(incrementRevisionReader))
+				dataHashReaders := make([]*pipeline.Reader, 0, 2)
+				for range cap(dataHashReaders) {
+					dataHashReaders = append(dataHashReaders, pipeline.NewReader(incrementRevisionReader))
 				}
-				pointerHashReader := pipeline.NewReader(hashReaders...)
-				commitSyncReader := pipeline.NewReader(pointerHashReader)
+				pointerHashReaders := make([]*pipeline.Reader, 0, 2)
+				for range cap(pointerHashReaders) {
+					pointerHashReaders = append(pointerHashReaders, pipeline.NewReader(dataHashReaders...))
+				}
+				commitSyncReader := pipeline.NewReader(pointerHashReaders...)
 
 				spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
 					var lastSyncCh chan<- struct{}
@@ -241,14 +244,16 @@ func (db *DB) Run(ctx context.Context) error {
 				spawn("incrementRevision", parallel.Fail, func(ctx context.Context) error {
 					return db.incrementRevisions(ctx, incrementRevisionReader)
 				})
-				for i, reader := range hashReaders {
-					spawn(fmt.Sprintf("hash-%02d", i), parallel.Fail, func(ctx context.Context) error {
-						return db.updateHashes(ctx, reader, uint64(len(hashReaders)), uint64(i), types.StateData)
+				for i, reader := range dataHashReaders {
+					spawn(fmt.Sprintf("datahash-%02d", i), parallel.Fail, func(ctx context.Context) error {
+						return db.updateHashes(ctx, reader, uint64(len(dataHashReaders)), uint64(i), types.StateData)
 					})
 				}
-				spawn("pointerHash", parallel.Fail, func(ctx context.Context) error {
-					return db.updateHashes(ctx, pointerHashReader, 1, 0, types.StatePointer)
-				})
+				for i, reader := range pointerHashReaders {
+					spawn(fmt.Sprintf("pointerhash-%02d", i), parallel.Fail, func(ctx context.Context) error {
+						return db.updateHashes(ctx, reader, uint64(len(pointerHashReaders)), uint64(i), types.StatePointer)
+					})
+				}
 				spawn("commitSync", parallel.Fail, func(ctx context.Context) error {
 					return db.syncOnCommit(ctx, commitSyncReader)
 				})
