@@ -7,12 +7,3 @@ func Blake3AndCopy4096(blocks **byte, copy **byte, hash1 **byte, hash2 **byte)
 
 // Blake3AndCopy2048 implements blake3 for 16 2KB messages.
 func Blake3AndCopy2048(blocks **byte, copy **byte, hash1 **byte, hash2 **byte)
-
-// Transpose8x16 transposes 8x16 matrix made of vectors x0..x7 and stores the results in z0..z7.
-func Transpose8x16(x *uint32, z *uint32)
-
-// Transpose16x16 transposes 16x16 matrix made of vectors x0..xf and stores the results in z0..zf.
-func Transpose16x16(x *uint32, z *uint32)
-
-// G implements g function of blake3.
-func G(a *[16]uint32, b *[16]uint32, c *[16]uint32, d *[16]uint32, mx *[16]uint32, my *[16]uint32)
