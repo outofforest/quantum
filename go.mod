@@ -11,7 +11,7 @@ require (
 	github.com/outofforest/photon v0.6.0
 	github.com/pkg/errors v0.9.1
 	github.com/samber/lo v1.47.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/zeebo/blake3 v0.2.4
 	golang.org/x/sys v0.27.0
 	lukechampine.com/blake3 v1.3.0
