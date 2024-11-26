@@ -184,7 +184,7 @@ func (db *DB) Run(ctx context.Context) error {
 				executeTxReader := pipeline.NewReader(prepareTxReaders...)
 				allocateReader := pipeline.NewReader(executeTxReader)
 				incrementRevisionReader := pipeline.NewReader(allocateReader)
-				dataHashReaders := make([]*pipeline.Reader, 0, 2)
+				dataHashReaders := make([]*pipeline.Reader, 0, 4)
 				pointerHashReaders := make([]*pipeline.Reader, 0, cap(dataHashReaders))
 				for range cap(dataHashReaders) {
 					dataHashReader := pipeline.NewReader(incrementRevisionReader)
@@ -845,6 +845,8 @@ func (db *DB) updateHashes(
 	}
 	defer zeroCopyNodeDealloc()
 
+	copiedNodes := map[types.NodeAddress]struct{}{}
+
 	var (
 		zh         = (*byte)(zeroHash)
 		zn         = (*byte)(zeroNode)
@@ -880,6 +882,7 @@ func (db *DB) updateHashes(
 		}
 
 		var nilSlots int
+		var copyMask uint16
 
 	riLoop:
 		for ri := range slots {
@@ -935,6 +938,10 @@ func (db *DB) updateHashes(
 			}
 
 			slots[ri] = req
+			if _, exists := copiedNodes[volatileAddress]; !exists {
+				copiedNodes[volatileAddress] = struct{}{}
+				copyMask |= 1 << ri
+			}
 
 			matrix[ri] = (*byte)(db.config.State.Node(volatileAddress))
 			copyMatrix[ri] = (*byte)(db.config.State.Node(persistentAddress))
@@ -947,14 +954,15 @@ func (db *DB) updateHashes(
 		}
 
 		if nilSlots == len(slots) {
+			clear(copiedNodes)
 			// FIXME (wojciech): Data race, all hashing goroutines try to add their WAL nodes to the tx at the same time.
 			walRecorder.Commit(commitReq.TxRequest)
 			r.Acknowledge(commitReq.Count, commitReq.TxRequest, true)
 		} else {
 			if nodeType == types.StateData {
-				hash.Blake3AndCopy4096(matrixP, copyMatrixP, hashesP1, hashesP2)
+				hash.Blake3AndCopy4096(matrixP, copyMatrixP, hashesP1, hashesP2, copyMask)
 			} else {
-				hash.Blake3AndCopy2048(matrixP, copyMatrixP, hashesP1, hashesP2)
+				hash.Blake3AndCopy2048(matrixP, copyMatrixP, hashesP1, hashesP2, copyMask)
 			}
 			r.Acknowledge(minReq.Count-1, minReq.TxRequest, false)
 		}

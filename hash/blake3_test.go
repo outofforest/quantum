@@ -109,7 +109,7 @@ func BenchmarkChecksum4KAVX(b *testing.B) {
 
 	b.StartTimer()
 	for range b.N {
-		Blake3AndCopy4096(&chP[0], (**byte)(unsafe.Pointer(&matrixCopy)), &z1[0], &z2[0])
+		Blake3AndCopy4096(&chP[0], (**byte)(unsafe.Pointer(&matrixCopy)), &z1[0], &z2[0], 0xffff)
 	}
 	b.StopTimer()
 

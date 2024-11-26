@@ -3,6 +3,8 @@ package main
 //go:generate go run . -out ../asm.s -stubs ../asm_stub.go -pkg hash
 
 import (
+	"fmt"
+
 	. "github.com/mmcloughlin/avo/build"
 	. "github.com/mmcloughlin/avo/operand"
 	"github.com/mmcloughlin/avo/reg"
@@ -36,48 +38,67 @@ const (
 
 // Blake3AndCopy4096 implements blake3 for 16 4KB messages.
 func Blake3AndCopy4096() {
-	TEXT("Blake3AndCopy4096", NOSPLIT, "func(blocks, copy, hash1, hash2 **byte)")
+	TEXT("Blake3AndCopy4096", NOSPLIT, "func(blocks, copy, hash1, hash2 **byte, copyMask uint16)")
 	Doc("Blake3AndCopy4096 implements blake3 for 16 4KB messages.")
 
 	memBlocks := Mem{Base: Load(Param("blocks"), GP64())}
 	memCopy := Mem{Base: Load(Param("copy"), GP64())}
+	rCopyMask := GP16()
+	Load(Param("copyMask"), rCopyMask)
 
-	blake3AndCopy(messageSize, memBlocks, memCopy, GP64())
+	blake3AndCopy(messageSize, memBlocks, memCopy, rCopyMask, GP64())
 
 	RET()
 }
 
 // Blake3AndCopy2048 implements blake3 for 16 2KB messages.
 func Blake3AndCopy2048() {
-	TEXT("Blake3AndCopy2048", NOSPLIT, "func(blocks, copy, hash1, hash2 **byte)")
+	TEXT("Blake3AndCopy2048", NOSPLIT, "func(blocks, copy, hash1, hash2 **byte, copyMask uint16)")
 	Doc("Blake3AndCopy2048 implements blake3 for 16 2KB messages.")
 
 	memBlocks := Mem{Base: Load(Param("blocks"), GP64())}
 	memCopy := Mem{Base: Load(Param("copy"), GP64())}
+	rCopyMask := GP16()
+	Load(Param("copyMask"), rCopyMask)
 	offsetR := GP64()
 
-	blake3AndCopy(2048, memBlocks, memCopy, offsetR)
+	blake3AndCopy(2048, memBlocks, memCopy, rCopyMask, offsetR)
 
 	// Copy remaining 2KB.
 
-	const loopCopyStartLabel = "loopCopyStart"
-	Label(loopCopyStartLabel)
+	const (
+		loopCopyStartLabel = "loopCopyStart%d"
+		loopCopyEnd        = "copyEnd2%d"
+	)
 
 	copyR := ZMM()
 	for i := range numOfMessages {
-		m := Mem{Base: GP64()}
-		MOVQ(memBlocks.Offset(i*uint64Size), m.Base)
-		ADDQ(offsetR, m.Base)
-		VMOVDQA64(m, copyR)
+		TESTW(U16(1<<i), rCopyMask)
+		JZ(LabelRef(fmt.Sprintf(loopCopyEnd, i)))
 
-		MOVQ(memCopy.Offset(i*uint64Size), m.Base)
-		ADDQ(offsetR, m.Base)
-		VMOVDQA64(copyR, m)
+		offsetRTmp := GP64()
+		MOVQ(offsetR, offsetRTmp)
+
+		mSrc := Mem{Base: GP64()}
+		mDst := Mem{Base: GP64()}
+		MOVQ(memBlocks.Offset(i*uint64Size), mSrc.Base)
+		MOVQ(memCopy.Offset(i*uint64Size), mDst.Base)
+		ADDQ(offsetRTmp, mSrc.Base)
+		ADDQ(offsetRTmp, mDst.Base)
+
+		Label(fmt.Sprintf(loopCopyStartLabel, i))
+
+		VMOVDQA64(mSrc, copyR)
+		VMOVDQA64(copyR, mDst)
+		ADDQ(U8(blockSize), mSrc.Base)
+		ADDQ(U8(blockSize), mDst.Base)
+		ADDQ(U8(blockSize), offsetRTmp)
+
+		CMPQ(offsetRTmp, U32(messageSize))
+		JNE(LabelRef(fmt.Sprintf(loopCopyStartLabel, i)))
+
+		Label(fmt.Sprintf(loopCopyEnd, i))
 	}
-	ADDQ(U8(blockSize), offsetR)
-
-	CMPQ(offsetR, U32(messageSize))
-	JNE(LabelRef(loopCopyStartLabel))
 
 	RET()
 }
@@ -93,7 +114,7 @@ func Blake3AndCopy2048() {
 //     but well-defined portions of data, so we don't need it.
 func blake3AndCopy(
 	messageSize uint16,
-	memBlocks, memCopy Mem,
+	memBlocks, memCopy Mem, rCopyMask reg.GPVirtual,
 	offsetR reg.GPVirtual,
 ) {
 	XORQ(offsetR, offsetR)
@@ -137,9 +158,14 @@ func blake3AndCopy(
 		VMOVDQA64(m, rB[i])
 
 		// Copy block.
+		TESTW(U16(1<<i), rCopyMask)
+		JZ(LabelRef(fmt.Sprintf("copyEnd%d", i)))
+
 		MOVQ(memCopy.Offset(i*uint64Size), m.Base)
 		ADDQ(offsetR, m.Base)
 		VMOVDQA64(rB[i], m)
+
+		Label(fmt.Sprintf("copyEnd%d", i))
 	}
 	ADDQ(U8(blockSize), offsetR)
 

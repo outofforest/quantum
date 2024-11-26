@@ -74,7 +74,7 @@ func TestBlake3OneMessage(t *testing.T) {
 			matrixCopy[j] = &rn[0]
 		}
 
-		Blake3AndCopy4096(&matrix[0], (**byte)(unsafe.Pointer(&matrixCopy)), &hashPointers1[0], &hashPointers2[0])
+		Blake3AndCopy4096(&matrix[0], (**byte)(unsafe.Pointer(&matrixCopy)), &hashPointers1[0], &hashPointers2[0], 0xffff)
 
 		for j, n := range matrix {
 			assert.Equal(t, unsafe.Slice(n, types.NodeLength), unsafe.Slice(matrixCopy[j], types.NodeLength))
@@ -125,7 +125,7 @@ func TestBlake3Zeros(t *testing.T) {
 		matrixCopy[j] = &rn[0]
 	}
 
-	Blake3AndCopy4096(&matrix[0], (**byte)(unsafe.Pointer(&matrixCopy)), &hashPointers1[0], &hashPointers2[0])
+	Blake3AndCopy4096(&matrix[0], (**byte)(unsafe.Pointer(&matrixCopy)), &hashPointers1[0], &hashPointers2[0], 0xffff)
 
 	for j, n := range matrix {
 		assert.Equal(t, unsafe.Slice(n, types.NodeLength), unsafe.Slice(matrixCopy[j], types.NodeLength))
