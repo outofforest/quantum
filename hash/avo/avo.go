@@ -3,52 +3,108 @@ package main
 //go:generate go run . -out ../asm.s -stubs ../asm_stub.go -pkg hash
 
 import (
+	"fmt"
+
 	. "github.com/mmcloughlin/avo/build"
 	. "github.com/mmcloughlin/avo/operand"
 	"github.com/mmcloughlin/avo/reg"
 )
 
 const (
-	uint64Size                = 8
-	uint32Size                = 4
-	numOfMessages             = 16
-	numOfBlocksInChunk        = 16
-	numOfStates               = 16
-	blockSize                 = 16 * uint32Size
-	iv0                uint32 = 0x6A09E667
-	iv1                uint32 = 0xBB67AE85
-	iv2                uint32 = 0x3C6EF372
-	iv3                uint32 = 0xA54FF53A
-	iv4                uint32 = 0x510E527F
-	iv5                uint32 = 0x9B05688C
-	iv6                uint32 = 0x1F83D9AB
-	iv7                uint32 = 0x5BE0CD19
-	a                         = 0xa
-	b                         = 0xb
-	c                         = 0xc
-	d                         = 0xd
-	e                         = 0xe
-	f                         = 0xf
+	uint64Size                  = 8
+	uint32Size                  = 4
+	numOfMessages               = 16
+	numOfChunksInMessage        = 4
+	numOfBlocksInChunk          = 16
+	numOfBlocksInMessage        = numOfChunksInMessage * numOfBlocksInChunk
+	numOfStates                 = 16
+	blockSize                   = 16 * uint32Size
+	messageSize                 = blockSize * numOfBlocksInMessage
+	iv0                  uint32 = 0x6A09E667
+	iv1                  uint32 = 0xBB67AE85
+	iv2                  uint32 = 0x3C6EF372
+	iv3                  uint32 = 0xA54FF53A
+	iv4                  uint32 = 0x510E527F
+	iv5                  uint32 = 0x9B05688C
+	iv6                  uint32 = 0x1F83D9AB
+	iv7                  uint32 = 0x5BE0CD19
+	a                           = 0xa
+	b                           = 0xb
+	c                           = 0xc
+	d                           = 0xd
+	e                           = 0xe
+	f                           = 0xf
 )
 
-// Blake34096 implements blake3 for 16 4KB messages.
-func Blake34096() {
-	TEXT("Blake34096", NOSPLIT, "func(blocks, hash1, hash2 **byte)")
-	Doc("Blake34096 implements blake3 for 16 4KB messages.")
+// Blake3AndCopy4096 implements blake3 for 16 4KB messages.
+func Blake3AndCopy4096() {
+	TEXT("Blake3AndCopy4096", NOSPLIT, "func(blocks, copy, hash1, hash2 **byte, copyMask uint16)")
+	Doc("Blake3AndCopy4096 implements blake3 for 16 4KB messages.")
 
-	blake3(4096)
+	memBlocks := Mem{Base: Load(Param("blocks"), GP64())}
+	memCopy := Mem{Base: Load(Param("copy"), GP64())}
+	rCopyMask := GP16()
+	Load(Param("copyMask"), rCopyMask)
+
+	blake3AndCopy(messageSize, memBlocks, memCopy, rCopyMask, GP64())
+
+	RET()
 }
 
-// Blake32048 implements blake3 for 16 2KB messages.
-func Blake32048() {
-	TEXT("Blake32048", NOSPLIT, "func(blocks, hash1, hash2 **byte)")
-	Doc("Blake32048 implements blake3 for 16 2KB messages.")
+// Blake3AndCopy2048 implements blake3 for 16 2KB messages.
+func Blake3AndCopy2048() {
+	TEXT("Blake3AndCopy2048", NOSPLIT, "func(blocks, copy, hash1, hash2 **byte, copyMask uint16)")
+	Doc("Blake3AndCopy2048 implements blake3 for 16 2KB messages.")
 
-	blake3(2048)
+	memBlocks := Mem{Base: Load(Param("blocks"), GP64())}
+	memCopy := Mem{Base: Load(Param("copy"), GP64())}
+	rCopyMask := GP16()
+	Load(Param("copyMask"), rCopyMask)
+	offsetR := GP64()
+
+	blake3AndCopy(2048, memBlocks, memCopy, rCopyMask, offsetR)
+
+	// Copy remaining 2KB.
+
+	const (
+		loopCopyStartLabel = "loopCopyStart%d"
+		loopCopyEnd        = "copyEnd2%d"
+	)
+
+	copyR := ZMM()
+	for i := range numOfMessages {
+		TESTW(U16(1<<i), rCopyMask)
+		JZ(LabelRef(fmt.Sprintf(loopCopyEnd, i)))
+
+		offsetRTmp := GP64()
+		MOVQ(offsetR, offsetRTmp)
+
+		mSrc := Mem{Base: GP64()}
+		mDst := Mem{Base: GP64()}
+		MOVQ(memBlocks.Offset(i*uint64Size), mSrc.Base)
+		MOVQ(memCopy.Offset(i*uint64Size), mDst.Base)
+		ADDQ(offsetRTmp, mSrc.Base)
+		ADDQ(offsetRTmp, mDst.Base)
+
+		Label(fmt.Sprintf(loopCopyStartLabel, i))
+
+		VMOVDQA64(mSrc, copyR)
+		VMOVDQA64(copyR, mDst)
+		ADDQ(U8(blockSize), mSrc.Base)
+		ADDQ(U8(blockSize), mDst.Base)
+		ADDQ(U8(blockSize), offsetRTmp)
+
+		CMPQ(offsetRTmp, U32(messageSize))
+		JNE(LabelRef(fmt.Sprintf(loopCopyStartLabel, i)))
+
+		Label(fmt.Sprintf(loopCopyEnd, i))
+	}
+
+	RET()
 }
 
 // blake3 implements blake3 for 16 4KB messages.
-// Additionally, it stores computed hashes in two locations.
+// Additionally, it stores computed hashes in two location and also copy the messages.
 // There are some modifications against original blake3:
 //   - blake3 hashes each 1KB chunk independently and then forms a tree to compute final hash. That design might improve
 //     concurrency in some scenarios. Here it only overcomplicates things, so instead we treat full 4KB message
@@ -56,10 +112,11 @@ func Blake32048() {
 //   - due to that chunk independence blake3 uses flags to mark places where chunk starts and ends to protect against
 //     situation where shift in data might produce conflicting hash. Here we don't deal with data streams,
 //     but well-defined portions of data, so we don't need it.
-func blake3(messageSize uint16) {
-	memBlocks := Mem{Base: Load(Param("blocks"), GP64())}
-
-	offsetR := GP64()
+func blake3AndCopy(
+	messageSize uint16,
+	memBlocks, memCopy Mem, rCopyMask reg.GPVirtual,
+	offsetR reg.GPVirtual,
+) {
 	XORQ(offsetR, offsetR)
 
 	sInit := [16]uint32{
@@ -99,6 +156,16 @@ func blake3(messageSize uint16) {
 		MOVQ(memBlocks.Offset(i*uint64Size), m.Base)
 		ADDQ(offsetR, m.Base)
 		VMOVDQA64(m, rB[i])
+
+		// Copy block.
+		TESTW(U16(1<<i), rCopyMask)
+		JZ(LabelRef(fmt.Sprintf("copyEnd%d", i)))
+
+		MOVQ(memCopy.Offset(i*uint64Size), m.Base)
+		ADDQ(offsetR, m.Base)
+		VMOVDQA64(rB[i], m)
+
+		Label(fmt.Sprintf("copyEnd%d", i))
 	}
 	ADDQ(U8(blockSize), offsetR)
 
@@ -205,8 +272,6 @@ func blake3(messageSize uint16) {
 		MOVQ(memHash2.Offset((2*i+1)*uint64Size), m.Base)
 		VMOVDQU64(rS1[i].AsY(), m) // second hash location is not aligned
 	}
-
-	RET()
 }
 
 func transpose8x16(m [numOfStates / 2]reg.VecVirtual) [numOfMessages / 2]reg.VecVirtual {
@@ -532,8 +597,8 @@ func g(a, b, c, d, mx, my reg.VecVirtual) {
 }
 
 func main() {
-	Blake34096()
-	Blake32048()
+	Blake3AndCopy4096()
+	Blake3AndCopy2048()
 
 	Generate()
 }
