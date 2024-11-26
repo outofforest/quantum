@@ -28,7 +28,7 @@ const (
 	// StoreCapacity is the maximum capacity of store array in store request.
 	StoreCapacity = 10
 
-	sleepDuration = 10 * time.Microsecond
+	sleepDuration = 5 * time.Microsecond
 	atomicDivider = 100
 )
 

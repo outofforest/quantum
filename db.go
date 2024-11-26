@@ -629,7 +629,6 @@ func (db *DB) deallocatePersistentAddress(
 		return nil
 	}
 
-	//nolint:nestif
 	if pointer.SnapshotID == db.singularityNode.LastSnapshotID {
 		return nil
 	}
@@ -943,6 +942,7 @@ func (db *DB) updateHashes(
 			}
 		}
 
+		//nolint:nestif
 		if nilSlots == len(slots) {
 			if commitReq.TxRequest != nil {
 				// FIXME (wojciech): Data race, all hashing goroutines try to add their WAL nodes to the tx at the same time.
