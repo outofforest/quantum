@@ -9,81 +9,46 @@ import (
 )
 
 const (
-	uint64Size                  = 8
-	uint32Size                  = 4
-	numOfMessages               = 16
-	numOfChunksInMessage        = 4
-	numOfBlocksInChunk          = 16
-	numOfBlocksInMessage        = numOfChunksInMessage * numOfBlocksInChunk
-	numOfStates                 = 16
-	blockSize                   = 16 * uint32Size
-	messageSize                 = blockSize * numOfBlocksInMessage
-	iv0                  uint32 = 0x6A09E667
-	iv1                  uint32 = 0xBB67AE85
-	iv2                  uint32 = 0x3C6EF372
-	iv3                  uint32 = 0xA54FF53A
-	iv4                  uint32 = 0x510E527F
-	iv5                  uint32 = 0x9B05688C
-	iv6                  uint32 = 0x1F83D9AB
-	iv7                  uint32 = 0x5BE0CD19
-	a                           = 0xa
-	b                           = 0xb
-	c                           = 0xc
-	d                           = 0xd
-	e                           = 0xe
-	f                           = 0xf
+	uint64Size                = 8
+	uint32Size                = 4
+	numOfMessages             = 16
+	numOfBlocksInChunk        = 16
+	numOfStates               = 16
+	blockSize                 = 16 * uint32Size
+	iv0                uint32 = 0x6A09E667
+	iv1                uint32 = 0xBB67AE85
+	iv2                uint32 = 0x3C6EF372
+	iv3                uint32 = 0xA54FF53A
+	iv4                uint32 = 0x510E527F
+	iv5                uint32 = 0x9B05688C
+	iv6                uint32 = 0x1F83D9AB
+	iv7                uint32 = 0x5BE0CD19
+	a                         = 0xa
+	b                         = 0xb
+	c                         = 0xc
+	d                         = 0xd
+	e                         = 0xe
+	f                         = 0xf
 )
 
-// Blake3AndCopy4096 implements blake3 for 16 4KB messages.
-func Blake3AndCopy4096() {
-	TEXT("Blake3AndCopy4096", NOSPLIT, "func(blocks, copy, hash1, hash2 **byte)")
-	Doc("Blake3AndCopy4096 implements blake3 for 16 4KB messages.")
+// Blake34096 implements blake3 for 16 4KB messages.
+func Blake34096() {
+	TEXT("Blake34096", NOSPLIT, "func(blocks, hash1, hash2 **byte)")
+	Doc("Blake34096 implements blake3 for 16 4KB messages.")
 
-	memBlocks := Mem{Base: Load(Param("blocks"), GP64())}
-	memCopy := Mem{Base: Load(Param("copy"), GP64())}
-
-	blake3AndCopy(messageSize, memBlocks, memCopy, GP64())
-
-	RET()
+	blake3(4096)
 }
 
-// Blake3AndCopy2048 implements blake3 for 16 2KB messages.
-func Blake3AndCopy2048() {
-	TEXT("Blake3AndCopy2048", NOSPLIT, "func(blocks, copy, hash1, hash2 **byte)")
-	Doc("Blake3AndCopy2048 implements blake3 for 16 2KB messages.")
+// Blake32048 implements blake3 for 16 2KB messages.
+func Blake32048() {
+	TEXT("Blake32048", NOSPLIT, "func(blocks, hash1, hash2 **byte)")
+	Doc("Blake32048 implements blake3 for 16 2KB messages.")
 
-	memBlocks := Mem{Base: Load(Param("blocks"), GP64())}
-	memCopy := Mem{Base: Load(Param("copy"), GP64())}
-	offsetR := GP64()
-
-	blake3AndCopy(2048, memBlocks, memCopy, offsetR)
-
-	// Copy remaining 2KB.
-
-	const loopCopyStartLabel = "loopCopyStart"
-	Label(loopCopyStartLabel)
-
-	copyR := ZMM()
-	for i := range numOfMessages {
-		m := Mem{Base: GP64()}
-		MOVQ(memBlocks.Offset(i*uint64Size), m.Base)
-		ADDQ(offsetR, m.Base)
-		VMOVDQA64(m, copyR)
-
-		MOVQ(memCopy.Offset(i*uint64Size), m.Base)
-		ADDQ(offsetR, m.Base)
-		VMOVDQA64(copyR, m)
-	}
-	ADDQ(U8(blockSize), offsetR)
-
-	CMPQ(offsetR, U32(messageSize))
-	JNE(LabelRef(loopCopyStartLabel))
-
-	RET()
+	blake3(2048)
 }
 
 // blake3 implements blake3 for 16 4KB messages.
-// Additionally, it stores computed hashes in two location and also copy the messages.
+// Additionally, it stores computed hashes in two locations.
 // There are some modifications against original blake3:
 //   - blake3 hashes each 1KB chunk independently and then forms a tree to compute final hash. That design might improve
 //     concurrency in some scenarios. Here it only overcomplicates things, so instead we treat full 4KB message
@@ -91,11 +56,10 @@ func Blake3AndCopy2048() {
 //   - due to that chunk independence blake3 uses flags to mark places where chunk starts and ends to protect against
 //     situation where shift in data might produce conflicting hash. Here we don't deal with data streams,
 //     but well-defined portions of data, so we don't need it.
-func blake3AndCopy(
-	messageSize uint16,
-	memBlocks, memCopy Mem,
-	offsetR reg.GPVirtual,
-) {
+func blake3(messageSize uint16) {
+	memBlocks := Mem{Base: Load(Param("blocks"), GP64())}
+
+	offsetR := GP64()
 	XORQ(offsetR, offsetR)
 
 	sInit := [16]uint32{
@@ -135,11 +99,6 @@ func blake3AndCopy(
 		MOVQ(memBlocks.Offset(i*uint64Size), m.Base)
 		ADDQ(offsetR, m.Base)
 		VMOVDQA64(m, rB[i])
-
-		// Copy block.
-		MOVQ(memCopy.Offset(i*uint64Size), m.Base)
-		ADDQ(offsetR, m.Base)
-		VMOVDQA64(rB[i], m)
 	}
 	ADDQ(U8(blockSize), offsetR)
 
@@ -246,6 +205,8 @@ func blake3AndCopy(
 		MOVQ(memHash2.Offset((2*i+1)*uint64Size), m.Base)
 		VMOVDQU64(rS1[i].AsY(), m) // second hash location is not aligned
 	}
+
+	RET()
 }
 
 func transpose8x16(m [numOfStates / 2]reg.VecVirtual) [numOfMessages / 2]reg.VecVirtual {
@@ -571,8 +532,8 @@ func g(a, b, c, d, mx, my reg.VecVirtual) {
 }
 
 func main() {
-	Blake3AndCopy4096()
-	Blake3AndCopy2048()
+	Blake34096()
+	Blake32048()
 
 	Generate()
 }

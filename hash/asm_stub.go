@@ -2,8 +2,8 @@
 
 package hash
 
-// Blake3AndCopy4096 implements blake3 for 16 4KB messages.
-func Blake3AndCopy4096(blocks **byte, copy **byte, hash1 **byte, hash2 **byte)
+// Blake34096 implements blake3 for 16 4KB messages.
+func Blake34096(blocks **byte, hash1 **byte, hash2 **byte)
 
-// Blake3AndCopy2048 implements blake3 for 16 2KB messages.
-func Blake3AndCopy2048(blocks **byte, copy **byte, hash1 **byte, hash2 **byte)
+// Blake32048 implements blake3 for 16 2KB messages.
+func Blake32048(blocks **byte, hash1 **byte, hash2 **byte)
