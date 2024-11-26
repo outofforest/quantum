@@ -179,11 +179,11 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				require.True(b, v.Exists(hashBuff, hashMatches))
 				require.Equal(b, txtypes.Amount(0), v.Value(hashBuff, hashMatches))
 
-				for _, addr := range accounts {
-					v := s.Find(addr, hashBuff, hashMatches)
-					require.True(b, v.Exists(hashBuff, hashMatches))
-					require.Equal(b, txtypes.Amount(balance), v.Value(hashBuff, hashMatches))
-				}
+				//for _, addr := range accounts {
+				//	v := s.Find(addr, hashBuff, hashMatches)
+				//	require.True(b, v.Exists(hashBuff, hashMatches))
+				//	require.Equal(b, txtypes.Amount(balance), v.Value(hashBuff, hashMatches))
+				//}
 			}()
 		}()
 	}

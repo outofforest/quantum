@@ -182,12 +182,11 @@ func (db *DB) Run(ctx context.Context) error {
 					prepareTxReaders = append(prepareTxReaders, pipeline.CloneReader(db.queueReader))
 				}
 				executeTxReader := pipeline.NewReader(prepareTxReaders...)
-				allocateReader := pipeline.NewReader(executeTxReader)
-				incrementRevisionReader := pipeline.NewReader(allocateReader)
+				deallocateReader := pipeline.NewReader(executeTxReader)
 				dataHashReaders := make([]*pipeline.Reader, 0, 4)
 				pointerHashReaders := make([]*pipeline.Reader, 0, cap(dataHashReaders))
 				for range cap(dataHashReaders) {
-					dataHashReader := pipeline.NewReader(incrementRevisionReader)
+					dataHashReader := pipeline.NewReader(deallocateReader)
 					dataHashReaders = append(dataHashReaders, dataHashReader)
 					pointerHashReaders = append(pointerHashReaders, pipeline.NewReader(dataHashReader))
 				}
@@ -237,11 +236,8 @@ func (db *DB) Run(ctx context.Context) error {
 				spawn("executeTx", parallel.Fail, func(ctx context.Context) error {
 					return db.executeTransactions(ctx, executeTxReader)
 				})
-				spawn("allocate", parallel.Fail, func(ctx context.Context) error {
-					return db.processAllocationRequests(ctx, allocateReader)
-				})
-				spawn("incrementRevision", parallel.Fail, func(ctx context.Context) error {
-					return db.incrementRevisions(ctx, incrementRevisionReader)
+				spawn("deallocate", parallel.Fail, func(ctx context.Context) error {
+					return db.processDeallocations(ctx, deallocateReader)
 				})
 				for i, reader := range dataHashReaders {
 					spawn(fmt.Sprintf("datahash-%02d", i), parallel.Fail, func(ctx context.Context) error {
@@ -619,7 +615,7 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 	}
 }
 
-func (db *DB) allocatePersistentAddress(
+func (db *DB) deallocatePersistentAddress(
 	tx *pipeline.TransactionRequest,
 	sr *pipeline.StoreRequest,
 	walRecorder *wal.Recorder,
@@ -634,99 +630,75 @@ func (db *DB) allocatePersistentAddress(
 	}
 
 	//nolint:nestif
-	if pointer.SnapshotID != db.singularityNode.LastSnapshotID {
-		if pointer.PersistentAddress != 0 {
-			listRoot, err := db.deallocateNode(
-				pointer,
-				sr.NoSnapshots,
-				allocator,
-				deallocator,
-			)
-			if err != nil {
-				return err
-			}
-
-			if listRoot != nil {
-				if _, exists := listNodesToStore[listRoot.VolatileAddress]; !exists {
-					listNodesToStore[listRoot.VolatileAddress] = struct{}{}
-
-					sr.ListStore[sr.ListsToStore] = listRoot
-					sr.ListsToStore++
-				}
-			}
-
-			pointer.PersistentAddress = 0
-		}
-		if walRecorder == nil {
-			pointer.SnapshotID = db.singularityNode.LastSnapshotID
-		} else if err := wal.Set1(walRecorder, tx,
-			&pointer.SnapshotID, &db.singularityNode.LastSnapshotID,
-		); err != nil {
-			return err
-		}
+	if pointer.SnapshotID == db.singularityNode.LastSnapshotID {
+		return nil
 	}
 
-	if pointer.PersistentAddress == 0 {
-		persistentAddress, err := allocator.Allocate()
+	if pointer.PersistentAddress != 0 {
+		listRoot, err := db.deallocateNode(
+			pointer,
+			sr.NoSnapshots,
+			allocator,
+			deallocator,
+		)
 		if err != nil {
 			return err
 		}
-		if walRecorder == nil {
-			pointer.PersistentAddress = persistentAddress
-		} else if err := wal.Set1(walRecorder, tx,
-			&pointer.PersistentAddress, &persistentAddress,
-		); err != nil {
-			return err
+
+		if listRoot != nil {
+			if _, exists := listNodesToStore[listRoot.VolatileAddress]; !exists {
+				listNodesToStore[listRoot.VolatileAddress] = struct{}{}
+
+				sr.ListStore[sr.ListsToStore] = listRoot
+				sr.ListsToStore++
+			}
 		}
+
+		pointer.PersistentAddress = 0
+	}
+	if walRecorder == nil {
+		pointer.SnapshotID = db.singularityNode.LastSnapshotID
+	} else if err := wal.Set1(walRecorder, tx,
+		&pointer.SnapshotID, &db.singularityNode.LastSnapshotID,
+	); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func (db *DB) processAllocationRequests(ctx context.Context, pipeReader *pipeline.Reader) error {
-	allocator := db.config.State.NewAllocator()
-	deallocator := db.config.State.NewDeallocator()
-	listNodesToStore := map[types.NodeAddress]struct{}{}
-
-	walRecorder := wal.NewRecorder(db.config.State, allocator)
-
-	for processedCount := uint64(0); ; processedCount++ {
-		req, err := pipeReader.Read(ctx)
-		if err != nil {
-			return err
-		}
-
-		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-			clear(listNodesToStore)
-
-			for i := range sr.PointersToStore {
-				if err := db.allocatePersistentAddress(req, sr, walRecorder, sr.Store[i].Pointer, allocator,
-					deallocator, listNodesToStore); err != nil {
-					return err
-				}
-			}
-			for i := range sr.ListsToStore {
-				if err := db.allocatePersistentAddress(req, nil, nil, sr.ListStore[i], allocator,
-					deallocator, nil); err != nil {
-					return err
-				}
-			}
-		}
-
-		// Sync is here in the pipeline because allocation is the last step required before we may proceed
-		// with the commit.
-		switch req.Type {
-		case pipeline.Sync:
-			req.SyncCh <- struct{}{}
-		case pipeline.Commit:
-			walRecorder.Commit(req)
-		}
-
-		pipeReader.Acknowledge(processedCount+1, req)
+func (db *DB) allocatePersistentAddress(
+	tx *pipeline.TransactionRequest,
+	walRecorder *wal.Recorder,
+	pointer *types.Pointer,
+	allocator *alloc.Allocator,
+) error {
+	// 0 address is reserved for the singularity node. We don't do any (de)allocations for this address.
+	if pointer.VolatileAddress == 0 {
+		return nil
 	}
+
+	persistentAddress, err := allocator.Allocate()
+	if err != nil {
+		return err
+	}
+	if walRecorder == nil {
+		pointer.PersistentAddress = persistentAddress
+	} else if err := wal.Set1(walRecorder, tx,
+		&pointer.PersistentAddress, &persistentAddress,
+	); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (db *DB) incrementRevisions(ctx context.Context, pipeReader *pipeline.Reader) error {
+func (db *DB) processDeallocations(ctx context.Context, pipeReader *pipeline.Reader) error {
+	allocator := db.config.State.NewAllocator()
+	deallocator := db.config.State.NewDeallocator()
+	walRecorder := wal.NewRecorder(db.config.State, allocator)
+	listNodesToStore := map[types.NodeAddress]struct{}{}
+
 	var revisionCounter uint32
 
 	for processedCount := uint64(0); ; processedCount++ {
@@ -736,18 +708,26 @@ func (db *DB) incrementRevisions(ctx context.Context, pipeReader *pipeline.Reade
 		}
 
 		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-			if sr.PointersToStore == 0 && sr.ListsToStore == 0 {
+			if sr.PointersToStore == 0 {
 				continue
 			}
+
+			clear(listNodesToStore)
 
 			revisionCounter++
 			sr.RequestedRevision = revisionCounter
 			for i := range sr.PointersToStore {
 				atomic.StoreUint32(&sr.Store[i].Pointer.Revision, revisionCounter)
+
+				if err := db.deallocatePersistentAddress(req, sr, walRecorder, sr.Store[i].Pointer, allocator,
+					deallocator, listNodesToStore); err != nil {
+					return err
+				}
 			}
-			for i := range sr.ListsToStore {
-				atomic.StoreUint32(&sr.ListStore[i].Revision, revisionCounter)
-			}
+		}
+
+		if req.Type == pipeline.Commit {
+			walRecorder.Commit(req)
 		}
 
 		pipeReader.Acknowledge(processedCount+1, req)
@@ -768,21 +748,23 @@ type reader struct {
 	nodeType   types.State
 	read       uint64
 
-	txRequest    *pipeline.TransactionRequest
-	storeRequest *pipeline.StoreRequest
-	commitMode   bool
+	txRequest            *pipeline.TransactionRequest
+	storeRequest         *pipeline.StoreRequest
+	syncMode, commitMode bool
 }
 
 func (r *reader) Read(ctx context.Context) (request, error) {
 	for {
-		for r.storeRequest == nil && !r.commitMode {
+		for r.storeRequest == nil && !r.syncMode && !r.commitMode {
 			var err error
 			r.txRequest, err = r.pipeReader.Read(ctx)
 			if err != nil {
 				return request{}, err
 			}
 
+			r.syncMode = r.txRequest.Type == pipeline.Sync
 			r.commitMode = r.txRequest.Type == pipeline.Commit
+
 			if r.txRequest.StoreRequest != nil && r.read%r.divider == r.mod {
 				r.storeRequest = r.txRequest.StoreRequest
 			}
@@ -792,7 +774,7 @@ func (r *reader) Read(ctx context.Context) (request, error) {
 			r.storeRequest = r.storeRequest.Next
 		}
 
-		if r.storeRequest == nil && !r.commitMode {
+		if r.storeRequest == nil && !r.syncMode && !r.commitMode {
 			continue
 		}
 
@@ -812,9 +794,12 @@ func (r *reader) Read(ctx context.Context) (request, error) {
 	}
 }
 
-func (r *reader) Acknowledge(count uint64, req *pipeline.TransactionRequest, commit bool) {
+func (r *reader) Acknowledge(count uint64, req *pipeline.TransactionRequest, commit bool, sync bool) {
 	if commit {
 		r.commitMode = false
+	}
+	if sync {
+		r.syncMode = false
 	}
 	r.pipeReader.Acknowledge(count, req)
 }
@@ -845,8 +830,6 @@ func (db *DB) updateHashes(
 	}
 	defer zeroCopyNodeDealloc()
 
-	copiedNodes := map[types.NodeAddress]struct{}{}
-
 	var (
 		zh         = (*byte)(zeroHash)
 		zn         = (*byte)(zeroNode)
@@ -861,7 +844,8 @@ func (db *DB) updateHashes(
 	var hashes1, hashes2 [16]*byte
 	hashesP1, hashesP2 := &hashes1[0], &hashes2[0]
 
-	walRecorder := wal.NewRecorder(db.config.State, db.config.State.NewAllocator())
+	allocator := db.config.State.NewAllocator()
+	walRecorder := wal.NewRecorder(db.config.State, allocator)
 
 	r := &reader{
 		pipeReader: pipeReader,
@@ -872,11 +856,12 @@ func (db *DB) updateHashes(
 
 	var slots [16]request
 
+	var syncReq, commitReq request
+
 	for {
 		matrix, copyMatrix = zeroMatrix, zeroCopy
 		hashes1, hashes2 = zeroHashes, zeroHashes
 
-		var commitReq request
 		minReq := request{
 			Count: math.MaxUint64,
 		}
@@ -888,7 +873,7 @@ func (db *DB) updateHashes(
 		for ri := range slots {
 			req := slots[ri]
 
-			var volatileAddress, persistentAddress types.NodeAddress
+			var pointer *types.Pointer
 			var hash *types.Hash
 			for {
 				if req.PointerIndex == 0 {
@@ -897,8 +882,12 @@ func (db *DB) updateHashes(
 					if err != nil {
 						return err
 					}
-					if req.TxRequest.Type == pipeline.Commit {
+
+					switch req.TxRequest.Type {
+					case pipeline.Commit:
 						commitReq = req
+					case pipeline.Sync:
+						syncReq = req
 					}
 					if req.StoreRequest == nil {
 						nilSlots++
@@ -910,8 +899,6 @@ func (db *DB) updateHashes(
 				req.PointerIndex--
 				root := req.StoreRequest.Store[req.PointerIndex]
 
-				volatileAddress = root.Pointer.VolatileAddress
-
 				if atomic.LoadUint32(&root.Pointer.Revision) != req.StoreRequest.RequestedRevision {
 					// Pointers are processed from the data node up t the root node. If at any level
 					// revision test fails, it doesn't make sense to process parent nodes because revision
@@ -920,7 +907,9 @@ func (db *DB) updateHashes(
 					continue
 				}
 
-				if root.Pointer.State != nodeType {
+				pointer = root.Pointer
+
+				if pointer.State != nodeType {
 					if nodeType == types.StateData {
 						req.PointerIndex = 0
 					}
@@ -930,21 +919,22 @@ func (db *DB) updateHashes(
 				if req.Count < minReq.Count {
 					minReq = req
 				}
-
-				persistentAddress = root.Pointer.PersistentAddress
 				hash = root.Hash
 
 				break
 			}
 
 			slots[ri] = req
-			if _, exists := copiedNodes[volatileAddress]; !exists {
-				copiedNodes[volatileAddress] = struct{}{}
+			if pointer.PersistentAddress == 0 {
+				if err := db.allocatePersistentAddress(req.TxRequest, walRecorder, pointer, allocator); err != nil {
+					return err
+				}
+
 				copyMask |= 1 << ri
+				copyMatrix[ri] = (*byte)(db.config.State.Node(pointer.PersistentAddress))
 			}
 
-			matrix[ri] = (*byte)(db.config.State.Node(volatileAddress))
-			copyMatrix[ri] = (*byte)(db.config.State.Node(persistentAddress))
+			matrix[ri] = (*byte)(db.config.State.Node(pointer.VolatileAddress))
 			hashes1[ri] = &hash[0]
 			walHash, err := wal.Reserve(walRecorder, minReq.TxRequest, hash)
 			hashes2[ri] = &walHash[0]
@@ -954,17 +944,22 @@ func (db *DB) updateHashes(
 		}
 
 		if nilSlots == len(slots) {
-			clear(copiedNodes)
-			// FIXME (wojciech): Data race, all hashing goroutines try to add their WAL nodes to the tx at the same time.
-			walRecorder.Commit(commitReq.TxRequest)
-			r.Acknowledge(commitReq.Count, commitReq.TxRequest, true)
+			if commitReq.TxRequest != nil {
+				// FIXME (wojciech): Data race, all hashing goroutines try to add their WAL nodes to the tx at the same time.
+				walRecorder.Commit(commitReq.TxRequest)
+				r.Acknowledge(commitReq.Count, commitReq.TxRequest, true, false)
+				syncReq = request{}
+				commitReq = request{}
+			} else if syncReq.TxRequest != nil {
+				r.Acknowledge(syncReq.Count, syncReq.TxRequest, false, true)
+			}
 		} else {
 			if nodeType == types.StateData {
 				hash.Blake3AndCopy4096(matrixP, copyMatrixP, hashesP1, hashesP2, copyMask)
 			} else {
 				hash.Blake3AndCopy2048(matrixP, copyMatrixP, hashesP1, hashesP2, copyMask)
 			}
-			r.Acknowledge(minReq.Count-1, minReq.TxRequest, false)
+			r.Acknowledge(minReq.Count-1, minReq.TxRequest, false, false)
 		}
 	}
 }
@@ -976,7 +971,10 @@ func (db *DB) syncOnCommit(ctx context.Context, pipeReader *pipeline.Reader) err
 			return err
 		}
 
-		if req.Type == pipeline.Commit {
+		switch req.Type {
+		case pipeline.Sync:
+			req.SyncCh <- struct{}{}
+		case pipeline.Commit:
 			for _, store := range db.config.Stores {
 				err := store.Sync()
 				req.CommitCh <- err
