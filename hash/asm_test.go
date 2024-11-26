@@ -6,7 +6,6 @@
 package hash
 
 import (
-	"crypto/rand"
 	"testing"
 	"unsafe"
 
@@ -66,19 +65,8 @@ func TestBlake3OneMessage(t *testing.T) {
 			hashPointers2[i] = &hashes2[i][0]
 		}
 
-		var randomNode [types.NodeLength]byte
-		_, _ = rand.Read(randomNode[:])
-		var matrixCopy [16]*byte
-		for j := range matrixCopy {
-			rn := randomNode
-			matrixCopy[j] = &rn[0]
-		}
+		Blake34096(&matrix[0], &hashPointers1[0], &hashPointers2[0])
 
-		Blake3AndCopy4096(&matrix[0], (**byte)(unsafe.Pointer(&matrixCopy)), &hashPointers1[0], &hashPointers2[0])
-
-		for j, n := range matrix {
-			assert.Equal(t, unsafe.Slice(n, types.NodeLength), unsafe.Slice(matrixCopy[j], types.NodeLength))
-		}
 		for j, h := range hashes1 {
 			if j == i {
 				assert.Equal(t, oneValueHash, h, "false zero i: %d, j: %d", i, j)
@@ -117,19 +105,8 @@ func TestBlake3Zeros(t *testing.T) {
 		hashPointers2[i] = &hashes2[i][0]
 	}
 
-	var randomNode [types.NodeLength]byte
-	_, _ = rand.Read(randomNode[:])
-	var matrixCopy [16]*byte
-	for j := range matrixCopy {
-		rn := randomNode
-		matrixCopy[j] = &rn[0]
-	}
+	Blake34096(&matrix[0], &hashPointers1[0], &hashPointers2[0])
 
-	Blake3AndCopy4096(&matrix[0], (**byte)(unsafe.Pointer(&matrixCopy)), &hashPointers1[0], &hashPointers2[0])
-
-	for j, n := range matrix {
-		assert.Equal(t, unsafe.Slice(n, types.NodeLength), unsafe.Slice(matrixCopy[j], types.NodeLength))
-	}
 	for _, h := range hashes1 {
 		assert.Equal(t, zeroValueHash, h)
 	}

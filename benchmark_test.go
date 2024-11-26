@@ -32,7 +32,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 5_000_000
+		numOfAddresses = 100_000_000
 		txsPerCommit   = 20_000
 		balance        = 100_000
 	)
@@ -59,7 +59,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 		func() {
 			_, _ = rand.Read(accountBytes)
 
-			var size uint64 = 20 * 1024 * 1024 * 1024
+			var size uint64 = 99 * 1024 * 1024 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size,
 				100,

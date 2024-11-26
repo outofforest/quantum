@@ -839,23 +839,16 @@ func (db *DB) updateHashes(
 		return err
 	}
 	defer zeroNodeDealloc()
-	zeroCopyNode, zeroCopyNodeDealloc, err := alloc.Allocate(types.NodeLength, 64, false)
-	if err != nil {
-		return err
-	}
-	defer zeroCopyNodeDealloc()
 
 	var (
 		zh         = (*byte)(zeroHash)
 		zn         = (*byte)(zeroNode)
-		zc         = (*byte)(zeroCopyNode)
 		zeroMatrix = [16]*byte{zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn}
-		zeroCopy   = [16]*byte{zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc}
 		zeroHashes = [16]*byte{zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh}
 	)
 
-	var matrix, copyMatrix [16]*byte
-	matrixP, copyMatrixP := &matrix[0], &copyMatrix[0]
+	var matrix [16]*byte
+	matrixP := &matrix[0]
 	var hashes1, hashes2 [16]*byte
 	hashesP1, hashesP2 := &hashes1[0], &hashes2[0]
 
@@ -871,7 +864,7 @@ func (db *DB) updateHashes(
 	var slots [16]request
 
 	for {
-		matrix, copyMatrix = zeroMatrix, zeroCopy
+		matrix = zeroMatrix
 		hashes1, hashes2 = zeroHashes, zeroHashes
 
 		var commitReq request
@@ -885,7 +878,7 @@ func (db *DB) updateHashes(
 		for ri := range slots {
 			req := slots[ri]
 
-			var volatileAddress, persistentAddress types.NodeAddress
+			var volatileAddress types.NodeAddress
 			var hash *types.Hash
 			for {
 				if req.PointerIndex == 0 {
@@ -928,7 +921,6 @@ func (db *DB) updateHashes(
 					minReq = req
 				}
 
-				persistentAddress = root.Pointer.PersistentAddress
 				hash = root.Hash
 
 				break
@@ -937,7 +929,6 @@ func (db *DB) updateHashes(
 			slots[ri] = req
 
 			matrix[ri] = (*byte)(db.config.State.Node(volatileAddress))
-			copyMatrix[ri] = (*byte)(db.config.State.Node(persistentAddress))
 			hashes1[ri] = &hash[0]
 			walHash, err := wal.Reserve(walRecorder, minReq.TxRequest, hash)
 			hashes2[ri] = &walHash[0]
@@ -952,9 +943,9 @@ func (db *DB) updateHashes(
 			r.Acknowledge(commitReq.Count, commitReq.TxRequest, true)
 		} else {
 			if nodeType == types.StateData {
-				hash.Blake3AndCopy4096(matrixP, copyMatrixP, hashesP1, hashesP2)
+				hash.Blake34096(matrixP, hashesP1, hashesP2)
 			} else {
-				hash.Blake3AndCopy2048(matrixP, copyMatrixP, hashesP1, hashesP2)
+				hash.Blake32048(matrixP, hashesP1, hashesP2)
 			}
 			r.Acknowledge(minReq.Count-1, minReq.TxRequest, false)
 		}
