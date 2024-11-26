@@ -183,7 +183,7 @@ func (db *DB) Run(ctx context.Context) error {
 				}
 				executeTxReader := pipeline.NewReader(prepareTxReaders...)
 				deallocateReader := pipeline.NewReader(executeTxReader)
-				dataHashReaders := make([]*pipeline.Reader, 0, 4)
+				dataHashReaders := make([]*pipeline.Reader, 0, 3)
 				pointerHashReaders := make([]*pipeline.Reader, 0, cap(dataHashReaders))
 				for range cap(dataHashReaders) {
 					dataHashReader := pipeline.NewReader(deallocateReader)
