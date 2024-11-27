@@ -6,6 +6,7 @@ import (
 	"math"
 	"sort"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -183,7 +184,7 @@ func (db *DB) Run(ctx context.Context) error {
 				}
 				executeTxReader := pipeline.NewReader(prepareTxReaders...)
 				deallocateReader := pipeline.NewReader(executeTxReader)
-				dataHashReaders := make([]*pipeline.Reader, 0, 3)
+				dataHashReaders := make([]*pipeline.Reader, 0, 2)
 				pointerHashReaders := make([]*pipeline.Reader, 0, cap(dataHashReaders))
 				for range cap(dataHashReaders) {
 					dataHashReader := pipeline.NewReader(deallocateReader)
@@ -813,36 +814,6 @@ func (db *DB) updateHashes(
 	mod uint64,
 	nodeType types.State,
 ) error {
-	zeroHash, zeroHashDealloc, err := alloc.Allocate(types.HashLength, 64, false)
-	if err != nil {
-		return err
-	}
-	defer zeroHashDealloc()
-	zeroNode, zeroNodeDealloc, err := alloc.Allocate(types.NodeLength, 64, false)
-	if err != nil {
-		return err
-	}
-	defer zeroNodeDealloc()
-	zeroCopyNode, zeroCopyNodeDealloc, err := alloc.Allocate(types.NodeLength, 64, false)
-	if err != nil {
-		return err
-	}
-	defer zeroCopyNodeDealloc()
-
-	var (
-		zh         = (*byte)(zeroHash)
-		zn         = (*byte)(zeroNode)
-		zc         = (*byte)(zeroCopyNode)
-		zeroMatrix = [16]*byte{zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn, zn}
-		zeroCopy   = [16]*byte{zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc, zc}
-		zeroHashes = [16]*byte{zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh, zh}
-	)
-
-	var matrix, copyMatrix [16]*byte
-	matrixP, copyMatrixP := &matrix[0], &copyMatrix[0]
-	var hashes1, hashes2 [16]*byte
-	hashesP1, hashesP2 := &hashes1[0], &hashes2[0]
-
 	allocator := db.config.State.NewAllocator()
 	walRecorder := wal.NewRecorder(db.config.State, allocator)
 
@@ -857,16 +828,21 @@ func (db *DB) updateHashes(
 
 	var syncReq, commitReq request
 
+	var matrix, copyMatrix [16]*byte
+	matrixP := (**byte)(unsafe.Pointer(&matrix))
+	copyMatrixP := (**byte)(unsafe.Pointer(&copyMatrix))
+
+	var hashes1, hashes2 [16]*byte
+	hashesP1, hashesP2 := &hashes1[0], &hashes2[0]
+
 	for {
-		matrix, copyMatrix = zeroMatrix, zeroCopy
-		hashes1, hashes2 = zeroHashes, zeroHashes
+		var mask uint32
 
 		minReq := request{
 			Count: math.MaxUint64,
 		}
 
 		var nilSlots int
-		var copyMask uint16
 
 	riLoop:
 		for ri := range slots {
@@ -896,17 +872,15 @@ func (db *DB) updateHashes(
 				}
 
 				req.PointerIndex--
-				root := req.StoreRequest.Store[req.PointerIndex]
+				pointer = req.StoreRequest.Store[req.PointerIndex].Pointer
 
-				if atomic.LoadUint32(&root.Pointer.Revision) != req.StoreRequest.RequestedRevision {
+				if atomic.LoadUint32(&pointer.Revision) != req.StoreRequest.RequestedRevision {
 					// Pointers are processed from the data node up t the root node. If at any level
 					// revision test fails, it doesn't make sense to process parent nodes because revision
 					// test will fail there for sure.
 					req.PointerIndex = 0
 					continue
 				}
-
-				pointer = root.Pointer
 
 				if pointer.State != nodeType {
 					if nodeType == types.StateData {
@@ -918,7 +892,7 @@ func (db *DB) updateHashes(
 				if req.Count < minReq.Count {
 					minReq = req
 				}
-				hash = root.Hash
+				hash = req.StoreRequest.Store[req.PointerIndex].Hash
 
 				break
 			}
@@ -929,10 +903,11 @@ func (db *DB) updateHashes(
 					return err
 				}
 
-				copyMask |= 1 << ri
 				copyMatrix[ri] = (*byte)(db.config.State.Node(pointer.PersistentAddress))
+				mask |= 1 << ri
 			}
 
+			mask |= 1 << (16 + ri)
 			matrix[ri] = (*byte)(db.config.State.Node(pointer.VolatileAddress))
 			hashes1[ri] = &hash[0]
 			walHash, err := wal.Reserve(walRecorder, minReq.TxRequest, hash)
@@ -955,9 +930,9 @@ func (db *DB) updateHashes(
 			}
 		} else {
 			if nodeType == types.StateData {
-				hash.Blake3AndCopy4096(matrixP, copyMatrixP, hashesP1, hashesP2, copyMask)
+				hash.Blake3AndCopy4096(matrixP, copyMatrixP, hashesP1, hashesP2, mask)
 			} else {
-				hash.Blake3AndCopy2048(matrixP, copyMatrixP, hashesP1, hashesP2, copyMask)
+				hash.Blake3AndCopy2048(matrixP, copyMatrixP, hashesP1, hashesP2, mask)
 			}
 			r.Acknowledge(minReq.Count-1, minReq.TxRequest, false, false)
 		}

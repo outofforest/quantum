@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"math"
 	"testing"
 	"unsafe"
 
@@ -109,7 +110,7 @@ func BenchmarkChecksum4KAVX(b *testing.B) {
 
 	b.StartTimer()
 	for range b.N {
-		Blake3AndCopy4096(&chP[0], (**byte)(unsafe.Pointer(&matrixCopy)), &z1[0], &z2[0], 0xffff)
+		Blake3AndCopy4096(&chP[0], (**byte)(unsafe.Pointer(&matrixCopy)), &z1[0], &z2[0], math.MaxUint32)
 	}
 	b.StopTimer()
 

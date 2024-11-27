@@ -2,12 +2,12 @@
 
 #include "textflag.h"
 
-// func Blake3AndCopy4096(blocks **byte, copy **byte, hash1 **byte, hash2 **byte, copyMask uint16)
+// func Blake3AndCopy4096(blocks **byte, copy **byte, hash1 **byte, hash2 **byte, mask uint32)
 // Requires: AVX512F, AVX512VL
-TEXT ·Blake3AndCopy4096(SB), NOSPLIT, $0-34
+TEXT ·Blake3AndCopy4096(SB), NOSPLIT, $0-36
 	MOVQ         blocks+0(FP), AX
 	MOVQ         copy+8(FP), CX
-	MOVW         copyMask+32(FP), DX
+	MOVL         mask+32(FP), DX
 	XORQ         BX, BX
 	MOVD         $0x6a09e667, SI
 	VPBROADCASTD SI, Z0
@@ -35,164 +35,196 @@ TEXT ·Blake3AndCopy4096(SB), NOSPLIT, $0-34
 	MOVD         $0x00000000, R13
 
 loopStart:
-	MOVQ      (AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z8
-	TESTW     $0x0001, DX
-	JZ        copyEnd0
-	MOVQ      (CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z8, (R14)
+	VPBROADCASTD DX, Z8
+	TESTL        $0x00010000, DX
+	JZ           copyEnd0
+	MOVQ         (AX), R14
+	VMOVDQA64    (R14), Z8
+	TESTL        $0x00000001, DX
+	JZ           copyEnd0
+	MOVQ         (CX), R14
+	ADDQ         BX, R14
+	VMOVDQA64    Z8, (R14)
 
 copyEnd0:
-	MOVQ      8(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z9
-	TESTW     $0x0002, DX
-	JZ        copyEnd1
-	MOVQ      8(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z9, (R14)
+	VPBROADCASTD DX, Z9
+	TESTL        $0x00020000, DX
+	JZ           copyEnd1
+	MOVQ         8(AX), R14
+	VMOVDQA64    (R14), Z9
+	TESTL        $0x00000002, DX
+	JZ           copyEnd1
+	MOVQ         8(CX), R14
+	ADDQ         BX, R14
+	VMOVDQA64    Z9, (R14)
 
 copyEnd1:
-	MOVQ      16(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z10
-	TESTW     $0x0004, DX
-	JZ        copyEnd2
-	MOVQ      16(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z10, (R14)
+	VPBROADCASTD DX, Z10
+	TESTL        $0x00040000, DX
+	JZ           copyEnd2
+	MOVQ         16(AX), R14
+	VMOVDQA64    (R14), Z10
+	TESTL        $0x00000004, DX
+	JZ           copyEnd2
+	MOVQ         16(CX), R14
+	ADDQ         BX, R14
+	VMOVDQA64    Z10, (R14)
 
 copyEnd2:
-	MOVQ      24(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z11
-	TESTW     $0x0008, DX
-	JZ        copyEnd3
-	MOVQ      24(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z11, (R14)
+	VPBROADCASTD DX, Z11
+	TESTL        $0x00080000, DX
+	JZ           copyEnd3
+	MOVQ         24(AX), R14
+	VMOVDQA64    (R14), Z11
+	TESTL        $0x00000008, DX
+	JZ           copyEnd3
+	MOVQ         24(CX), R14
+	ADDQ         BX, R14
+	VMOVDQA64    Z11, (R14)
 
 copyEnd3:
-	MOVQ      32(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z12
-	TESTW     $0x0010, DX
-	JZ        copyEnd4
-	MOVQ      32(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z12, (R14)
+	VPBROADCASTD DX, Z12
+	TESTL        $0x00100000, DX
+	JZ           copyEnd4
+	MOVQ         32(AX), R14
+	VMOVDQA64    (R14), Z12
+	TESTL        $0x00000010, DX
+	JZ           copyEnd4
+	MOVQ         32(CX), R14
+	ADDQ         BX, R14
+	VMOVDQA64    Z12, (R14)
 
 copyEnd4:
-	MOVQ      40(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z13
-	TESTW     $0x0020, DX
-	JZ        copyEnd5
-	MOVQ      40(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z13, (R14)
+	VPBROADCASTD DX, Z13
+	TESTL        $0x00200000, DX
+	JZ           copyEnd5
+	MOVQ         40(AX), R14
+	VMOVDQA64    (R14), Z13
+	TESTL        $0x00000020, DX
+	JZ           copyEnd5
+	MOVQ         40(CX), R14
+	ADDQ         BX, R14
+	VMOVDQA64    Z13, (R14)
 
 copyEnd5:
-	MOVQ      48(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z14
-	TESTW     $0x0040, DX
-	JZ        copyEnd6
-	MOVQ      48(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z14, (R14)
+	VPBROADCASTD DX, Z14
+	TESTL        $0x00400000, DX
+	JZ           copyEnd6
+	MOVQ         48(AX), R14
+	VMOVDQA64    (R14), Z14
+	TESTL        $0x00000040, DX
+	JZ           copyEnd6
+	MOVQ         48(CX), R14
+	ADDQ         BX, R14
+	VMOVDQA64    Z14, (R14)
 
 copyEnd6:
-	MOVQ      56(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z15
-	TESTW     $0x0080, DX
-	JZ        copyEnd7
-	MOVQ      56(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z15, (R14)
+	VPBROADCASTD DX, Z15
+	TESTL        $0x00800000, DX
+	JZ           copyEnd7
+	MOVQ         56(AX), R14
+	VMOVDQA64    (R14), Z15
+	TESTL        $0x00000080, DX
+	JZ           copyEnd7
+	MOVQ         56(CX), R14
+	ADDQ         BX, R14
+	VMOVDQA64    Z15, (R14)
 
 copyEnd7:
-	MOVQ      64(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z16
-	TESTW     $0x0100, DX
-	JZ        copyEnd8
-	MOVQ      64(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z16, (R14)
+	VPBROADCASTD DX, Z16
+	TESTL        $0x01000000, DX
+	JZ           copyEnd8
+	MOVQ         64(AX), R14
+	VMOVDQA64    (R14), Z16
+	TESTL        $0x00000100, DX
+	JZ           copyEnd8
+	MOVQ         64(CX), R14
+	ADDQ         BX, R14
+	VMOVDQA64    Z16, (R14)
 
 copyEnd8:
-	MOVQ      72(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z17
-	TESTW     $0x0200, DX
-	JZ        copyEnd9
-	MOVQ      72(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z17, (R14)
+	VPBROADCASTD DX, Z17
+	TESTL        $0x02000000, DX
+	JZ           copyEnd9
+	MOVQ         72(AX), R14
+	VMOVDQA64    (R14), Z17
+	TESTL        $0x00000200, DX
+	JZ           copyEnd9
+	MOVQ         72(CX), R14
+	ADDQ         BX, R14
+	VMOVDQA64    Z17, (R14)
 
 copyEnd9:
-	MOVQ      80(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z18
-	TESTW     $0x0400, DX
-	JZ        copyEnd10
-	MOVQ      80(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z18, (R14)
+	VPBROADCASTD DX, Z18
+	TESTL        $0x04000000, DX
+	JZ           copyEnd10
+	MOVQ         80(AX), R14
+	VMOVDQA64    (R14), Z18
+	TESTL        $0x00000400, DX
+	JZ           copyEnd10
+	MOVQ         80(CX), R14
+	ADDQ         BX, R14
+	VMOVDQA64    Z18, (R14)
 
 copyEnd10:
-	MOVQ      88(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z19
-	TESTW     $0x0800, DX
-	JZ        copyEnd11
-	MOVQ      88(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z19, (R14)
+	VPBROADCASTD DX, Z19
+	TESTL        $0x08000000, DX
+	JZ           copyEnd11
+	MOVQ         88(AX), R14
+	VMOVDQA64    (R14), Z19
+	TESTL        $0x00000800, DX
+	JZ           copyEnd11
+	MOVQ         88(CX), R14
+	ADDQ         BX, R14
+	VMOVDQA64    Z19, (R14)
 
 copyEnd11:
-	MOVQ      96(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z20
-	TESTW     $0x1000, DX
-	JZ        copyEnd12
-	MOVQ      96(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z20, (R14)
+	VPBROADCASTD DX, Z20
+	TESTL        $0x10000000, DX
+	JZ           copyEnd12
+	MOVQ         96(AX), R14
+	VMOVDQA64    (R14), Z20
+	TESTL        $0x00001000, DX
+	JZ           copyEnd12
+	MOVQ         96(CX), R14
+	ADDQ         BX, R14
+	VMOVDQA64    Z20, (R14)
 
 copyEnd12:
-	MOVQ      104(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z21
-	TESTW     $0x2000, DX
-	JZ        copyEnd13
-	MOVQ      104(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z21, (R14)
+	VPBROADCASTD DX, Z21
+	TESTL        $0x20000000, DX
+	JZ           copyEnd13
+	MOVQ         104(AX), R14
+	VMOVDQA64    (R14), Z21
+	TESTL        $0x00002000, DX
+	JZ           copyEnd13
+	MOVQ         104(CX), R14
+	ADDQ         BX, R14
+	VMOVDQA64    Z21, (R14)
 
 copyEnd13:
-	MOVQ      112(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z22
-	TESTW     $0x4000, DX
-	JZ        copyEnd14
-	MOVQ      112(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z22, (R14)
+	VPBROADCASTD DX, Z22
+	TESTL        $0x40000000, DX
+	JZ           copyEnd14
+	MOVQ         112(AX), R14
+	VMOVDQA64    (R14), Z22
+	TESTL        $0x00004000, DX
+	JZ           copyEnd14
+	MOVQ         112(CX), R14
+	ADDQ         BX, R14
+	VMOVDQA64    Z22, (R14)
 
 copyEnd14:
-	MOVQ      120(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z23
-	TESTW     $0x8000, DX
-	JZ        copyEnd15
-	MOVQ      120(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z23, (R14)
+	VPBROADCASTD DX, Z23
+	TESTL        $0x80000000, DX
+	JZ           copyEnd15
+	MOVQ         120(AX), R14
+	VMOVDQA64    (R14), Z23
+	TESTL        $0x00008000, DX
+	JZ           copyEnd15
+	MOVQ         120(CX), R14
+	ADDQ         BX, R14
+	VMOVDQA64    Z23, (R14)
 
 copyEnd15:
 	ADDQ         $0x40, BX
@@ -1096,87 +1128,151 @@ copyEnd15:
 	VSHUFI32X4   $0xdd, Z0, Z1, Z1
 	MOVQ         hash1+16(FP), AX
 	MOVQ         hash2+24(FP), CX
-	MOVQ         (AX), DX
-	VMOVDQA64    Y4, (DX)
-	MOVQ         (CX), DX
-	VMOVDQU64    Y4, (DX)
-	VSHUFI32X4   $0xee, Z4, Z4, Z4
-	MOVQ         8(AX), DX
-	VMOVDQA64    Y4, (DX)
-	MOVQ         8(CX), DX
-	VMOVDQU64    Y4, (DX)
-	MOVQ         16(AX), DX
-	VMOVDQA64    Y2, (DX)
-	MOVQ         16(CX), DX
-	VMOVDQU64    Y2, (DX)
-	VSHUFI32X4   $0xee, Z2, Z2, Z2
-	MOVQ         24(AX), DX
-	VMOVDQA64    Y2, (DX)
-	MOVQ         24(CX), DX
-	VMOVDQU64    Y2, (DX)
-	MOVQ         32(AX), DX
-	VMOVDQA64    Y6, (DX)
-	MOVQ         32(CX), DX
-	VMOVDQU64    Y6, (DX)
-	VSHUFI32X4   $0xee, Z6, Z6, Z6
-	MOVQ         40(AX), DX
-	VMOVDQA64    Y6, (DX)
-	MOVQ         40(CX), DX
-	VMOVDQU64    Y6, (DX)
-	MOVQ         48(AX), DX
-	VMOVDQA64    Y3, (DX)
-	MOVQ         48(CX), DX
-	VMOVDQU64    Y3, (DX)
-	VSHUFI32X4   $0xee, Z3, Z3, Z3
-	MOVQ         56(AX), DX
-	VMOVDQA64    Y3, (DX)
-	MOVQ         56(CX), DX
-	VMOVDQU64    Y3, (DX)
-	MOVQ         64(AX), DX
-	VMOVDQA64    Y5, (DX)
-	MOVQ         64(CX), DX
-	VMOVDQU64    Y5, (DX)
-	VSHUFI32X4   $0xee, Z5, Z5, Z5
-	MOVQ         72(AX), DX
-	VMOVDQA64    Y5, (DX)
-	MOVQ         72(CX), DX
-	VMOVDQU64    Y5, (DX)
-	MOVQ         80(AX), DX
-	VMOVDQA64    Y8, (DX)
-	MOVQ         80(CX), DX
-	VMOVDQU64    Y8, (DX)
-	VSHUFI32X4   $0xee, Z8, Z8, Z8
-	MOVQ         88(AX), DX
-	VMOVDQA64    Y8, (DX)
-	MOVQ         88(CX), DX
-	VMOVDQU64    Y8, (DX)
-	MOVQ         96(AX), DX
-	VMOVDQA64    Y7, (DX)
-	MOVQ         96(CX), DX
-	VMOVDQU64    Y7, (DX)
-	VSHUFI32X4   $0xee, Z7, Z7, Z7
-	MOVQ         104(AX), DX
-	VMOVDQA64    Y7, (DX)
-	MOVQ         104(CX), DX
-	VMOVDQU64    Y7, (DX)
-	MOVQ         112(AX), DX
-	VMOVDQA64    Y1, (DX)
-	MOVQ         112(CX), DX
-	VMOVDQU64    Y1, (DX)
-	VSHUFI32X4   $0xee, Z1, Z1, Z1
-	MOVQ         120(AX), DX
-	VMOVDQA64    Y1, (DX)
-	MOVQ         120(CX), DX
-	VMOVDQU64    Y1, (DX)
+	TESTL        $0x00010000, DX
+	JZ           noHash0
+	MOVQ         (AX), BX
+	VMOVDQA64    Y4, (BX)
+	MOVQ         (CX), BX
+	VMOVDQU64    Y4, (BX)
+
+noHash0:
+	TESTL      $0x00020000, DX
+	JZ         noHash1
+	VSHUFI32X4 $0xee, Z4, Z4, Z4
+	MOVQ       8(AX), BX
+	VMOVDQA64  Y4, (BX)
+	MOVQ       8(CX), BX
+	VMOVDQU64  Y4, (BX)
+
+noHash1:
+	TESTL     $0x00040000, DX
+	JZ        noHash2
+	MOVQ      16(AX), BX
+	VMOVDQA64 Y2, (BX)
+	MOVQ      16(CX), BX
+	VMOVDQU64 Y2, (BX)
+
+noHash2:
+	TESTL      $0x00080000, DX
+	JZ         noHash3
+	VSHUFI32X4 $0xee, Z2, Z2, Z2
+	MOVQ       24(AX), BX
+	VMOVDQA64  Y2, (BX)
+	MOVQ       24(CX), BX
+	VMOVDQU64  Y2, (BX)
+
+noHash3:
+	TESTL     $0x00100000, DX
+	JZ        noHash4
+	MOVQ      32(AX), BX
+	VMOVDQA64 Y6, (BX)
+	MOVQ      32(CX), BX
+	VMOVDQU64 Y6, (BX)
+
+noHash4:
+	TESTL      $0x00200000, DX
+	JZ         noHash5
+	VSHUFI32X4 $0xee, Z6, Z6, Z6
+	MOVQ       40(AX), BX
+	VMOVDQA64  Y6, (BX)
+	MOVQ       40(CX), BX
+	VMOVDQU64  Y6, (BX)
+
+noHash5:
+	TESTL     $0x00400000, DX
+	JZ        noHash6
+	MOVQ      48(AX), BX
+	VMOVDQA64 Y3, (BX)
+	MOVQ      48(CX), BX
+	VMOVDQU64 Y3, (BX)
+
+noHash6:
+	TESTL      $0x00800000, DX
+	JZ         noHash7
+	VSHUFI32X4 $0xee, Z3, Z3, Z3
+	MOVQ       56(AX), BX
+	VMOVDQA64  Y3, (BX)
+	MOVQ       56(CX), BX
+	VMOVDQU64  Y3, (BX)
+
+noHash7:
+	TESTL     $0x01000000, DX
+	JZ        noHash8
+	MOVQ      64(AX), BX
+	VMOVDQA64 Y5, (BX)
+	MOVQ      64(CX), BX
+	VMOVDQU64 Y5, (BX)
+
+noHash8:
+	TESTL      $0x02000000, DX
+	JZ         noHash9
+	VSHUFI32X4 $0xee, Z5, Z5, Z5
+	MOVQ       72(AX), BX
+	VMOVDQA64  Y5, (BX)
+	MOVQ       72(CX), BX
+	VMOVDQU64  Y5, (BX)
+
+noHash9:
+	TESTL     $0x04000000, DX
+	JZ        noHash10
+	MOVQ      80(AX), BX
+	VMOVDQA64 Y8, (BX)
+	MOVQ      80(CX), BX
+	VMOVDQU64 Y8, (BX)
+
+noHash10:
+	TESTL      $0x08000000, DX
+	JZ         noHash11
+	VSHUFI32X4 $0xee, Z8, Z8, Z8
+	MOVQ       88(AX), BX
+	VMOVDQA64  Y8, (BX)
+	MOVQ       88(CX), BX
+	VMOVDQU64  Y8, (BX)
+
+noHash11:
+	TESTL     $0x10000000, DX
+	JZ        noHash12
+	MOVQ      96(AX), BX
+	VMOVDQA64 Y7, (BX)
+	MOVQ      96(CX), BX
+	VMOVDQU64 Y7, (BX)
+
+noHash12:
+	TESTL      $0x20000000, DX
+	JZ         noHash13
+	VSHUFI32X4 $0xee, Z7, Z7, Z7
+	MOVQ       104(AX), BX
+	VMOVDQA64  Y7, (BX)
+	MOVQ       104(CX), BX
+	VMOVDQU64  Y7, (BX)
+
+noHash13:
+	TESTL     $0x40000000, DX
+	JZ        noHash14
+	MOVQ      112(AX), BX
+	VMOVDQA64 Y1, (BX)
+	MOVQ      112(CX), BX
+	VMOVDQU64 Y1, (BX)
+
+noHash14:
+	TESTL      $0x80000000, DX
+	JZ         noHash15
+	VSHUFI32X4 $0xee, Z1, Z1, Z1
+	MOVQ       120(AX), BX
+	VMOVDQA64  Y1, (BX)
+	MOVQ       120(CX), BX
+	VMOVDQU64  Y1, (BX)
+
+noHash15:
 	RET
 
-// func Blake3AndCopy2048(blocks **byte, copy **byte, hash1 **byte, hash2 **byte, copyMask uint16)
+// func Blake3AndCopy2048(blocks **byte, copy **byte, hash1 **byte, hash2 **byte, mask uint32)
 // Requires: AVX512F, AVX512VL
-TEXT ·Blake3AndCopy2048(SB), NOSPLIT, $0-34
+TEXT ·Blake3AndCopy2048(SB), NOSPLIT, $0-36
 	MOVQ         blocks+0(FP), AX
 	MOVQ         copy+8(FP), CX
-	MOVW         copyMask+32(FP), DX
-	XORQ         BX, BX
+	MOVL         mask+32(FP), BX
+	XORQ         DX, DX
 	MOVD         $0x6a09e667, SI
 	VPBROADCASTD SI, Z0
 	MOVD         $0xbb67ae85, SI
@@ -1203,167 +1299,199 @@ TEXT ·Blake3AndCopy2048(SB), NOSPLIT, $0-34
 	MOVD         $0x00000000, R13
 
 loopStart:
-	MOVQ      (AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z8
-	TESTW     $0x0001, DX
-	JZ        copyEnd0
-	MOVQ      (CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z8, (R14)
+	VPBROADCASTD BX, Z8
+	TESTL        $0x00010000, BX
+	JZ           copyEnd0
+	MOVQ         (AX), R14
+	VMOVDQA64    (R14), Z8
+	TESTL        $0x00000001, BX
+	JZ           copyEnd0
+	MOVQ         (CX), R14
+	ADDQ         DX, R14
+	VMOVDQA64    Z8, (R14)
 
 copyEnd0:
-	MOVQ      8(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z9
-	TESTW     $0x0002, DX
-	JZ        copyEnd1
-	MOVQ      8(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z9, (R14)
+	VPBROADCASTD BX, Z9
+	TESTL        $0x00020000, BX
+	JZ           copyEnd1
+	MOVQ         8(AX), R14
+	VMOVDQA64    (R14), Z9
+	TESTL        $0x00000002, BX
+	JZ           copyEnd1
+	MOVQ         8(CX), R14
+	ADDQ         DX, R14
+	VMOVDQA64    Z9, (R14)
 
 copyEnd1:
-	MOVQ      16(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z10
-	TESTW     $0x0004, DX
-	JZ        copyEnd2
-	MOVQ      16(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z10, (R14)
+	VPBROADCASTD BX, Z10
+	TESTL        $0x00040000, BX
+	JZ           copyEnd2
+	MOVQ         16(AX), R14
+	VMOVDQA64    (R14), Z10
+	TESTL        $0x00000004, BX
+	JZ           copyEnd2
+	MOVQ         16(CX), R14
+	ADDQ         DX, R14
+	VMOVDQA64    Z10, (R14)
 
 copyEnd2:
-	MOVQ      24(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z11
-	TESTW     $0x0008, DX
-	JZ        copyEnd3
-	MOVQ      24(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z11, (R14)
+	VPBROADCASTD BX, Z11
+	TESTL        $0x00080000, BX
+	JZ           copyEnd3
+	MOVQ         24(AX), R14
+	VMOVDQA64    (R14), Z11
+	TESTL        $0x00000008, BX
+	JZ           copyEnd3
+	MOVQ         24(CX), R14
+	ADDQ         DX, R14
+	VMOVDQA64    Z11, (R14)
 
 copyEnd3:
-	MOVQ      32(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z12
-	TESTW     $0x0010, DX
-	JZ        copyEnd4
-	MOVQ      32(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z12, (R14)
+	VPBROADCASTD BX, Z12
+	TESTL        $0x00100000, BX
+	JZ           copyEnd4
+	MOVQ         32(AX), R14
+	VMOVDQA64    (R14), Z12
+	TESTL        $0x00000010, BX
+	JZ           copyEnd4
+	MOVQ         32(CX), R14
+	ADDQ         DX, R14
+	VMOVDQA64    Z12, (R14)
 
 copyEnd4:
-	MOVQ      40(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z13
-	TESTW     $0x0020, DX
-	JZ        copyEnd5
-	MOVQ      40(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z13, (R14)
+	VPBROADCASTD BX, Z13
+	TESTL        $0x00200000, BX
+	JZ           copyEnd5
+	MOVQ         40(AX), R14
+	VMOVDQA64    (R14), Z13
+	TESTL        $0x00000020, BX
+	JZ           copyEnd5
+	MOVQ         40(CX), R14
+	ADDQ         DX, R14
+	VMOVDQA64    Z13, (R14)
 
 copyEnd5:
-	MOVQ      48(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z14
-	TESTW     $0x0040, DX
-	JZ        copyEnd6
-	MOVQ      48(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z14, (R14)
+	VPBROADCASTD BX, Z14
+	TESTL        $0x00400000, BX
+	JZ           copyEnd6
+	MOVQ         48(AX), R14
+	VMOVDQA64    (R14), Z14
+	TESTL        $0x00000040, BX
+	JZ           copyEnd6
+	MOVQ         48(CX), R14
+	ADDQ         DX, R14
+	VMOVDQA64    Z14, (R14)
 
 copyEnd6:
-	MOVQ      56(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z15
-	TESTW     $0x0080, DX
-	JZ        copyEnd7
-	MOVQ      56(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z15, (R14)
+	VPBROADCASTD BX, Z15
+	TESTL        $0x00800000, BX
+	JZ           copyEnd7
+	MOVQ         56(AX), R14
+	VMOVDQA64    (R14), Z15
+	TESTL        $0x00000080, BX
+	JZ           copyEnd7
+	MOVQ         56(CX), R14
+	ADDQ         DX, R14
+	VMOVDQA64    Z15, (R14)
 
 copyEnd7:
-	MOVQ      64(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z16
-	TESTW     $0x0100, DX
-	JZ        copyEnd8
-	MOVQ      64(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z16, (R14)
+	VPBROADCASTD BX, Z16
+	TESTL        $0x01000000, BX
+	JZ           copyEnd8
+	MOVQ         64(AX), R14
+	VMOVDQA64    (R14), Z16
+	TESTL        $0x00000100, BX
+	JZ           copyEnd8
+	MOVQ         64(CX), R14
+	ADDQ         DX, R14
+	VMOVDQA64    Z16, (R14)
 
 copyEnd8:
-	MOVQ      72(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z17
-	TESTW     $0x0200, DX
-	JZ        copyEnd9
-	MOVQ      72(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z17, (R14)
+	VPBROADCASTD BX, Z17
+	TESTL        $0x02000000, BX
+	JZ           copyEnd9
+	MOVQ         72(AX), R14
+	VMOVDQA64    (R14), Z17
+	TESTL        $0x00000200, BX
+	JZ           copyEnd9
+	MOVQ         72(CX), R14
+	ADDQ         DX, R14
+	VMOVDQA64    Z17, (R14)
 
 copyEnd9:
-	MOVQ      80(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z18
-	TESTW     $0x0400, DX
-	JZ        copyEnd10
-	MOVQ      80(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z18, (R14)
+	VPBROADCASTD BX, Z18
+	TESTL        $0x04000000, BX
+	JZ           copyEnd10
+	MOVQ         80(AX), R14
+	VMOVDQA64    (R14), Z18
+	TESTL        $0x00000400, BX
+	JZ           copyEnd10
+	MOVQ         80(CX), R14
+	ADDQ         DX, R14
+	VMOVDQA64    Z18, (R14)
 
 copyEnd10:
-	MOVQ      88(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z19
-	TESTW     $0x0800, DX
-	JZ        copyEnd11
-	MOVQ      88(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z19, (R14)
+	VPBROADCASTD BX, Z19
+	TESTL        $0x08000000, BX
+	JZ           copyEnd11
+	MOVQ         88(AX), R14
+	VMOVDQA64    (R14), Z19
+	TESTL        $0x00000800, BX
+	JZ           copyEnd11
+	MOVQ         88(CX), R14
+	ADDQ         DX, R14
+	VMOVDQA64    Z19, (R14)
 
 copyEnd11:
-	MOVQ      96(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z20
-	TESTW     $0x1000, DX
-	JZ        copyEnd12
-	MOVQ      96(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z20, (R14)
+	VPBROADCASTD BX, Z20
+	TESTL        $0x10000000, BX
+	JZ           copyEnd12
+	MOVQ         96(AX), R14
+	VMOVDQA64    (R14), Z20
+	TESTL        $0x00001000, BX
+	JZ           copyEnd12
+	MOVQ         96(CX), R14
+	ADDQ         DX, R14
+	VMOVDQA64    Z20, (R14)
 
 copyEnd12:
-	MOVQ      104(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z21
-	TESTW     $0x2000, DX
-	JZ        copyEnd13
-	MOVQ      104(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z21, (R14)
+	VPBROADCASTD BX, Z21
+	TESTL        $0x20000000, BX
+	JZ           copyEnd13
+	MOVQ         104(AX), R14
+	VMOVDQA64    (R14), Z21
+	TESTL        $0x00002000, BX
+	JZ           copyEnd13
+	MOVQ         104(CX), R14
+	ADDQ         DX, R14
+	VMOVDQA64    Z21, (R14)
 
 copyEnd13:
-	MOVQ      112(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z22
-	TESTW     $0x4000, DX
-	JZ        copyEnd14
-	MOVQ      112(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z22, (R14)
+	VPBROADCASTD BX, Z22
+	TESTL        $0x40000000, BX
+	JZ           copyEnd14
+	MOVQ         112(AX), R14
+	VMOVDQA64    (R14), Z22
+	TESTL        $0x00004000, BX
+	JZ           copyEnd14
+	MOVQ         112(CX), R14
+	ADDQ         DX, R14
+	VMOVDQA64    Z22, (R14)
 
 copyEnd14:
-	MOVQ      120(AX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 (R14), Z23
-	TESTW     $0x8000, DX
-	JZ        copyEnd15
-	MOVQ      120(CX), R14
-	ADDQ      BX, R14
-	VMOVDQA64 Z23, (R14)
+	VPBROADCASTD BX, Z23
+	TESTL        $0x80000000, BX
+	JZ           copyEnd15
+	MOVQ         120(AX), R14
+	VMOVDQA64    (R14), Z23
+	TESTL        $0x00008000, BX
+	JZ           copyEnd15
+	MOVQ         120(CX), R14
+	ADDQ         DX, R14
+	VMOVDQA64    Z23, (R14)
 
 copyEnd15:
-	ADDQ         $0x40, BX
+	ADDQ         $0x40, DX
 	VSHUFPS      $0x44, Z9, Z8, Z24
 	VSHUFPS      $0xee, Z9, Z8, Z8
 	VSHUFPS      $0x44, Z11, Z10, Z9
@@ -2228,7 +2356,7 @@ copyEnd15:
 	VPXORD       Z5, Z29, Z5
 	VPXORD       Z6, Z30, Z6
 	VPXORD       Z7, Z31, Z7
-	CMPQ         BX, $0x00000800
+	CMPQ         DX, $0x00000800
 	JNE          loopStart
 	VSHUFPS      $0x44, Z1, Z0, Z8
 	VSHUFPS      $0xee, Z1, Z0, Z0
@@ -2264,353 +2392,416 @@ copyEnd15:
 	VSHUFI32X4   $0xdd, Z0, Z1, Z1
 	MOVQ         hash1+16(FP), SI
 	MOVQ         hash2+24(FP), DI
+	TESTL        $0x00010000, BX
+	JZ           noHash0
 	MOVQ         (SI), R8
 	VMOVDQA64    Y4, (R8)
 	MOVQ         (DI), R8
 	VMOVDQU64    Y4, (R8)
-	VSHUFI32X4   $0xee, Z4, Z4, Z4
-	MOVQ         8(SI), R8
-	VMOVDQA64    Y4, (R8)
-	MOVQ         8(DI), R8
-	VMOVDQU64    Y4, (R8)
-	MOVQ         16(SI), R8
-	VMOVDQA64    Y2, (R8)
-	MOVQ         16(DI), R8
-	VMOVDQU64    Y2, (R8)
-	VSHUFI32X4   $0xee, Z2, Z2, Z2
-	MOVQ         24(SI), R8
-	VMOVDQA64    Y2, (R8)
-	MOVQ         24(DI), R8
-	VMOVDQU64    Y2, (R8)
-	MOVQ         32(SI), R8
-	VMOVDQA64    Y6, (R8)
-	MOVQ         32(DI), R8
-	VMOVDQU64    Y6, (R8)
-	VSHUFI32X4   $0xee, Z6, Z6, Z6
-	MOVQ         40(SI), R8
-	VMOVDQA64    Y6, (R8)
-	MOVQ         40(DI), R8
-	VMOVDQU64    Y6, (R8)
-	MOVQ         48(SI), R8
-	VMOVDQA64    Y3, (R8)
-	MOVQ         48(DI), R8
-	VMOVDQU64    Y3, (R8)
-	VSHUFI32X4   $0xee, Z3, Z3, Z3
-	MOVQ         56(SI), R8
-	VMOVDQA64    Y3, (R8)
-	MOVQ         56(DI), R8
-	VMOVDQU64    Y3, (R8)
-	MOVQ         64(SI), R8
-	VMOVDQA64    Y5, (R8)
-	MOVQ         64(DI), R8
-	VMOVDQU64    Y5, (R8)
-	VSHUFI32X4   $0xee, Z5, Z5, Z5
-	MOVQ         72(SI), R8
-	VMOVDQA64    Y5, (R8)
-	MOVQ         72(DI), R8
-	VMOVDQU64    Y5, (R8)
-	MOVQ         80(SI), R8
-	VMOVDQA64    Y8, (R8)
-	MOVQ         80(DI), R8
-	VMOVDQU64    Y8, (R8)
-	VSHUFI32X4   $0xee, Z8, Z8, Z8
-	MOVQ         88(SI), R8
-	VMOVDQA64    Y8, (R8)
-	MOVQ         88(DI), R8
-	VMOVDQU64    Y8, (R8)
-	MOVQ         96(SI), R8
-	VMOVDQA64    Y7, (R8)
-	MOVQ         96(DI), R8
-	VMOVDQU64    Y7, (R8)
-	VSHUFI32X4   $0xee, Z7, Z7, Z7
-	MOVQ         104(SI), R8
-	VMOVDQA64    Y7, (R8)
-	MOVQ         104(DI), R8
-	VMOVDQU64    Y7, (R8)
-	MOVQ         112(SI), R8
-	VMOVDQA64    Y1, (R8)
-	MOVQ         112(DI), R8
-	VMOVDQU64    Y1, (R8)
-	VSHUFI32X4   $0xee, Z1, Z1, Z1
-	MOVQ         120(SI), R8
-	VMOVDQA64    Y1, (R8)
-	MOVQ         120(DI), R8
-	VMOVDQU64    Y1, (R8)
-	TESTW        $0x0001, DX
-	JZ           copyEnd20
-	MOVQ         BX, SI
-	MOVQ         (AX), DI
-	MOVQ         (CX), R8
-	ADDQ         SI, DI
-	ADDQ         SI, R8
+
+noHash0:
+	TESTL      $0x00020000, BX
+	JZ         noHash1
+	VSHUFI32X4 $0xee, Z4, Z4, Z4
+	MOVQ       8(SI), R8
+	VMOVDQA64  Y4, (R8)
+	MOVQ       8(DI), R8
+	VMOVDQU64  Y4, (R8)
+
+noHash1:
+	TESTL     $0x00040000, BX
+	JZ        noHash2
+	MOVQ      16(SI), R8
+	VMOVDQA64 Y2, (R8)
+	MOVQ      16(DI), R8
+	VMOVDQU64 Y2, (R8)
+
+noHash2:
+	TESTL      $0x00080000, BX
+	JZ         noHash3
+	VSHUFI32X4 $0xee, Z2, Z2, Z2
+	MOVQ       24(SI), R8
+	VMOVDQA64  Y2, (R8)
+	MOVQ       24(DI), R8
+	VMOVDQU64  Y2, (R8)
+
+noHash3:
+	TESTL     $0x00100000, BX
+	JZ        noHash4
+	MOVQ      32(SI), R8
+	VMOVDQA64 Y6, (R8)
+	MOVQ      32(DI), R8
+	VMOVDQU64 Y6, (R8)
+
+noHash4:
+	TESTL      $0x00200000, BX
+	JZ         noHash5
+	VSHUFI32X4 $0xee, Z6, Z6, Z6
+	MOVQ       40(SI), R8
+	VMOVDQA64  Y6, (R8)
+	MOVQ       40(DI), R8
+	VMOVDQU64  Y6, (R8)
+
+noHash5:
+	TESTL     $0x00400000, BX
+	JZ        noHash6
+	MOVQ      48(SI), R8
+	VMOVDQA64 Y3, (R8)
+	MOVQ      48(DI), R8
+	VMOVDQU64 Y3, (R8)
+
+noHash6:
+	TESTL      $0x00800000, BX
+	JZ         noHash7
+	VSHUFI32X4 $0xee, Z3, Z3, Z3
+	MOVQ       56(SI), R8
+	VMOVDQA64  Y3, (R8)
+	MOVQ       56(DI), R8
+	VMOVDQU64  Y3, (R8)
+
+noHash7:
+	TESTL     $0x01000000, BX
+	JZ        noHash8
+	MOVQ      64(SI), R8
+	VMOVDQA64 Y5, (R8)
+	MOVQ      64(DI), R8
+	VMOVDQU64 Y5, (R8)
+
+noHash8:
+	TESTL      $0x02000000, BX
+	JZ         noHash9
+	VSHUFI32X4 $0xee, Z5, Z5, Z5
+	MOVQ       72(SI), R8
+	VMOVDQA64  Y5, (R8)
+	MOVQ       72(DI), R8
+	VMOVDQU64  Y5, (R8)
+
+noHash9:
+	TESTL     $0x04000000, BX
+	JZ        noHash10
+	MOVQ      80(SI), R8
+	VMOVDQA64 Y8, (R8)
+	MOVQ      80(DI), R8
+	VMOVDQU64 Y8, (R8)
+
+noHash10:
+	TESTL      $0x08000000, BX
+	JZ         noHash11
+	VSHUFI32X4 $0xee, Z8, Z8, Z8
+	MOVQ       88(SI), R8
+	VMOVDQA64  Y8, (R8)
+	MOVQ       88(DI), R8
+	VMOVDQU64  Y8, (R8)
+
+noHash11:
+	TESTL     $0x10000000, BX
+	JZ        noHash12
+	MOVQ      96(SI), R8
+	VMOVDQA64 Y7, (R8)
+	MOVQ      96(DI), R8
+	VMOVDQU64 Y7, (R8)
+
+noHash12:
+	TESTL      $0x20000000, BX
+	JZ         noHash13
+	VSHUFI32X4 $0xee, Z7, Z7, Z7
+	MOVQ       104(SI), R8
+	VMOVDQA64  Y7, (R8)
+	MOVQ       104(DI), R8
+	VMOVDQU64  Y7, (R8)
+
+noHash13:
+	TESTL     $0x40000000, BX
+	JZ        noHash14
+	MOVQ      112(SI), R8
+	VMOVDQA64 Y1, (R8)
+	MOVQ      112(DI), R8
+	VMOVDQU64 Y1, (R8)
+
+noHash14:
+	TESTL      $0x80000000, BX
+	JZ         noHash15
+	VSHUFI32X4 $0xee, Z1, Z1, Z1
+	MOVQ       120(SI), R8
+	VMOVDQA64  Y1, (R8)
+	MOVQ       120(DI), R8
+	VMOVDQU64  Y1, (R8)
+
+noHash15:
+	TESTL $0x00000001, BX
+	JZ    copyEnd20
+	MOVQ  (CX), SI
+	MOVQ  (AX), DI
+	MOVQ  DX, R8
+	ADDQ  R8, DI
+	ADDQ  R8, SI
 
 loopCopyStart0:
 	VMOVDQA64 (DI), Z0
-	VMOVDQA64 Z0, (R8)
+	VMOVDQA64 Z0, (SI)
 	ADDQ      $0x40, DI
-	ADDQ      $0x40, R8
 	ADDQ      $0x40, SI
-	CMPQ      SI, $0x00001000
+	ADDQ      $0x40, R8
+	CMPQ      R8, $0x00001000
 	JNE       loopCopyStart0
 
 copyEnd20:
-	TESTW $0x0002, DX
+	TESTL $0x00000002, BX
 	JZ    copyEnd21
-	MOVQ  BX, SI
+	MOVQ  8(CX), SI
 	MOVQ  8(AX), DI
-	MOVQ  8(CX), R8
-	ADDQ  SI, DI
-	ADDQ  SI, R8
+	MOVQ  DX, R8
+	ADDQ  R8, DI
+	ADDQ  R8, SI
 
 loopCopyStart1:
 	VMOVDQA64 (DI), Z0
-	VMOVDQA64 Z0, (R8)
+	VMOVDQA64 Z0, (SI)
 	ADDQ      $0x40, DI
-	ADDQ      $0x40, R8
 	ADDQ      $0x40, SI
-	CMPQ      SI, $0x00001000
+	ADDQ      $0x40, R8
+	CMPQ      R8, $0x00001000
 	JNE       loopCopyStart1
 
 copyEnd21:
-	TESTW $0x0004, DX
+	TESTL $0x00000004, BX
 	JZ    copyEnd22
-	MOVQ  BX, SI
+	MOVQ  16(CX), SI
 	MOVQ  16(AX), DI
-	MOVQ  16(CX), R8
-	ADDQ  SI, DI
-	ADDQ  SI, R8
+	MOVQ  DX, R8
+	ADDQ  R8, DI
+	ADDQ  R8, SI
 
 loopCopyStart2:
 	VMOVDQA64 (DI), Z0
-	VMOVDQA64 Z0, (R8)
+	VMOVDQA64 Z0, (SI)
 	ADDQ      $0x40, DI
-	ADDQ      $0x40, R8
 	ADDQ      $0x40, SI
-	CMPQ      SI, $0x00001000
+	ADDQ      $0x40, R8
+	CMPQ      R8, $0x00001000
 	JNE       loopCopyStart2
 
 copyEnd22:
-	TESTW $0x0008, DX
+	TESTL $0x00000008, BX
 	JZ    copyEnd23
-	MOVQ  BX, SI
+	MOVQ  24(CX), SI
 	MOVQ  24(AX), DI
-	MOVQ  24(CX), R8
-	ADDQ  SI, DI
-	ADDQ  SI, R8
+	MOVQ  DX, R8
+	ADDQ  R8, DI
+	ADDQ  R8, SI
 
 loopCopyStart3:
 	VMOVDQA64 (DI), Z0
-	VMOVDQA64 Z0, (R8)
+	VMOVDQA64 Z0, (SI)
 	ADDQ      $0x40, DI
-	ADDQ      $0x40, R8
 	ADDQ      $0x40, SI
-	CMPQ      SI, $0x00001000
+	ADDQ      $0x40, R8
+	CMPQ      R8, $0x00001000
 	JNE       loopCopyStart3
 
 copyEnd23:
-	TESTW $0x0010, DX
+	TESTL $0x00000010, BX
 	JZ    copyEnd24
-	MOVQ  BX, SI
+	MOVQ  32(CX), SI
 	MOVQ  32(AX), DI
-	MOVQ  32(CX), R8
-	ADDQ  SI, DI
-	ADDQ  SI, R8
+	MOVQ  DX, R8
+	ADDQ  R8, DI
+	ADDQ  R8, SI
 
 loopCopyStart4:
 	VMOVDQA64 (DI), Z0
-	VMOVDQA64 Z0, (R8)
+	VMOVDQA64 Z0, (SI)
 	ADDQ      $0x40, DI
-	ADDQ      $0x40, R8
 	ADDQ      $0x40, SI
-	CMPQ      SI, $0x00001000
+	ADDQ      $0x40, R8
+	CMPQ      R8, $0x00001000
 	JNE       loopCopyStart4
 
 copyEnd24:
-	TESTW $0x0020, DX
+	TESTL $0x00000020, BX
 	JZ    copyEnd25
-	MOVQ  BX, SI
+	MOVQ  40(CX), SI
 	MOVQ  40(AX), DI
-	MOVQ  40(CX), R8
-	ADDQ  SI, DI
-	ADDQ  SI, R8
+	MOVQ  DX, R8
+	ADDQ  R8, DI
+	ADDQ  R8, SI
 
 loopCopyStart5:
 	VMOVDQA64 (DI), Z0
-	VMOVDQA64 Z0, (R8)
+	VMOVDQA64 Z0, (SI)
 	ADDQ      $0x40, DI
-	ADDQ      $0x40, R8
 	ADDQ      $0x40, SI
-	CMPQ      SI, $0x00001000
+	ADDQ      $0x40, R8
+	CMPQ      R8, $0x00001000
 	JNE       loopCopyStart5
 
 copyEnd25:
-	TESTW $0x0040, DX
+	TESTL $0x00000040, BX
 	JZ    copyEnd26
-	MOVQ  BX, SI
+	MOVQ  48(CX), SI
 	MOVQ  48(AX), DI
-	MOVQ  48(CX), R8
-	ADDQ  SI, DI
-	ADDQ  SI, R8
+	MOVQ  DX, R8
+	ADDQ  R8, DI
+	ADDQ  R8, SI
 
 loopCopyStart6:
 	VMOVDQA64 (DI), Z0
-	VMOVDQA64 Z0, (R8)
+	VMOVDQA64 Z0, (SI)
 	ADDQ      $0x40, DI
-	ADDQ      $0x40, R8
 	ADDQ      $0x40, SI
-	CMPQ      SI, $0x00001000
+	ADDQ      $0x40, R8
+	CMPQ      R8, $0x00001000
 	JNE       loopCopyStart6
 
 copyEnd26:
-	TESTW $0x0080, DX
+	TESTL $0x00000080, BX
 	JZ    copyEnd27
-	MOVQ  BX, SI
+	MOVQ  56(CX), SI
 	MOVQ  56(AX), DI
-	MOVQ  56(CX), R8
-	ADDQ  SI, DI
-	ADDQ  SI, R8
+	MOVQ  DX, R8
+	ADDQ  R8, DI
+	ADDQ  R8, SI
 
 loopCopyStart7:
 	VMOVDQA64 (DI), Z0
-	VMOVDQA64 Z0, (R8)
+	VMOVDQA64 Z0, (SI)
 	ADDQ      $0x40, DI
-	ADDQ      $0x40, R8
 	ADDQ      $0x40, SI
-	CMPQ      SI, $0x00001000
+	ADDQ      $0x40, R8
+	CMPQ      R8, $0x00001000
 	JNE       loopCopyStart7
 
 copyEnd27:
-	TESTW $0x0100, DX
+	TESTL $0x00000100, BX
 	JZ    copyEnd28
-	MOVQ  BX, SI
+	MOVQ  64(CX), SI
 	MOVQ  64(AX), DI
-	MOVQ  64(CX), R8
-	ADDQ  SI, DI
-	ADDQ  SI, R8
+	MOVQ  DX, R8
+	ADDQ  R8, DI
+	ADDQ  R8, SI
 
 loopCopyStart8:
 	VMOVDQA64 (DI), Z0
-	VMOVDQA64 Z0, (R8)
+	VMOVDQA64 Z0, (SI)
 	ADDQ      $0x40, DI
-	ADDQ      $0x40, R8
 	ADDQ      $0x40, SI
-	CMPQ      SI, $0x00001000
+	ADDQ      $0x40, R8
+	CMPQ      R8, $0x00001000
 	JNE       loopCopyStart8
 
 copyEnd28:
-	TESTW $0x0200, DX
+	TESTL $0x00000200, BX
 	JZ    copyEnd29
-	MOVQ  BX, SI
+	MOVQ  72(CX), SI
 	MOVQ  72(AX), DI
-	MOVQ  72(CX), R8
-	ADDQ  SI, DI
-	ADDQ  SI, R8
+	MOVQ  DX, R8
+	ADDQ  R8, DI
+	ADDQ  R8, SI
 
 loopCopyStart9:
 	VMOVDQA64 (DI), Z0
-	VMOVDQA64 Z0, (R8)
+	VMOVDQA64 Z0, (SI)
 	ADDQ      $0x40, DI
-	ADDQ      $0x40, R8
 	ADDQ      $0x40, SI
-	CMPQ      SI, $0x00001000
+	ADDQ      $0x40, R8
+	CMPQ      R8, $0x00001000
 	JNE       loopCopyStart9
 
 copyEnd29:
-	TESTW $0x0400, DX
+	TESTL $0x00000400, BX
 	JZ    copyEnd210
-	MOVQ  BX, SI
+	MOVQ  80(CX), SI
 	MOVQ  80(AX), DI
-	MOVQ  80(CX), R8
-	ADDQ  SI, DI
-	ADDQ  SI, R8
+	MOVQ  DX, R8
+	ADDQ  R8, DI
+	ADDQ  R8, SI
 
 loopCopyStart10:
 	VMOVDQA64 (DI), Z0
-	VMOVDQA64 Z0, (R8)
+	VMOVDQA64 Z0, (SI)
 	ADDQ      $0x40, DI
-	ADDQ      $0x40, R8
 	ADDQ      $0x40, SI
-	CMPQ      SI, $0x00001000
+	ADDQ      $0x40, R8
+	CMPQ      R8, $0x00001000
 	JNE       loopCopyStart10
 
 copyEnd210:
-	TESTW $0x0800, DX
+	TESTL $0x00000800, BX
 	JZ    copyEnd211
-	MOVQ  BX, SI
+	MOVQ  88(CX), SI
 	MOVQ  88(AX), DI
-	MOVQ  88(CX), R8
-	ADDQ  SI, DI
-	ADDQ  SI, R8
+	MOVQ  DX, R8
+	ADDQ  R8, DI
+	ADDQ  R8, SI
 
 loopCopyStart11:
 	VMOVDQA64 (DI), Z0
-	VMOVDQA64 Z0, (R8)
+	VMOVDQA64 Z0, (SI)
 	ADDQ      $0x40, DI
-	ADDQ      $0x40, R8
 	ADDQ      $0x40, SI
-	CMPQ      SI, $0x00001000
+	ADDQ      $0x40, R8
+	CMPQ      R8, $0x00001000
 	JNE       loopCopyStart11
 
 copyEnd211:
-	TESTW $0x1000, DX
+	TESTL $0x00001000, BX
 	JZ    copyEnd212
-	MOVQ  BX, SI
+	MOVQ  96(CX), SI
 	MOVQ  96(AX), DI
-	MOVQ  96(CX), R8
-	ADDQ  SI, DI
-	ADDQ  SI, R8
+	MOVQ  DX, R8
+	ADDQ  R8, DI
+	ADDQ  R8, SI
 
 loopCopyStart12:
 	VMOVDQA64 (DI), Z0
-	VMOVDQA64 Z0, (R8)
+	VMOVDQA64 Z0, (SI)
 	ADDQ      $0x40, DI
-	ADDQ      $0x40, R8
 	ADDQ      $0x40, SI
-	CMPQ      SI, $0x00001000
+	ADDQ      $0x40, R8
+	CMPQ      R8, $0x00001000
 	JNE       loopCopyStart12
 
 copyEnd212:
-	TESTW $0x2000, DX
+	TESTL $0x00002000, BX
 	JZ    copyEnd213
-	MOVQ  BX, SI
+	MOVQ  104(CX), SI
 	MOVQ  104(AX), DI
-	MOVQ  104(CX), R8
-	ADDQ  SI, DI
-	ADDQ  SI, R8
+	MOVQ  DX, R8
+	ADDQ  R8, DI
+	ADDQ  R8, SI
 
 loopCopyStart13:
 	VMOVDQA64 (DI), Z0
-	VMOVDQA64 Z0, (R8)
+	VMOVDQA64 Z0, (SI)
 	ADDQ      $0x40, DI
-	ADDQ      $0x40, R8
 	ADDQ      $0x40, SI
-	CMPQ      SI, $0x00001000
+	ADDQ      $0x40, R8
+	CMPQ      R8, $0x00001000
 	JNE       loopCopyStart13
 
 copyEnd213:
-	TESTW $0x4000, DX
+	TESTL $0x00004000, BX
 	JZ    copyEnd214
-	MOVQ  BX, SI
+	MOVQ  112(CX), SI
 	MOVQ  112(AX), DI
-	MOVQ  112(CX), R8
-	ADDQ  SI, DI
-	ADDQ  SI, R8
+	MOVQ  DX, R8
+	ADDQ  R8, DI
+	ADDQ  R8, SI
 
 loopCopyStart14:
 	VMOVDQA64 (DI), Z0
-	VMOVDQA64 Z0, (R8)
+	VMOVDQA64 Z0, (SI)
 	ADDQ      $0x40, DI
-	ADDQ      $0x40, R8
 	ADDQ      $0x40, SI
-	CMPQ      SI, $0x00001000
+	ADDQ      $0x40, R8
+	CMPQ      R8, $0x00001000
 	JNE       loopCopyStart14
 
 copyEnd214:
-	TESTW $0x8000, DX
+	TESTL $0x00008000, BX
 	JZ    copyEnd215
-	MOVQ  BX, DX
-	MOVQ  120(AX), AX
 	MOVQ  120(CX), CX
+	MOVQ  120(AX), AX
 	ADDQ  DX, AX
 	ADDQ  DX, CX
 
