@@ -38,51 +38,52 @@ const (
 
 // Blake3AndCopy4096 implements blake3 for 16 4KB messages.
 func Blake3AndCopy4096() {
-	TEXT("Blake3AndCopy4096", NOSPLIT, "func(blocks, copy, hash1, hash2 **byte, copyMask uint16)")
+	TEXT("Blake3AndCopy4096", NOSPLIT, "func(blocks, copy, hash1, hash2 **byte, mask uint32)")
 	Doc("Blake3AndCopy4096 implements blake3 for 16 4KB messages.")
 
 	memBlocks := Mem{Base: Load(Param("blocks"), GP64())}
 	memCopy := Mem{Base: Load(Param("copy"), GP64())}
-	rCopyMask := GP16()
-	Load(Param("copyMask"), rCopyMask)
+	maskR := GP32()
+	Load(Param("mask"), maskR)
 
-	blake3AndCopy(messageSize, memBlocks, memCopy, rCopyMask, GP64())
+	blake3AndCopy(messageSize, memBlocks, memCopy, GP64(), maskR)
 
 	RET()
 }
 
 // Blake3AndCopy2048 implements blake3 for 16 2KB messages.
 func Blake3AndCopy2048() {
-	TEXT("Blake3AndCopy2048", NOSPLIT, "func(blocks, copy, hash1, hash2 **byte, copyMask uint16)")
+	TEXT("Blake3AndCopy2048", NOSPLIT, "func(blocks, copy, hash1, hash2 **byte, mask uint32)")
 	Doc("Blake3AndCopy2048 implements blake3 for 16 2KB messages.")
 
 	memBlocks := Mem{Base: Load(Param("blocks"), GP64())}
 	memCopy := Mem{Base: Load(Param("copy"), GP64())}
-	rCopyMask := GP16()
-	Load(Param("copyMask"), rCopyMask)
 	offsetR := GP64()
+	maskR := GP32()
+	Load(Param("mask"), maskR)
 
-	blake3AndCopy(2048, memBlocks, memCopy, rCopyMask, offsetR)
+	blake3AndCopy(2048, memBlocks, memCopy, offsetR, maskR)
 
 	// Copy remaining 2KB.
 
 	const (
 		loopCopyStartLabel = "loopCopyStart%d"
-		loopCopyEnd        = "copyEnd2%d"
+		copyEndLabel       = "copyEnd2%d"
 	)
 
 	copyR := ZMM()
 	for i := range numOfMessages {
-		TESTW(U16(1<<i), rCopyMask)
-		JZ(LabelRef(fmt.Sprintf(loopCopyEnd, i)))
+		TESTL(U32(1<<i), maskR)
+		JZ(LabelRef(fmt.Sprintf(copyEndLabel, i)))
+
+		mDst := Mem{Base: GP64()}
+		MOVQ(memCopy.Offset(i*uint64Size), mDst.Base)
+		mSrc := Mem{Base: GP64()}
+		MOVQ(memBlocks.Offset(i*uint64Size), mSrc.Base)
 
 		offsetRTmp := GP64()
 		MOVQ(offsetR, offsetRTmp)
 
-		mSrc := Mem{Base: GP64()}
-		mDst := Mem{Base: GP64()}
-		MOVQ(memBlocks.Offset(i*uint64Size), mSrc.Base)
-		MOVQ(memCopy.Offset(i*uint64Size), mDst.Base)
 		ADDQ(offsetRTmp, mSrc.Base)
 		ADDQ(offsetRTmp, mDst.Base)
 
@@ -97,7 +98,7 @@ func Blake3AndCopy2048() {
 		CMPQ(offsetRTmp, U32(messageSize))
 		JNE(LabelRef(fmt.Sprintf(loopCopyStartLabel, i)))
 
-		Label(fmt.Sprintf(loopCopyEnd, i))
+		Label(fmt.Sprintf(copyEndLabel, i))
 	}
 
 	RET()
@@ -114,8 +115,8 @@ func Blake3AndCopy2048() {
 //     but well-defined portions of data, so we don't need it.
 func blake3AndCopy(
 	messageSize uint16,
-	memBlocks, memCopy Mem, rCopyMask reg.GPVirtual,
-	offsetR reg.GPVirtual,
+	memBlocks, memCopy Mem,
+	offsetR, maskR reg.GPVirtual,
 ) {
 	XORQ(offsetR, offsetR)
 
@@ -147,25 +148,33 @@ func blake3AndCopy(
 
 	// Loop starts here
 
-	const loopStartLabel = "loopStart"
+	const (
+		loopStartLabel = "loopStart"
+		copyEndLabel   = "copyEnd%d"
+	)
 	Label(loopStartLabel)
 
 	// Load and transpose blocks.
 	for i := range numOfMessages {
-		m := Mem{Base: GP64()}
-		MOVQ(memBlocks.Offset(i*uint64Size), m.Base)
-		ADDQ(offsetR, m.Base)
-		VMOVDQA64(m, rB[i])
+		// FIXME (wojciech): Without this AVO complaints. Not needed by the algorithm.
+		VPBROADCASTD(maskR, rB[i])
+
+		TESTL(U32(1<<(16+i)), maskR)
+		JZ(LabelRef(fmt.Sprintf(copyEndLabel, i)))
+
+		rM := GP64()
+		MOVQ(memBlocks.Offset(i*uint64Size), rM)
+		VMOVDQA64(Mem{Base: rM}, rB[i])
 
 		// Copy block.
-		TESTW(U16(1<<i), rCopyMask)
-		JZ(LabelRef(fmt.Sprintf("copyEnd%d", i)))
+		TESTL(U32(1<<i), maskR)
+		JZ(LabelRef(fmt.Sprintf(copyEndLabel, i)))
 
-		MOVQ(memCopy.Offset(i*uint64Size), m.Base)
-		ADDQ(offsetR, m.Base)
-		VMOVDQA64(rB[i], m)
+		MOVQ(memCopy.Offset(i*uint64Size), rM)
+		ADDQ(offsetR, rM)
+		VMOVDQA64(rB[i], Mem{Base: rM})
 
-		Label(fmt.Sprintf("copyEnd%d", i))
+		Label(fmt.Sprintf(copyEndLabel, i))
 	}
 	ADDQ(U8(blockSize), offsetR)
 
@@ -257,20 +266,33 @@ func blake3AndCopy(
 
 	rS1 = transpose8x16(rS1)
 
+	const labelNoHash = "noHash%d"
+
 	memHash1 := Mem{Base: Load(Param("hash1"), GP64())}
 	memHash2 := Mem{Base: Load(Param("hash2"), GP64())}
 	for i := range numOfMessages / 2 {
+		TESTL(U32(1<<(16+2*i)), maskR)
+		JZ(LabelRef(fmt.Sprintf(labelNoHash, 2*i)))
+
 		m := Mem{Base: GP64()}
+
 		MOVQ(memHash1.Offset((2*i)*uint64Size), m.Base)
 		VMOVDQA64(rS1[i].AsY(), m)
 		MOVQ(memHash2.Offset((2*i)*uint64Size), m.Base)
 		VMOVDQU64(rS1[i].AsY(), m) // second hash location is not aligned
+
+		Label(fmt.Sprintf(labelNoHash, 2*i))
+
+		TESTL(U32(1<<(16+2*i+1)), maskR)
+		JZ(LabelRef(fmt.Sprintf(labelNoHash, 2*i+1)))
 
 		VSHUFI32X4(U8(0xee), rS1[i], rS1[i], rS1[i])
 		MOVQ(memHash1.Offset((2*i+1)*uint64Size), m.Base)
 		VMOVDQA64(rS1[i].AsY(), m)
 		MOVQ(memHash2.Offset((2*i+1)*uint64Size), m.Base)
 		VMOVDQU64(rS1[i].AsY(), m) // second hash location is not aligned
+
+		Label(fmt.Sprintf(labelNoHash, 2*i+1))
 	}
 }
 
