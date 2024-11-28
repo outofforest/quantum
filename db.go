@@ -655,7 +655,10 @@ func (db *DB) processDeallocations(ctx context.Context, pipeReader *pipeline.Rea
 			}
 		}
 
-		if req.Type == pipeline.Commit {
+		switch req.Type {
+		case pipeline.Sync:
+			req.SyncCh <- struct{}{}
+		case pipeline.Commit:
 			walRecorder.Commit(req)
 		}
 
@@ -746,8 +749,6 @@ func (db *DB) updateDataHashes(
 			}
 
 			walRecorder.Commit(req)
-		}
-		if req.Type == pipeline.Sync || req.Type == pipeline.Commit {
 			pipeReader.Acknowledge(processedCount+1, req)
 		}
 	}
@@ -762,28 +763,25 @@ type request struct {
 
 type reader struct {
 	pipeReader *pipeline.Reader
-	divider    uint64
-	mod        uint64
 	read       uint64
 
-	txRequest            *pipeline.TransactionRequest
-	storeRequest         *pipeline.StoreRequest
-	syncMode, commitMode bool
+	txRequest    *pipeline.TransactionRequest
+	storeRequest *pipeline.StoreRequest
+	commitMode   bool
 }
 
 func (r *reader) Read(ctx context.Context) (request, error) {
 	for {
-		for r.storeRequest == nil && !r.syncMode && !r.commitMode {
+		for r.storeRequest == nil && !r.commitMode {
 			var err error
 			r.txRequest, err = r.pipeReader.Read(ctx)
 			if err != nil {
 				return request{}, err
 			}
 
-			r.syncMode = r.txRequest.Type == pipeline.Sync
 			r.commitMode = r.txRequest.Type == pipeline.Commit
 
-			if r.txRequest.StoreRequest != nil && r.read%r.divider == r.mod {
+			if r.txRequest.StoreRequest != nil {
 				r.storeRequest = r.txRequest.StoreRequest
 			}
 			r.read++
@@ -792,7 +790,7 @@ func (r *reader) Read(ctx context.Context) (request, error) {
 			r.storeRequest = r.storeRequest.Next
 		}
 
-		if r.storeRequest == nil && !r.syncMode && !r.commitMode {
+		if r.storeRequest == nil && !r.commitMode {
 			continue
 		}
 
@@ -812,18 +810,14 @@ func (r *reader) Read(ctx context.Context) (request, error) {
 	}
 }
 
-func (r *reader) Acknowledge(count uint64, req *pipeline.TransactionRequest, commit bool, sync bool) {
+func (r *reader) Acknowledge(count uint64, req *pipeline.TransactionRequest, commit bool) {
 	if commit {
 		r.commitMode = false
-	}
-	if sync {
-		r.syncMode = false
 	}
 	r.pipeReader.Acknowledge(count, req)
 }
 
 // FIXME (wojciech): Fix data races:
-// - same parent node where hash is updated must always go to the same goroutine
 // - pointer present later in a pipeline must be included in later slot.
 func (db *DB) updatePointerHashes(
 	ctx context.Context,
@@ -836,13 +830,11 @@ func (db *DB) updatePointerHashes(
 
 	r := &reader{
 		pipeReader: pipeReader,
-		divider:    divider,
-		mod:        mod,
 	}
 
 	var slots [16]request
 
-	var syncReq, commitReq request
+	var commitReq request
 
 	var matrix, copyMatrix [16]*byte
 	matrixP := (**byte)(unsafe.Pointer(&matrix))
@@ -874,12 +866,10 @@ func (db *DB) updatePointerHashes(
 						return err
 					}
 
-					switch req.TxRequest.Type {
-					case pipeline.Commit:
+					if req.TxRequest.Type == pipeline.Commit {
 						commitReq = req
-					case pipeline.Sync:
-						syncReq = req
 					}
+
 					if req.StoreRequest == nil {
 						nilSlots++
 						slots[ri] = req
@@ -890,15 +880,14 @@ func (db *DB) updatePointerHashes(
 				req.PointerIndex--
 				pointer = req.StoreRequest.Store[req.PointerIndex].Pointer
 
+				if pointer.State != types.StatePointer || uint64(pointer.VolatileAddress)%divider != mod {
+					continue
+				}
 				if atomic.LoadUint32(&pointer.Revision) != req.StoreRequest.RequestedRevision {
 					// Pointers are processed from the data node up t the root node. If at any level
 					// revision test fails, it doesn't make sense to process parent nodes because revision
 					// test will fail there for sure.
 					req.PointerIndex = 0
-					continue
-				}
-
-				if pointer.State != types.StatePointer {
 					continue
 				}
 
@@ -931,17 +920,12 @@ func (db *DB) updatePointerHashes(
 		}
 
 		if nilSlots == len(slots) {
-			if commitReq.TxRequest != nil {
-				walRecorder.Commit(commitReq.TxRequest)
-				r.Acknowledge(commitReq.Count, commitReq.TxRequest, true, false)
-				syncReq = request{}
-				commitReq = request{}
-			} else if syncReq.TxRequest != nil {
-				r.Acknowledge(syncReq.Count, syncReq.TxRequest, false, true)
-			}
+			walRecorder.Commit(commitReq.TxRequest)
+			r.Acknowledge(commitReq.Count, commitReq.TxRequest, true)
+			commitReq = request{}
 		} else {
 			hash.Blake3AndCopy2048(matrixP, copyMatrixP, hashesP1, hashesP2, mask)
-			r.Acknowledge(minReq.Count-1, minReq.TxRequest, false, false)
+			r.Acknowledge(minReq.Count-1, minReq.TxRequest, false)
 		}
 	}
 }
@@ -953,10 +937,7 @@ func (db *DB) syncOnCommit(ctx context.Context, pipeReader *pipeline.Reader) err
 			return err
 		}
 
-		switch req.Type {
-		case pipeline.Sync:
-			req.SyncCh <- struct{}{}
-		case pipeline.Commit:
+		if req.Type == pipeline.Commit {
 			for _, store := range db.config.Stores {
 				err := store.Sync()
 				req.CommitCh <- err
