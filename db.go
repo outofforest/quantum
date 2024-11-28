@@ -616,83 +616,6 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 	}
 }
 
-func (db *DB) deallocatePersistentAddress(
-	tx *pipeline.TransactionRequest,
-	sr *pipeline.StoreRequest,
-	walRecorder *wal.Recorder,
-	pointer *types.Pointer,
-	allocator *alloc.Allocator,
-	deallocator *alloc.Deallocator,
-	listNodesToStore map[types.NodeAddress]struct{},
-) error {
-	// 0 address is reserved for the singularity node. We don't do any (de)allocations for this address.
-	if pointer.VolatileAddress == 0 {
-		return nil
-	}
-
-	if pointer.SnapshotID == db.singularityNode.LastSnapshotID {
-		return nil
-	}
-
-	if pointer.PersistentAddress != 0 {
-		listRoot, err := db.deallocateNode(
-			pointer,
-			sr.NoSnapshots,
-			allocator,
-			deallocator,
-		)
-		if err != nil {
-			return err
-		}
-
-		if listRoot != nil {
-			if _, exists := listNodesToStore[listRoot.VolatileAddress]; !exists {
-				listNodesToStore[listRoot.VolatileAddress] = struct{}{}
-
-				sr.ListStore[sr.ListsToStore] = listRoot
-				sr.ListsToStore++
-			}
-		}
-
-		pointer.PersistentAddress = 0
-	}
-	if walRecorder == nil {
-		pointer.SnapshotID = db.singularityNode.LastSnapshotID
-	} else if err := wal.Set1(walRecorder, tx,
-		&pointer.SnapshotID, &db.singularityNode.LastSnapshotID,
-	); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (db *DB) allocatePersistentAddress(
-	tx *pipeline.TransactionRequest,
-	walRecorder *wal.Recorder,
-	pointer *types.Pointer,
-	allocator *alloc.Allocator,
-) error {
-	// 0 address is reserved for the singularity node. We don't do any (de)allocations for this address.
-	if pointer.VolatileAddress == 0 {
-		return nil
-	}
-
-	persistentAddress, err := allocator.Allocate()
-	if err != nil {
-		return err
-	}
-	if walRecorder == nil {
-		pointer.PersistentAddress = persistentAddress
-	} else if err := wal.Set1(walRecorder, tx,
-		&pointer.PersistentAddress, &persistentAddress,
-	); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (db *DB) processDeallocations(ctx context.Context, pipeReader *pipeline.Reader) error {
 	allocator := db.config.State.NewAllocator()
 	deallocator := db.config.State.NewDeallocator()
@@ -1039,6 +962,83 @@ func (db *DB) syncOnCommit(ctx context.Context, pipeReader *pipeline.Reader) err
 
 		pipeReader.Acknowledge(processedCount+1, req)
 	}
+}
+
+func (db *DB) deallocatePersistentAddress(
+	tx *pipeline.TransactionRequest,
+	sr *pipeline.StoreRequest,
+	walRecorder *wal.Recorder,
+	pointer *types.Pointer,
+	allocator *alloc.Allocator,
+	deallocator *alloc.Deallocator,
+	listNodesToStore map[types.NodeAddress]struct{},
+) error {
+	// 0 address is reserved for the singularity node. We don't do any (de)allocations for this address.
+	if pointer.VolatileAddress == 0 {
+		return nil
+	}
+
+	if pointer.SnapshotID == db.singularityNode.LastSnapshotID {
+		return nil
+	}
+
+	if pointer.PersistentAddress != 0 {
+		listRoot, err := db.deallocateNode(
+			pointer,
+			sr.NoSnapshots,
+			allocator,
+			deallocator,
+		)
+		if err != nil {
+			return err
+		}
+
+		if listRoot != nil {
+			if _, exists := listNodesToStore[listRoot.VolatileAddress]; !exists {
+				listNodesToStore[listRoot.VolatileAddress] = struct{}{}
+
+				sr.ListStore[sr.ListsToStore] = listRoot
+				sr.ListsToStore++
+			}
+		}
+
+		pointer.PersistentAddress = 0
+	}
+	if walRecorder == nil {
+		pointer.SnapshotID = db.singularityNode.LastSnapshotID
+	} else if err := wal.Set1(walRecorder, tx,
+		&pointer.SnapshotID, &db.singularityNode.LastSnapshotID,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (db *DB) allocatePersistentAddress(
+	tx *pipeline.TransactionRequest,
+	walRecorder *wal.Recorder,
+	pointer *types.Pointer,
+	allocator *alloc.Allocator,
+) error {
+	// 0 address is reserved for the singularity node. We don't do any (de)allocations for this address.
+	if pointer.VolatileAddress == 0 {
+		return nil
+	}
+
+	persistentAddress, err := allocator.Allocate()
+	if err != nil {
+		return err
+	}
+	if walRecorder == nil {
+		pointer.PersistentAddress = persistentAddress
+	} else if err := wal.Set1(walRecorder, tx,
+		&pointer.PersistentAddress, &persistentAddress,
+	); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (db *DB) deallocateNode(
