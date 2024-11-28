@@ -248,12 +248,12 @@ func (db *DB) Run(ctx context.Context) error {
 				})
 				for i, reader := range dataHashReaders {
 					spawn(fmt.Sprintf("datahash-%02d", i), parallel.Fail, func(ctx context.Context) error {
-						return db.updateDataHashes(ctx, reader, uint64(len(dataHashReaders)), uint64(i))
+						return db.updateDataHashes(ctx, reader, uint64(i))
 					})
 				}
 				for i, reader := range pointerHashReaders {
 					spawn(fmt.Sprintf("pointerhash-%02d", i), parallel.Fail, func(ctx context.Context) error {
-						return db.updatePointerHashes(ctx, reader, uint64(len(pointerHashReaders)), uint64(i))
+						return db.updatePointerHashes(ctx, reader, uint64(i))
 					})
 				}
 				spawn("commitSync", parallel.Fail, func(ctx context.Context) error {
@@ -522,10 +522,11 @@ func (db *DB) commit(
 		return err
 	}
 
-	sr := massStoreRequest.New()
-	sr.Store[0] = db.config.State.SingularityNodeRoot()
-	sr.PointersToStore = 1
-	tx.AddStoreRequest(sr)
+	// FIXME (wojciech): Store singularity node
+	// sr := massStoreRequest.New()
+	// sr.Store[0] = db.config.State.SingularityNodeRoot()
+	// sr.PointersToStore = 1
+	// tx.AddStoreRequest(sr)
 
 	return nil
 }
@@ -669,7 +670,6 @@ func (db *DB) processDeallocations(ctx context.Context, pipeReader *pipeline.Rea
 func (db *DB) updateDataHashes(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
-	divider uint64,
 	mod uint64,
 ) error {
 	allocator := db.config.State.NewAllocator()
@@ -696,47 +696,41 @@ func (db *DB) updateDataHashes(
 				continue
 			}
 
-			for i := sr.PointersToStore - 1; i >= 0; i-- {
-				pointer := sr.Store[i].Pointer
+			index := sr.PointersToStore - 1
+			pointer := sr.Store[index].Pointer
 
-				if pointer.State != types.StateData {
-					break
-				}
-				if uint64(pointer.VolatileAddress)%divider != mod {
-					continue
-				}
-				if atomic.LoadUint32(&pointer.Revision) != sr.RequestedRevision {
-					break
-				}
+			if uint64(pointer.VolatileAddress)&1 != mod ||
+				atomic.LoadUint32(&pointer.Revision) != sr.RequestedRevision {
+				continue
+			}
 
-				if pointer.PersistentAddress == 0 {
-					if err := db.allocatePersistentAddress(req, walRecorder, pointer, allocator); err != nil {
-						return err
-					}
-
-					copyMatrix[slotIndex] = (*byte)(db.config.State.Node(pointer.PersistentAddress))
-					mask |= 1 << slotIndex
-				}
-
-				mask |= 1 << (16 + slotIndex)
-				matrix[slotIndex] = (*byte)(db.config.State.Node(pointer.VolatileAddress))
-				hashes1[slotIndex] = &sr.Store[i].Hash[0]
-
-				walHash, err := wal.Reserve(walRecorder, req, sr.Store[i].Hash)
-				if err != nil {
+			if pointer.PersistentAddress == 0 {
+				if err := db.allocatePersistentAddress(req, walRecorder, pointer, allocator); err != nil {
 					return err
 				}
-				hashes2[slotIndex] = &walHash[0]
 
-				slotIndex++
-				if slotIndex == len(matrix) {
-					hash.Blake3AndCopy4096(matrixP, copyMatrixP, hashesP1, hashesP2, mask)
+				copyMatrix[slotIndex] = (*byte)(db.config.State.Node(pointer.PersistentAddress))
+				mask |= 1 << slotIndex
+			}
 
-					slotIndex = 0
-					mask = 0
+			mask |= 1 << (16 + slotIndex)
+			matrix[slotIndex] = (*byte)(db.config.State.Node(pointer.VolatileAddress))
+			hashes1[slotIndex] = &sr.Store[index].Hash[0]
 
-					pipeReader.Acknowledge(processedCount, req)
-				}
+			walHash, err := wal.Reserve(walRecorder, req, sr.Store[index].Hash)
+			if err != nil {
+				return err
+			}
+			hashes2[slotIndex] = &walHash[0]
+
+			slotIndex++
+			if slotIndex == len(matrix) {
+				hash.Blake3AndCopy4096(matrixP, copyMatrixP, hashesP1, hashesP2, mask)
+
+				slotIndex = 0
+				mask = 0
+
+				pipeReader.Acknowledge(processedCount, req)
 			}
 		}
 
@@ -786,7 +780,7 @@ func (r *reader) Read(ctx context.Context) (request, error) {
 			}
 			r.read++
 		}
-		for r.storeRequest != nil && (r.storeRequest.PointersToStore == 0 || r.storeRequest.NoSnapshots) {
+		for r.storeRequest != nil && (r.storeRequest.PointersToStore < 2 || r.storeRequest.NoSnapshots) {
 			r.storeRequest = r.storeRequest.Next
 		}
 
@@ -803,7 +797,7 @@ func (r *reader) Read(ctx context.Context) (request, error) {
 
 		if sr != nil {
 			r.storeRequest = sr.Next
-			req.PointerIndex = sr.PointersToStore
+			req.PointerIndex = sr.PointersToStore - 1
 		}
 
 		return req, nil
@@ -822,7 +816,6 @@ func (r *reader) Acknowledge(count uint64, req *pipeline.TransactionRequest, com
 func (db *DB) updatePointerHashes(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
-	divider uint64,
 	mod uint64,
 ) error {
 	allocator := db.config.State.NewAllocator()
@@ -880,7 +873,7 @@ func (db *DB) updatePointerHashes(
 				req.PointerIndex--
 				pointer = req.StoreRequest.Store[req.PointerIndex].Pointer
 
-				if pointer.State != types.StatePointer || uint64(pointer.VolatileAddress)%divider != mod {
+				if uint64(pointer.VolatileAddress)&1 != mod {
 					continue
 				}
 				if atomic.LoadUint32(&pointer.Revision) != req.StoreRequest.RequestedRevision {
