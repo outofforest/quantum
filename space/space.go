@@ -428,12 +428,18 @@ func (s *Space[K, V]) splitDataNode(
 				Hash:    &parentNode.Hashes[index],
 				Pointer: &parentNode.Pointers[index],
 			},
+		},
+		PointersToStore: 1,
+		NoSnapshots:     s.config.NoSnapshots,
+	})
+	tx.AddStoreRequest(&pipeline.StoreRequest{
+		Store: [pipeline.StoreCapacity]types.NodeRoot{
 			{
 				Hash:    &parentNode.Hashes[newIndex],
 				Pointer: &parentNode.Pointers[newIndex],
 			},
 		},
-		PointersToStore: 2,
+		PointersToStore: 1,
 		NoSnapshots:     s.config.NoSnapshots,
 	})
 
