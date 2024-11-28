@@ -185,13 +185,19 @@ func (db *DB) Run(ctx context.Context) error {
 				executeTxReader := pipeline.NewReader(prepareTxReaders...)
 				deallocateReader := pipeline.NewReader(executeTxReader)
 				dataHashReaders := make([]*pipeline.Reader, 0, 2)
-				pointerHashReaders := make([]*pipeline.Reader, 0, cap(dataHashReaders))
+				prevHashReader := deallocateReader
 				for range cap(dataHashReaders) {
-					dataHashReader := pipeline.NewReader(deallocateReader)
-					dataHashReaders = append(dataHashReaders, dataHashReader)
-					pointerHashReaders = append(pointerHashReaders, pipeline.NewReader(dataHashReader))
+					nextReader := pipeline.NewReader(prevHashReader)
+					dataHashReaders = append(dataHashReaders, nextReader)
+					prevHashReader = nextReader
 				}
-				commitSyncReader := pipeline.NewReader(pointerHashReaders...)
+				pointerHashReaders := make([]*pipeline.Reader, 0, 2)
+				for range cap(pointerHashReaders) {
+					nextReader := pipeline.NewReader(prevHashReader)
+					pointerHashReaders = append(pointerHashReaders, nextReader)
+					prevHashReader = nextReader
+				}
+				commitSyncReader := pipeline.NewReader(prevHashReader)
 
 				spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
 					var lastSyncCh chan<- struct{}
@@ -712,6 +718,7 @@ func (db *DB) updateDataHashes(
 				mask |= 1 << (16 + slotIndex)
 				matrix[slotIndex] = (*byte)(db.config.State.Node(pointer.VolatileAddress))
 				hashes1[slotIndex] = &sr.Store[i].Hash[0]
+
 				walHash, err := wal.Reserve(walRecorder, req, sr.Store[i].Hash)
 				if err != nil {
 					return err
@@ -925,7 +932,6 @@ func (db *DB) updatePointerHashes(
 
 		if nilSlots == len(slots) {
 			if commitReq.TxRequest != nil {
-				// FIXME (wojciech): Data race, all hashing goroutines try to add their WAL nodes to the tx at the same time.
 				walRecorder.Commit(commitReq.TxRequest)
 				r.Acknowledge(commitReq.Count, commitReq.TxRequest, true, false)
 				syncReq = request{}
