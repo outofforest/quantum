@@ -295,8 +295,12 @@ func (s *Space[K, V]) set(
 		}
 		s.config.State.Clear(dataNodeAddress)
 
-		v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress = dataNodeAddress
-		v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State = types.StateData
+		if err := wal.Set2(walRecorder, tx,
+			&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress, &dataNodeAddress,
+			&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State, lo.ToPtr(types.StateData),
+		); err != nil {
+			return err
+		}
 	}
 
 	// Starting from here the data node is allocated.
@@ -419,8 +423,12 @@ func (s *Space[K, V]) splitDataNode(
 		}
 	}
 
-	parentNode.Pointers[newIndex].VolatileAddress = newNodeAddress
-	parentNode.Pointers[newIndex].State = types.StateData
+	if err := wal.Set2(walRecorder, tx,
+		&parentNode.Pointers[newIndex].VolatileAddress, &newNodeAddress,
+		&parentNode.Pointers[newIndex].State, lo.ToPtr(types.StateData),
+	); err != nil {
+		return err
+	}
 
 	tx.AddStoreRequest(&pipeline.StoreRequest{
 		Store: [pipeline.StoreCapacity]types.NodeRoot{
