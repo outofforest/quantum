@@ -197,7 +197,8 @@ func (db *DB) Run(ctx context.Context) error {
 					pointerHashReaders = append(pointerHashReaders, nextReader)
 					prevHashReader = nextReader
 				}
-				commitSyncReader := pipeline.NewReader(prevHashReader)
+				applyWALReader := pipeline.NewReader(prevHashReader)
+				commitSyncReader := pipeline.NewReader(applyWALReader)
 
 				spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
 					var lastSyncCh chan<- struct{}
@@ -256,6 +257,9 @@ func (db *DB) Run(ctx context.Context) error {
 						return db.updatePointerHashes(ctx, reader, uint64(i))
 					})
 				}
+				spawn("applyWAL", parallel.Fail, func(ctx context.Context) error {
+					return db.applyWALChanges(ctx, applyWALReader)
+				})
 				spawn("commitSync", parallel.Fail, func(ctx context.Context) error {
 					return db.syncOnCommit(ctx, commitSyncReader)
 				})
@@ -920,6 +924,17 @@ func (db *DB) updatePointerHashes(
 			hash.Blake3AndCopy2048(matrixP, copyMatrixP, hashesP1, hashesP2, mask)
 			r.Acknowledge(minReq.Count-1, minReq.TxRequest, false)
 		}
+	}
+}
+
+func (db *DB) applyWALChanges(ctx context.Context, pipeReader *pipeline.Reader) error {
+	for processedCount := uint64(0); ; processedCount++ {
+		req, err := pipeReader.Read(ctx)
+		if err != nil {
+			return err
+		}
+
+		pipeReader.Acknowledge(processedCount+1, req)
 	}
 }
 
