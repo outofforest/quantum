@@ -26,7 +26,7 @@ type List struct {
 }
 
 // Add adds address to the list.
-func (l *List) Add(pointer *types.Pointer, allocator *alloc.Allocator) (*types.Pointer, error) {
+func (l *List) Add(nodeAddress types.NodeAddress, allocator *alloc.Allocator) (*types.Pointer, error) {
 	if l.config.Root.State == types.StateFree {
 		newNodeAddress, err := allocator.Allocate()
 		if err != nil {
@@ -34,7 +34,7 @@ func (l *List) Add(pointer *types.Pointer, allocator *alloc.Allocator) (*types.P
 		}
 		node := ProjectNode(l.config.State.Node(newNodeAddress))
 
-		node.Slots[0] = pointer.PersistentAddress
+		node.Slots[0] = nodeAddress
 		node.NumOfPointerAddresses = 1
 		// This is needed because list nodes are not zeroed.
 		node.NumOfSideListAddresses = 0
@@ -47,7 +47,7 @@ func (l *List) Add(pointer *types.Pointer, allocator *alloc.Allocator) (*types.P
 
 	node := ProjectNode(l.config.State.Node(l.config.Root.VolatileAddress))
 	if node.NumOfPointerAddresses+node.NumOfSideListAddresses < NumOfAddresses {
-		node.Slots[node.NumOfPointerAddresses] = pointer.PersistentAddress
+		node.Slots[node.NumOfPointerAddresses] = nodeAddress
 		node.NumOfPointerAddresses++
 
 		return l.config.Root, nil
@@ -59,7 +59,7 @@ func (l *List) Add(pointer *types.Pointer, allocator *alloc.Allocator) (*types.P
 	}
 	node = ProjectNode(l.config.State.Node(newNodeAddress))
 
-	node.Slots[0] = pointer.PersistentAddress
+	node.Slots[0] = nodeAddress
 	node.Slots[NumOfAddresses-2] = l.config.Root.VolatileAddress
 	node.Slots[NumOfAddresses-1] = l.config.Root.PersistentAddress
 	node.NumOfPointerAddresses = 1

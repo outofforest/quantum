@@ -135,9 +135,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				fmt.Println(s.Stats())
 				fmt.Println("===========================")
 
-				v := s.Find(txtypes.GenesisAccount, hashBuff, hashMatches)
-				require.True(b, v.Exists(hashBuff, hashMatches))
-				require.Equal(b, txtypes.Amount(numOfAddresses*balance), v.Value(hashBuff, hashMatches))
+				genesisBalance, genesisExists := s.Query(txtypes.GenesisAccount, hashBuff, hashMatches)
+				require.True(b, genesisExists)
+				require.Equal(b, txtypes.Amount(numOfAddresses*balance), genesisBalance)
 			}()
 
 			txIndex := 0
@@ -175,14 +175,14 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			func() {
 				fmt.Println(s.Stats())
 
-				v := s.Find(txtypes.GenesisAccount, hashBuff, hashMatches)
-				require.True(b, v.Exists(hashBuff, hashMatches))
-				require.Equal(b, txtypes.Amount(0), v.Value(hashBuff, hashMatches))
+				genesisBalance, genesisExists := s.Query(txtypes.GenesisAccount, hashBuff, hashMatches)
+				require.True(b, genesisExists)
+				require.Equal(b, txtypes.Amount(0), genesisBalance)
 
 				for _, addr := range accounts {
-					v := s.Find(addr, hashBuff, hashMatches)
-					require.True(b, v.Exists(hashBuff, hashMatches))
-					require.Equal(b, txtypes.Amount(balance), v.Value(hashBuff, hashMatches))
+					accBalance, accExists := s.Query(addr, hashBuff, hashMatches)
+					require.True(b, accExists)
+					require.Equal(b, txtypes.Amount(balance), accBalance)
 				}
 			}()
 		}()

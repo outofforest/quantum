@@ -5,6 +5,7 @@ import (
 	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space"
 	txtypes "github.com/outofforest/quantum/tx/types"
+	"github.com/outofforest/quantum/types"
 	"github.com/outofforest/quantum/wal"
 )
 
@@ -22,18 +23,25 @@ type Tx struct {
 // Execute executes transaction.
 func (t *Tx) Execute(
 	space *space.Space[txtypes.Account, txtypes.Amount],
+	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
-	rf *wal.Recorder,
+	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
 	for _, a := range t.Accounts {
-		if err := space.Find(a.Account, hashBuff, hashMatches).Set(
-			a.Amount,
+		v, err := space.Find(snapshotID, tx, walRecorder, allocator, a.Account, hashBuff, hashMatches)
+		if err != nil {
+			return err
+		}
+
+		if err := v.Set(
+			snapshotID,
 			tx,
-			rf,
+			walRecorder,
 			allocator,
+			a.Amount,
 			hashBuff,
 			hashMatches,
 		); err != nil {

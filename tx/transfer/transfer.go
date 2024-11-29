@@ -9,6 +9,7 @@ import (
 	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space"
 	txtypes "github.com/outofforest/quantum/tx/types"
+	"github.com/outofforest/quantum/types"
 	"github.com/outofforest/quantum/wal"
 )
 
@@ -23,25 +24,45 @@ type Tx struct {
 }
 
 // Prepare prepares transaction for execution.
-func (t *Tx) Prepare(space *space.Space[txtypes.Account, txtypes.Amount], hashBuff []byte, hashMatches []uint64) {
-	t.from = space.Find(t.From, hashBuff, hashMatches)
-	t.to = space.Find(t.To, hashBuff, hashMatches)
+func (t *Tx) Prepare(
+	space *space.Space[txtypes.Account, txtypes.Amount],
+	snapshotID types.SnapshotID,
+	tx *pipeline.TransactionRequest,
+	walRecorder *wal.Recorder,
+	allocator *alloc.Allocator,
+	hashBuff []byte, hashMatches []uint64,
+) error {
+	var err error
+	t.from, err = space.Find(snapshotID, tx, walRecorder, allocator, t.From, hashBuff, hashMatches)
+	if err != nil {
+		return err
+	}
+
+	t.to, err = space.Find(snapshotID, tx, walRecorder, allocator, t.To, hashBuff, hashMatches)
+	return err
 }
 
 // Execute executes transaction.
 func (t *Tx) Execute(
+	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
-	rf *wal.Recorder,
+	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
-	fromBalance := t.from.Value(hashBuff, hashMatches)
+	fromBalance, err := t.from.Value(snapshotID, tx, walRecorder, allocator, hashBuff, hashMatches)
+	if err != nil {
+		return err
+	}
 	if fromBalance < t.Amount {
 		return errors.Errorf("sender's balance is too low, balance: %d, amount to send: %d", fromBalance, t.Amount)
 	}
 
-	toBalance := t.to.Value(hashBuff, hashMatches)
+	toBalance, err := t.to.Value(snapshotID, tx, walRecorder, allocator, hashBuff, hashMatches)
+	if err != nil {
+		return err
+	}
 	if math.MaxUint64-toBalance < t.Amount {
 		return errors.Errorf(
 			"transfer cannot be executed because it would cause an overflow on the recipient's balance, balance: %d, amount to send: %d", //nolint:lll
@@ -49,10 +70,11 @@ func (t *Tx) Execute(
 	}
 
 	if err := t.from.Set(
-		fromBalance-t.Amount,
+		snapshotID,
 		tx,
-		rf,
+		walRecorder,
 		allocator,
+		fromBalance-t.Amount,
 		hashBuff,
 		hashMatches,
 	); err != nil {
@@ -60,10 +82,11 @@ func (t *Tx) Execute(
 	}
 
 	return t.to.Set(
-		toBalance+t.Amount,
+		snapshotID,
 		tx,
-		rf,
+		walRecorder,
 		allocator,
+		toBalance+t.Amount,
 		hashBuff,
 		hashMatches,
 	)
