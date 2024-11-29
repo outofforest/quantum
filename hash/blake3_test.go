@@ -81,39 +81,24 @@ func BenchmarkChecksum4KAVX(b *testing.B) {
 	b.StopTimer()
 	b.ResetTimer()
 
-	var matrixCopy [16]*byte
-	for j := range matrixCopy {
-		rn, dealloc, err := alloc.Allocate(types.NodeLength, 64, false)
-		require.NoError(b, err)
-		b.Cleanup(dealloc)
-		matrixCopy[j] = (*byte)(rn)
-	}
-
 	chP := make([]*byte, 0, 16)
 	for i := range data4K {
 		chP = append(chP, &data4K[i][0])
 	}
 
-	var z1, z2 [16]*byte
-	for i := range z1 {
-		z, dealloc, err := alloc.Allocate(types.HashLength, 32, false)
+	var z [16]*byte
+	for i := range z {
+		zP, dealloc, err := alloc.Allocate(types.HashLength, 32, false)
 		require.NoError(b, err)
 		b.Cleanup(dealloc)
-		z1[i] = (*byte)(z)
-	}
-	for i := range z2 {
-		z, dealloc, err := alloc.Allocate(types.HashLength, 32, false)
-		require.NoError(b, err)
-		b.Cleanup(dealloc)
-		z2[i] = (*byte)(z)
+		z[i] = (*byte)(zP)
 	}
 
 	b.StartTimer()
 	for range b.N {
-		Blake3AndCopy4096(&chP[0], (**byte)(unsafe.Pointer(&matrixCopy)), &z1[0], &z2[0], math.MaxUint32)
+		Blake34096(&chP[0], &z[0], math.MaxUint16)
 	}
 	b.StopTimer()
 
-	_, _ = fmt.Fprint(io.Discard, z1)
-	_, _ = fmt.Fprint(io.Discard, z2)
+	_, _ = fmt.Fprint(io.Discard, z)
 }

@@ -6,7 +6,6 @@
 package hash
 
 import (
-	"crypto/rand"
 	"math"
 	"testing"
 	"unsafe"
@@ -49,46 +48,20 @@ func TestBlake3OneMessage(t *testing.T) {
 		matrix := zeroMatrix
 		matrix[i] = on
 
-		hashes1P, hashes1Dealloc, err := alloc.Allocate(16*types.HashLength, 32, false)
+		hashesP, hashes1Dealloc, err := alloc.Allocate(16*types.HashLength, 32, false)
 		require.NoError(t, err)
 		t.Cleanup(hashes1Dealloc)
-		hashes2P, hashes2Dealloc, err := alloc.Allocate(16*types.HashLength, 32, false)
-		require.NoError(t, err)
-		t.Cleanup(hashes2Dealloc)
 
-		hashes1 := unsafe.Slice((*types.Hash)(hashes1P), 16)
-		hashes2 := unsafe.Slice((*types.Hash)(hashes2P), 16)
+		hashes := unsafe.Slice((*types.Hash)(hashesP), 16)
 
-		var hashPointers1, hashPointers2 [16]*byte
-		for i := range hashes1 {
-			hashPointers1[i] = &hashes1[i][0]
-		}
-		for i := range hashes2 {
-			hashPointers2[i] = &hashes2[i][0]
+		var hashPointers [16]*byte
+		for i := range hashes {
+			hashPointers[i] = &hashes[i][0]
 		}
 
-		var randomNode [types.NodeLength]byte
-		_, _ = rand.Read(randomNode[:])
-		var matrixCopy [16]*byte
-		for j := range matrixCopy {
-			rn := randomNode
-			matrixCopy[j] = &rn[0]
-		}
+		Blake34096(&matrix[0], &hashPointers[0], math.MaxUint16)
 
-		Blake3AndCopy4096(&matrix[0], (**byte)(unsafe.Pointer(&matrixCopy)), &hashPointers1[0], &hashPointers2[0],
-			math.MaxUint32)
-
-		for j, n := range matrix {
-			assert.Equal(t, unsafe.Slice(n, types.NodeLength), unsafe.Slice(matrixCopy[j], types.NodeLength))
-		}
-		for j, h := range hashes1 {
-			if j == i {
-				assert.Equal(t, oneValueHash, h, "false zero i: %d, j: %d", i, j)
-			} else {
-				assert.Equal(t, zeroValueHash, h, "false one, i: %d, j: %d", i, j)
-			}
-		}
-		for j, h := range hashes2 {
+		for j, h := range hashes {
 			if j == i {
 				assert.Equal(t, oneValueHash, h, "false zero i: %d, j: %d", i, j)
 			} else {
@@ -101,42 +74,20 @@ func TestBlake3OneMessage(t *testing.T) {
 func TestBlake3Zeros(t *testing.T) {
 	matrix := zeroMatrix
 
-	hashes1P, hashes1Dealloc, err := alloc.Allocate(16*types.HashLength, 32, false)
+	hashesP, hashes1Dealloc, err := alloc.Allocate(16*types.HashLength, 32, false)
 	require.NoError(t, err)
 	t.Cleanup(hashes1Dealloc)
-	hashes2P, hashes2Dealloc, err := alloc.Allocate(16*types.HashLength, 32, false)
-	require.NoError(t, err)
-	t.Cleanup(hashes2Dealloc)
 
-	hashes1 := unsafe.Slice((*types.Hash)(hashes1P), 16)
-	hashes2 := unsafe.Slice((*types.Hash)(hashes2P), 16)
+	hashes := unsafe.Slice((*types.Hash)(hashesP), 16)
 
-	var hashPointers1, hashPointers2 [16]*byte
-	for i := range hashes1 {
-		hashPointers1[i] = &hashes1[i][0]
-	}
-	for i := range hashes2 {
-		hashPointers2[i] = &hashes2[i][0]
+	var hashPointers [16]*byte
+	for i := range hashes {
+		hashPointers[i] = &hashes[i][0]
 	}
 
-	var randomNode [types.NodeLength]byte
-	_, _ = rand.Read(randomNode[:])
-	var matrixCopy [16]*byte
-	for j := range matrixCopy {
-		rn := randomNode
-		matrixCopy[j] = &rn[0]
-	}
+	Blake34096(&matrix[0], &hashPointers[0], math.MaxUint16)
 
-	Blake3AndCopy4096(&matrix[0], (**byte)(unsafe.Pointer(&matrixCopy)), &hashPointers1[0], &hashPointers2[0],
-		math.MaxUint32)
-
-	for j, n := range matrix {
-		assert.Equal(t, unsafe.Slice(n, types.NodeLength), unsafe.Slice(matrixCopy[j], types.NodeLength))
-	}
-	for _, h := range hashes1 {
-		assert.Equal(t, zeroValueHash, h)
-	}
-	for _, h := range hashes2 {
+	for _, h := range hashes {
 		assert.Equal(t, zeroValueHash, h)
 	}
 }
