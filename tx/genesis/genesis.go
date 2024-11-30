@@ -22,7 +22,7 @@ type Tx struct {
 
 // Execute executes transaction.
 func (t *Tx) Execute(
-	space *space.Space[txtypes.Account, txtypes.Amount],
+	s *space.Space[txtypes.Account, txtypes.Amount],
 	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
@@ -31,8 +31,9 @@ func (t *Tx) Execute(
 	hashMatches []uint64,
 ) error {
 	for _, a := range t.Accounts {
-		v, err := space.Find(snapshotID, tx, walRecorder, allocator, a.Account, hashBuff, hashMatches)
-		if err != nil {
+		var v space.Entry[txtypes.Account, txtypes.Amount]
+		if err := s.Find(&v, snapshotID, tx, walRecorder, allocator, a.Account, space.StageData, hashBuff,
+			hashMatches); err != nil {
 			return err
 		}
 

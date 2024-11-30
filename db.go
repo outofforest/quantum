@@ -81,7 +81,6 @@ func New(config Config) (*DB, error) {
 		},
 		State:             config.State,
 		DataNodeAssistant: snapshotInfoNodeAssistant,
-		MassEntry:         mass.New[space.Entry[types.SnapshotID, types.SnapshotInfo]](1000),
 		NoSnapshots:       true,
 	})
 
@@ -92,7 +91,6 @@ func New(config Config) (*DB, error) {
 			},
 			State:             config.State,
 			DataNodeAssistant: snapshotToPointerNodeAssistant,
-			MassEntry:         mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000),
 			NoSnapshots:       true,
 		},
 	)
@@ -179,11 +177,14 @@ func (db *DB) Run(ctx context.Context) error {
 			defer db.config.State.Close()
 
 			return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-				prepareTxReaders := make([]*pipeline.Reader, 0, 1)
+				supervisorReader := db.queueReader
+				prepareTxReader := pipeline.CloneReader(db.queueReader)
+				prepareTxReaders := make([]*pipeline.Reader, 0, 3)
 				for range cap(prepareTxReaders) {
-					prepareTxReaders = append(prepareTxReaders, pipeline.CloneReader(db.queueReader))
+					prepareTxReaders = append(prepareTxReaders, prepareTxReader)
+					prepareTxReader = pipeline.NewReader(prepareTxReader)
 				}
-				executeTxReader := pipeline.NewReader(prepareTxReaders...)
+				executeTxReader := prepareTxReader
 				deallocateReader := pipeline.NewReader(executeTxReader)
 				copyReaders := make([]*pipeline.Reader, 0, 4)
 				for range cap(copyReaders) {
@@ -212,7 +213,7 @@ func (db *DB) Run(ctx context.Context) error {
 					var processedCount uint64
 
 					for {
-						req, err := db.queueReader.Read(ctx)
+						req, err := supervisorReader.Read(ctx)
 						if err != nil {
 							if lastSyncCh != nil {
 								lastSyncCh <- struct{}{}
@@ -226,7 +227,7 @@ func (db *DB) Run(ctx context.Context) error {
 
 						if req != nil {
 							processedCount++
-							db.queueReader.Acknowledge(processedCount, req)
+							supervisorReader.Acknowledge(processedCount, req)
 
 							if req.Type == pipeline.Sync {
 								lastSyncCh = req.SyncCh
@@ -244,7 +245,7 @@ func (db *DB) Run(ctx context.Context) error {
 				})
 				for i, reader := range prepareTxReaders {
 					spawn(fmt.Sprintf("prepareTx-%02d", i), parallel.Fail, func(ctx context.Context) error {
-						return db.prepareTransactions(ctx, reader, uint64(len(prepareTxReaders)), uint64(i))
+						return db.prepareTransactions(ctx, reader)
 					})
 				}
 				spawn("executeTx", parallel.Fail, func(ctx context.Context) error {
@@ -290,15 +291,15 @@ func (db *DB) deleteSnapshot(
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
 	deallocator *alloc.Deallocator,
-	massSnapshotToPointerEntry *mass.Mass[space.Entry[types.SnapshotID, types.Pointer]],
 	massStoreRequest *mass.Mass[pipeline.StoreRequest],
 	snapshotHashBuff []byte,
 	snapshotHashMatches []uint64,
 	deallocationHashBuff []byte,
 	deallocationHashMatches []uint64,
 ) error {
-	snapshotInfoValue, err := db.snapshots.Find(snapshotID, tx, walRecorder, allocator, snapshotID, snapshotHashBuff,
-		snapshotHashMatches)
+	var snapshotInfoValue space.Entry[types.SnapshotID, types.SnapshotInfo]
+	err := db.snapshots.Find(&snapshotInfoValue, snapshotID, tx, walRecorder, allocator, snapshotID, space.StageData,
+		snapshotHashBuff, snapshotHashMatches)
 	if err != nil {
 		return err
 	}
@@ -327,8 +328,9 @@ func (db *DB) deleteSnapshot(
 
 	//nolint:nestif
 	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
-		nextSnapshotInfoValue, err := db.snapshots.Find(snapshotID, tx, walRecorder, allocator,
-			snapshotInfo.NextSnapshotID, snapshotHashBuff, snapshotHashMatches)
+		var nextSnapshotInfoValue space.Entry[types.SnapshotID, types.SnapshotInfo]
+		err := db.snapshots.Find(&nextSnapshotInfoValue, snapshotID, tx, walRecorder, allocator,
+			snapshotInfo.NextSnapshotID, space.StageData, snapshotHashBuff, snapshotHashMatches)
 		if err != nil {
 			return err
 		}
@@ -356,7 +358,6 @@ func (db *DB) deleteSnapshot(
 				SpaceRoot:         nextDeallocationListRoot,
 				State:             db.config.State,
 				DataNodeAssistant: db.snapshotToPointerNodeAssistant,
-				MassEntry:         massSnapshotToPointerEntry,
 			},
 		)
 	} else {
@@ -375,7 +376,6 @@ func (db *DB) deleteSnapshot(
 			SpaceRoot:         deallocationListsRoot,
 			State:             db.config.State,
 			DataNodeAssistant: db.snapshotToPointerNodeAssistant,
-			MassEntry:         massSnapshotToPointerEntry,
 		},
 	)
 
@@ -391,8 +391,9 @@ func (db *DB) deleteSnapshot(
 			continue
 		}
 
-		deallocationListValue, err := deallocationLists.Find(snapshotID, tx, walRecorder, allocator,
-			nextDeallocSnapshot.Key, deallocationHashBuff, deallocationHashMatches)
+		var deallocationListValue space.Entry[types.SnapshotID, types.Pointer]
+		err := deallocationLists.Find(&deallocationListValue, snapshotID, tx, walRecorder, allocator,
+			nextDeallocSnapshot.Key, space.StageData, deallocationHashBuff, deallocationHashMatches)
 		if err != nil {
 			return err
 		}
@@ -459,8 +460,9 @@ func (db *DB) deleteSnapshot(
 	nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
 
 	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
-		nextSnapshotInfoValue, err := db.snapshots.Find(snapshotID, tx, walRecorder, allocator,
-			snapshotInfo.NextSnapshotID, snapshotHashBuff, snapshotHashMatches)
+		var nextSnapshotInfoValue space.Entry[types.SnapshotID, types.SnapshotInfo]
+		err := db.snapshots.Find(&nextSnapshotInfoValue, snapshotID, tx, walRecorder, allocator,
+			snapshotInfo.NextSnapshotID, space.StageData, snapshotHashBuff, snapshotHashMatches)
 		if err != nil {
 			return err
 		}
@@ -479,8 +481,9 @@ func (db *DB) deleteSnapshot(
 
 	//nolint:nestif
 	if snapshotInfo.PreviousSnapshotID > 0 {
-		previousSnapshotInfoValue, err := db.snapshots.Find(snapshotID, tx, walRecorder, allocator,
-			snapshotInfo.PreviousSnapshotID, snapshotHashBuff, snapshotHashMatches)
+		var previousSnapshotInfoValue space.Entry[types.SnapshotID, types.SnapshotInfo]
+		err := db.snapshots.Find(&previousSnapshotInfoValue, snapshotID, tx, walRecorder, allocator,
+			snapshotInfo.PreviousSnapshotID, space.StageData, snapshotHashBuff, snapshotHashMatches)
 		if err != nil {
 			return err
 		}
@@ -538,8 +541,9 @@ func (db *DB) commit(
 		var sr *pipeline.StoreRequest
 		for _, snapshotID := range lists {
 			l := db.deallocationListsToCommit[snapshotID]
-			deallocationListValue, err := db.deallocationLists.Find(commitSnapshotID, tx, walRecorder, allocator,
-				snapshotID, deallocationHashBuff, deallocationHashMatches)
+			var deallocationListValue space.Entry[types.SnapshotID, types.Pointer]
+			err := db.deallocationLists.Find(&deallocationListValue, commitSnapshotID, tx, walRecorder, allocator,
+				snapshotID, space.StageData, deallocationHashBuff, deallocationHashMatches)
 			if err != nil {
 				return err
 			}
@@ -599,8 +603,9 @@ func (db *DB) commit(
 		clear(db.deallocationListsToCommit)
 	}
 
-	nextSnapshotInfoValue, err := db.snapshots.Find(commitSnapshotID, tx, walRecorder, allocator,
-		db.singularityNode.LastSnapshotID, snapshotHashBuff, snapshotHashMatches)
+	var nextSnapshotInfoValue space.Entry[types.SnapshotID, types.SnapshotInfo]
+	err := db.snapshots.Find(&nextSnapshotInfoValue, commitSnapshotID, tx, walRecorder, allocator,
+		db.singularityNode.LastSnapshotID, space.StageData, snapshotHashBuff, snapshotHashMatches)
 	if err != nil {
 		return err
 	}
@@ -628,8 +633,6 @@ func (db *DB) commit(
 func (db *DB) prepareTransactions(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
-	divider uint64,
-	mod uint64,
 ) error {
 	s, err := GetSpace[txtypes.Account, txtypes.Amount](spaces.Balances, db)
 	if err != nil {
@@ -648,7 +651,7 @@ func (db *DB) prepareTransactions(
 			return err
 		}
 
-		if processedCount%divider == mod && req.Transaction != nil {
+		if req.Transaction != nil {
 			if transferTx, ok := req.Transaction.(*transfer.Tx); ok {
 				if err := transferTx.Prepare(s, db.singularityNode.LastSnapshotID, req, walRecorder, allocator,
 					hashBuff, hashMatches); err != nil {
@@ -677,7 +680,6 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 	deallocationHashBuff := db.deallocationLists.NewHashBuff()
 	deallocationHashMatches := db.deallocationLists.NewHashMatches()
 
-	massSnapshotToPointerEntry := mass.New[space.Entry[types.SnapshotID, types.Pointer]](1000)
 	massStoreRequest := mass.New[pipeline.StoreRequest](1000)
 
 	walRecorder := wal.NewRecorder(db.config.State, allocator)
@@ -707,8 +709,8 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 				walRecorder.Commit(req)
 			case *deleteSnapshotTx:
 				if err := db.deleteSnapshot(tx.SnapshotID, req, walRecorder, allocator, deallocator,
-					massSnapshotToPointerEntry, massStoreRequest, snapshotHashBuff, snapshotHashMatches,
-					deallocationHashBuff, deallocationHashMatches); err != nil {
+					massStoreRequest, snapshotHashBuff, snapshotHashMatches, deallocationHashBuff,
+					deallocationHashMatches); err != nil {
 					return err
 				}
 			case *genesis.Tx:
@@ -1214,7 +1216,6 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 		},
 		State:             db.config.State,
 		DataNodeAssistant: dataNodeAssistant,
-		MassEntry:         mass.New[space.Entry[K, V]](1000),
 	}), nil
 }
 
