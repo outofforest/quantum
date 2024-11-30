@@ -86,10 +86,7 @@ type StoreRequest struct {
 	NoSnapshots       bool
 	PointersToStore   int8
 	Store             [StoreCapacity]types.NodeRoot
-	ListsToStore      int8
-	ListStore         [StoreCapacity]*types.Pointer
 	RequestedRevision uint32
-	WALsToStore       uint8
 	Next              *StoreRequest
 }
 
