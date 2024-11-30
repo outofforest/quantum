@@ -44,7 +44,7 @@ func NewRecorder(
 		state:       state,
 		stateOrigin: uintptr(state.Origin()),
 		allocator:   allocator,
-		sizeCounter: types.BlobSize,
+		sizeCounter: qtypes.NodeLength,
 	}
 }
 
@@ -62,14 +62,14 @@ type Recorder struct {
 // Commit commits pending node.
 func (r *Recorder) Commit(tx *pipeline.TransactionRequest) {
 	if r.node != nil {
-		if r.sizeCounter < types.BlobSize {
-			r.node.Blob[r.sizeCounter] = byte(RecordEnd)
+		if r.sizeCounter < qtypes.NodeLength {
+			r.node[r.sizeCounter] = byte(RecordEnd)
 		}
 		tx.AddWALRequest(r.nodeAddress)
 	}
 
 	r.node = nil
-	r.sizeCounter = types.BlobSize
+	r.sizeCounter = qtypes.NodeLength
 }
 
 func (r *Recorder) insert(
@@ -80,9 +80,9 @@ func (r *Recorder) insert(
 	if err := r.ensureSize(tx, size+1); err != nil {
 		return nil, err
 	}
-	r.node.Blob[r.sizeCounter] = byte(recordType)
+	r.node[r.sizeCounter] = byte(recordType)
 
-	p := unsafe.Pointer(&r.node.Blob[r.sizeCounter+1])
+	p := unsafe.Pointer(&r.node[r.sizeCounter+1])
 	r.sizeCounter += size + 1
 
 	return p, nil
@@ -97,11 +97,11 @@ func (r *Recorder) insertWithOffset(
 	if err := r.ensureSize(tx, size+9); err != nil {
 		return nil, err
 	}
-	r.node.Blob[r.sizeCounter] = byte(recordType)
-	*(*uintptr)(unsafe.Pointer(&r.node.Blob[r.sizeCounter+1])) = offset
+	r.node[r.sizeCounter] = byte(recordType)
+	*(*uintptr)(unsafe.Pointer(&r.node[r.sizeCounter+1])) = offset
 	r.sizeCounter += 9
 
-	p := unsafe.Pointer(&r.node.Blob[r.sizeCounter])
+	p := unsafe.Pointer(&r.node[r.sizeCounter])
 	r.sizeCounter += size
 
 	return p, nil
@@ -116,24 +116,24 @@ func (r *Recorder) insertWithOffsetAndSize(
 	if err := r.ensureSize(tx, size+11); err != nil {
 		return nil, err
 	}
-	r.node.Blob[r.sizeCounter] = byte(recordType)
-	*(*uintptr)(unsafe.Pointer(&r.node.Blob[r.sizeCounter+1])) = offset
-	*(*uint16)(unsafe.Pointer(&r.node.Blob[r.sizeCounter+9])) = uint16(size)
+	r.node[r.sizeCounter] = byte(recordType)
+	*(*uintptr)(unsafe.Pointer(&r.node[r.sizeCounter+1])) = offset
+	*(*uint16)(unsafe.Pointer(&r.node[r.sizeCounter+9])) = uint16(size)
 	r.sizeCounter += 11
 
-	p := unsafe.Pointer(&r.node.Blob[r.sizeCounter])
+	p := unsafe.Pointer(&r.node[r.sizeCounter])
 	r.sizeCounter += size
 
 	return p, nil
 }
 
 func (r *Recorder) ensureSize(tx *pipeline.TransactionRequest, size uintptr) error {
-	if types.BlobSize-r.sizeCounter >= size {
+	if qtypes.NodeLength-r.sizeCounter >= size {
 		return nil
 	}
 	if r.node != nil {
-		if r.sizeCounter < types.BlobSize {
-			r.node.Blob[r.sizeCounter] = byte(RecordEnd)
+		if r.sizeCounter < qtypes.NodeLength {
+			r.node[r.sizeCounter] = byte(RecordEnd)
 		}
 		tx.AddWALRequest(r.nodeAddress)
 	}
