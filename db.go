@@ -293,6 +293,10 @@ func (db *DB) deleteSnapshot(
 	deallocationHashBuff []byte,
 	deallocationHashMatches []uint64,
 ) error {
+	if snapshotID == db.snapshotInfo.PreviousSnapshotID {
+		return errors.New("deleting latest snapshot is forbidden")
+	}
+
 	var snapshotInfoValue space.Entry[types.SnapshotID, types.SnapshotInfo]
 	err := db.snapshots.Find(&snapshotInfoValue, snapshotID, tx, walRecorder, allocator, snapshotID, space.StageData,
 		snapshotHashBuff, snapshotHashMatches)
@@ -318,51 +322,36 @@ func (db *DB) deleteSnapshot(
 		return err
 	}
 
-	var nextSnapshotInfo *types.SnapshotInfo
-	var nextDeallocationListRoot types.NodeRoot
-	var nextDeallocationLists *space.Space[types.SnapshotID, types.NodeAddress]
-
-	//nolint:nestif
-	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
-		var nextSnapshotInfoValue space.Entry[types.SnapshotID, types.SnapshotInfo]
-		err := db.snapshots.Find(&nextSnapshotInfoValue, snapshotID, tx, walRecorder, allocator,
-			snapshotInfo.NextSnapshotID, space.StageData, snapshotHashBuff, snapshotHashMatches)
-		if err != nil {
-			return err
-		}
-
-		exists, err := nextSnapshotInfoValue.Exists(snapshotID, tx, walRecorder, allocator, snapshotHashBuff,
-			snapshotHashMatches)
-		if err != nil {
-			return err
-		}
-		if !exists {
-			return errors.Errorf("next snapshot %d does not exist", snapshotID)
-		}
-		tmpNextSnapshotInfo, err := nextSnapshotInfoValue.Value(snapshotID, tx, walRecorder, allocator, snapshotHashBuff,
-			snapshotHashMatches)
-		if err != nil {
-			return err
-		}
-		nextSnapshotInfo = &tmpNextSnapshotInfo
-
-		nextDeallocationListRoot = types.NodeRoot{
-			Pointer: &nextSnapshotInfo.DeallocationRoot,
-		}
-		nextDeallocationLists = space.New[types.SnapshotID, types.NodeAddress](
-			space.Config[types.SnapshotID, types.NodeAddress]{
-				SpaceRoot:         nextDeallocationListRoot,
-				State:             db.config.State,
-				DataNodeAssistant: db.snapshotToNodeNodeAssistant,
-			},
-		)
-	} else {
-		nextSnapshotInfo = &db.snapshotInfo
-		nextDeallocationListRoot = types.NodeRoot{
-			Pointer: &db.snapshotInfo.DeallocationRoot,
-		}
-		nextDeallocationLists = db.deallocationLists
+	var nextSnapshotInfoValue space.Entry[types.SnapshotID, types.SnapshotInfo]
+	if err := db.snapshots.Find(&nextSnapshotInfoValue, snapshotID, tx, walRecorder, allocator,
+		snapshotInfo.NextSnapshotID, space.StageData, snapshotHashBuff, snapshotHashMatches); err != nil {
+		return err
 	}
+
+	exists, err = nextSnapshotInfoValue.Exists(snapshotID, tx, walRecorder, allocator, snapshotHashBuff,
+		snapshotHashMatches)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return errors.Errorf("next snapshot %d does not exist", snapshotID)
+	}
+	nextSnapshotInfo, err := nextSnapshotInfoValue.Value(snapshotID, tx, walRecorder, allocator, snapshotHashBuff,
+		snapshotHashMatches)
+	if err != nil {
+		return err
+	}
+
+	nextDeallocationListRoot := types.NodeRoot{
+		Pointer: &nextSnapshotInfo.DeallocationRoot,
+	}
+	nextDeallocationLists := space.New[types.SnapshotID, types.NodeAddress](
+		space.Config[types.SnapshotID, types.NodeAddress]{
+			SpaceRoot:         nextDeallocationListRoot,
+			State:             db.config.State,
+			DataNodeAssistant: db.snapshotToNodeNodeAssistant,
+		},
+	)
 
 	deallocationListsRoot := types.NodeRoot{
 		Pointer: &snapshotInfo.DeallocationRoot,
@@ -422,34 +411,24 @@ func (db *DB) deleteSnapshot(
 	}
 
 	nextSnapshotInfo.DeallocationRoot = snapshotInfo.DeallocationRoot
+	nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
+	if err := nextSnapshotInfoValue.Set(
+		snapshotID,
+		tx,
+		walRecorder,
+		allocator,
+		nextSnapshotInfo,
+		snapshotHashBuff,
+		snapshotHashMatches,
+	); err != nil {
+		return err
+	}
 
 	space.Deallocate(
 		nextDeallocationListRoot.Pointer,
 		deallocator,
 		db.config.State,
 	)
-
-	nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
-
-	if snapshotInfo.NextSnapshotID < db.singularityNode.LastSnapshotID {
-		var nextSnapshotInfoValue space.Entry[types.SnapshotID, types.SnapshotInfo]
-		err := db.snapshots.Find(&nextSnapshotInfoValue, snapshotID, tx, walRecorder, allocator,
-			snapshotInfo.NextSnapshotID, space.StageData, snapshotHashBuff, snapshotHashMatches)
-		if err != nil {
-			return err
-		}
-		if err := nextSnapshotInfoValue.Set(
-			snapshotID,
-			tx,
-			walRecorder,
-			allocator,
-			*nextSnapshotInfo,
-			snapshotHashBuff,
-			snapshotHashMatches,
-		); err != nil {
-			return err
-		}
-	}
 
 	//nolint:nestif
 	if snapshotInfo.PreviousSnapshotID > 0 {
