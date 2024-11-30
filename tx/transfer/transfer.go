@@ -19,27 +19,25 @@ type Tx struct {
 	To     txtypes.Account
 	Amount txtypes.Amount
 
-	from *space.Entry[txtypes.Account, txtypes.Amount]
-	to   *space.Entry[txtypes.Account, txtypes.Amount]
+	from space.Entry[txtypes.Account, txtypes.Amount]
+	to   space.Entry[txtypes.Account, txtypes.Amount]
 }
 
 // Prepare prepares transaction for execution.
 func (t *Tx) Prepare(
-	space *space.Space[txtypes.Account, txtypes.Amount],
+	s *space.Space[txtypes.Account, txtypes.Amount],
 	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
 	hashBuff []byte, hashMatches []uint64,
 ) error {
-	var err error
-	t.from, err = space.Find(snapshotID, tx, walRecorder, allocator, t.From, hashBuff, hashMatches)
-	if err != nil {
+	if err := s.Find(&t.from, snapshotID, tx, walRecorder, allocator, t.From, space.StagePointer0, hashBuff,
+		hashMatches); err != nil {
 		return err
 	}
 
-	t.to, err = space.Find(snapshotID, tx, walRecorder, allocator, t.To, hashBuff, hashMatches)
-	return err
+	return s.Find(&t.to, snapshotID, tx, walRecorder, allocator, t.To, space.StagePointer0, hashBuff, hashMatches)
 }
 
 // Execute executes transaction.

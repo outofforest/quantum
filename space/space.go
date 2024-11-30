@@ -9,13 +9,19 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/samber/lo"
 
-	"github.com/outofforest/mass"
 	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space/compare"
 	"github.com/outofforest/quantum/types"
 	"github.com/outofforest/quantum/wal"
+)
+
+// Stage constants.
+const (
+	StagePointer0 uint8 = iota
+	StagePointer1
+	StageData
 )
 
 var (
@@ -30,7 +36,6 @@ type Config[K, V comparable] struct {
 	SpaceRoot         types.NodeRoot
 	State             *alloc.State
 	DataNodeAssistant *DataNodeAssistant[K, V]
-	MassEntry         *mass.Mass[Entry[K, V]]
 	NoSnapshots       bool
 }
 
@@ -81,43 +86,44 @@ func (s *Space[K, V]) NewHashMatches() []uint64 {
 
 // Find locates key in the space.
 func (s *Space[K, V]) Find(
+	v *Entry[K, V],
 	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
 	key K,
+	stage uint8,
 	hashBuff []byte,
 	hashMatches []uint64,
-) (*Entry[K, V], error) {
-	v := s.config.MassEntry.New()
-	initBytes := unsafe.Slice((*byte)(unsafe.Pointer(v)), s.initSize)
-	copy(initBytes, s.defaultInit)
-	v.keyHash = hashKey(&key, nil, 0)
-	v.item.Key = key
-	v.dataItemIndex = dataItemIndex(v.keyHash, s.numOfDataItems)
+) error {
+	//nolint:nestif
+	if v.space == nil {
+		initBytes := unsafe.Slice((*byte)(unsafe.Pointer(v)), s.initSize)
+		copy(initBytes, s.defaultInit)
+		v.keyHash = hashKey(&key, nil, 0)
+		v.item.Key = key
+		v.dataItemIndex = dataItemIndex(v.keyHash, s.numOfDataItems)
+		v.stage = stage
 
-	if v.storeRequest.Store[0].Pointer.State != types.StateFree &&
-		v.storeRequest.Store[0].Pointer.SnapshotID != snapshotID {
-		persistentAddress, err := allocator.Allocate()
-		if err != nil {
-			return nil, err
+		if s.config.SpaceRoot.Pointer.State != types.StateFree &&
+			s.config.SpaceRoot.Pointer.SnapshotID != snapshotID {
+			persistentAddress, err := allocator.Allocate()
+			if err != nil {
+				return err
+			}
+
+			if err := wal.Deallocate(walRecorder, tx, s.config.SpaceRoot.Pointer, persistentAddress,
+				s.config.NoSnapshots); err != nil {
+				return err
+			}
+
+			// This is not stored in WAL because space roots are stored separately on commit.
+			s.config.SpaceRoot.Pointer.SnapshotID = snapshotID
+			s.config.SpaceRoot.Pointer.PersistentAddress = persistentAddress
 		}
-
-		if err := wal.Deallocate(walRecorder, tx, v.storeRequest.Store[0].Pointer, persistentAddress,
-			s.config.NoSnapshots); err != nil {
-			return nil, err
-		}
-
-		// This is not stored in WAL because space roots are stored separately on commit.
-		v.storeRequest.Store[0].Pointer.SnapshotID = snapshotID
-		v.storeRequest.Store[0].Pointer.PersistentAddress = persistentAddress
 	}
 
-	if err := s.find(snapshotID, tx, walRecorder, allocator, v, hashBuff, hashMatches); err != nil {
-		return nil, err
-	}
-
-	return v, nil
+	return s.find(snapshotID, tx, walRecorder, allocator, v, hashBuff, hashMatches)
 }
 
 // Query queries the key.
@@ -403,6 +409,16 @@ func (s *Space[K, V]) find(
 ) error {
 	if err := s.walkPointers(snapshotID, tx, walRecorder, allocator, v, hashBuff); err != nil {
 		return err
+	}
+
+	switch {
+	case v.stage == StageData:
+	case v.stage == StagePointer0:
+		v.stage = StagePointer1
+		return nil
+	case v.stage == StagePointer1:
+		v.stage = StageData
+		return nil
 	}
 
 	if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State != types.StateData {
@@ -873,6 +889,10 @@ func (s *Space[K, V]) walkPointers(
 		} else {
 			v.nextDataNodeState = &pointerNode.Pointers[nextIndex].State
 		}
+
+		if v.stage == StagePointer0 && v.level == 3 {
+			return nil
+		}
 	}
 
 	return nil
@@ -927,6 +947,7 @@ type Entry[K, V comparable] struct {
 	parentIndex   uint64
 	dataItemIndex uint64
 	exists        bool
+	stage         uint8
 	level         uint8
 }
 
