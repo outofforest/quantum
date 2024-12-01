@@ -588,6 +588,10 @@ func (db *DB) prepareTransactions(
 			}
 		}
 
+		if req.Type == pipeline.Sync {
+			walRecorder.Commit(req)
+		}
+
 		pipeReader.Acknowledge(processedCount+1, req)
 	}
 }
@@ -648,6 +652,10 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 			}
 		}
 
+		if req.Type == pipeline.Sync {
+			walRecorder.Commit(req)
+		}
+
 		pipeReader.Acknowledge(processedCount+1, req)
 	}
 }
@@ -655,7 +663,6 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 func (db *DB) processDeallocations(ctx context.Context, pipeReader *pipeline.Reader) error {
 	allocator := db.config.State.NewAllocator()
 	deallocator := db.config.State.NewDeallocator()
-	walRecorder := wal.NewRecorder(db.config.State, allocator)
 
 	var revisionCounter uint32
 
@@ -703,11 +710,8 @@ func (db *DB) processDeallocations(ctx context.Context, pipeReader *pipeline.Rea
 			}
 		}
 
-		switch req.Type {
-		case pipeline.Sync:
+		if req.Type == pipeline.Sync {
 			req.SyncCh <- struct{}{}
-		case pipeline.Commit:
-			walRecorder.Commit(req)
 		}
 
 		pipeReader.Acknowledge(processedCount+1, req)
@@ -789,7 +793,7 @@ func (db *DB) applyWALChanges(ctx context.Context, pipeReader *pipeline.Reader) 
 					offset := *(*uint64)(unsafe.Pointer(&walNode[wrIndex+1]))
 					size := *(*uint16)(unsafe.Pointer(&walNode[wrIndex+9]))
 					copy(unsafe.Slice((*byte)(unsafe.Add(origin, offset)), size), walNode[wrIndex+11:])
-					wrIndex += size + 2
+					wrIndex += size + 11
 				case wal.RecordImmediateDeallocation, wal.RecordDelayedDeallocation:
 					wrIndex += 25
 				default:
