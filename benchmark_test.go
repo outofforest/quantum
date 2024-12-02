@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"testing"
 	"unsafe"
@@ -71,24 +70,20 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			defer stateDeallocFunc()
 
 			//nolint:ineffassign,wastedassign,staticcheck
-			stores, storesCloseFunc, err := fileStores([]string{
-				"db0.quantum",
-				// "db1.quantum",
+			store, storeCloseFunc, err := fileStore(
 				// "/tmp/d0/wojciech/db.quantum",
-				// "/tmp/d1/wojciech/db.quantum",
-			}, size)
+				"db0.quantum",
+				size)
 			if err != nil {
 				panic(err)
 			}
-			defer storesCloseFunc()
+			defer storeCloseFunc()
 
-			stores = []persistent.Store{
-				persistent.NewDummyStore(),
-			}
+			store = persistent.NewDummyStore()
 
 			db, err := quantum.New(quantum.Config{
-				State:  state,
-				Stores: stores,
+				State: state,
+				Store: store,
 			})
 			if err != nil {
 				panic(err)
@@ -189,64 +184,26 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 	}
 }
 
-func fileStores(
-	paths []string,
-	size uint64,
-) ([]persistent.Store, func(), error) {
-	numOfStores := uint64(len(paths))
-	stores := make([]persistent.Store, 0, numOfStores)
-	funcs := make([]func(), 0, numOfStores)
-
+func fileStore(path string, size uint64) (persistent.Store, func(), error) {
 	expectedNumOfNodes := size / types.NodeLength
-	expectedCapacity := (expectedNumOfNodes + numOfStores - 1) / numOfStores * types.NodeLength
+	expectedCapacity := expectedNumOfNodes * types.NodeLength
 	seekTo := int64(expectedCapacity - types.NodeLength)
 	data := make([]byte, 2*types.NodeLength-1)
 	p := uint64(uintptr(unsafe.Pointer(&data[0])))
 	p = (p+types.NodeLength-1)/types.NodeLength*types.NodeLength - p
 	data = data[p : p+types.NodeLength]
 
-	var minNumOfNodes uint64 = math.MaxUint64
-	for _, path := range paths {
-		file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0o600)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		fileSize, err := file.Seek(0, io.SeekEnd)
-		if err != nil {
-			return nil, nil, errors.WithStack(err)
-		}
-		if fileSize == 0 {
-			if _, err := file.Seek(seekTo, io.SeekEnd); err != nil {
-				return nil, nil, errors.WithStack(err)
-			}
-			if _, err := file.Write(data); err != nil {
-				return nil, nil, errors.WithStack(err)
-			}
-			fileSize = int64(expectedCapacity)
-		}
-
-		numOfNodes := uint64(fileSize) / types.NodeLength
-		if numOfNodes < minNumOfNodes {
-			minNumOfNodes = numOfNodes
-		}
-
-		store, storeCloseFunc, err := persistent.NewFileStore(file)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		stores = append(stores, store)
-		funcs = append(funcs, storeCloseFunc)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	if minNumOfNodes*numOfStores < expectedNumOfNodes {
-		return nil, nil, errors.New("files don't provide enough capacity")
+	if _, err := file.Seek(seekTo, io.SeekEnd); err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+	if _, err := file.Write(data); err != nil {
+		return nil, nil, errors.WithStack(err)
 	}
 
-	return stores, func() {
-		for _, f := range funcs {
-			f()
-		}
-	}, nil
+	return persistent.NewFileStore(file)
 }

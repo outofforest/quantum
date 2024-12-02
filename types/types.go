@@ -112,4 +112,5 @@ type SingularityNode struct {
 	Hash           Hash
 	LastSnapshotID SnapshotID
 	SnapshotRoot   Pointer
+	WALListTail    NodeAddress
 }

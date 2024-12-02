@@ -25,13 +25,14 @@ import (
 	"github.com/outofforest/quantum/tx/types/spaces"
 	"github.com/outofforest/quantum/types"
 	"github.com/outofforest/quantum/wal"
+	wallist "github.com/outofforest/quantum/wal/list"
 	waltypes "github.com/outofforest/quantum/wal/types"
 )
 
 // Config stores snapshot configuration.
 type Config struct {
-	State  *alloc.State
-	Stores []persistent.Store
+	State *alloc.State
+	Store persistent.Store
 }
 
 // SpaceToCommit represents requested space which might require to be committed.
@@ -136,7 +137,7 @@ func (db *DB) Commit() error {
 	tx.SyncCh = syncCh
 	db.queue.Push(tx)
 
-	commitCh := make(chan error, len(db.config.Stores)+1) // 1 is for supervisor
+	commitCh := make(chan error, 2) // 1 for store and 1 for supervisor
 	tx = db.txRequestFactory.New()
 	tx.Type = pipeline.Commit
 	tx.CommitCh = commitCh
@@ -145,10 +146,8 @@ func (db *DB) Commit() error {
 	}
 	db.queue.Push(tx)
 
-	for range len(db.config.Stores) {
-		if err := <-commitCh; err != nil {
-			return err
-		}
+	if err := <-commitCh; err != nil {
+		return err
 	}
 
 	db.config.State.Commit()
@@ -197,8 +196,8 @@ func (db *DB) Run(ctx context.Context) error {
 					pointerHashReaders = append(pointerHashReaders, nextReader)
 					prevHashReader = nextReader
 				}
-
-				commitSyncReader := pipeline.NewReader(prevHashReader)
+				walListReader := pipeline.NewReader(prevHashReader)
+				storeWALReader := pipeline.NewReader(walListReader)
 
 				spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
 					var lastSyncCh chan<- struct{}
@@ -265,8 +264,11 @@ func (db *DB) Run(ctx context.Context) error {
 						return db.updatePointerHashes(ctx, reader, uint64(i))
 					})
 				}
-				spawn("commitSync", parallel.Fail, func(ctx context.Context) error {
-					return db.syncOnCommit(ctx, commitSyncReader)
+				spawn("walList", parallel.Fail, func(ctx context.Context) error {
+					return db.buildWALList(ctx, db.config.Store, walListReader)
+				})
+				spawn("storeWAL", parallel.Fail, func(ctx context.Context) error {
+					return db.storeWAL(ctx, db.config.Store, storeWALReader)
 				})
 
 				return nil
@@ -1050,20 +1052,51 @@ func (db *DB) updatePointerHashes(
 	}
 }
 
-func (db *DB) syncOnCommit(ctx context.Context, pipeReader *pipeline.Reader) error {
+func (db *DB) buildWALList(ctx context.Context, store persistent.Store, pipeReader *pipeline.Reader) error {
+	allocator := db.config.State.NewAllocator()
+
 	for processedCount := uint64(0); ; processedCount++ {
 		req, err := pipeReader.Read(ctx)
 		if err != nil {
 			return err
 		}
 
-		if req.Type == pipeline.Commit {
-			for _, store := range db.config.Stores {
-				err := store.Sync()
-				req.CommitCh <- err
-				if err != nil {
+		for wr := req.WALRequest; wr != nil; wr = wr.Next {
+			newTail, err := wallist.StoreAddress(&db.singularityNode.WALListTail, wr.NodeAddress, db.config.State,
+				allocator)
+			if err != nil {
+				return err
+			}
+			if newTail {
+				if err := store.Write(db.singularityNode.WALListTail,
+					db.config.State.Bytes(db.singularityNode.WALListTail)); err != nil {
 					return err
 				}
+			}
+		}
+
+		pipeReader.Acknowledge(processedCount+1, req)
+	}
+}
+
+func (db *DB) storeWAL(ctx context.Context, store persistent.Store, pipeReader *pipeline.Reader) error {
+	for processedCount := uint64(0); ; processedCount++ {
+		req, err := pipeReader.Read(ctx)
+		if err != nil {
+			return err
+		}
+
+		for wr := req.WALRequest; wr != nil; wr = wr.Next {
+			if err := store.Write(wr.NodeAddress, db.config.State.Bytes(wr.NodeAddress)); err != nil {
+				return err
+			}
+		}
+
+		if req.Type == pipeline.Commit {
+			err := store.Sync()
+			req.CommitCh <- err
+			if err != nil {
+				return err
 			}
 		}
 
