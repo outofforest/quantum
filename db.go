@@ -9,6 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
 
 	"github.com/outofforest/parallel"
 	"github.com/outofforest/photon"
@@ -41,12 +42,6 @@ type SpaceToCommit struct {
 	OriginalPointer types.Pointer
 }
 
-// ListToCommit contains cached deallocation list.
-type ListToCommit struct {
-	List *list.List
-	Root types.NodeAddress
-}
-
 // New creates new database.
 func New(config Config) (*DB, error) {
 	snapshotInfoNodeAssistant, err := space.NewDataNodeAssistant[types.SnapshotID, types.SnapshotInfo]()
@@ -67,7 +62,7 @@ func New(config Config) (*DB, error) {
 		singularityNode:             photon.FromPointer[types.SingularityNode](config.State.Node(0)),
 		snapshotInfoNodeAssistant:   snapshotInfoNodeAssistant,
 		snapshotToNodeNodeAssistant: snapshotToNodeNodeAssistant,
-		deallocationListsToCommit:   map[types.SnapshotID]*ListToCommit{},
+		deallocationListsToCommit:   map[types.SnapshotID]*types.NodeAddress{},
 		queue:                       queue,
 		queueReader:                 queueReader,
 	}
@@ -111,7 +106,7 @@ type DB struct {
 	snapshotInfoNodeAssistant   *space.DataNodeAssistant[types.SnapshotID, types.SnapshotInfo]
 	snapshotToNodeNodeAssistant *space.DataNodeAssistant[types.SnapshotID, types.NodeAddress]
 
-	deallocationListsToCommit map[types.SnapshotID]*ListToCommit
+	deallocationListsToCommit map[types.SnapshotID]*types.NodeAddress
 
 	queueReader *pipeline.Reader
 	queue       *pipeline.Pipeline
@@ -381,27 +376,23 @@ func (db *DB) deleteSnapshot(
 		if err != nil {
 			return err
 		}
-		listNodeAddress, err := deallocationListValue.Value(snapshotID, tx, walRecorder, allocator, deallocationHashBuff,
+		listRootAddress, err := deallocationListValue.Value(snapshotID, tx, walRecorder, allocator, deallocationHashBuff,
 			deallocationHashMatches)
 		if err != nil {
 			return err
 		}
-		list := list.New(list.Config{
-			Root:  listNodeAddress,
-			State: db.config.State,
-		})
+		originalListRootAddress := listRootAddress
 
-		listRoot, err := list.Attach(nextDeallocSnapshot.Value, allocator)
-		if err != nil {
+		if err := list.Attach(&listRootAddress, nextDeallocSnapshot.Value, db.config.State, allocator); err != nil {
 			return err
 		}
-		if listRoot != listNodeAddress {
+		if listRootAddress != originalListRootAddress {
 			if err := deallocationListValue.Set(
 				snapshotID,
 				tx,
 				walRecorder,
 				allocator,
-				listRoot,
+				listRootAddress,
 				deallocationHashBuff,
 				deallocationHashMatches,
 			); err != nil {
@@ -489,7 +480,7 @@ func (db *DB) commit(
 		sort.Slice(lists, func(i, j int) bool { return lists[i] < lists[j] })
 
 		for _, snapshotID := range lists {
-			l := db.deallocationListsToCommit[snapshotID]
+			listRootAddress := db.deallocationListsToCommit[snapshotID]
 			var deallocationListValue space.Entry[types.SnapshotID, types.NodeAddress]
 			err := db.deallocationLists.Find(&deallocationListValue, commitSnapshotID, tx, walRecorder, allocator,
 				snapshotID, space.StageData, deallocationHashBuff, deallocationHashMatches)
@@ -507,12 +498,9 @@ func (db *DB) commit(
 				if err != nil {
 					return err
 				}
-				listRoot, err := l.List.Attach(v, allocator)
-				if err != nil {
+
+				if err := list.Attach(listRootAddress, v, db.config.State, allocator); err != nil {
 					return err
-				}
-				if listRoot != l.Root {
-					l.Root = listRoot
 				}
 			}
 			if err := deallocationListValue.Set(
@@ -520,7 +508,7 @@ func (db *DB) commit(
 				tx,
 				walRecorder,
 				allocator,
-				l.Root,
+				*listRootAddress,
 				deallocationHashBuff,
 				deallocationHashMatches,
 			); err != nil {
@@ -1085,27 +1073,13 @@ func (db *DB) deallocateNode(
 		return nil
 	}
 
-	l, exists := db.deallocationListsToCommit[nodeSnapshotID]
-	if !exists {
-		l = &ListToCommit{
-			List: list.New(list.Config{
-				State: db.config.State,
-			}),
-		}
-		db.deallocationListsToCommit[nodeSnapshotID] = l
+	listRoot := db.deallocationListsToCommit[nodeSnapshotID]
+	if listRoot == nil {
+		listRoot = lo.ToPtr[types.NodeAddress](0)
+		db.deallocationListsToCommit[nodeSnapshotID] = listRoot
 	}
 
-	listRoot, err := l.List.Add(
-		nodeAddress,
-		allocator,
-	)
-	if err != nil {
-		return err
-	}
-
-	l.Root = listRoot
-
-	return nil
+	return list.Add(listRoot, nodeAddress, db.config.State, allocator)
 }
 
 func (db *DB) prepareNextSnapshot() error {
