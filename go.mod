@@ -4,6 +4,7 @@ go 1.23
 
 require (
 	github.com/cespare/xxhash v1.1.0
+	github.com/godzie44/go-uring v0.0.0-20220926161041-69611e8b13d5
 	github.com/mmcloughlin/avo v0.6.0
 	github.com/outofforest/logger v0.5.5
 	github.com/outofforest/mass v0.2.1
@@ -20,6 +21,7 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.8 // indirect
+	github.com/libp2p/go-sockaddr v0.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.uber.org/multierr v1.11.0 // indirect

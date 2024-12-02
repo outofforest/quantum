@@ -196,8 +196,7 @@ func (db *DB) Run(ctx context.Context) error {
 					pointerHashReaders = append(pointerHashReaders, nextReader)
 					prevHashReader = nextReader
 				}
-				walListReader := pipeline.NewReader(prevHashReader)
-				storeWALReader := pipeline.NewReader(walListReader)
+				storeWALReader := pipeline.NewReader(prevHashReader)
 
 				spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
 					var lastSyncCh chan<- struct{}
@@ -264,9 +263,6 @@ func (db *DB) Run(ctx context.Context) error {
 						return db.updatePointerHashes(ctx, reader, uint64(i))
 					})
 				}
-				spawn("walList", parallel.Fail, func(ctx context.Context) error {
-					return db.buildWALList(ctx, db.config.Store, walListReader)
-				})
 				spawn("storeWAL", parallel.Fail, func(ctx context.Context) error {
 					return db.storeWAL(ctx, db.config.Store, storeWALReader)
 				})
@@ -1052,7 +1048,7 @@ func (db *DB) updatePointerHashes(
 	}
 }
 
-func (db *DB) buildWALList(ctx context.Context, store persistent.Store, pipeReader *pipeline.Reader) error {
+func (db *DB) storeWAL(ctx context.Context, store persistent.Store, pipeReader *pipeline.Reader) error {
 	allocator := db.config.State.NewAllocator()
 
 	for processedCount := uint64(0); ; processedCount++ {
@@ -1062,6 +1058,9 @@ func (db *DB) buildWALList(ctx context.Context, store persistent.Store, pipeRead
 		}
 
 		for wr := req.WALRequest; wr != nil; wr = wr.Next {
+			if err := store.Write(wr.NodeAddress, db.config.State.Bytes(wr.NodeAddress)); err != nil {
+				return err
+			}
 			newTail, err := wallist.StoreAddress(&db.singularityNode.WALListTail, wr.NodeAddress, db.config.State,
 				allocator)
 			if err != nil {
@@ -1072,23 +1071,6 @@ func (db *DB) buildWALList(ctx context.Context, store persistent.Store, pipeRead
 					db.config.State.Bytes(db.singularityNode.WALListTail)); err != nil {
 					return err
 				}
-			}
-		}
-
-		pipeReader.Acknowledge(processedCount+1, req)
-	}
-}
-
-func (db *DB) storeWAL(ctx context.Context, store persistent.Store, pipeReader *pipeline.Reader) error {
-	for processedCount := uint64(0); ; processedCount++ {
-		req, err := pipeReader.Read(ctx)
-		if err != nil {
-			return err
-		}
-
-		for wr := req.WALRequest; wr != nil; wr = wr.Next {
-			if err := store.Write(wr.NodeAddress, db.config.State.Bytes(wr.NodeAddress)); err != nil {
-				return err
 			}
 		}
 
