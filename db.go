@@ -1078,11 +1078,8 @@ func (db *DB) deallocateNode(
 		listRoot = lo.ToPtr[types.NodeAddress](0)
 		db.deallocationListsToCommit[nodeSnapshotID] = listRoot
 	}
-	if err := list.Add(listRoot, nodeAddress, db.config.State, allocator); err != nil {
-		return err
-	}
 
-	return nil
+	return list.Add(listRoot, nodeAddress, db.config.State, allocator)
 }
 
 func (db *DB) prepareNextSnapshot() error {
