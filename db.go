@@ -673,8 +673,9 @@ func (db *DB) processDeallocations(ctx context.Context, pipeReader *pipeline.Rea
 				case wal.RecordSet32:
 					wrIndex += 41
 				case wal.RecordSet:
-					wrIndex += 9
-					wrIndex += *(*uint16)(unsafe.Pointer(&walNode[wrIndex])) + 2
+					wrIndex += *(*uint16)(unsafe.Pointer(&walNode[wrIndex+9])) + 11
+				case wal.RecordCopy:
+					wrIndex += 19
 				case wal.RecordImmediateDeallocation, wal.RecordDelayedDeallocation:
 					nodeSnapshotID := *(*types.SnapshotID)(unsafe.Pointer(&walNode[wrIndex+1]))
 					oldNodeAddress := *(*types.NodeAddress)(unsafe.Pointer(&walNode[wrIndex+9]))
@@ -685,7 +686,7 @@ func (db *DB) processDeallocations(ctx context.Context, pipeReader *pipeline.Rea
 						return err
 					}
 				default:
-					panic("unrecognized record type")
+					panic(fmt.Sprintf("unrecognized record type at index %d", wrIndex))
 				}
 			}
 		}
@@ -731,8 +732,9 @@ func (db *DB) copyNodes(
 					case wal.RecordSet32:
 						wrIndex += 41
 					case wal.RecordSet:
-						wrIndex += 9
-						wrIndex += *(*uint16)(unsafe.Pointer(&walNode[wrIndex])) + 2
+						wrIndex += *(*uint16)(unsafe.Pointer(&walNode[wrIndex+9])) + 11
+					case wal.RecordCopy:
+						wrIndex += 19
 					case wal.RecordImmediateDeallocation, wal.RecordDelayedDeallocation:
 						oldNodeAddress := *(*types.NodeAddress)(unsafe.Pointer(&walNode[wrIndex+9]))
 						newNodeAddress := *(*types.NodeAddress)(unsafe.Pointer(&walNode[wrIndex+17]))
@@ -740,7 +742,7 @@ func (db *DB) copyNodes(
 
 						copy(db.config.State.Bytes(newNodeAddress), db.config.State.Bytes(oldNodeAddress))
 					default:
-						panic("unrecognized record type")
+						panic(fmt.Sprintf("unrecognized record type at index %d", wrIndex))
 					}
 				}
 			}
@@ -766,26 +768,35 @@ func (db *DB) applyWALChanges(ctx context.Context, pipeReader *pipeline.Reader) 
 			for wrIndex < types.NodeLength && wal.RecordType(walNode[wrIndex]) != wal.RecordEnd {
 				switch recordType := wal.RecordType(walNode[wrIndex]); recordType {
 				case wal.RecordSet1:
-					offset := *(*uint64)(unsafe.Pointer(&walNode[wrIndex+1]))
+					offset := *(*uintptr)(unsafe.Pointer(&walNode[wrIndex+1]))
 					*(*byte)(unsafe.Add(origin, offset)) = walNode[wrIndex+9]
 					wrIndex += 10
 				case wal.RecordSet8:
-					offset := *(*uint64)(unsafe.Pointer(&walNode[wrIndex+1]))
+					offset := *(*uintptr)(unsafe.Pointer(&walNode[wrIndex+1]))
 					copy(unsafe.Slice((*byte)(unsafe.Add(origin, offset)), 8), walNode[wrIndex+9:])
 					wrIndex += 17
 				case wal.RecordSet32:
-					offset := *(*uint64)(unsafe.Pointer(&walNode[wrIndex+1]))
+					offset := *(*uintptr)(unsafe.Pointer(&walNode[wrIndex+1]))
 					copy(unsafe.Slice((*byte)(unsafe.Add(origin, offset)), 32), walNode[wrIndex+9:])
 					wrIndex += 41
 				case wal.RecordSet:
-					offset := *(*uint64)(unsafe.Pointer(&walNode[wrIndex+1]))
+					offset := *(*uintptr)(unsafe.Pointer(&walNode[wrIndex+1]))
 					size := *(*uint16)(unsafe.Pointer(&walNode[wrIndex+9]))
 					copy(unsafe.Slice((*byte)(unsafe.Add(origin, offset)), size), walNode[wrIndex+11:])
 					wrIndex += size + 11
+				case wal.RecordCopy:
+					offsetDst := *(*uintptr)(unsafe.Pointer(&walNode[wrIndex+1]))
+					offsetSrc := *(*uintptr)(unsafe.Pointer(&walNode[wrIndex+9]))
+					size := *(*uint16)(unsafe.Pointer(&walNode[wrIndex+17]))
+
+					copy(unsafe.Slice((*byte)(unsafe.Add(origin, offsetDst)), size),
+						unsafe.Slice((*byte)(unsafe.Add(origin, offsetSrc)), size))
+
+					wrIndex += 19
 				case wal.RecordImmediateDeallocation, wal.RecordDelayedDeallocation:
 					wrIndex += 25
 				default:
-					panic("unrecognized record type")
+					panic(fmt.Sprintf("unrecognized record type at index %d", wrIndex))
 				}
 			}
 		}

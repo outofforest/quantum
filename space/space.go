@@ -600,8 +600,12 @@ func (s *Space[K, V]) splitDataNode(
 		}
 
 		newDataNodeItem := s.config.DataNodeAssistant.Item(newDataNode, s.config.DataNodeAssistant.ItemOffset(i))
-		if err := wal.Set2(walRecorder, tx, newNodePersistentAddress,
+		if err := wal.Copy(walRecorder, tx, newNodePersistentAddress, existingNodePointer.PersistentAddress,
 			newDataNodeItem, item,
+		); err != nil {
+			return err
+		}
+		if err := wal.Set1(walRecorder, tx, newNodePersistentAddress,
 			&newKeyHashes[i], &keyHashes[i],
 		); err != nil {
 			return err
