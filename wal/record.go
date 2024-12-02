@@ -28,6 +28,9 @@ const (
 	// RecordSet records modification of variable-length slice.
 	RecordSet
 
+	// RecordCopy records a request to copy data from one place to another.
+	RecordCopy
+
 	// RecordImmediateDeallocation records node immediate deallocation.
 	RecordImmediateDeallocation
 
@@ -155,11 +158,11 @@ func Reserve[T comparable](
 	recorder *Recorder,
 	tx *pipeline.TransactionRequest,
 	dstNodeAddress qtypes.NodeAddress,
-	srcPointer *T,
+	dstPointer *T,
 ) (*T, error) {
 	var t T
 
-	offset := uintptr(dstNodeAddress*qtypes.NodeLength) + uintptr(unsafe.Pointer(srcPointer))%qtypes.NodeLength
+	offset := uintptr(dstNodeAddress*qtypes.NodeLength) + uintptr(unsafe.Pointer(dstPointer))%qtypes.NodeLength
 
 	switch size := unsafe.Sizeof(t); size {
 	case 1:
@@ -301,6 +304,33 @@ func Set4[T1, T2, T3, T4 comparable](
 
 	*dst4 = *src4
 	*dst4B = *src4
+
+	return nil
+}
+
+// Copy requests to copy data from one place to another.
+func Copy[T comparable](
+	recorder *Recorder, tx *pipeline.TransactionRequest, dstNodeAddress, srcNodeAddress qtypes.NodeAddress,
+	dst, src *T,
+) error {
+	var t T
+
+	size := uint16(unsafe.Sizeof(t))
+
+	offset := uintptr(unsafe.Pointer(dst)) % qtypes.NodeLength
+	offsetDst := uintptr(dstNodeAddress*qtypes.NodeLength) + offset
+	offsetSrc := uintptr(srcNodeAddress*qtypes.NodeLength) + offset
+
+	p, err := recorder.insert(tx, RecordCopy, 18)
+	if err != nil {
+		return err
+	}
+
+	*(*uintptr)(p) = offsetDst
+	*(*uintptr)(unsafe.Add(p, 8)) = offsetSrc
+	*(*uint16)(unsafe.Add(p, 16)) = size
+
+	*dst = *src
 
 	return nil
 }
