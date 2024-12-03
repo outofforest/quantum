@@ -94,30 +94,10 @@ func (s *Space[K, V]) Find(
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
-	//nolint:nestif
 	if v.space == nil {
-		initBytes := unsafe.Slice((*byte)(unsafe.Pointer(v)), s.initSize)
-		copy(initBytes, s.defaultInit)
-		v.keyHash = hashKey(&key, nil, 0)
-		v.item.Key = key
-		v.dataItemIndex = dataItemIndex(v.keyHash, s.numOfDataItems)
-		v.stage = stage
-
-		if types.Load(&s.config.SpaceRoot.Pointer.VolatileAddress) != types.FreeAddress &&
-			s.config.SpaceRoot.Pointer.SnapshotID != snapshotID {
-			persistentAddress, err := allocator.Allocate()
-			if err != nil {
-				return err
-			}
-
-			if err := wal.Deallocate(walRecorder, tx, s.config.SpaceRoot.Pointer, persistentAddress,
-				s.config.NoSnapshots); err != nil {
-				return err
-			}
-
-			// This is not stored in WAL because space roots are stored separately on commit.
-			s.config.SpaceRoot.Pointer.SnapshotID = snapshotID
-			s.config.SpaceRoot.Pointer.PersistentAddress = persistentAddress
+		keyHash := hashKey(&key, nil, 0)
+		if err := s.initEntry(v, snapshotID, tx, walRecorder, allocator, key, keyHash, stage); err != nil {
+			return err
 		}
 	}
 
@@ -310,6 +290,43 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 			}
 		}
 	}
+}
+
+func (s *Space[K, V]) initEntry(
+	v *Entry[K, V],
+	snapshotID types.SnapshotID,
+	tx *pipeline.TransactionRequest,
+	walRecorder *wal.Recorder,
+	allocator *alloc.Allocator,
+	key K,
+	keyHash types.KeyHash,
+	stage uint8,
+) error {
+	initBytes := unsafe.Slice((*byte)(unsafe.Pointer(v)), s.initSize)
+	copy(initBytes, s.defaultInit)
+	v.keyHash = keyHash
+	v.item.Key = key
+	v.dataItemIndex = dataItemIndex(v.keyHash, s.numOfDataItems)
+	v.stage = stage
+
+	if types.Load(&s.config.SpaceRoot.Pointer.VolatileAddress) != types.FreeAddress &&
+		s.config.SpaceRoot.Pointer.SnapshotID != snapshotID {
+		persistentAddress, err := allocator.Allocate()
+		if err != nil {
+			return err
+		}
+
+		if err := wal.Deallocate(walRecorder, tx, s.config.SpaceRoot.Pointer, persistentAddress,
+			s.config.NoSnapshots); err != nil {
+			return err
+		}
+
+		// This is not stored in WAL because space roots are stored separately on commit.
+		s.config.SpaceRoot.Pointer.SnapshotID = snapshotID
+		s.config.SpaceRoot.Pointer.PersistentAddress = persistentAddress
+	}
+
+	return nil
 }
 
 func (s *Space[K, V]) valueExists(
@@ -819,104 +836,118 @@ func (s *Space[K, V]) walkPointers(
 	hashBuff []byte,
 ) error {
 	for {
-		volatileAddress := types.Load(&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress)
-		if !volatileAddress.IsSet(types.FlagPointerNode) {
-			break
+		more, err := s.walkOnePointer(snapshotID, tx, walRecorder, allocator, v, hashBuff)
+		if err != nil || !more {
+			return err
 		}
-		if volatileAddress.IsSet(types.FlagHashMod) {
-			v.keyHash = hashKey(&v.item.Key, hashBuff, v.level)
-		}
+	}
+}
 
-		pointerNode := ProjectPointerNode(s.config.State.Node(volatileAddress.Naked()))
-		index := PointerIndex(v.keyHash, v.level)
-		state := types.Load(&pointerNode.Pointers[index].VolatileAddress).State()
-		nextIndex := index
-		originalIndex := index
+func (s *Space[K, V]) walkOnePointer(
+	snapshotID types.SnapshotID,
+	tx *pipeline.TransactionRequest,
+	walRecorder *wal.Recorder,
+	allocator *alloc.Allocator,
+	v *Entry[K, V],
+	hashBuff []byte,
+) (bool, error) {
+	volatileAddress := types.Load(&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress)
+	if !volatileAddress.IsSet(types.FlagPointerNode) {
+		return false, nil
+	}
+	if volatileAddress.IsSet(types.FlagHashMod) {
+		v.keyHash = hashKey(&v.item.Key, hashBuff, v.level)
+	}
 
-		switch state {
-		case types.StateFree:
-			hops := pointerHops[index]
-			hopStart := 0
-			hopEnd := len(hops)
+	pointerNode := ProjectPointerNode(s.config.State.Node(volatileAddress.Naked()))
+	index := PointerIndex(v.keyHash, v.level)
+	state := types.Load(&pointerNode.Pointers[index].VolatileAddress).State()
+	nextIndex := index
+	originalIndex := index
 
-			var dataFound bool
-			for hopEnd > hopStart {
-				hopIndex := (hopEnd-hopStart)/2 + hopStart
-				newIndex := hops[hopIndex]
+	switch state {
+	case types.StateFree:
+		hops := pointerHops[index]
+		hopStart := 0
+		hopEnd := len(hops)
 
-				switch types.Load(&pointerNode.Pointers[newIndex].VolatileAddress).State() {
-				case types.StateFree:
-					if !dataFound {
-						index = newIndex
-						if hopIndex == 0 {
-							nextIndex = originalIndex
-						} else {
-							nextIndex = hops[hopIndex-1]
-						}
-					}
-					hopStart = hopIndex + 1
-				case types.StateData:
+		var dataFound bool
+		for hopEnd > hopStart {
+			hopIndex := (hopEnd-hopStart)/2 + hopStart
+			newIndex := hops[hopIndex]
+
+			switch types.Load(&pointerNode.Pointers[newIndex].VolatileAddress).State() {
+			case types.StateFree:
+				if !dataFound {
 					index = newIndex
 					if hopIndex == 0 {
 						nextIndex = originalIndex
 					} else {
 						nextIndex = hops[hopIndex-1]
 					}
-					hopEnd = hopIndex
-					dataFound = true
-				case types.StatePointer:
-					hopEnd = hopIndex
 				}
-			}
-		case types.StatePointer, types.StateData:
-		default:
-			return nil
-		}
-
-		//nolint:nestif
-		if types.Load(&pointerNode.Pointers[index].VolatileAddress) != types.FreeAddress &&
-			pointerNode.Pointers[index].SnapshotID != snapshotID {
-			persistentAddress, err := allocator.Allocate()
-			if err != nil {
-				return err
-			}
-
-			if err := wal.Deallocate(walRecorder, tx, &pointerNode.Pointers[index], persistentAddress,
-				s.config.NoSnapshots); err != nil {
-				return err
-			}
-
-			if v.storeRequest.PointersToStore > 0 {
-				if err := wal.Set2(walRecorder, tx,
-					v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.PersistentAddress,
-					&pointerNode.Pointers[index].SnapshotID, &snapshotID,
-					&pointerNode.Pointers[index].PersistentAddress, &persistentAddress,
-				); err != nil {
-					return err
+				hopStart = hopIndex + 1
+			case types.StateData:
+				index = newIndex
+				if hopIndex == 0 {
+					nextIndex = originalIndex
+				} else {
+					nextIndex = hops[hopIndex-1]
 				}
-			} else {
-				pointerNode.Pointers[index].SnapshotID = snapshotID
-				pointerNode.Pointers[index].PersistentAddress = persistentAddress
+				hopEnd = hopIndex
+				dataFound = true
+			case types.StatePointer:
+				hopEnd = hopIndex
 			}
 		}
+	case types.StatePointer, types.StateData:
+	default:
+		return false, nil
+	}
 
-		v.level++
-		v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
-		v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
-		v.storeRequest.PointersToStore++
-		v.parentIndex = index
-		if nextIndex == index {
-			v.nextDataNode = zeroAddressPtr
+	//nolint:nestif
+	if types.Load(&pointerNode.Pointers[index].VolatileAddress) != types.FreeAddress &&
+		pointerNode.Pointers[index].SnapshotID != snapshotID {
+		persistentAddress, err := allocator.Allocate()
+		if err != nil {
+			return false, err
+		}
+
+		if err := wal.Deallocate(walRecorder, tx, &pointerNode.Pointers[index], persistentAddress,
+			s.config.NoSnapshots); err != nil {
+			return false, err
+		}
+
+		if v.storeRequest.PointersToStore > 0 {
+			if err := wal.Set2(walRecorder, tx,
+				v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.PersistentAddress,
+				&pointerNode.Pointers[index].SnapshotID, &snapshotID,
+				&pointerNode.Pointers[index].PersistentAddress, &persistentAddress,
+			); err != nil {
+				return false, err
+			}
 		} else {
-			v.nextDataNode = &pointerNode.Pointers[nextIndex].VolatileAddress
-		}
-
-		if v.stage == StagePointer0 && v.level == 3 {
-			return nil
+			pointerNode.Pointers[index].SnapshotID = snapshotID
+			pointerNode.Pointers[index].PersistentAddress = persistentAddress
 		}
 	}
 
-	return nil
+	v.level++
+	v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
+	v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
+	v.storeRequest.PointersToStore++
+	v.parentIndex = index
+	if nextIndex == index {
+		v.nextDataNode = zeroAddressPtr
+	} else {
+		v.nextDataNode = &pointerNode.Pointers[nextIndex].VolatileAddress
+	}
+
+	if v.stage == StagePointer0 && v.level == 3 {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 func (s *Space[K, V]) walkDataItems(v *Entry[K, V], hashMatches []uint64) bool {
