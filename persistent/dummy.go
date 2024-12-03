@@ -22,3 +22,6 @@ func (s *DummyStore) Write(_ types.NodeAddress, _ []byte) error {
 func (s *DummyStore) Sync() error {
 	return nil
 }
+
+// Close closes the store.
+func (s *DummyStore) Close() {}

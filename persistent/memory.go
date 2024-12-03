@@ -41,3 +41,6 @@ func (s *MemoryStore) Write(address types.NodeAddress, data []byte) error {
 func (s *MemoryStore) Sync() error {
 	return nil
 }
+
+// Close closes the store.
+func (s *MemoryStore) Close() {}
