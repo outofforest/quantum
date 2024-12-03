@@ -1,5 +1,7 @@
 package types
 
+import "sync/atomic"
+
 const (
 	// UInt64Length is the number of bytes taken by uint64.
 	UInt64Length = 8
@@ -56,6 +58,16 @@ func (na NodeAddress) Set(flag NodeAddress) NodeAddress {
 // Naked returns address without flags.
 func (na NodeAddress) Naked() NodeAddress {
 	return na & flagNaked
+}
+
+// Load loads node address atomically.
+func Load(address *NodeAddress) NodeAddress {
+	return (NodeAddress)(atomic.LoadUint64((*uint64)(address)))
+}
+
+// Store stores node address atomically.
+func Store(address *NodeAddress, value NodeAddress) {
+	atomic.StoreUint64((*uint64)(address), (uint64)(value))
 }
 
 const (
