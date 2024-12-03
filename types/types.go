@@ -20,15 +20,19 @@ const (
 // State enumerates possible slot states.
 type State byte
 
+// State values are intentionally chosen in a way where following states differ by one bit only.
+// It is designed this way to guarantee that goroutines read (maybe outdated but) valid state values.
+// This hack is probably not needed because x86 CPUs guarantee write consistency on DWORD level,
+// but this business is crazy and nothing is going to surprise me.
 const (
 	// StateFree means slot is free.
-	StateFree State = iota
+	StateFree State = 0
 
 	// StateData means slot contains data.
-	StateData
+	StateData State = 1
 
 	// StatePointer means slot contains pointer.
-	StatePointer
+	StatePointer State = 3
 )
 
 // Flags defines pointer flags.
