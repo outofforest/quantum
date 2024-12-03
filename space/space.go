@@ -429,7 +429,7 @@ func (s *Space[K, V]) find(
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
-	if err := s.walkPointers(snapshotID, tx, walRecorder, allocator, v, hashBuff); err != nil {
+	if err := s.walkPointers(v, snapshotID, tx, walRecorder, allocator, hashBuff); err != nil {
 		return err
 	}
 
@@ -466,7 +466,7 @@ func (s *Space[K, V]) set(
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
-	if err := s.walkPointers(snapshotID, tx, walRecorder, allocator, v, hashBuff); err != nil {
+	if err := s.walkPointers(v, snapshotID, tx, walRecorder, allocator, hashBuff); err != nil {
 		return err
 	}
 
@@ -550,7 +550,7 @@ func (s *Space[K, V]) set(
 	}
 
 	// Add pointer node.
-	if err := s.addPointerNode(snapshotID, tx, walRecorder, allocator, v, conflict); err != nil {
+	if err := s.addPointerNode(v, snapshotID, tx, walRecorder, allocator, conflict); err != nil {
 		return err
 	}
 
@@ -672,11 +672,11 @@ func (s *Space[K, V]) splitDataNode(
 }
 
 func (s *Space[K, V]) addPointerNode(
+	v *Entry[K, V],
 	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
-	v *Entry[K, V],
 	conflict bool,
 ) error {
 	pointerNodeVolatileAddress, err := allocator.Allocate()
@@ -804,15 +804,15 @@ var pointerHops = [NumOfPointers][]uint64{
 }
 
 func (s *Space[K, V]) walkPointers(
+	v *Entry[K, V],
 	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
-	v *Entry[K, V],
 	hashBuff []byte,
 ) error {
 	for {
-		more, err := s.walkOnePointer(snapshotID, tx, walRecorder, allocator, v, hashBuff)
+		more, err := s.walkOnePointer(v, snapshotID, tx, walRecorder, allocator, hashBuff)
 		if err != nil || !more {
 			return err
 		}
@@ -820,11 +820,11 @@ func (s *Space[K, V]) walkPointers(
 }
 
 func (s *Space[K, V]) walkOnePointer(
+	v *Entry[K, V],
 	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
-	v *Entry[K, V],
 	hashBuff []byte,
 ) (bool, error) {
 	volatileAddress := types.Load(&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress)
