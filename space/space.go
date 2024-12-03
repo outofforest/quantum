@@ -25,10 +25,8 @@ const (
 )
 
 var (
-	stateFreePtr    = lo.ToPtr(types.StateFree)
-	stateDataPtr    = lo.ToPtr(types.StateData)
-	statePointerPtr = lo.ToPtr(types.StatePointer)
-	zeroKeyHashPtr  = lo.ToPtr[types.KeyHash](0)
+	zeroAddressPtr = lo.ToPtr[types.NodeAddress](0)
+	zeroKeyHashPtr = lo.ToPtr[types.KeyHash](0)
 )
 
 // Config stores space configuration.
@@ -47,8 +45,8 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 	}
 
 	defaultInit := Entry[K, V]{
-		space:             s,
-		nextDataNodeState: stateFreePtr,
+		space:        s,
+		nextDataNode: zeroAddressPtr,
 		storeRequest: pipeline.StoreRequest{
 			NoSnapshots:     s.config.NoSnapshots,
 			PointersToStore: 1,
@@ -105,7 +103,7 @@ func (s *Space[K, V]) Find(
 		v.dataItemIndex = dataItemIndex(v.keyHash, s.numOfDataItems)
 		v.stage = stage
 
-		if s.config.SpaceRoot.Pointer.State != types.StateFree &&
+		if s.config.SpaceRoot.Pointer.VolatileAddress != types.FreeAddress &&
 			s.config.SpaceRoot.Pointer.SnapshotID != snapshotID {
 			persistentAddress, err := allocator.Allocate()
 			if err != nil {
@@ -132,14 +130,14 @@ func (s *Space[K, V]) Query(key K, hashBuff []byte, hashMatches []uint64) (V, bo
 	var level uint8
 	keyHash := hashKey(&key, nil, level)
 
-	for pointer.State == types.StatePointer {
-		if pointer.Flags.IsSet(types.FlagHashMod) {
+	for pointer.VolatileAddress.IsSet(types.FlagPointerNode) {
+		if pointer.VolatileAddress.IsSet(types.FlagHashMod) {
 			keyHash = hashKey(&key, hashBuff, level)
 		}
 
-		pointerNode := ProjectPointerNode(s.config.State.Node(pointer.VolatileAddress))
+		pointerNode := ProjectPointerNode(s.config.State.Node(pointer.VolatileAddress.Naked()))
 		index := PointerIndex(keyHash, level)
-		state := pointerNode.Pointers[index].State
+		state := pointerNode.Pointers[index].VolatileAddress.State()
 
 		switch state {
 		case types.StateFree:
@@ -152,7 +150,7 @@ func (s *Space[K, V]) Query(key K, hashBuff []byte, hashMatches []uint64) (V, bo
 				hopIndex := (hopEnd-hopStart)/2 + hopStart
 				newIndex := hops[hopIndex]
 
-				switch pointerNode.Pointers[newIndex].State {
+				switch pointerNode.Pointers[newIndex].VolatileAddress.State() {
 				case types.StateFree:
 					if !dataFound {
 						index = newIndex
@@ -173,7 +171,7 @@ func (s *Space[K, V]) Query(key K, hashBuff []byte, hashMatches []uint64) (V, bo
 		pointer = &pointerNode.Pointers[index]
 	}
 
-	if pointer.State == types.StateFree {
+	if pointer.VolatileAddress == types.FreeAddress {
 		return s.defaultValue, false
 	}
 
@@ -201,12 +199,12 @@ func (s *Space[K, V]) Iterator() func(func(item *types.DataItem[K, V]) bool) {
 }
 
 func (s *Space[K, V]) iterate(pointer *types.Pointer, yield func(item *types.DataItem[K, V]) bool) {
-	switch pointer.State {
+	switch pointer.VolatileAddress.State() {
 	case types.StatePointer:
-		pointerNode := ProjectPointerNode(s.config.State.Node(pointer.VolatileAddress))
+		pointerNode := ProjectPointerNode(s.config.State.Node(pointer.VolatileAddress.Naked()))
 		for pi := range pointerNode.Pointers {
 			p := &pointerNode.Pointers[pi]
-			if p.State == types.StateFree {
+			if p.VolatileAddress.State() == types.StateFree {
 				continue
 			}
 
@@ -223,7 +221,7 @@ func (s *Space[K, V]) iterate(pointer *types.Pointer, yield func(item *types.Dat
 
 // Nodes returns list of nodes used by the space.
 func (s *Space[K, V]) Nodes() []types.NodeAddress {
-	switch s.config.SpaceRoot.Pointer.State {
+	switch s.config.SpaceRoot.Pointer.VolatileAddress.State() {
 	case types.StateFree:
 		return nil
 	case types.StateData:
@@ -246,9 +244,9 @@ func (s *Space[K, V]) Nodes() []types.NodeAddress {
 		stack = stack[:len(stack)-1]
 		nodes = append(nodes, pointerNodeAddress)
 
-		pointerNode := ProjectPointerNode(s.config.State.Node(pointerNodeAddress))
+		pointerNode := ProjectPointerNode(s.config.State.Node(pointerNodeAddress.Naked()))
 		for pi := range pointerNode.Pointers {
-			switch pointerNode.Pointers[pi].State {
+			switch pointerNode.Pointers[pi].VolatileAddress.State() {
 			case types.StateFree:
 			case types.StateData:
 				nodes = append(nodes, pointerNode.Pointers[pi].VolatileAddress)
@@ -261,7 +259,7 @@ func (s *Space[K, V]) Nodes() []types.NodeAddress {
 
 // Stats returns stats about the space.
 func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
-	switch s.config.SpaceRoot.Pointer.State {
+	switch s.config.SpaceRoot.Pointer.VolatileAddress.State() {
 	case types.StateFree:
 		return 0, 0, 0, 0
 	case types.StateData:
@@ -285,9 +283,9 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 		pointerNodes++
 		stack = stack[:len(stack)-1]
 
-		pointerNode := ProjectPointerNode(s.config.State.Node(n))
+		pointerNode := ProjectPointerNode(s.config.State.Node(n.Naked()))
 		for pi := range pointerNode.Pointers {
-			switch pointerNode.Pointers[pi].State {
+			switch pointerNode.Pointers[pi].VolatileAddress.State() {
 			case types.StateFree:
 			case types.StateData:
 				dataNodes++
@@ -364,7 +362,7 @@ func (s *Space[K, V]) deleteValue(
 	}
 
 	switch {
-	case v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StateFree:
+	case v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress == types.FreeAddress:
 	case v.keyHashP == nil || *v.keyHashP == 0:
 	default:
 		// If we are here it means `s.find` found the slot with matching key so don't need to check hash and key again.
@@ -421,7 +419,7 @@ func (s *Space[K, V]) find(
 		return nil
 	}
 
-	if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State != types.StateData {
+	if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress.State() != types.StateData {
 		v.keyHashP = nil
 		v.itemP = nil
 		v.exists = false
@@ -448,7 +446,7 @@ func (s *Space[K, V]) set(
 	}
 
 	//nolint:nestif
-	if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StateFree {
+	if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress == types.FreeAddress {
 		dataNodeVolatileAddress, err := allocator.Allocate()
 		if err != nil {
 			return err
@@ -462,12 +460,11 @@ func (s *Space[K, V]) set(
 		s.config.State.Clear(dataNodePersistentAddress)
 
 		if v.storeRequest.PointersToStore > 1 {
-			if err := wal.Set4(walRecorder, tx,
+			if err := wal.Set3(walRecorder, tx,
 				v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer.PersistentAddress,
 				&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.SnapshotID, &snapshotID,
 				&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress, &dataNodeVolatileAddress,
 				&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.PersistentAddress, &dataNodePersistentAddress,
-				&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State, stateDataPtr,
 			); err != nil {
 				return err
 			}
@@ -475,7 +472,6 @@ func (s *Space[K, V]) set(
 			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.SnapshotID = snapshotID
 			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress = dataNodeVolatileAddress
 			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.PersistentAddress = dataNodePersistentAddress
-			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State = types.StateData
 		}
 	}
 
@@ -550,11 +546,11 @@ func (s *Space[K, V]) splitToIndex(parentNodeAddress types.NodeAddress, index ui
 	}
 	mask := uint64(1) << trailingZeros
 
-	parentNode := ProjectPointerNode(s.config.State.Node(parentNodeAddress))
+	parentNode := ProjectPointerNode(s.config.State.Node(parentNodeAddress.Naked()))
 	for mask > 1 {
 		mask >>= 1
 		newIndex := index | mask
-		if parentNode.Pointers[newIndex].State == types.StateFree {
+		if parentNode.Pointers[newIndex].VolatileAddress == types.FreeAddress {
 			index = newIndex
 			break
 		}
@@ -574,7 +570,7 @@ func (s *Space[K, V]) splitDataNode(
 	parentNodePointer, existingNodePointer *types.Pointer,
 	level uint8,
 ) error {
-	parentNode := ProjectPointerNode(s.config.State.Node(parentNodePointer.VolatileAddress))
+	parentNode := ProjectPointerNode(s.config.State.Node(parentNodePointer.VolatileAddress.Naked()))
 
 	newNodeVolatileAddress, err := allocator.Allocate()
 	if err != nil {
@@ -617,11 +613,10 @@ func (s *Space[K, V]) splitDataNode(
 		}
 	}
 
-	if err := wal.Set4(walRecorder, tx, parentNodePointer.PersistentAddress,
+	if err := wal.Set3(walRecorder, tx, parentNodePointer.PersistentAddress,
 		&parentNode.Pointers[newIndex].SnapshotID, &snapshotID,
 		&parentNode.Pointers[newIndex].VolatileAddress, &newNodeVolatileAddress,
 		&parentNode.Pointers[newIndex].PersistentAddress, &newNodePersistentAddress,
-		&parentNode.Pointers[newIndex].State, stateDataPtr,
 	); err != nil {
 		return err
 	}
@@ -674,43 +669,30 @@ func (s *Space[K, V]) addPointerNode(
 	pointerNode := ProjectPointerNode(s.config.State.Node(pointerNodeVolatileAddress))
 	pointerNodeRoot := &v.storeRequest.Store[v.storeRequest.PointersToStore-1]
 
-	if err := wal.Set4(walRecorder, tx, pointerNodePersistentAddress,
+	if err := wal.Set3(walRecorder, tx, pointerNodePersistentAddress,
 		&pointerNode.Pointers[0].SnapshotID, &dataPointer.SnapshotID,
 		&pointerNode.Pointers[0].VolatileAddress, &dataPointer.VolatileAddress,
 		&pointerNode.Pointers[0].PersistentAddress, &dataPointer.PersistentAddress,
-		&pointerNode.Pointers[0].State, &dataPointer.State,
 	); err != nil {
 		return err
 	}
 
-	//nolint:nestif
+	pointerNodeVolatileAddress = pointerNodeVolatileAddress.Set(types.FlagPointerNode)
+	if conflict {
+		pointerNodeVolatileAddress = pointerNodeVolatileAddress.Set(types.FlagHashMod)
+	}
+
 	if v.storeRequest.PointersToStore > 1 {
-		if err := wal.Set3(walRecorder, tx,
+		if err := wal.Set2(walRecorder, tx,
 			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer.PersistentAddress,
 			&pointerNodeRoot.Pointer.VolatileAddress, &pointerNodeVolatileAddress,
 			&pointerNodeRoot.Pointer.PersistentAddress, &pointerNodePersistentAddress,
-			&pointerNodeRoot.Pointer.State, statePointerPtr,
 		); err != nil {
 			return err
-		}
-
-		if conflict {
-			flags := pointerNodeRoot.Pointer.Flags.Set(types.FlagHashMod)
-			if err := wal.Set1(walRecorder, tx,
-				v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer.PersistentAddress,
-				&pointerNodeRoot.Pointer.Flags, &flags,
-			); err != nil {
-				return err
-			}
 		}
 	} else {
 		pointerNodeRoot.Pointer.VolatileAddress = pointerNodeVolatileAddress
 		pointerNodeRoot.Pointer.PersistentAddress = pointerNodePersistentAddress
-		pointerNodeRoot.Pointer.State = types.StatePointer
-
-		if conflict {
-			pointerNodeRoot.Pointer.Flags = pointerNodeRoot.Pointer.Flags.Set(types.FlagHashMod)
-		}
 	}
 
 	newIndex, mask := s.splitToIndex(pointerNodeVolatileAddress, 0)
@@ -804,16 +786,16 @@ func (s *Space[K, V]) walkPointers(
 	v *Entry[K, V],
 	hashBuff []byte,
 ) error {
-	for v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State == types.StatePointer {
-		if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.Flags.IsSet(types.FlagHashMod) {
+	for v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress.IsSet(types.FlagPointerNode) {
+		if v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress.IsSet(types.FlagHashMod) {
 			v.keyHash = hashKey(&v.item.Key, hashBuff, v.level)
 		}
 
 		pointerNode := ProjectPointerNode(s.config.State.Node(
-			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress,
+			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress.Naked(),
 		))
 		index := PointerIndex(v.keyHash, v.level)
-		state := pointerNode.Pointers[index].State
+		state := pointerNode.Pointers[index].VolatileAddress.State()
 		nextIndex := index
 		originalIndex := index
 
@@ -828,7 +810,7 @@ func (s *Space[K, V]) walkPointers(
 				hopIndex := (hopEnd-hopStart)/2 + hopStart
 				newIndex := hops[hopIndex]
 
-				switch pointerNode.Pointers[newIndex].State {
+				switch pointerNode.Pointers[newIndex].VolatileAddress.State() {
 				case types.StateFree:
 					if !dataFound {
 						index = newIndex
@@ -858,7 +840,8 @@ func (s *Space[K, V]) walkPointers(
 		}
 
 		//nolint:nestif
-		if pointerNode.Pointers[index].State != types.StateFree && pointerNode.Pointers[index].SnapshotID != snapshotID {
+		if pointerNode.Pointers[index].VolatileAddress != types.FreeAddress &&
+			pointerNode.Pointers[index].SnapshotID != snapshotID {
 			persistentAddress, err := allocator.Allocate()
 			if err != nil {
 				return err
@@ -889,9 +872,9 @@ func (s *Space[K, V]) walkPointers(
 		v.storeRequest.PointersToStore++
 		v.parentIndex = index
 		if nextIndex == index {
-			v.nextDataNodeState = stateFreePtr
+			v.nextDataNode = zeroAddressPtr
 		} else {
-			v.nextDataNodeState = &pointerNode.Pointers[nextIndex].State
+			v.nextDataNode = &pointerNode.Pointers[nextIndex].VolatileAddress
 		}
 
 		if v.stage == StagePointer0 && v.level == 3 {
@@ -940,9 +923,9 @@ func (s *Space[K, V]) walkDataItems(v *Entry[K, V], hashMatches []uint64) bool {
 
 // Entry represents entry in the space.
 type Entry[K, V comparable] struct {
-	space             *Space[K, V]
-	nextDataNodeState *types.State
-	storeRequest      pipeline.StoreRequest
+	space        *Space[K, V]
+	nextDataNode *types.NodeAddress
+	storeRequest pipeline.StoreRequest
 
 	itemP         *types.DataItem[K, V]
 	keyHashP      *types.KeyHash
@@ -1041,13 +1024,14 @@ func dataItemIndex(keyHash types.KeyHash, numOfDataItems uint64) uint64 {
 
 func detectUpdate[K, V comparable](v *Entry[K, V]) {
 	switch {
-	case *v.nextDataNodeState != types.StateFree:
+	case *v.nextDataNode != types.FreeAddress:
 		v.storeRequest.PointersToStore--
 		v.level--
 
 		v.keyHashP = nil
 		v.itemP = nil
-	case v.keyHashP != nil && (v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.State != types.StateData ||
+	case v.keyHashP != nil && (v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.
+		VolatileAddress.State() != types.StateData ||
 		(*v.keyHashP != 0 && (*v.keyHashP != v.keyHash || v.itemP.Key != v.item.Key))):
 		v.keyHashP = nil
 		v.itemP = nil
@@ -1060,7 +1044,7 @@ func Deallocate(
 	deallocator *alloc.Deallocator,
 	state *alloc.State,
 ) {
-	switch spaceRoot.State {
+	switch spaceRoot.VolatileAddress.State() {
 	case types.StateFree:
 		return
 	case types.StateData:
@@ -1077,11 +1061,11 @@ func deallocatePointerNode(
 	deallocator *alloc.Deallocator,
 	state *alloc.State,
 ) {
-	pointerNode := ProjectPointerNode(state.Node(pointer.VolatileAddress))
+	pointerNode := ProjectPointerNode(state.Node(pointer.VolatileAddress.Naked()))
 	for pi := range pointerNode.Pointers {
 		p := &pointerNode.Pointers[pi]
 
-		switch p.State {
+		switch p.VolatileAddress.State() {
 		case types.StateData:
 			deallocator.Deallocate(pointer.VolatileAddress)
 			deallocator.Deallocate(p.PersistentAddress)
