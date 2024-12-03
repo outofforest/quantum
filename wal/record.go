@@ -268,42 +268,18 @@ func Set3[T1, T2, T3 comparable](
 	return nil
 }
 
-// Set4 copies four objects and stores changes in WAL node.
-func Set4[T1, T2, T3, T4 comparable](
+// SetAddressAtomically copies address atomically and stores changes in WAL node.
+func SetAddressAtomically(
 	recorder *Recorder, tx *pipeline.TransactionRequest, dstNodeAddress qtypes.NodeAddress,
-	dst1, src1 *T1,
-	dst2, src2 *T2,
-	dst3, src3 *T3,
-	dst4, src4 *T4,
+	dst, src *qtypes.NodeAddress,
 ) error {
-	dst1B, err := Reserve(recorder, tx, dstNodeAddress, dst1)
-	if err != nil {
-		return err
-	}
-	dst2B, err := Reserve(recorder, tx, dstNodeAddress, dst2)
-	if err != nil {
-		return err
-	}
-	dst3B, err := Reserve(recorder, tx, dstNodeAddress, dst3)
-	if err != nil {
-		return err
-	}
-	dst4B, err := Reserve(recorder, tx, dstNodeAddress, dst4)
+	dst2, err := Reserve(recorder, tx, dstNodeAddress, dst)
 	if err != nil {
 		return err
 	}
 
-	*dst1 = *src1
-	*dst1B = *src1
-
-	*dst2 = *src2
-	*dst2B = *src2
-
-	*dst3 = *src3
-	*dst3B = *src3
-
-	*dst4 = *src4
-	*dst4B = *src4
+	*dst2 = *src
+	qtypes.Store(dst, *src)
 
 	return nil
 }
