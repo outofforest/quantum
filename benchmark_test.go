@@ -31,7 +31,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 100_000_000
+		numOfAddresses = 5_000_000
 		txsPerCommit   = 20_000
 		balance        = 100_000
 	)
@@ -58,7 +58,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 		func() {
 			_, _ = rand.Read(accountBytes)
 
-			var size uint64 = 99 * 1024 * 1024 * 1024
+			var size uint64 = 20 * 1024 * 1024 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size,
 				100,
@@ -70,14 +70,13 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			defer stateDeallocFunc()
 
 			//nolint:ineffassign,wastedassign,staticcheck
-			store, storeCloseFunc, err := fileStore(
+			store, err := fileStore(
 				// "/tmp/d0/wojciech/db.quantum",
 				"db0.quantum",
 				size)
 			if err != nil {
 				panic(err)
 			}
-			defer storeCloseFunc()
 
 			store = persistent.NewDummyStore()
 
@@ -184,7 +183,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 	}
 }
 
-func fileStore(path string, size uint64) (persistent.Store, func(), error) {
+func fileStore(path string, size uint64) (persistent.Store, error) {
 	expectedNumOfNodes := size / types.NodeLength
 	expectedCapacity := expectedNumOfNodes * types.NodeLength
 	seekTo := int64(expectedCapacity - types.NodeLength)
@@ -195,14 +194,14 @@ func fileStore(path string, size uint64) (persistent.Store, func(), error) {
 
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0o600)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if _, err := file.Seek(seekTo, io.SeekEnd); err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
 	if _, err := file.Write(data); err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
 
 	return persistent.NewFileStore(file)

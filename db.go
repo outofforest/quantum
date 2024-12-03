@@ -167,6 +167,7 @@ func (db *DB) Run(ctx context.Context) error {
 		spawn("state", parallel.Fail, db.config.State.Run)
 		spawn("pipeline", parallel.Exit, func(ctx context.Context) error {
 			defer db.config.State.Close()
+			defer db.config.Store.Close()
 
 			return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 				supervisorReader := db.queueReader

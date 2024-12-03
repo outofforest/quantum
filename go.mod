@@ -1,6 +1,8 @@
 module github.com/outofforest/quantum
 
-go 1.23
+go 1.23.3
+
+replace github.com/godzie44/go-uring => github.com/gohryt/go-uring v0.0.0-20240825103418-6afda088f948
 
 require (
 	github.com/cespare/xxhash v1.1.0
@@ -21,7 +23,7 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.8 // indirect
-	github.com/libp2p/go-sockaddr v0.1.1 // indirect
+	github.com/libp2p/go-sockaddr v0.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.uber.org/multierr v1.11.0 // indirect

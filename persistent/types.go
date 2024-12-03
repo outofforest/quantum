@@ -6,4 +6,5 @@ import "github.com/outofforest/quantum/types"
 type Store interface {
 	Write(address types.NodeAddress, data []byte) error
 	Sync() error
+	Close()
 }
