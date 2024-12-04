@@ -121,6 +121,7 @@ func (s *State) Run(ctx context.Context) error {
 		})
 		spawn("pump", parallel.Continue, func(ctx context.Context) error {
 			defer close(s.allocationPoolCh)
+
 			return s.runPump(
 				ctx,
 				s.allocationCh,

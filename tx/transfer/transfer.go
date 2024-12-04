@@ -42,14 +42,13 @@ func (t *Tx) Prepare(
 
 // Execute executes transaction.
 func (t *Tx) Execute(
-	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
-	fromBalance, err := t.from.Value(snapshotID, tx, walRecorder, allocator, hashBuff, hashMatches)
+	fromBalance, err := t.from.Value(tx, walRecorder, allocator, hashBuff, hashMatches)
 	if err != nil {
 		return err
 	}
@@ -57,7 +56,7 @@ func (t *Tx) Execute(
 		return errors.Errorf("sender's balance is too low, balance: %d, amount to send: %d", fromBalance, t.Amount)
 	}
 
-	toBalance, err := t.to.Value(snapshotID, tx, walRecorder, allocator, hashBuff, hashMatches)
+	toBalance, err := t.to.Value(tx, walRecorder, allocator, hashBuff, hashMatches)
 	if err != nil {
 		return err
 	}
@@ -68,7 +67,6 @@ func (t *Tx) Execute(
 	}
 
 	if err := t.from.Set(
-		snapshotID,
 		tx,
 		walRecorder,
 		allocator,
@@ -80,7 +78,6 @@ func (t *Tx) Execute(
 	}
 
 	return t.to.Set(
-		snapshotID,
 		tx,
 		walRecorder,
 		allocator,

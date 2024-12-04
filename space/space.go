@@ -3,6 +3,7 @@ package space
 import (
 	"math"
 	"math/bits"
+	"sort"
 	"unsafe"
 
 	"github.com/cespare/xxhash"
@@ -100,7 +101,7 @@ func (s *Space[K, V]) Find(
 		}
 	}
 
-	return s.find(v, snapshotID, tx, walRecorder, allocator, hashBuff, hashMatches, hashKey)
+	return s.find(v, tx, walRecorder, allocator, hashBuff, hashMatches, hashKey)
 }
 
 // Query queries the key.
@@ -113,6 +114,92 @@ func (s *Space[K, V]) Query(key K, hashBuff []byte, hashMatches []uint64) (V, bo
 func (s *Space[K, V]) Iterator() func(func(item *types.DataItem[K, V]) bool) {
 	return func(yield func(item *types.DataItem[K, V]) bool) {
 		s.iterate(s.config.SpaceRoot.Pointer, yield)
+	}
+}
+
+// Nodes returns the list of nodes allocated by the tree.
+func (s *Space[K, V]) Nodes() []types.NodeAddress {
+	switch s.config.SpaceRoot.Pointer.VolatileAddress.State() {
+	case types.StateFree:
+		return nil
+	case types.StateData:
+		return []types.NodeAddress{s.config.SpaceRoot.Pointer.VolatileAddress}
+	}
+
+	nodes := []types.NodeAddress{}
+	stack := []types.NodeAddress{s.config.SpaceRoot.Pointer.VolatileAddress.Naked()}
+
+	for {
+		if len(stack) == 0 {
+			sort.Slice(nodes, func(i, j int) bool {
+				return nodes[i] < nodes[j]
+			})
+
+			return nodes
+		}
+
+		pointerNodeAddress := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		nodes = append(nodes, pointerNodeAddress)
+
+		pointerNode := ProjectPointerNode(s.config.State.Node(pointerNodeAddress.Naked()))
+		for pi := range pointerNode.Pointers {
+			switch pointerNode.Pointers[pi].VolatileAddress.State() {
+			case types.StateFree:
+			case types.StateData:
+				nodes = append(nodes, pointerNode.Pointers[pi].VolatileAddress)
+			case types.StatePointer:
+				stack = append(stack, pointerNode.Pointers[pi].VolatileAddress.Naked())
+			}
+		}
+	}
+}
+
+// Stats returns space-related statistics.
+func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
+	switch s.config.SpaceRoot.Pointer.VolatileAddress.State() {
+	case types.StateFree:
+		return 0, 0, 0, 0
+	case types.StateData:
+		return 1, 0, 1, 0
+	}
+
+	stack := []types.NodeAddress{s.config.SpaceRoot.Pointer.VolatileAddress.Naked()}
+
+	levels := map[types.NodeAddress]uint64{
+		s.config.SpaceRoot.Pointer.VolatileAddress.Naked(): 1,
+	}
+	var maxLevel, pointerNodes, dataNodes, dataItems uint64
+
+	for {
+		if len(stack) == 0 {
+			return maxLevel, pointerNodes, dataNodes, float64(dataItems) / float64(dataNodes*s.numOfDataItems)
+		}
+
+		n := stack[len(stack)-1]
+		level := levels[n] + 1
+		pointerNodes++
+		stack = stack[:len(stack)-1]
+
+		pointerNode := ProjectPointerNode(s.config.State.Node(n.Naked()))
+		for pi := range pointerNode.Pointers {
+			volatileAddress := types.Load(&pointerNode.Pointers[pi].VolatileAddress)
+			switch volatileAddress.State() {
+			case types.StateFree:
+			case types.StateData:
+				dataNodes++
+				if level > maxLevel {
+					maxLevel = level
+				}
+				//nolint:gofmt,revive // looks like a bug in linter
+				for _, _ = range s.config.DataNodeAssistant.Iterator(s.config.State.Node(volatileAddress)) {
+					dataItems++
+				}
+			case types.StatePointer:
+				stack = append(stack, volatileAddress.Naked())
+				levels[volatileAddress.Naked()] = level
+			}
+		}
 	}
 }
 
@@ -222,6 +309,7 @@ func (s *Space[K, V]) initEntry(
 ) error {
 	initBytes := unsafe.Slice((*byte)(unsafe.Pointer(v)), s.initSize)
 	copy(initBytes, s.defaultInit)
+	v.snapshotID = snapshotID
 	v.keyHash = keyHash
 	v.item.Key = key
 	v.stage = stage
@@ -248,7 +336,6 @@ func (s *Space[K, V]) initEntry(
 
 func (s *Space[K, V]) keyExists(
 	v *Entry[K, V],
-	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
@@ -258,7 +345,7 @@ func (s *Space[K, V]) keyExists(
 ) (bool, error) {
 	detectUpdate(v)
 
-	if err := s.find(v, snapshotID, tx, walRecorder, allocator, hashBuff, hashMatches, hashKeyFunc); err != nil {
+	if err := s.find(v, tx, walRecorder, allocator, hashBuff, hashMatches, hashKeyFunc); err != nil {
 		return false, err
 	}
 
@@ -267,7 +354,6 @@ func (s *Space[K, V]) keyExists(
 
 func (s *Space[K, V]) readKey(
 	v *Entry[K, V],
-	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
@@ -277,7 +363,7 @@ func (s *Space[K, V]) readKey(
 ) (V, error) {
 	detectUpdate(v)
 
-	if err := s.find(v, snapshotID, tx, walRecorder, allocator, hashBuff, hashMatches, hashKeyFunc); err != nil {
+	if err := s.find(v, tx, walRecorder, allocator, hashBuff, hashMatches, hashKeyFunc); err != nil {
 		return s.defaultValue, err
 	}
 
@@ -290,7 +376,6 @@ func (s *Space[K, V]) readKey(
 
 func (s *Space[K, V]) deleteKey(
 	v *Entry[K, V],
-	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
@@ -300,7 +385,7 @@ func (s *Space[K, V]) deleteKey(
 ) error {
 	detectUpdate(v)
 
-	if err := s.find(v, snapshotID, tx, walRecorder, allocator, hashBuff, hashMatches, hashKeyFunc); err != nil {
+	if err := s.find(v, tx, walRecorder, allocator, hashBuff, hashMatches, hashKeyFunc); err != nil {
 		return err
 	}
 
@@ -317,6 +402,8 @@ func (s *Space[K, V]) deleteKey(
 			return err
 		}
 
+		v.exists = false
+
 		tx.AddStoreRequest(&v.storeRequest)
 	}
 
@@ -325,7 +412,6 @@ func (s *Space[K, V]) deleteKey(
 
 func (s *Space[K, V]) setKey(
 	v *Entry[K, V],
-	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
@@ -338,12 +424,11 @@ func (s *Space[K, V]) setKey(
 
 	detectUpdate(v)
 
-	return s.set(v, snapshotID, tx, walRecorder, allocator, hashBuff, hashMatches, hashKeyFunc)
+	return s.set(v, tx, walRecorder, allocator, hashBuff, hashMatches, hashKeyFunc)
 }
 
 func (s *Space[K, V]) find(
 	v *Entry[K, V],
-	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
@@ -351,7 +436,7 @@ func (s *Space[K, V]) find(
 	hashMatches []uint64,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) error {
-	if err := s.walkPointers(v, snapshotID, tx, walRecorder, allocator, hashBuff, hashKeyFunc); err != nil {
+	if err := s.walkPointers(v, tx, walRecorder, allocator, hashBuff, hashKeyFunc); err != nil {
 		return err
 	}
 
@@ -381,7 +466,6 @@ func (s *Space[K, V]) find(
 
 func (s *Space[K, V]) set(
 	v *Entry[K, V],
-	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
@@ -389,7 +473,7 @@ func (s *Space[K, V]) set(
 	hashMatches []uint64,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) error {
-	if err := s.walkPointers(v, snapshotID, tx, walRecorder, allocator, hashBuff, hashKeyFunc); err != nil {
+	if err := s.walkPointers(v, tx, walRecorder, allocator, hashBuff, hashKeyFunc); err != nil {
 		return err
 	}
 
@@ -412,7 +496,7 @@ func (s *Space[K, V]) set(
 		if v.storeRequest.PointersToStore > 1 {
 			if err := wal.Set2(walRecorder, tx,
 				v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer.PersistentAddress,
-				&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.SnapshotID, &snapshotID,
+				&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.SnapshotID, &v.snapshotID,
 				&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.PersistentAddress, &dataNodePersistentAddress,
 			); err != nil {
 				return err
@@ -425,7 +509,7 @@ func (s *Space[K, V]) set(
 				return err
 			}
 		} else {
-			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.SnapshotID = snapshotID
+			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.SnapshotID = v.snapshotID
 			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.PersistentAddress = dataNodePersistentAddress
 			types.Store(&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress, dataNodeVolatileAddress)
 		}
@@ -451,6 +535,8 @@ func (s *Space[K, V]) set(
 			return err
 		}
 
+		v.exists = true
+
 		tx.AddStoreRequest(&v.storeRequest)
 
 		return nil
@@ -458,7 +544,7 @@ func (s *Space[K, V]) set(
 
 	// Try to split data node.
 	if v.storeRequest.PointersToStore > 1 {
-		splitDone, err := s.splitDataNode(snapshotID, tx, walRecorder, allocator, v.parentIndex,
+		splitDone, err := s.splitDataNode(v.snapshotID, tx, walRecorder, allocator, v.parentIndex,
 			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer, v.level)
 		if err != nil {
 			return err
@@ -468,16 +554,16 @@ func (s *Space[K, V]) set(
 			v.storeRequest.PointersToStore--
 			v.level--
 
-			return s.set(v, snapshotID, tx, walRecorder, allocator, hashBuff, hashMatches, hashKeyFunc)
+			return s.set(v, tx, walRecorder, allocator, hashBuff, hashMatches, hashKeyFunc)
 		}
 	}
 
 	// Add pointer node.
-	if err := s.addPointerNode(v, snapshotID, tx, walRecorder, allocator, conflict); err != nil {
+	if err := s.addPointerNode(v, tx, walRecorder, allocator, conflict); err != nil {
 		return err
 	}
 
-	return s.set(v, snapshotID, tx, walRecorder, allocator, hashBuff, hashMatches, hashKeyFunc)
+	return s.set(v, tx, walRecorder, allocator, hashBuff, hashMatches, hashKeyFunc)
 }
 
 func (s *Space[K, V]) splitToIndex(parentNodeAddress types.NodeAddress, index uint64) (uint64, uint64) {
@@ -596,7 +682,6 @@ func (s *Space[K, V]) splitDataNode(
 
 func (s *Space[K, V]) addPointerNode(
 	v *Entry[K, V],
-	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
@@ -655,7 +740,7 @@ func (s *Space[K, V]) addPointerNode(
 		types.Store(&pointerNodeRoot.Pointer.VolatileAddress, pointerNodeVolatileAddress)
 	}
 
-	_, err = s.splitDataNode(snapshotID, tx, walRecorder, allocator, 0, pointerNodeRoot.Pointer, v.level+1)
+	_, err = s.splitDataNode(v.snapshotID, tx, walRecorder, allocator, 0, pointerNodeRoot.Pointer, v.level+1)
 	return err
 }
 
@@ -728,7 +813,6 @@ var pointerHops = [NumOfPointers][]uint64{
 
 func (s *Space[K, V]) walkPointers(
 	v *Entry[K, V],
-	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
@@ -736,7 +820,7 @@ func (s *Space[K, V]) walkPointers(
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) error {
 	for {
-		more, err := s.walkOnePointer(v, snapshotID, tx, walRecorder, allocator, hashBuff, hashKeyFunc)
+		more, err := s.walkOnePointer(v, tx, walRecorder, allocator, hashBuff, hashKeyFunc)
 		if err != nil || !more {
 			return err
 		}
@@ -745,7 +829,6 @@ func (s *Space[K, V]) walkPointers(
 
 func (s *Space[K, V]) walkOnePointer(
 	v *Entry[K, V],
-	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
@@ -808,7 +891,7 @@ func (s *Space[K, V]) walkOnePointer(
 
 	//nolint:nestif
 	if types.Load(&pointerNode.Pointers[index].VolatileAddress) != types.FreeAddress &&
-		pointerNode.Pointers[index].SnapshotID != snapshotID {
+		pointerNode.Pointers[index].SnapshotID != v.snapshotID {
 		persistentAddress, err := allocator.Allocate()
 		if err != nil {
 			return false, err
@@ -822,13 +905,13 @@ func (s *Space[K, V]) walkOnePointer(
 		if v.storeRequest.PointersToStore > 0 {
 			if err := wal.Set2(walRecorder, tx,
 				v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.PersistentAddress,
-				&pointerNode.Pointers[index].SnapshotID, &snapshotID,
+				&pointerNode.Pointers[index].SnapshotID, &v.snapshotID,
 				&pointerNode.Pointers[index].PersistentAddress, &persistentAddress,
 			); err != nil {
 				return false, err
 			}
 		} else {
-			pointerNode.Pointers[index].SnapshotID = snapshotID
+			pointerNode.Pointers[index].SnapshotID = v.snapshotID
 			pointerNode.Pointers[index].PersistentAddress = persistentAddress
 		}
 	}
@@ -895,6 +978,7 @@ type Entry[K, V comparable] struct {
 	nextDataNode *types.NodeAddress
 	storeRequest pipeline.StoreRequest
 
+	snapshotID    types.SnapshotID
 	itemP         *types.DataItem[K, V]
 	keyHashP      *types.KeyHash
 	keyHash       types.KeyHash
@@ -908,14 +992,13 @@ type Entry[K, V comparable] struct {
 
 // Value returns the value from entry.
 func (v *Entry[K, V]) Value(
-	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
 	hashBuff []byte,
 	hashMatches []uint64,
 ) (V, error) {
-	return v.space.readKey(v, snapshotID, tx, walRecorder, allocator, hashBuff, hashMatches, hashKey[K])
+	return v.space.readKey(v, tx, walRecorder, allocator, hashBuff, hashMatches, hashKey[K])
 }
 
 // Key returns the key from entry.
@@ -925,19 +1008,17 @@ func (v *Entry[K, V]) Key() K {
 
 // Exists returns true if entry exists in the space.
 func (v *Entry[K, V]) Exists(
-	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
 	hashBuff []byte,
 	hashMatches []uint64,
 ) (bool, error) {
-	return v.space.keyExists(v, snapshotID, tx, walRecorder, allocator, hashBuff, hashMatches, hashKey[K])
+	return v.space.keyExists(v, tx, walRecorder, allocator, hashBuff, hashMatches, hashKey[K])
 }
 
 // Set sts value for entry.
 func (v *Entry[K, V]) Set(
-	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
@@ -945,19 +1026,18 @@ func (v *Entry[K, V]) Set(
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
-	return v.space.setKey(v, snapshotID, tx, walRecorder, allocator, value, hashBuff, hashMatches, hashKey[K])
+	return v.space.setKey(v, tx, walRecorder, allocator, value, hashBuff, hashMatches, hashKey[K])
 }
 
 // Delete deletes the entry.
 func (v *Entry[K, V]) Delete(
-	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	walRecorder *wal.Recorder,
 	allocator *alloc.Allocator,
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
-	return v.space.deleteKey(v, snapshotID, tx, walRecorder, allocator, hashBuff, hashMatches, hashKey[K])
+	return v.space.deleteKey(v, tx, walRecorder, allocator, hashBuff, hashMatches, hashKey[K])
 }
 
 func hashKey[K comparable](key *K, buff []byte, level uint8) types.KeyHash {
@@ -979,6 +1059,8 @@ func hashKey[K comparable](key *K, buff []byte, level uint8) types.KeyHash {
 }
 
 func detectUpdate[K, V comparable](v *Entry[K, V]) {
+	v.stage = StageData
+
 	switch {
 	case *v.nextDataNode != types.FreeAddress:
 		v.storeRequest.PointersToStore--

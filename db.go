@@ -297,22 +297,19 @@ func (db *DB) deleteSnapshot(
 	if err != nil {
 		return err
 	}
-	exists, err := snapshotInfoValue.Exists(snapshotID, tx, walRecorder, allocator, snapshotHashBuff,
-		snapshotHashMatches)
+	exists, err := snapshotInfoValue.Exists(tx, walRecorder, allocator, snapshotHashBuff, snapshotHashMatches)
 	if err != nil {
 		return err
 	}
 	if !exists {
 		return errors.Errorf("snapshot %d to delete does not exist", snapshotID)
 	}
-	snapshotInfo, err := snapshotInfoValue.Value(snapshotID, tx, walRecorder, allocator, snapshotHashBuff,
-		snapshotHashMatches)
+	snapshotInfo, err := snapshotInfoValue.Value(tx, walRecorder, allocator, snapshotHashBuff, snapshotHashMatches)
 	if err != nil {
 		return err
 	}
 
-	if err := snapshotInfoValue.Delete(snapshotID, tx, walRecorder, allocator, snapshotHashBuff,
-		snapshotHashMatches); err != nil {
+	if err := snapshotInfoValue.Delete(tx, walRecorder, allocator, snapshotHashBuff, snapshotHashMatches); err != nil {
 		return err
 	}
 
@@ -322,16 +319,14 @@ func (db *DB) deleteSnapshot(
 		return err
 	}
 
-	exists, err = nextSnapshotInfoValue.Exists(snapshotID, tx, walRecorder, allocator, snapshotHashBuff,
-		snapshotHashMatches)
+	exists, err = nextSnapshotInfoValue.Exists(tx, walRecorder, allocator, snapshotHashBuff, snapshotHashMatches)
 	if err != nil {
 		return err
 	}
 	if !exists {
 		return errors.Errorf("next snapshot %d does not exist", snapshotID)
 	}
-	nextSnapshotInfo, err := nextSnapshotInfoValue.Value(snapshotID, tx, walRecorder, allocator, snapshotHashBuff,
-		snapshotHashMatches)
+	nextSnapshotInfo, err := nextSnapshotInfoValue.Value(tx, walRecorder, allocator, snapshotHashBuff, snapshotHashMatches)
 	if err != nil {
 		return err
 	}
@@ -375,7 +370,7 @@ func (db *DB) deleteSnapshot(
 		if err != nil {
 			return err
 		}
-		listRootAddress, err := deallocationListValue.Value(snapshotID, tx, walRecorder, allocator, deallocationHashBuff,
+		listRootAddress, err := deallocationListValue.Value(tx, walRecorder, allocator, deallocationHashBuff,
 			deallocationHashMatches)
 		if err != nil {
 			return err
@@ -387,7 +382,6 @@ func (db *DB) deleteSnapshot(
 		}
 		if listRootAddress != originalListRootAddress {
 			if err := deallocationListValue.Set(
-				snapshotID,
 				tx,
 				walRecorder,
 				allocator,
@@ -403,7 +397,6 @@ func (db *DB) deleteSnapshot(
 	nextSnapshotInfo.DeallocationRoot = snapshotInfo.DeallocationRoot
 	nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
 	if err := nextSnapshotInfoValue.Set(
-		snapshotID,
 		tx,
 		walRecorder,
 		allocator,
@@ -428,8 +421,8 @@ func (db *DB) deleteSnapshot(
 		if err != nil {
 			return err
 		}
-		exists, err := previousSnapshotInfoValue.Exists(snapshotID,
-			tx, walRecorder, allocator, snapshotHashBuff, snapshotHashMatches)
+		exists, err := previousSnapshotInfoValue.Exists(tx, walRecorder, allocator, snapshotHashBuff,
+			snapshotHashMatches)
 		if err != nil {
 			return err
 		}
@@ -437,15 +430,14 @@ func (db *DB) deleteSnapshot(
 			return errors.Errorf("previous snapshot %d does not exist", snapshotID)
 		}
 
-		previousSnapshotInfo, err := previousSnapshotInfoValue.Value(snapshotID, tx, walRecorder, allocator,
-			snapshotHashBuff, snapshotHashMatches)
+		previousSnapshotInfo, err := previousSnapshotInfoValue.Value(tx, walRecorder, allocator, snapshotHashBuff,
+			snapshotHashMatches)
 		if err != nil {
 			return err
 		}
 		previousSnapshotInfo.NextSnapshotID = snapshotInfo.NextSnapshotID
 
 		if err := previousSnapshotInfoValue.Set(
-			snapshotID,
 			tx,
 			walRecorder,
 			allocator,
@@ -486,14 +478,14 @@ func (db *DB) commit(
 			if err != nil {
 				return err
 			}
-			exists, err := deallocationListValue.Exists(commitSnapshotID, tx, walRecorder, allocator,
-				deallocationHashBuff, deallocationHashMatches)
+			exists, err := deallocationListValue.Exists(tx, walRecorder, allocator, deallocationHashBuff,
+				deallocationHashMatches)
 			if err != nil {
 				return err
 			}
 			if exists {
-				v, err := deallocationListValue.Value(commitSnapshotID, tx, walRecorder, allocator,
-					deallocationHashBuff, deallocationHashMatches)
+				v, err := deallocationListValue.Value(tx, walRecorder, allocator, deallocationHashBuff,
+					deallocationHashMatches)
 				if err != nil {
 					return err
 				}
@@ -503,7 +495,6 @@ func (db *DB) commit(
 				}
 			}
 			if err := deallocationListValue.Set(
-				commitSnapshotID,
 				tx,
 				walRecorder,
 				allocator,
@@ -525,7 +516,6 @@ func (db *DB) commit(
 		return err
 	}
 	if err := nextSnapshotInfoValue.Set(
-		commitSnapshotID,
 		tx,
 		walRecorder,
 		allocator,
@@ -610,8 +600,7 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 		if req.Transaction != nil {
 			switch tx := req.Transaction.(type) {
 			case *transfer.Tx:
-				if err := tx.Execute(db.singularityNode.LastSnapshotID, req, walRecorder, allocator, hashBuff,
-					hashMatches); err != nil {
+				if err := tx.Execute(req, walRecorder, allocator, hashBuff, hashMatches); err != nil {
 					return err
 				}
 			case *commitTx:
