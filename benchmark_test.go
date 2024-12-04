@@ -17,6 +17,7 @@ import (
 	"github.com/outofforest/quantum"
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/persistent"
+	"github.com/outofforest/quantum/space"
 	"github.com/outofforest/quantum/tx/genesis"
 	"github.com/outofforest/quantum/tx/transfer"
 	txtypes "github.com/outofforest/quantum/tx/types"
@@ -110,6 +111,8 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				panic(err)
 			}
 
+			st := space.NewSpaceTest(s, nil, nil, nil, nil)
+
 			hashBuff := s.NewHashBuff()
 			hashMatches := s.NewHashMatches()
 
@@ -126,7 +129,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 					panic(err)
 				}
 
-				fmt.Println(s.Stats())
+				fmt.Println(st.Stats())
 				fmt.Println("===========================")
 
 				genesisBalance, genesisExists := s.Query(txtypes.GenesisAccount, hashBuff, hashMatches)
@@ -167,7 +170,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			}()
 
 			func() {
-				fmt.Println(s.Stats())
+				fmt.Println(st.Stats())
 
 				genesisBalance, genesisExists := s.Query(txtypes.GenesisAccount, hashBuff, hashMatches)
 				require.True(b, genesisExists)
