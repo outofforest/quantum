@@ -38,7 +38,6 @@ func (t *Tx) Execute(
 		}
 
 		if err := v.Set(
-			snapshotID,
 			tx,
 			walRecorder,
 			allocator,
