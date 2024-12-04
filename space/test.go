@@ -94,15 +94,21 @@ func (s *SpaceTest[K, V]) SetKey(v *Entry[K, V], value V) error {
 }
 
 // SplitDataNode splits data node.
-func (s *SpaceTest[K, V]) SplitDataNode(v *Entry[K, V], snapshotID types.SnapshotID) error {
-	_, err := s.s.splitDataNode(snapshotID, s.tx, s.walRecorder, s.allocator, v.parentIndex,
-		v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer, v.level)
+func (s *SpaceTest[K, V]) SplitDataNode(v *Entry[K, V], snapshotID types.SnapshotID, conflict bool) error {
+	var err error
+	if conflict {
+		_, err = s.s.splitDataNodeWithConflict(snapshotID, s.tx, s.walRecorder, s.allocator, v.parentIndex,
+			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer, v.level, s.hashBuff, s.hashKeyFunc)
+	} else {
+		_, err = s.s.splitDataNodeWithoutConflict(snapshotID, s.tx, s.walRecorder, s.allocator, v.parentIndex,
+			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer, v.level)
+	}
 	return err
 }
 
 // AddPointerNode adds pointer node.
 func (s *SpaceTest[K, V]) AddPointerNode(v *Entry[K, V], conflict bool) error {
-	return s.s.addPointerNode(v, s.tx, s.walRecorder, s.allocator, conflict)
+	return s.s.addPointerNode(v, s.tx, s.walRecorder, s.allocator, conflict, s.hashBuff, s.hashKeyFunc)
 }
 
 // WalkPointers walk all the pointers to find the key.
