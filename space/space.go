@@ -385,11 +385,7 @@ func (s *Space[K, V]) deleteKey(
 		return err
 	}
 
-	switch {
-	case types.Load(&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.
-		VolatileAddress) == types.FreeAddress:
-	case v.keyHashP == nil || *v.keyHashP == 0:
-	default:
+	if v.keyHashP != nil && *v.keyHashP != 0 {
 		// If we are here it means `s.find` found the slot with matching key so don't need to check hash and key again.
 		if err := wal.Set1(walRecorder, tx,
 			v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.PersistentAddress,
