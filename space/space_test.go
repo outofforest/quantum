@@ -1030,10 +1030,19 @@ func TestSwitchingFromMutableToImmutablePath(t *testing.T) {
 
 	// Let's locate the key hash 16 in the data item 0.
 
-	v16, err = s.NewEntry(snapshotID, key, StageData)
+	v16Read, err := s.NewEntry(snapshotID, key, StageData)
 	requireT.NoError(err)
-	requireT.NoError(s.Find(v16))
-	requireT.Equal(&pointerNode.Pointers[16].VolatileAddress, v16.nextDataNode) // Verify the next expected data node address.
+	requireT.NoError(s.Find(v16Read))
+	// Verify the next expected data node address.
+	requireT.Equal(&pointerNode.Pointers[16].VolatileAddress, v16Read.nextDataNode)
+
+	v16Exists, err := s.NewEntry(snapshotID, key, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.Find(v16Exists))
+
+	v16Delete, err := s.NewEntry(snapshotID, key, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.Find(v16Delete))
 
 	// Now let's split data node 0 using key hash 64.
 
@@ -1061,15 +1070,27 @@ func TestSwitchingFromMutableToImmutablePath(t *testing.T) {
 
 	requireT.NoError(s.AddPointerNode(v64, false))
 	requireT.True(pointerNode.Pointers[0].VolatileAddress.IsSet(types.FlagPointerNode))
-	requireT.True(v16.storeRequest.Store[v16.storeRequest.PointersToStore-1].Pointer.VolatileAddress.
+	requireT.True(v16Read.storeRequest.Store[v16Read.storeRequest.PointersToStore-1].Pointer.VolatileAddress.
 		IsSet(types.FlagPointerNode))
 
 	// We are now in situation where key hash 16 is no longer in the place pointed to by v16.
 	// When walking the tree now, it should not follow the current pointer node, but go back and switch
 	// to the immutable path.
 
-	balance, err := s.ReadKey(v16)
+	balance, err := s.ReadKey(v16Read)
 	requireT.NoError(err)
 	requireT.Equal(txtypes.Amount(16), balance)
-	requireT.Nil(v16.nextDataNode)
+	requireT.Nil(v16Read.nextDataNode)
+
+	exists, err := s.KeyExists(v16Exists)
+	requireT.NoError(err)
+	requireT.True(exists)
+	requireT.Nil(v16Exists.nextDataNode)
+
+	requireT.NoError(s.DeleteKey(v16Delete))
+	requireT.Nil(v16Delete.nextDataNode)
+
+	balance, exists = s.Query(key)
+	requireT.False(exists)
+	requireT.Equal(txtypes.Amount(0), balance)
 }
