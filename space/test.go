@@ -73,6 +73,16 @@ func (s *SpaceTest[K, V]) NewEntry(
 	return v, nil
 }
 
+// Root returns pointer to the space root node.
+func (s *SpaceTest[K, V]) Root() *types.Pointer {
+	return s.s.config.SpaceRoot.Pointer
+}
+
+// DataNodeAssistant returns space's data node assistant.
+func (s *SpaceTest[K, V]) DataNodeAssistant() *DataNodeAssistant[K, V] {
+	return s.s.config.DataNodeAssistant
+}
+
 // KeyExists checks if key is set in the space.
 func (s *SpaceTest[K, V]) KeyExists(v *Entry[K, V]) (bool, error) {
 	return s.s.keyExists(v, s.tx, s.walRecorder, s.allocator, s.hashBuff, s.hashMatches, s.hashKeyFunc)
@@ -94,13 +104,13 @@ func (s *SpaceTest[K, V]) SetKey(v *Entry[K, V], value V) error {
 }
 
 // SplitDataNode splits data node.
-func (s *SpaceTest[K, V]) SplitDataNode(v *Entry[K, V], snapshotID types.SnapshotID, conflict bool) error {
+func (s *SpaceTest[K, V]) SplitDataNode(v *Entry[K, V], conflict bool) error {
 	var err error
 	if conflict {
-		_, err = s.s.splitDataNodeWithConflict(snapshotID, s.tx, s.walRecorder, s.allocator, v.parentIndex,
+		_, err = s.s.splitDataNodeWithConflict(v.snapshotID, s.tx, s.walRecorder, s.allocator, v.parentIndex,
 			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer, v.level, s.hashBuff, s.hashKeyFunc)
 	} else {
-		_, err = s.s.splitDataNodeWithoutConflict(snapshotID, s.tx, s.walRecorder, s.allocator, v.parentIndex,
+		_, err = s.s.splitDataNodeWithoutConflict(v.snapshotID, s.tx, s.walRecorder, s.allocator, v.parentIndex,
 			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer, v.level)
 	}
 	return err
