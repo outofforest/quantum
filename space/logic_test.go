@@ -356,10 +356,10 @@ func TestSetConflictingHashesOnRootDataNode(t *testing.T) {
 	}
 }
 
-// TestAddingParentNodeWithoutConflictResolution verifies that all the data items with the same key hash stay
-// in the same data node without key hash recalculation, if space is instructed to add new parent node without
+// TestAddingPointerNodeWithoutConflictResolution verifies that all the data items with the same key hash stay
+// in the same data node without key hash recalculation, if space is instructed to add new pointer node without
 // conflict resolution.
-func TestAddingParentNodeWithoutConflictResolution(t *testing.T) {
+func TestAddingPointerNodeWithoutConflictResolution(t *testing.T) {
 	const (
 		// It is selected this way to be sure that nothing is moved to the next data node.
 		numOfItems                  = NumOfPointers
@@ -386,7 +386,7 @@ func TestAddingParentNodeWithoutConflictResolution(t *testing.T) {
 		requireT.Equal(uint8(0), v.level)
 	}
 
-	// Add parent node and set the last item.
+	// Add pointer node and set the last item.
 
 	v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
 		Key:     txtypes.Account{numOfItems - 1},
@@ -433,9 +433,9 @@ func TestAddingParentNodeWithoutConflictResolution(t *testing.T) {
 	}
 }
 
-// TestAddingParentNodeWithConflictResolution verifies that key hashes are recomputed and data items are redistributed
-// if space is instructed to add new parent node with conflict resolution.
-func TestAddingParentNodeWithConflictResolution(t *testing.T) {
+// TestAddingPointerNodeWithConflictResolution verifies that key hashes are recomputed and data items are redistributed
+// if space is instructed to add new pointer node with conflict resolution.
+func TestAddingPointerNodeWithConflictResolution(t *testing.T) {
 	const (
 		// It is selected this way so half of the items is moved to another data node.
 		numOfItems                  = NumOfPointers
@@ -466,7 +466,7 @@ func TestAddingParentNodeWithConflictResolution(t *testing.T) {
 		requireT.Equal(uint8(0), v.level)
 	}
 
-	// Add parent node and set the last item.
+	// Add pointer node and set the last item.
 
 	v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
 		Key:     txtypes.Account{numOfItems - 1},
@@ -522,9 +522,9 @@ func TestAddingParentNodeWithConflictResolution(t *testing.T) {
 	requireT.Equal(uint64(numOfItems/2), dataNodes[dataNodeAddress])
 }
 
-// TestAddingParentNodeForNonConflictingDataItems verifies that key hashes are not recomputed if there is no conflict
-// and data items are redistributed if space is instructed to add new parent node without conflict resolution.
-func TestAddingParentNodeForNonConflictingDataItems(t *testing.T) {
+// TestAddingPointerNodeForNonConflictingDataItems verifies that key hashes are not recomputed if there is no conflict
+// and data items are redistributed if space is instructed to add new pointer node without conflict resolution.
+func TestAddingPointerNodeForNonConflictingDataItems(t *testing.T) {
 	const (
 		// It is selected this way so half of the items is moved to another data node.
 		numOfItems                  = NumOfPointers
@@ -550,7 +550,7 @@ func TestAddingParentNodeForNonConflictingDataItems(t *testing.T) {
 		requireT.Equal(uint8(0), v.level)
 	}
 
-	// Add parent node and set the last item.
+	// Add pointer node and set the last item.
 
 	v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
 		Key:     txtypes.Account{numOfItems - 1},
@@ -604,4 +604,305 @@ func TestAddingParentNodeForNonConflictingDataItems(t *testing.T) {
 		requireT.Equal(uint64(numOfItems/2), n)
 	}
 	requireT.Equal(uint64(numOfItems/2), dataNodes[dataNodeAddress])
+}
+
+// TestDataNodeSplitWithoutConflictResolution verifies that data nodes are allocated in the right order when there
+// is a time to split them. This test assumes there are no key hash conflicts to be resolved.
+func TestDataNodeSplitWithoutConflictResolution(t *testing.T) {
+	const (
+		// It is selected this way so at the end each pointer references a data node containing one data item.
+		numOfItems                  = NumOfPointers
+		snapshotID types.SnapshotID = 1
+	)
+
+	requireT := require.New(t)
+
+	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
+	requireT.NoError(err)
+
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+
+	// Store items in the root data node.
+
+	for i := uint8(1); i <= numOfItems; i++ {
+		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+			Key:     txtypes.Account{i},
+			KeyHash: types.KeyHash(i),
+		}, StagePointer0)
+		requireT.NoError(err)
+		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+	}
+
+	// Convert root node into pointer node.
+
+	v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		Key:     txtypes.Account{0x01},
+		KeyHash: types.KeyHash(1), // +1 to avoid 0
+	}, StageData)
+	requireT.NoError(s.AddPointerNode(v, false))
+
+	// Verify the current structure of the tree.
+	// Root node should be a pointer node with two data node children at indexes 0 and NumOfPointers / 2.
+	// Each data node should contain numOfItems / 2 items. First node should contain items with hashes 1-31 and 64,
+	// Second node should contain items with hashes 32-63.
+
+	pointerNode := ProjectPointerNode(state.Node(s.Root().VolatileAddress))
+	dataNodeAIndex := 0
+	dataNodeBIndex := NumOfPointers / 2
+	for i, p := range pointerNode.Pointers {
+		if i == dataNodeAIndex || i == dataNodeBIndex {
+			requireT.NotEqual(types.FreeAddress, p.VolatileAddress)
+		} else {
+			requireT.Equal(types.FreeAddress, p.VolatileAddress)
+		}
+	}
+
+	dataNodeAssistant := s.DataNodeAssistant()
+	dataNodeAKeyHashes := dataNodeAssistant.KeyHashes(state.Node(pointerNode.Pointers[dataNodeAIndex].VolatileAddress))
+	dataNodeBKeyHashes := dataNodeAssistant.KeyHashes(state.Node(pointerNode.Pointers[dataNodeBIndex].VolatileAddress))
+
+	keyHashes := map[types.KeyHash]int{}
+	for _, kh := range dataNodeAKeyHashes {
+		if kh != 0 {
+			_, exists := keyHashes[kh]
+			requireT.False(exists)
+			keyHashes[kh] = dataNodeAIndex
+		}
+	}
+	for _, kh := range dataNodeBKeyHashes {
+		if kh != 0 {
+			_, exists := keyHashes[kh]
+			requireT.False(exists)
+			keyHashes[kh] = dataNodeBIndex
+		}
+	}
+
+	requireT.Len(keyHashes, numOfItems)
+	// Check that items 1-31 are in data node A.
+	for i := types.KeyHash(1); i < numOfItems/2; i++ {
+		index, exists := keyHashes[i]
+		requireT.True(exists)
+		requireT.Equal(dataNodeAIndex, index)
+	}
+	// Check that items 32-63 are in data node B.
+	for i := types.KeyHash(numOfItems / 2); i < numOfItems; i++ {
+		index, exists := keyHashes[i]
+		requireT.True(exists)
+		requireT.Equal(dataNodeBIndex, index)
+	}
+	// Check that items 64 is in data node A.
+	index, exists := keyHashes[numOfItems]
+	requireT.True(exists)
+	requireT.Equal(dataNodeAIndex, index)
+
+	// Tree structure verification succeeded.
+	// Now we split the data nodes until there are `numOfItems` data nodes, each containing one item.
+
+	for i := uint8(1); i <= numOfItems; i++ {
+		for {
+			v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+				Key:     txtypes.Account{i},
+				KeyHash: types.KeyHash(i),
+			}, StageData)
+			requireT.NoError(err)
+			requireT.NoError(s.Find(v))
+
+			if v.nextDataNode == nil {
+				break
+			}
+
+			requireT.NoError(s.SplitDataNode(v, false))
+		}
+	}
+
+	// Verify that indeed, there are `numOfItems` data nodes, each containing one item.
+
+	dataItems := map[types.KeyHash]struct{}{}
+	for _, p := range pointerNode.Pointers {
+		requireT.NotEqual(types.FreeAddress, p.VolatileAddress)
+
+		keyHashes := dataNodeAssistant.KeyHashes(state.Node(p.VolatileAddress))
+		var found bool
+		for _, kh := range keyHashes {
+			if kh != 0 {
+				requireT.False(found)
+				_, exists := dataItems[kh]
+				requireT.False(exists)
+				dataItems[kh] = struct{}{}
+				found = true
+			}
+		}
+		requireT.True(found)
+	}
+	requireT.Len(dataItems, numOfItems)
+	for i := types.KeyHash(1); i <= numOfItems; i++ {
+		_, exists := dataItems[i]
+		requireT.True(exists)
+	}
+
+	// Verify that all the items have correct values.
+
+	for i := uint8(1); i <= numOfItems; i++ {
+		balance, exists := s.Query(TestKey[txtypes.Account]{
+			Key:     txtypes.Account{i},
+			KeyHash: types.KeyHash(i),
+		})
+		requireT.True(exists)
+		requireT.Equal(txtypes.Amount(i), balance)
+	}
+}
+
+// TestDataNodeSplitWithConflictResolution verifies that data nodes are allocated in the right order when there
+// is a time to split them. This test assumes there are key hash conflicts to be resolved.
+func TestDataNodeSplitWithConflictResolution(t *testing.T) {
+	const (
+		// It is selected this way so at the end each pointer references a data node containing one data item.
+		numOfItems                  = NumOfPointers
+		snapshotID types.SnapshotID = 1
+		keyHash    types.KeyHash    = 1 // Same for all data items to create conflicts.
+	)
+
+	requireT := require.New(t)
+
+	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
+	requireT.NoError(err)
+
+	hashKeyFunc := func(key *txtypes.Account, buff []byte, level uint8) types.KeyHash {
+		return types.KeyHash(key[0])
+	}
+
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKeyFunc)
+
+	// Store items in the root data node.
+
+	for i := uint8(1); i <= numOfItems; i++ {
+		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+			Key:     txtypes.Account{i},
+			KeyHash: keyHash,
+		}, StagePointer0)
+		requireT.NoError(err)
+		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+	}
+
+	// Convert root node into pointer node.
+
+	v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		Key:     txtypes.Account{0x01},
+		KeyHash: types.KeyHash(1), // +1 to avoid 0
+	}, StageData)
+	requireT.NoError(s.AddPointerNode(v, true))
+
+	// Verify the current structure of the tree.
+	// Root node should be a pointer node with two data node children at indexes 0 and NumOfPointers / 2.
+	// Each data node should contain numOfItems / 2 items. First node should contain items with hashes 1-31 and 64,
+	// Second node should contain items with hashes 32-63.
+
+	pointerNode := ProjectPointerNode(state.Node(s.Root().VolatileAddress))
+	dataNodeAIndex := 0
+	dataNodeBIndex := NumOfPointers / 2
+	for i, p := range pointerNode.Pointers {
+		if i == dataNodeAIndex || i == dataNodeBIndex {
+			requireT.NotEqual(types.FreeAddress, p.VolatileAddress)
+		} else {
+			requireT.Equal(types.FreeAddress, p.VolatileAddress)
+		}
+	}
+
+	dataNodeAssistant := s.DataNodeAssistant()
+	dataNodeAKeyHashes := dataNodeAssistant.KeyHashes(state.Node(pointerNode.Pointers[dataNodeAIndex].VolatileAddress))
+	dataNodeBKeyHashes := dataNodeAssistant.KeyHashes(state.Node(pointerNode.Pointers[dataNodeBIndex].VolatileAddress))
+
+	keyHashes := map[types.KeyHash]int{}
+	for _, kh := range dataNodeAKeyHashes {
+		if kh != 0 {
+			_, exists := keyHashes[kh]
+			requireT.False(exists)
+			keyHashes[kh] = dataNodeAIndex
+		}
+	}
+	for _, kh := range dataNodeBKeyHashes {
+		if kh != 0 {
+			_, exists := keyHashes[kh]
+			requireT.False(exists)
+			keyHashes[kh] = dataNodeBIndex
+		}
+	}
+
+	requireT.Len(keyHashes, numOfItems)
+	// Check that items 1-31 are in data node A.
+	for i := types.KeyHash(1); i < numOfItems/2; i++ {
+		index, exists := keyHashes[i]
+		requireT.True(exists)
+		requireT.Equal(dataNodeAIndex, index)
+	}
+	// Check that items 32-63 are in data node B.
+	for i := types.KeyHash(numOfItems / 2); i < numOfItems; i++ {
+		index, exists := keyHashes[i]
+		requireT.True(exists)
+		requireT.Equal(dataNodeBIndex, index)
+	}
+	// Check that items 64 is in data node A.
+	index, exists := keyHashes[numOfItems]
+	requireT.True(exists)
+	requireT.Equal(dataNodeAIndex, index)
+
+	// Tree structure verification succeeded.
+	// Now we split the data nodes until there are `numOfItems` data nodes, each containing one item.
+	// First split is done with conflict resolution to generate non-conflicting key hashes.
+
+	// Split everything without conflict resolution because hashes has been recomputed above.
+	for i := uint8(1); i <= numOfItems; i++ {
+		for {
+			v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+				Key:     txtypes.Account{i},
+				KeyHash: types.KeyHash(i),
+			}, StageData)
+			requireT.NoError(err)
+			requireT.NoError(s.Find(v))
+
+			if v.nextDataNode == nil {
+				break
+			}
+
+			// We split with conflict resolving all the time to test that path of the logic, but provided hashing
+			// function returns the same results all the time.
+			requireT.NoError(s.SplitDataNode(v, true))
+		}
+	}
+
+	// Verify that indeed, there are `numOfItems` data nodes, each containing one item.
+
+	dataItems := map[types.KeyHash]struct{}{}
+	for _, p := range pointerNode.Pointers {
+		requireT.NotEqual(types.FreeAddress, p.VolatileAddress)
+
+		keyHashes := dataNodeAssistant.KeyHashes(state.Node(p.VolatileAddress))
+		var found bool
+		for _, kh := range keyHashes {
+			if kh != 0 {
+				requireT.False(found)
+				_, exists := dataItems[kh]
+				requireT.False(exists)
+				dataItems[kh] = struct{}{}
+				found = true
+			}
+		}
+		requireT.True(found)
+	}
+	requireT.Len(dataItems, numOfItems)
+	for i := types.KeyHash(1); i <= numOfItems; i++ {
+		_, exists := dataItems[i]
+		requireT.True(exists)
+	}
+
+	// Verify that all the items have correct values.
+
+	for i := uint8(1); i <= numOfItems; i++ {
+		balance, exists := s.Query(TestKey[txtypes.Account]{
+			Key:     txtypes.Account{i},
+			KeyHash: types.KeyHash(i),
+		})
+		requireT.True(exists)
+		requireT.Equal(txtypes.Amount(i), balance)
+	}
 }
