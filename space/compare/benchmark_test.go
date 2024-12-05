@@ -4,14 +4,26 @@ import (
 	"fmt"
 	"io"
 	"testing"
+	"unsafe"
+
+	"github.com/outofforest/quantum/alloc"
 )
 
 var (
 	resDef = [32]uint64{}
-	values = []uint64{
-		2, 1, 2, 3, 1, 0, 0, 4, 2, 1, 2, 3, 1, 0, 0, 4,
-		2, 1, 2, 3, 1, 0, 0, 4, 2, 1, 2, 3, 1, 0, 0, 4,
-	}
+	values = func() []uint64 {
+		const numOfItems = 32
+
+		p, _, _ := alloc.Allocate(numOfItems*8, 64, false)
+		result := unsafe.Slice((*uint64)(p), numOfItems)
+
+		copy(result, []uint64{
+			2, 1, 2, 3, 1, 0, 0, 4, 2, 1, 2, 3, 1, 0, 0, 4,
+			2, 1, 2, 3, 1, 0, 0, 4, 2, 1, 2, 3, 1, 0, 0, 4,
+		})
+
+		return result
+	}()
 )
 
 func BenchmarkCompareGo(b *testing.B) {
