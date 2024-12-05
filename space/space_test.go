@@ -906,3 +906,170 @@ func TestDataNodeSplitWithConflictResolution(t *testing.T) {
 		requireT.Equal(txtypes.Amount(i), balance)
 	}
 }
+
+// TestFindStages verifies that locating data item is divided into three stages.
+func TestFindStages(t *testing.T) {
+	requireT := require.New(t)
+
+	const (
+		snapshotID types.SnapshotID = 1
+		// This key hash means that item will always go to the pointer at index 0.
+		keyHash = 1 << 63
+	)
+
+	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
+	requireT.NoError(err)
+
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+
+	// Create levels in the tree.
+
+	key := TestKey[txtypes.Account]{
+		Key:     txtypes.Account{0x01},
+		KeyHash: keyHash,
+	}
+
+	v, err := s.NewEntry(snapshotID, key, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.SetKey(v, txtypes.Amount(10)))
+
+	for range 8 {
+		requireT.NoError(s.AddPointerNode(v, false))
+		requireT.NoError(s.Find(v))
+	}
+
+	requireT.Equal(uint8(8), v.level)
+
+	// Test StagePointer0.
+
+	v, err = s.NewEntry(snapshotID, key, StagePointer0)
+	requireT.NoError(err)
+
+	requireT.Equal(StagePointer0, v.stage)
+	requireT.Equal(uint8(0), v.level)
+	requireT.Nil(v.keyHashP)
+	requireT.Nil(v.itemP)
+	requireT.False(v.exists)
+
+	requireT.NoError(s.Find(v))
+	requireT.Equal(StagePointer1, v.stage)
+	requireT.Equal(uint8(3), v.level)
+	requireT.Nil(v.keyHashP)
+	requireT.Nil(v.itemP)
+	requireT.False(v.exists)
+
+	requireT.NoError(s.Find(v))
+	requireT.Equal(StageData, v.stage)
+	requireT.Equal(uint8(8), v.level)
+	requireT.Nil(v.keyHashP)
+	requireT.Nil(v.itemP)
+	requireT.False(v.exists)
+
+	requireT.NoError(s.Find(v))
+	requireT.Equal(StageData, v.stage)
+	requireT.Equal(uint8(8), v.level)
+	requireT.NotNil(v.keyHashP)
+	requireT.NotNil(v.itemP)
+	requireT.True(v.exists)
+
+	requireT.Equal(key.Key, v.itemP.Key)
+	requireT.Equal(txtypes.Amount(10), v.itemP.Value)
+	requireT.Equal(key.KeyHash, *v.keyHashP)
+
+	balance, exists := s.Query(key)
+	requireT.True(exists)
+	requireT.Equal(txtypes.Amount(10), balance)
+}
+
+// TestSwitchingFromMutableToImmutablePath verifies that when pointer node is added on mutable path, pending tree walk
+// does not follow that pointer node but goes to the immutable path instead.
+func TestSwitchingFromMutableToImmutablePath(t *testing.T) {
+	requireT := require.New(t)
+
+	const (
+		snapshotID types.SnapshotID = 1
+		// After first split this key hash stays in data node 0, but after second split it will go to the data node 16.
+		keyHash types.KeyHash = 16
+	)
+
+	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
+	requireT.NoError(err)
+
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+
+	// Create levels in the tree.
+
+	key := TestKey[txtypes.Account]{
+		Key:     txtypes.Account{0x01},
+		KeyHash: keyHash,
+	}
+
+	v64, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		Key:     txtypes.Account{0x01},
+		KeyHash: types.KeyHash(64),
+	}, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.SetKey(v64, txtypes.Amount(64)))
+
+	v16, err := s.NewEntry(snapshotID, key, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.SetKey(v16, txtypes.Amount(16)))
+	requireT.NoError(s.AddPointerNode(v16, false))
+
+	// Now there are data nodes 0 and 32. The key hashes 0 and 16 should be in data node 0.
+
+	pointerNode := ProjectPointerNode(state.Node(s.Root().VolatileAddress))
+	requireT.NotEqual(types.FreeAddress, pointerNode.Pointers[0].VolatileAddress)
+	requireT.Equal(types.FreeAddress, pointerNode.Pointers[16].VolatileAddress)
+
+	dataNodeAssistant := s.DataNodeAssistant()
+	keyHashes := dataNodeAssistant.KeyHashes(state.Node(pointerNode.Pointers[0].VolatileAddress))
+
+	requireT.Equal(types.KeyHash(64), keyHashes[0])
+	requireT.Equal(keyHash, keyHashes[1])
+
+	// Let's locate the key hash 16 in the data item 0.
+
+	v16, err = s.NewEntry(snapshotID, key, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.Find(v16))
+	requireT.Equal(&pointerNode.Pointers[16].VolatileAddress, v16.nextDataNode) // Verify the next expected data node address.
+
+	// Now let's split data node 0 using key hash 64.
+
+	v64, err = s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		Key:     txtypes.Account{0x01},
+		KeyHash: types.KeyHash(64),
+	}, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.Find(v64))
+	requireT.NoError(s.SplitDataNode(v64, false))
+
+	// The key hash 16 should be moved to the brand new data node 16.
+
+	// Slot occupied by key hash 16 is free now.
+	requireT.Equal(types.KeyHash(0), keyHashes[1])
+
+	// Data node 16 has been created.
+	requireT.NotEqual(types.FreeAddress, pointerNode.Pointers[16].VolatileAddress)
+
+	// And key hash 16 has been moved there.
+	keyHashes = dataNodeAssistant.KeyHashes(state.Node(pointerNode.Pointers[16].VolatileAddress))
+	requireT.Equal(keyHash, keyHashes[1])
+
+	// Now let's add a pointer node at the position of key hash 64.
+
+	requireT.NoError(s.AddPointerNode(v64, false))
+	requireT.True(pointerNode.Pointers[0].VolatileAddress.IsSet(types.FlagPointerNode))
+	requireT.True(v16.storeRequest.Store[v16.storeRequest.PointersToStore-1].Pointer.VolatileAddress.
+		IsSet(types.FlagPointerNode))
+
+	// We are now in situation where key hash 16 is no longer in the place pointed to by v16.
+	// When walking the tree now, it should not follow the current pointer node, but go back and switch
+	// to the immutable path.
+
+	balance, err := s.ReadKey(v16)
+	requireT.NoError(err)
+	requireT.Equal(txtypes.Amount(16), balance)
+	requireT.Nil(v16.nextDataNode)
+}
