@@ -24,10 +24,7 @@ const (
 	StageData
 )
 
-var (
-	zeroAddressPtr = lo.ToPtr[types.NodeAddress](0)
-	zeroKeyHashPtr = lo.ToPtr[types.KeyHash](0)
-)
+var zeroKeyHashPtr = lo.ToPtr[types.KeyHash](0)
 
 // Config stores space configuration.
 type Config[K, V comparable] struct {
@@ -45,8 +42,7 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 	}
 
 	defaultInit := Entry[K, V]{
-		space:        s,
-		nextDataNode: zeroAddressPtr,
+		space: s,
 		storeRequest: pipeline.StoreRequest{
 			NoSnapshots:     s.config.NoSnapshots,
 			PointersToStore: 1,
@@ -553,6 +549,7 @@ func (s *Space[K, V]) set(
 			// This must be done because the item to set might go to the newly created data node.
 			v.storeRequest.PointersToStore--
 			v.level--
+			v.nextDataNode = nil
 
 			return s.set(v, tx, walRecorder, allocator, hashBuff, hashMatches, hashKeyFunc)
 		}
@@ -930,6 +927,15 @@ func (s *Space[K, V]) walkPointers(
 	hashBuff []byte,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) error {
+	if v.nextDataNode != nil && types.Load(v.nextDataNode) != types.FreeAddress {
+		v.storeRequest.PointersToStore--
+		v.level--
+		v.nextDataNode = nil
+
+		v.keyHashP = nil
+		v.itemP = nil
+	}
+
 	for {
 		more, err := s.walkOnePointer(v, tx, walRecorder, allocator, hashBuff, hashKeyFunc)
 		if err != nil || !more {
@@ -1032,10 +1038,12 @@ func (s *Space[K, V]) walkOnePointer(
 	v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
 	v.storeRequest.PointersToStore++
 	v.parentIndex = index
-	if nextIndex == index {
-		v.nextDataNode = zeroAddressPtr
-	} else {
+	if nextIndex != index {
 		v.nextDataNode = &pointerNode.Pointers[nextIndex].VolatileAddress
+
+		// If we are here it means that we should stop following potential next pointer nodes because we are in the
+		// non-final branch. A better data node might be added concurrently at any time.
+		return false, nil
 	}
 
 	if v.stage == StagePointer0 && v.level == 3 {
@@ -1086,7 +1094,6 @@ func (s *Space[K, V]) walkDataItems(v *Entry[K, V], hashMatches []uint64) bool {
 // Entry represents entry in the space.
 type Entry[K, V comparable] struct {
 	space        *Space[K, V]
-	nextDataNode *types.NodeAddress
 	storeRequest pipeline.StoreRequest
 
 	snapshotID    types.SnapshotID
@@ -1096,6 +1103,7 @@ type Entry[K, V comparable] struct {
 	item          types.DataItem[K, V]
 	parentIndex   uint64
 	dataItemIndex uint64
+	nextDataNode  *types.NodeAddress
 	exists        bool
 	stage         uint8
 	level         uint8
@@ -1172,16 +1180,9 @@ func hashKey[K comparable](key *K, buff []byte, level uint8) types.KeyHash {
 func detectUpdate[K, V comparable](v *Entry[K, V]) {
 	v.stage = StageData
 
-	switch {
-	case *v.nextDataNode != types.FreeAddress:
-		v.storeRequest.PointersToStore--
-		v.level--
-
-		v.keyHashP = nil
-		v.itemP = nil
-	case v.keyHashP != nil && (types.Load(&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.
+	if v.keyHashP != nil && (types.Load(&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.
 		VolatileAddress).State() != types.StateData ||
-		(*v.keyHashP != 0 && (*v.keyHashP != v.keyHash || v.itemP.Key != v.item.Key))):
+		(*v.keyHashP != 0 && (*v.keyHashP != v.keyHash || v.itemP.Key != v.item.Key))) {
 		v.keyHashP = nil
 		v.itemP = nil
 	}
