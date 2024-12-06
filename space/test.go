@@ -1,6 +1,7 @@
 package space
 
 import (
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 
 	"github.com/outofforest/quantum/alloc"
@@ -31,6 +32,7 @@ func NewSpaceTest[K, V comparable](
 		},
 		State:             state,
 		DataNodeAssistant: dataNodeAssistant,
+		DeletionCounter:   lo.ToPtr[uint64](0),
 		NoSnapshots:       false,
 	})
 

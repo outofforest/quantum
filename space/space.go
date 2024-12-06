@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/bits"
 	"sort"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/cespare/xxhash"
@@ -31,6 +32,7 @@ type Config[K, V comparable] struct {
 	SpaceRoot         types.NodeRoot
 	State             *alloc.State
 	DataNodeAssistant *DataNodeAssistant[K, V]
+	DeletionCounter   *uint64
 	NoSnapshots       bool
 }
 
@@ -339,7 +341,7 @@ func (s *Space[K, V]) keyExists(
 	hashMatches []uint64,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) (bool, error) {
-	detectUpdate(v)
+	s.detectUpdate(v)
 
 	if err := s.find(v, tx, walRecorder, allocator, hashBuff, hashMatches, hashKeyFunc); err != nil {
 		return false, err
@@ -357,7 +359,7 @@ func (s *Space[K, V]) readKey(
 	hashMatches []uint64,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) (V, error) {
-	detectUpdate(v)
+	s.detectUpdate(v)
 
 	if err := s.find(v, tx, walRecorder, allocator, hashBuff, hashMatches, hashKeyFunc); err != nil {
 		return s.defaultValue, err
@@ -379,7 +381,7 @@ func (s *Space[K, V]) deleteKey(
 	hashMatches []uint64,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) error {
-	detectUpdate(v)
+	s.detectUpdate(v)
 
 	if err := s.find(v, tx, walRecorder, allocator, hashBuff, hashMatches, hashKeyFunc); err != nil {
 		return err
@@ -395,6 +397,8 @@ func (s *Space[K, V]) deleteKey(
 		}
 
 		v.exists = false
+
+		atomic.AddUint64(s.config.DeletionCounter, 1)
 
 		tx.AddStoreRequest(&v.storeRequest)
 	}
@@ -414,7 +418,7 @@ func (s *Space[K, V]) setKey(
 ) error {
 	v.item.Value = value
 
-	detectUpdate(v)
+	s.detectUpdate(v)
 
 	return s.set(v, tx, walRecorder, allocator, hashBuff, hashMatches, hashKeyFunc)
 }
@@ -1075,6 +1079,7 @@ func (s *Space[K, V]) walkDataItems(v *Entry[K, V], hashMatches []uint64) bool {
 			v.exists = true
 			v.keyHashP = &keyHashes[index]
 			v.itemP = item
+			v.deletionCounter = atomic.LoadUint64(s.config.DeletionCounter)
 
 			return conflict
 		}
@@ -1087,8 +1092,25 @@ func (s *Space[K, V]) walkDataItems(v *Entry[K, V], hashMatches []uint64) bool {
 
 	v.keyHashP = &keyHashes[zeroIndex]
 	v.itemP = s.config.DataNodeAssistant.Item(node, s.config.DataNodeAssistant.ItemOffset(zeroIndex))
+	v.deletionCounter = atomic.LoadUint64(s.config.DeletionCounter)
 
 	return conflict
+}
+
+func (s *Space[K, V]) detectUpdate(v *Entry[K, V]) {
+	v.stage = StageData
+
+	if v.keyHashP == nil {
+		return
+	}
+
+	if types.Load(&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.
+		VolatileAddress).IsSet(types.FlagPointerNode) ||
+		*s.config.DeletionCounter != v.deletionCounter ||
+		(*v.keyHashP != 0 && (*v.keyHashP != v.keyHash || v.itemP.Key != v.item.Key)) {
+		v.keyHashP = nil
+		v.itemP = nil
+	}
 }
 
 // Entry represents entry in the space.
@@ -1096,17 +1118,18 @@ type Entry[K, V comparable] struct {
 	space        *Space[K, V]
 	storeRequest pipeline.StoreRequest
 
-	snapshotID    types.SnapshotID
-	itemP         *types.DataItem[K, V]
-	keyHashP      *types.KeyHash
-	keyHash       types.KeyHash
-	item          types.DataItem[K, V]
-	parentIndex   uint64
-	dataItemIndex uint64
-	nextDataNode  *types.NodeAddress
-	exists        bool
-	stage         uint8
-	level         uint8
+	snapshotID      types.SnapshotID
+	itemP           *types.DataItem[K, V]
+	keyHashP        *types.KeyHash
+	keyHash         types.KeyHash
+	item            types.DataItem[K, V]
+	parentIndex     uint64
+	dataItemIndex   uint64
+	nextDataNode    *types.NodeAddress
+	deletionCounter uint64
+	exists          bool
+	stage           uint8
+	level           uint8
 }
 
 // Value returns the value from entry.
@@ -1175,17 +1198,6 @@ func hashKey[K comparable](key *K, buff []byte, level uint8) types.KeyHash {
 	}
 
 	return hash
-}
-
-func detectUpdate[K, V comparable](v *Entry[K, V]) {
-	v.stage = StageData
-
-	if v.keyHashP != nil && (types.Load(&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.
-		VolatileAddress).State() != types.StateData ||
-		(*v.keyHashP != 0 && (*v.keyHashP != v.keyHash || v.itemP.Key != v.item.Key))) {
-		v.keyHashP = nil
-		v.itemP = nil
-	}
 }
 
 // Deallocate deallocates all nodes used by the space.

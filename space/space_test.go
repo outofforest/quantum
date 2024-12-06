@@ -1193,6 +1193,14 @@ func TestExistenceOfReplacedDataItem(t *testing.T) {
 	requireT.NoError(err)
 	requireT.NoError(s.Find(v5E))
 
+	v5F, err := s.NewEntry(snapshotID, key, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.Find(v5F))
+
+	v5G, err := s.NewEntry(snapshotID, key, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.Find(v5G))
+
 	// Test that false is returned if hash is different.
 
 	*v5.keyHashP = 1
@@ -1213,7 +1221,7 @@ func TestExistenceOfReplacedDataItem(t *testing.T) {
 	// v5B now points to first free slot.
 	requireT.Equal(types.KeyHash(0), *v5B.keyHashP)
 
-	// Test checking moved item.
+	// Test checking replaced item.
 
 	// Delete v5D.
 	requireT.NoError(s.DeleteKey(v5D))
@@ -1231,9 +1239,9 @@ func TestExistenceOfReplacedDataItem(t *testing.T) {
 	requireT.Equal(types.KeyHash(100), *v5E.keyHashP)
 
 	// Let's insert v5 on another free position.
-	v5F, err := s.NewEntry(snapshotID, key, StageData)
+	v5E2, err := s.NewEntry(snapshotID, key, StageData)
 	requireT.NoError(err)
-	requireT.NoError(s.SetKey(v5F, txtypes.Amount(5)))
+	requireT.NoError(s.SetKey(v5E2, txtypes.Amount(5)))
 	requireT.Equal(types.KeyHash(100), *v5E.keyHashP)
 
 	// When checking, it will refer the right slot.
@@ -1241,8 +1249,44 @@ func TestExistenceOfReplacedDataItem(t *testing.T) {
 	requireT.NoError(err)
 	requireT.True(exists)
 	requireT.Equal(key.KeyHash, *v5E.keyHashP)
-	requireT.Equal(key.KeyHash, *v5F.keyHashP)
-	requireT.Equal(v5E.keyHashP, v5F.keyHashP)
+	requireT.Equal(key.KeyHash, *v5E2.keyHashP)
+	requireT.Equal(v5E.keyHashP, v5E2.keyHashP)
+
+	// Test checking moved item.
+
+	// Delete v5F.
+	requireT.NoError(s.DeleteKey(v5F))
+
+	// This item is inserted on first free slot, which is the one previously occupied by v5F.
+	key100 = TestKey[txtypes.Account]{
+		Key:     txtypes.Account{100},
+		KeyHash: 100,
+	}
+	v100, err = s.NewEntry(snapshotID, key100, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
+
+	// Now v5G points to invalid item.
+	requireT.Equal(types.KeyHash(100), *v5G.keyHashP)
+
+	// Let's insert v5 on another free position.
+	v5G2, err := s.NewEntry(snapshotID, key, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.SetKey(v5G2, txtypes.Amount(5)))
+	requireT.Equal(types.KeyHash(100), *v5G.keyHashP)
+
+	// Let's delete v100 to make the original slot free.
+	requireT.NoError(s.DeleteKey(v100))
+	requireT.Equal(types.KeyHash(0), *v100.keyHashP)
+	requireT.Equal(types.KeyHash(0), *v5G.keyHashP)
+
+	// When checking, it will refer the right slot.
+	exists, err = s.KeyExists(v5G)
+	requireT.NoError(err)
+	requireT.True(exists)
+	requireT.Equal(key.KeyHash, *v5G.keyHashP)
+	requireT.Equal(key.KeyHash, *v5G2.keyHashP)
+	requireT.Equal(v5G.keyHashP, v5G2.keyHashP)
 
 	// Check false is returned if we were not able to find slot for an item.
 
@@ -1310,6 +1354,14 @@ func TestValueOfReplacedDataItem(t *testing.T) {
 	requireT.NoError(err)
 	requireT.NoError(s.Find(v5E))
 
+	v5F, err := s.NewEntry(snapshotID, key, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.Find(v5F))
+
+	v5G, err := s.NewEntry(snapshotID, key, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.Find(v5G))
+
 	// Test default value is returned if hash is different.
 
 	*v5.keyHashP = 1
@@ -1330,7 +1382,7 @@ func TestValueOfReplacedDataItem(t *testing.T) {
 	// v5B now points to first free slot.
 	requireT.Equal(types.KeyHash(0), *v5B.keyHashP)
 
-	// Test value of moved item.
+	// Test value of replaced item.
 
 	// Delete v5D.
 	requireT.NoError(s.DeleteKey(v5D))
@@ -1348,9 +1400,9 @@ func TestValueOfReplacedDataItem(t *testing.T) {
 	requireT.Equal(types.KeyHash(100), *v5E.keyHashP)
 
 	// Let's insert v5 on another free position.
-	v5F, err := s.NewEntry(snapshotID, key, StageData)
+	v5E2, err := s.NewEntry(snapshotID, key, StageData)
 	requireT.NoError(err)
-	requireT.NoError(s.SetKey(v5F, txtypes.Amount(5)))
+	requireT.NoError(s.SetKey(v5E2, txtypes.Amount(5)))
 	requireT.Equal(types.KeyHash(100), *v5E.keyHashP)
 
 	// When checking, it will refer the right slot.
@@ -1358,8 +1410,44 @@ func TestValueOfReplacedDataItem(t *testing.T) {
 	requireT.NoError(err)
 	requireT.Equal(txtypes.Amount(5), balance)
 	requireT.Equal(key.KeyHash, *v5E.keyHashP)
-	requireT.Equal(key.KeyHash, *v5F.keyHashP)
-	requireT.Equal(v5E.keyHashP, v5F.keyHashP)
+	requireT.Equal(key.KeyHash, *v5E2.keyHashP)
+	requireT.Equal(v5E.keyHashP, v5E2.keyHashP)
+
+	// Test value of moved item.
+
+	// Delete v5F.
+	requireT.NoError(s.DeleteKey(v5F))
+
+	// This item is inserted on first free slot, which is the one previously occupied by v5F.
+	key100 = TestKey[txtypes.Account]{
+		Key:     txtypes.Account{100},
+		KeyHash: 100,
+	}
+	v100, err = s.NewEntry(snapshotID, key100, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
+
+	// Now v5G points to invalid item.
+	requireT.Equal(types.KeyHash(100), *v5G.keyHashP)
+
+	// Let's insert v5 on another free position.
+	v5G2, err := s.NewEntry(snapshotID, key, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.SetKey(v5G2, txtypes.Amount(5)))
+	requireT.Equal(types.KeyHash(100), *v5G.keyHashP)
+
+	// Let's delete v100 to make the original slot free.
+	requireT.NoError(s.DeleteKey(v100))
+	requireT.Equal(types.KeyHash(0), *v100.keyHashP)
+	requireT.Equal(types.KeyHash(0), *v5G.keyHashP)
+
+	// When checking, it will refer the right slot.
+	balance, err = s.ReadKey(v5G)
+	requireT.NoError(err)
+	requireT.Equal(txtypes.Amount(5), balance)
+	requireT.Equal(key.KeyHash, *v5G.keyHashP)
+	requireT.Equal(key.KeyHash, *v5G2.keyHashP)
+	requireT.Equal(v5G.keyHashP, v5G2.keyHashP)
 
 	// Check false is returned if we were not able to find slot for an item.
 
@@ -1431,6 +1519,14 @@ func TestDeletingReplacedDataItem(t *testing.T) {
 	requireT.NoError(err)
 	requireT.NoError(s.Find(v5E))
 
+	v5F, err := s.NewEntry(snapshotID, key, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.Find(v5F))
+
+	v5G, err := s.NewEntry(snapshotID, key, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.Find(v5G))
+
 	// Test that nothing happens if hash is different.
 
 	*v5.keyHashP = 1
@@ -1486,7 +1582,7 @@ func TestDeletingReplacedDataItem(t *testing.T) {
 		requireT.Equal(txtypes.Amount(i), balance)
 	}
 
-	// Test deleting moved item.
+	// Test deleting replaced item.
 
 	// Delete v5D.
 	requireT.NoError(s.DeleteKey(v5D))
@@ -1504,16 +1600,16 @@ func TestDeletingReplacedDataItem(t *testing.T) {
 	requireT.Equal(types.KeyHash(100), *v5E.keyHashP)
 
 	// Let's insert v5 on another free position.
-	v5F, err := s.NewEntry(snapshotID, key, StageData)
+	v5E2, err := s.NewEntry(snapshotID, key, StageData)
 	requireT.NoError(err)
-	requireT.NoError(s.SetKey(v5F, txtypes.Amount(5)))
+	requireT.NoError(s.SetKey(v5E2, txtypes.Amount(5)))
 	requireT.Equal(types.KeyHash(100), *v5E.keyHashP)
 
 	// When deleting, it will free the right slot.
 	requireT.NoError(s.DeleteKey(v5E))
 	requireT.Equal(types.KeyHash(0), *v5E.keyHashP)
-	requireT.Equal(types.KeyHash(0), *v5F.keyHashP)
-	requireT.Equal(v5E.keyHashP, v5F.keyHashP)
+	requireT.Equal(types.KeyHash(0), *v5E2.keyHashP)
+	requireT.Equal(v5E.keyHashP, v5E2.keyHashP)
 
 	// v100 still exists.
 	balance, exists := s.Query(key100)
@@ -1524,6 +1620,40 @@ func TestDeletingReplacedDataItem(t *testing.T) {
 	balance, exists = s.Query(key)
 	requireT.False(exists)
 	requireT.Equal(txtypes.Amount(0), balance)
+
+	// Test deleting moved item.
+
+	// Delete v5F.
+	requireT.NoError(s.DeleteKey(v5F))
+
+	// This item is inserted on first free slot, which is the one previously occupied by v5F.
+	key100 = TestKey[txtypes.Account]{
+		Key:     txtypes.Account{100},
+		KeyHash: 100,
+	}
+	v100, err = s.NewEntry(snapshotID, key100, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
+
+	// Now v5G points to invalid item.
+	requireT.Equal(types.KeyHash(100), *v5G.keyHashP)
+
+	// Let's insert v5 on another free position.
+	v5G2, err := s.NewEntry(snapshotID, key, StageData)
+	requireT.NoError(err)
+	requireT.NoError(s.SetKey(v5G2, txtypes.Amount(5)))
+	requireT.Equal(types.KeyHash(100), *v5G.keyHashP)
+
+	// Let's delete v100 to make the original slot free.
+	requireT.NoError(s.DeleteKey(v100))
+	requireT.Equal(types.KeyHash(0), *v100.keyHashP)
+	requireT.Equal(types.KeyHash(0), *v5G.keyHashP)
+
+	// When checking, it will refer the right slot.
+	requireT.NoError(s.DeleteKey(v5G))
+	requireT.Equal(types.KeyHash(0), *v5G.keyHashP)
+	requireT.Equal(types.KeyHash(0), *v5G2.keyHashP)
+	requireT.Equal(v5G.keyHashP, v5G2.keyHashP)
 
 	// Try to delete if we were not able to find slot for an item.
 

@@ -36,10 +36,10 @@ type NodeAddress uint64
 // State returns node state.
 func (na NodeAddress) State() State {
 	switch {
-	case na == 0:
-		return StateFree
 	case na.IsSet(FlagPointerNode):
 		return StatePointer
+	case na == FreeAddress:
+		return StateFree
 	default:
 		return StateData
 	}
@@ -96,6 +96,10 @@ const (
 
 	// StatePointer means slot contains pointer.
 	StatePointer
+
+	// NumOfSpaces defines available number of spaces.
+	// FIXME (wojciech): Generalize this to any number of spaces.
+	NumOfSpaces = 2
 )
 
 // Pointer is the pointer to another block.
@@ -130,8 +134,7 @@ type SnapshotInfo struct {
 	NextSnapshotID     SnapshotID
 	DeallocationRoot   Pointer
 
-	// FIXME (wojciech): Generalize this to any number of spaces.
-	Spaces [2]Root
+	Spaces [NumOfSpaces]Root
 }
 
 // SingularityNode is the root of the store.
