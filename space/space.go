@@ -923,7 +923,11 @@ func (s *Space[K, V]) walkPointers(
 	hashBuff []byte,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) error {
-	if v.nextDataNode != nil && types.Load(v.nextDataNode) != types.FreeAddress {
+	if v.nextDataNode != nil {
+		if types.Load(v.nextDataNode) == types.FreeAddress {
+			return nil
+		}
+
 		v.storeRequest.PointersToStore--
 		v.level--
 		v.nextDataNode = nil
