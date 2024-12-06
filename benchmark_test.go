@@ -69,7 +69,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			}
 			defer stateDeallocFunc()
 
-			//nolint:ineffassign,wastedassign,staticcheck
 			store, err := fileStore(
 				// "/tmp/d0/wojciech/db.quantum",
 				"./disk",
@@ -78,7 +77,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				panic(err)
 			}
 
-			//store = persistent.NewDummyStore()
+			// store = persistent.NewDummyStore()
 
 			db, err := quantum.New(quantum.Config{
 				State: state,
@@ -184,11 +183,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 }
 
 func fileStore(path string, size uint64) (persistent.Store, error) {
-	data := make([]byte, 2*types.NodeLength-1)
-	p := uint64(uintptr(unsafe.Pointer(&data[0])))
-	p = (p+types.NodeLength-1)/types.NodeLength*types.NodeLength - p
-	data = data[p : p+types.NodeLength]
-
 	file, err := os.OpenFile(path, os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
