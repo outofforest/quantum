@@ -72,13 +72,13 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			//nolint:ineffassign,wastedassign,staticcheck
 			store, err := fileStore(
 				// "/tmp/d0/wojciech/db.quantum",
-				"db0.quantum",
+				"./disk",
 				size)
 			if err != nil {
 				panic(err)
 			}
 
-			store = persistent.NewDummyStore()
+			//store = persistent.NewDummyStore()
 
 			db, err := quantum.New(quantum.Config{
 				State: state,
@@ -184,24 +184,25 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 }
 
 func fileStore(path string, size uint64) (persistent.Store, error) {
-	expectedNumOfNodes := size / types.NodeLength
-	expectedCapacity := expectedNumOfNodes * types.NodeLength
-	seekTo := int64(expectedCapacity - types.NodeLength)
 	data := make([]byte, 2*types.NodeLength-1)
 	p := uint64(uintptr(unsafe.Pointer(&data[0])))
 	p = (p+types.NodeLength-1)/types.NodeLength*types.NodeLength - p
 	data = data[p : p+types.NodeLength]
 
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0o600)
+	file, err := os.OpenFile(path, os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err := file.Seek(seekTo, io.SeekEnd); err != nil {
+	fileSize, err := file.Seek(0, io.SeekEnd)
+	if err != nil {
+		_ = file.Close()
 		return nil, errors.WithStack(err)
 	}
-	if _, err := file.Write(data); err != nil {
-		return nil, errors.WithStack(err)
+
+	if uint64(fileSize) < size {
+		_ = file.Close()
+		return nil, errors.New("file size too small")
 	}
 
 	return persistent.NewFileStore(file)
