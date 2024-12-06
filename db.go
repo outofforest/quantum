@@ -75,6 +75,7 @@ func New(config Config) (*DB, error) {
 		},
 		State:             config.State,
 		DataNodeAssistant: snapshotInfoNodeAssistant,
+		DeletionCounter:   lo.ToPtr[uint64](0),
 		NoSnapshots:       true,
 	})
 
@@ -85,6 +86,7 @@ func New(config Config) (*DB, error) {
 			},
 			State:             config.State,
 			DataNodeAssistant: snapshotToNodeNodeAssistant,
+			DeletionCounter:   lo.ToPtr[uint64](0),
 			NoSnapshots:       true,
 		},
 	)
@@ -107,6 +109,7 @@ type DB struct {
 	snapshotInfoNodeAssistant   *space.DataNodeAssistant[types.SnapshotID, types.SnapshotInfo]
 	snapshotToNodeNodeAssistant *space.DataNodeAssistant[types.SnapshotID, types.NodeAddress]
 
+	spaceDeletionCounters     [types.NumOfSpaces]uint64
 	deallocationListsToCommit map[types.SnapshotID]*types.NodeAddress
 
 	queueReader *pipeline.Reader
@@ -339,6 +342,7 @@ func (db *DB) deleteSnapshot(
 			SpaceRoot:         nextDeallocationListRoot,
 			State:             db.config.State,
 			DataNodeAssistant: db.snapshotToNodeNodeAssistant,
+			DeletionCounter:   lo.ToPtr[uint64](0),
 		},
 	)
 
@@ -350,6 +354,7 @@ func (db *DB) deleteSnapshot(
 			SpaceRoot:         deallocationListsRoot,
 			State:             db.config.State,
 			DataNodeAssistant: db.snapshotToNodeNodeAssistant,
+			DeletionCounter:   lo.ToPtr[uint64](0),
 		},
 	)
 
@@ -1125,6 +1130,7 @@ func GetSpace[K, V comparable](spaceID types.SpaceID, db *DB) (*space.Space[K, V
 		},
 		State:             db.config.State,
 		DataNodeAssistant: dataNodeAssistant,
+		DeletionCounter:   &db.spaceDeletionCounters[spaceID],
 	}), nil
 }
 
