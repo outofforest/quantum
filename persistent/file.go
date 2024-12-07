@@ -1,6 +1,7 @@
 package persistent
 
 import (
+	"io"
 	"os"
 	"syscall"
 
@@ -10,36 +11,98 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-const ringCapacity = 50
+const ringCapacity = 10000
 
 // NewFileStore creates new file-based store.
 func NewFileStore(file *os.File) (*FileStore, error) {
-	ring, err := uring.New(ringCapacity)
+	size, err := file.Seek(0, io.SeekEnd)
+	if err != nil {
+		_ = file.Close()
+		return nil, errors.WithStack(err)
+	}
+
+	ringR, err := uring.New(1)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	ringW, err := uring.New(ringCapacity)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 	return &FileStore{
-		ring: ring,
-		fd:   file.Fd(),
-		file: file,
+		ringR:   ringR,
+		ringW:   ringW,
+		fd:      file.Fd(),
+		file:    file,
+		size:    uint64(size),
+		cqeBuff: make([]*uring.CQEvent, ringCapacity),
 	}, nil
 }
 
 // FileStore defines persistent file-based store.
 type FileStore struct {
-	ring    *uring.Ring
-	fd      uintptr
-	file    *os.File
-	counter uint32
+	ringR, ringW *uring.Ring
+	fd           uintptr
+	file         *os.File
+	size         uint64
+	counter      uint
+	numOfEvents  uint
+	cqeBuff      []*uring.CQEvent
+}
+
+// Size returns the size of the store.
+func (s *FileStore) Size() uint64 {
+	return s.size
+}
+
+// Read writes data to the store.
+func (s *FileStore) Read(address types.PersistentAddress, data []byte) error {
+	if err := s.ringR.QueueSQE(uring.Read(s.fd, data, uint64(address)*types.NodeLength), 0, uint64(address)); err != nil {
+		return errors.WithStack(err)
+	}
+
+	_, err := s.ringR.Submit()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	for {
+		cqe, err := s.ringR.WaitCQEvents(1)
+		switch {
+		case err == nil:
+			if err := cqe.Error(); err != nil {
+				return errors.WithStack(err)
+			}
+			s.ringR.AdvanceCQ(1)
+			if cqe.UserData != uint64(address) {
+				return errors.New("unexpected user data")
+			}
+			return nil
+		case errors.Is(err, syscall.EINTR):
+		default:
+			return errors.WithStack(err)
+		}
+	}
 }
 
 // Write writes data to the store.
-func (s *FileStore) Write(address types.NodeAddress, data []byte) error {
-	if err := s.ring.QueueSQE(uring.Write(s.fd, data, uint64(address)*types.NodeLength), 0, 0); err != nil {
+func (s *FileStore) Write(address types.PersistentAddress, data []byte) error {
+	if err := s.ringW.QueueSQE(uring.Write(s.fd, data, uint64(address)*types.NodeLength), 0, uint64(address)); err != nil {
 		return errors.WithStack(err)
 	}
+
 	s.counter++
-	if s.counter < ringCapacity {
+
+	if s.counter == 1000 {
+		numOfEvents, err := s.ringW.Submit()
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		s.numOfEvents += numOfEvents
+		s.counter = 0
+	}
+
+	if s.numOfEvents < ringCapacity {
 		return nil
 	}
 
@@ -48,10 +111,14 @@ func (s *FileStore) Write(address types.NodeAddress, data []byte) error {
 
 // Sync syncs pending writes.
 func (s *FileStore) Sync() error {
-	if s.counter > 0 {
-		if err := s.submit(); err != nil {
-			return errors.WithStack(err)
-		}
+	numOfEvents, err := s.ringW.Submit()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	s.numOfEvents += numOfEvents
+
+	if err := s.submit(); err != nil {
+		return errors.WithStack(err)
 	}
 
 	// FIXME (wojciech): Fsync is implemented by io uring but not implemented in the library.
@@ -63,7 +130,8 @@ func (s *FileStore) Sync() error {
 
 // Close closes the store.
 func (s *FileStore) Close() {
-	_ = s.ring.Close()
+	_ = s.ringR.Close()
+	_ = s.ringW.Close()
 	_ = s.file.Close()
 }
 
@@ -78,15 +146,28 @@ func (s *FileStore) submit() error {
 	// Looks like that when entire thread is dedicated to one goroutine (using runtime.LockOSThread),
 	// that mechanism is turned off on that thread. But it is a rare case so we decided to not incorporate this for now.
 
-	for {
-		cqe, err := s.ring.SubmitAndWaitCQEvents(s.counter)
-		switch {
-		case err == nil:
-			s.counter = 0
-			return errors.WithStack(cqe.Error())
-		case errors.Is(err, syscall.EINTR):
-		default:
-			return errors.WithStack(err)
+	for s.numOfEvents > 0 {
+	loop:
+		for {
+			_, err := s.ringW.WaitCQEvents(uint32(s.numOfEvents))
+			switch {
+			case err == nil:
+				break loop
+			case errors.Is(err, syscall.EINTR):
+			default:
+				return errors.WithStack(err)
+			}
 		}
+
+		numOfEvents := s.ringW.PeekCQEventBatch(s.cqeBuff)
+		for i := range numOfEvents {
+			if s.cqeBuff[i].Res < 0 {
+				return errors.WithStack(s.cqeBuff[i].Error())
+			}
+		}
+		s.ringW.AdvanceCQ(uint32(numOfEvents))
+		s.numOfEvents -= uint(numOfEvents)
 	}
+
+	return nil
 }

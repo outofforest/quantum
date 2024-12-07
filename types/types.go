@@ -28,13 +28,16 @@ type (
 
 	// SpaceID is the type for space ID.
 	SpaceID uint64
+
+	// PersistentAddress represents the address of a node in persistent memory.
+	PersistentAddress uint64
+
+	// VolatileAddress represents the address of a node in volatile memory.
+	VolatileAddress uint64
 )
 
-// NodeAddress represents the address of a node.
-type NodeAddress uint64
-
 // State returns node state.
-func (na NodeAddress) State() State {
+func (na VolatileAddress) State() State {
 	switch {
 	case na.IsSet(FlagPointerNode):
 		return StatePointer
@@ -46,42 +49,42 @@ func (na NodeAddress) State() State {
 }
 
 // IsSet checks if flag is set.
-func (na NodeAddress) IsSet(flag NodeAddress) bool {
+func (na VolatileAddress) IsSet(flag VolatileAddress) bool {
 	return na&flag != FreeAddress
 }
 
 // Set sets flag.
-func (na NodeAddress) Set(flag NodeAddress) NodeAddress {
+func (na VolatileAddress) Set(flag VolatileAddress) VolatileAddress {
 	return na | flag
 }
 
 // Naked returns address without flags.
-func (na NodeAddress) Naked() NodeAddress {
+func (na VolatileAddress) Naked() VolatileAddress {
 	return na & flagNaked
 }
 
 // Load loads node address atomically.
-func Load(address *NodeAddress) NodeAddress {
-	return (NodeAddress)(atomic.LoadUint64((*uint64)(address)))
+func Load(address *VolatileAddress) VolatileAddress {
+	return (VolatileAddress)(atomic.LoadUint64((*uint64)(address)))
 }
 
 // Store stores node address atomically.
-func Store(address *NodeAddress, value NodeAddress) {
+func Store(address *VolatileAddress, value VolatileAddress) {
 	atomic.StoreUint64((*uint64)(address), (uint64)(value))
 }
 
 const (
 	// FreeAddress means address is not assigned.
-	FreeAddress NodeAddress = 0
+	FreeAddress VolatileAddress = 0
 
 	// flagNaked is used to retrieve address without flags.
 	flagNaked = FlagPointerNode - 1
 
 	// FlagPointerNode says that this is pointer node.
-	FlagPointerNode NodeAddress = 1 << 62
+	FlagPointerNode VolatileAddress = 1 << 62
 
 	// FlagHashMod says that key hash must be recalculated.
-	FlagHashMod NodeAddress = 1 << 63
+	FlagHashMod VolatileAddress = 1 << 63
 )
 
 // State enumerates possible slot states.
@@ -105,8 +108,8 @@ const (
 // Pointer is the pointer to another block.
 type Pointer struct {
 	SnapshotID        SnapshotID
-	VolatileAddress   NodeAddress
-	PersistentAddress NodeAddress
+	VolatileAddress   VolatileAddress
+	PersistentAddress PersistentAddress
 	Revision          uint32
 }
 
@@ -142,5 +145,4 @@ type SingularityNode struct {
 	Hash           Hash
 	LastSnapshotID SnapshotID
 	SnapshotRoot   Pointer
-	WALListTail    NodeAddress
 }

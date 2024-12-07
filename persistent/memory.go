@@ -31,8 +31,19 @@ type MemoryStore struct {
 	data []byte
 }
 
+// Size returns the size of the store.
+func (s *MemoryStore) Size() uint64 {
+	return uint64(len(s.data))
+}
+
+// Read reads data from the store.
+func (s *MemoryStore) Read(address types.PersistentAddress, data []byte) error {
+	copy(data, s.data[address*types.NodeLength:])
+	return nil
+}
+
 // Write writes data to the store.
-func (s *MemoryStore) Write(address types.NodeAddress, data []byte) error {
+func (s *MemoryStore) Write(address types.PersistentAddress, data []byte) error {
 	copy(s.data[address*types.NodeLength:], data)
 	return nil
 }

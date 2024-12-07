@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"io"
 	"os"
 	"testing"
 	"unsafe"
@@ -31,7 +30,7 @@ import (
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
 		spaceID        = 0x00
-		numOfAddresses = 5_000_000
+		numOfAddresses = 100_000_000
 		txsPerCommit   = 20_000
 		balance        = 100_000
 	)
@@ -58,9 +57,17 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 		func() {
 			_, _ = rand.Read(accountBytes)
 
-			var size uint64 = 20 * 1024 * 1024 * 1024
+			store, err := fileStore(
+				//"./db.quantum",
+				"./disk",
+			)
+			if err != nil {
+				panic(err)
+			}
+
+			var size uint64 = 99 * 1024 * 1024 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
-				size,
+				size, store.Size(),
 				100,
 				true,
 			)
@@ -68,16 +75,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				panic(err)
 			}
 			defer stateDeallocFunc()
-
-			store, err := fileStore(
-				// "/tmp/d0/wojciech/db.quantum",
-				"./disk",
-				size)
-			if err != nil {
-				panic(err)
-			}
-
-			// store = persistent.NewDummyStore()
 
 			db, err := quantum.New(quantum.Config{
 				State: state,
@@ -182,21 +179,10 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 	}
 }
 
-func fileStore(path string, size uint64) (persistent.Store, error) {
+func fileStore(path string) (persistent.Store, error) {
 	file, err := os.OpenFile(path, os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
-	}
-
-	fileSize, err := file.Seek(0, io.SeekEnd)
-	if err != nil {
-		_ = file.Close()
-		return nil, errors.WithStack(err)
-	}
-
-	if uint64(fileSize) < size {
-		_ = file.Close()
-		return nil, errors.New("file size too small")
 	}
 
 	return persistent.NewFileStore(file)

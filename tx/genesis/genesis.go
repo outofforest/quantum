@@ -6,7 +6,6 @@ import (
 	"github.com/outofforest/quantum/space"
 	txtypes "github.com/outofforest/quantum/tx/types"
 	"github.com/outofforest/quantum/types"
-	"github.com/outofforest/quantum/wal"
 )
 
 // InitialBalance represents initial balance for an account set in genesis.
@@ -23,23 +22,17 @@ type Tx struct {
 // Execute executes transaction.
 func (t *Tx) Execute(
 	s *space.Space[txtypes.Account, txtypes.Amount],
-	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
-	walRecorder *wal.Recorder,
-	allocator *alloc.Allocator,
+	allocator *alloc.Allocator[types.VolatileAddress],
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
 	for _, a := range t.Accounts {
 		var v space.Entry[txtypes.Account, txtypes.Amount]
-		if err := s.Find(&v, snapshotID, tx, walRecorder, allocator, a.Account, space.StageData, hashBuff,
-			hashMatches); err != nil {
-			return err
-		}
+		s.Find(&v, a.Account, space.StageData, hashBuff, hashMatches)
 
 		if err := v.Set(
 			tx,
-			walRecorder,
 			allocator,
 			a.Amount,
 			hashBuff,

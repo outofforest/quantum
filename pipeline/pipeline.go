@@ -10,6 +10,7 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/outofforest/mass"
+	"github.com/outofforest/quantum/list"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -49,7 +50,6 @@ type TransactionRequestFactory struct {
 func (trf *TransactionRequestFactory) New() *TransactionRequest {
 	t := trf.massTR.New()
 	t.LastStoreRequest = &t.StoreRequest
-	t.LastWALRequest = &t.WALRequest
 	return t
 }
 
@@ -58,8 +58,6 @@ type TransactionRequest struct {
 	Transaction      any
 	StoreRequest     *StoreRequest
 	LastStoreRequest **StoreRequest
-	WALRequest       *WALRequest
-	LastWALRequest   **WALRequest
 	SyncCh           chan<- struct{}
 	CommitCh         chan<- error
 	Next             *TransactionRequest
@@ -72,28 +70,15 @@ func (t *TransactionRequest) AddStoreRequest(sr *StoreRequest) {
 	t.LastStoreRequest = &sr.Next
 }
 
-// AddWALRequest adds WAL request to the transaction.
-func (t *TransactionRequest) AddWALRequest(nodeAddress types.NodeAddress) {
-	wr := &WALRequest{
-		NodeAddress: nodeAddress,
-	}
-	*t.LastWALRequest = wr
-	t.LastWALRequest = &wr.Next
-}
-
 // StoreRequest is used to request writing nodes to the store.
 type StoreRequest struct {
 	NoSnapshots       bool
 	PointersToStore   int8
 	Store             [StoreCapacity]types.NodeRoot
+	List              [StoreCapacity]list.Pointer
+	ListsToStore      int8
 	RequestedRevision uint32
 	Next              *StoreRequest
-}
-
-// WALRequest is used to request writing WAL node to the store.
-type WALRequest struct {
-	NodeAddress types.NodeAddress
-	Next        *WALRequest
 }
 
 // New creates new pipeline.
