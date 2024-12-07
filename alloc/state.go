@@ -13,59 +13,76 @@ import (
 
 // NewState creates new DB state.
 func NewState(
-	size uint64,
+	volatileSize, persistentSize uint64,
 	nodesPerGroup uint64,
 	useHugePages bool,
 ) (*State, func(), error) {
-	// Align allocated memory address to the node size. It might be required if using O_DIRECT option to open files.
+	// Align allocated memory address to the node volatileSize. It might be required if using O_DIRECT option to open files.
 	// As a side effect it is also 64-byte aligned which is required by the AVX512 instructions.
-	dataP, deallocateFunc, err := Allocate(size, types.NodeLength, useHugePages)
+	dataP, deallocateFunc, err := Allocate(volatileSize, types.NodeLength, useHugePages)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "memory allocation failed")
 	}
 
-	allocationCh, singularityNodeAddress := NewAllocationCh(size, nodesPerGroup)
+	volatileAllocationCh, singularityVolatileAddress := NewAllocationCh[types.VolatileAddress](volatileSize,
+		nodesPerGroup, false)
+	persistentAllocationCh, singularityPersistentAddress := NewAllocationCh[types.PersistentAddress](
+		persistentSize, nodesPerGroup, false)
 
-	singularityNode := (*types.SingularityNode)(unsafe.Add(dataP, types.NodeLength*singularityNodeAddress))
+	singularityNode := (*types.SingularityNode)(unsafe.Add(dataP, types.NodeLength*singularityVolatileAddress))
 	return &State{
-		size:          size,
 		nodesPerGroup: nodesPerGroup,
 		singularityNodeRoot: types.NodeRoot{
 			Hash: &singularityNode.Hash,
 			Pointer: &types.Pointer{
 				Revision:          1,
-				VolatileAddress:   singularityNodeAddress,
-				PersistentAddress: singularityNodeAddress,
+				VolatileAddress:   singularityVolatileAddress,
+				PersistentAddress: singularityPersistentAddress,
 			},
 		},
-		dataP:            dataP,
-		allocationCh:     allocationCh,
-		deallocationCh:   make(chan []types.NodeAddress, 10),
-		allocationPoolCh: make(chan []types.NodeAddress, 1),
-		closedCh:         make(chan struct{}),
+		dataP:                      dataP,
+		volatileAllocationCh:       volatileAllocationCh,
+		volatileDeallocationCh:     make(chan []types.VolatileAddress, 10),
+		volatileAllocationPoolCh:   make(chan []types.VolatileAddress, 1),
+		persistentAllocationCh:     persistentAllocationCh,
+		persistentDeallocationCh:   make(chan []types.PersistentAddress, 10),
+		persistentAllocationPoolCh: make(chan []types.PersistentAddress, 1),
+		closedCh:                   make(chan struct{}),
 	}, deallocateFunc, nil
 }
 
 // State stores the DB state.
 type State struct {
-	size                uint64
-	nodesPerGroup       uint64
-	singularityNodeRoot types.NodeRoot
-	dataP               unsafe.Pointer
-	allocationCh        chan []types.NodeAddress
-	deallocationCh      chan []types.NodeAddress
-	allocationPoolCh    chan []types.NodeAddress
-	closedCh            chan struct{}
+	nodesPerGroup              uint64
+	singularityNodeRoot        types.NodeRoot
+	dataP                      unsafe.Pointer
+	volatileAllocationCh       chan []types.VolatileAddress
+	volatileDeallocationCh     chan []types.VolatileAddress
+	volatileAllocationPoolCh   chan []types.VolatileAddress
+	persistentAllocationCh     chan []types.PersistentAddress
+	persistentDeallocationCh   chan []types.PersistentAddress
+	persistentAllocationPoolCh chan []types.PersistentAddress
+	closedCh                   chan struct{}
 }
 
-// NewAllocator creates new node allocator.
-func (s *State) NewAllocator() *Allocator {
-	return newAllocator(s, s.allocationPoolCh)
+// NewVolatileAllocator creates new volatile address allocator.
+func (s *State) NewVolatileAllocator() *Allocator[types.VolatileAddress] {
+	return newAllocator(s, s.volatileAllocationPoolCh)
 }
 
-// NewDeallocator creates new node deallocator.
-func (s *State) NewDeallocator() *Deallocator {
-	return newDeallocator(s.nodesPerGroup, s.deallocationCh)
+// NewVolatileDeallocator creates new volatile address deallocator.
+func (s *State) NewVolatileDeallocator() *Deallocator[types.VolatileAddress] {
+	return newDeallocator(s.nodesPerGroup, s.volatileDeallocationCh)
+}
+
+// NewPersistentAllocator creates new persistent address allocator.
+func (s *State) NewPersistentAllocator() *Allocator[types.PersistentAddress] {
+	return newAllocator(s, s.persistentAllocationPoolCh)
+}
+
+// NewPersistentDeallocator creates new persistent address deallocator.
+func (s *State) NewPersistentDeallocator() *Deallocator[types.PersistentAddress] {
+	return newDeallocator(s.nodesPerGroup, s.persistentDeallocationCh)
 }
 
 // SingularityNodeRoot returns node root of singularity node.
@@ -79,23 +96,18 @@ func (s *State) Origin() unsafe.Pointer {
 }
 
 // Node returns node bytes.
-func (s *State) Node(nodeAddress types.NodeAddress) unsafe.Pointer {
+func (s *State) Node(nodeAddress types.VolatileAddress) unsafe.Pointer {
 	return unsafe.Add(s.dataP, nodeAddress*types.NodeLength)
 }
 
 // Bytes returns byte slice of a node.
-func (s *State) Bytes(nodeAddress types.NodeAddress) []byte {
+func (s *State) Bytes(nodeAddress types.VolatileAddress) []byte {
 	return photon.SliceFromPointer[byte](s.Node(nodeAddress), types.NodeLength)
 }
 
 // Clear sets all the bytes of the node to zero.
-func (s *State) Clear(nodeAddress types.NodeAddress) {
+func (s *State) Clear(nodeAddress types.VolatileAddress) {
 	clear(s.Bytes(nodeAddress))
-}
-
-// Copy copies node between addresses.
-func (s *State) Copy(dstNodeAddress, srcNodeAddress types.NodeAddress) {
-	copy(s.Bytes(dstNodeAddress), s.Bytes(srcNodeAddress))
 }
 
 // Run runs node eraser.
@@ -103,30 +115,47 @@ func (s *State) Run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
 			ctxDone := ctx.Done()
-			var deallocationCh <-chan []types.NodeAddress
+			var volatileDeallocationCh <-chan []types.VolatileAddress
+			var persistentDeallocationCh <-chan []types.PersistentAddress
+
 			for {
 				select {
 				case <-ctxDone:
 					ctxDone = nil
-					deallocationCh = s.deallocationCh
-				case <-deallocationCh:
+					volatileDeallocationCh = s.volatileDeallocationCh
+					persistentDeallocationCh = s.persistentDeallocationCh
+				case <-volatileDeallocationCh:
+				case <-persistentDeallocationCh:
 				case <-s.closedCh:
-					close(s.deallocationCh)
-					for range s.allocationPoolCh {
+					close(s.volatileDeallocationCh)
+					close(s.persistentDeallocationCh)
+					for range s.volatileAllocationPoolCh {
+					}
+					for range s.persistentAllocationPoolCh {
 					}
 
 					return errors.WithStack(ctx.Err())
 				}
 			}
 		})
-		spawn("pump", parallel.Continue, func(ctx context.Context) error {
-			defer close(s.allocationPoolCh)
+		spawn("volatilePump", parallel.Continue, func(ctx context.Context) error {
+			defer close(s.volatileAllocationPoolCh)
 
-			return s.runPump(
+			return runPump(
 				ctx,
-				s.allocationCh,
-				s.deallocationCh,
-				s.allocationPoolCh,
+				s.volatileAllocationCh,
+				s.volatileDeallocationCh,
+				s.volatileAllocationPoolCh,
+			)
+		})
+		spawn("persistentPump", parallel.Continue, func(ctx context.Context) error {
+			defer close(s.persistentAllocationPoolCh)
+
+			return runPump(
+				ctx,
+				s.persistentAllocationCh,
+				s.persistentDeallocationCh,
+				s.persistentAllocationPoolCh,
 			)
 		})
 
@@ -136,7 +165,8 @@ func (s *State) Run(ctx context.Context) error {
 
 // Commit is called when new snapshot starts to mark point where invalid physical address is present in the queue.
 func (s *State) Commit() {
-	s.deallocationCh <- nil
+	s.volatileDeallocationCh <- nil
+	s.persistentDeallocationCh <- nil
 }
 
 // Close tells that there will be no more operations done.
@@ -148,16 +178,19 @@ func (s *State) Close() {
 	}
 }
 
-func (s *State) runPump(
+func runPump[A Address](
 	ctx context.Context,
-	allocationCh chan []types.NodeAddress,
-	deallocationCh <-chan []types.NodeAddress,
-	allocationPoolCh chan<- []types.NodeAddress,
+	allocationCh chan []A,
+	deallocationCh <-chan []A,
+	allocationPoolCh chan<- []A,
 ) error {
+	// FIXME (wojciech): Zeroing deallocated volatile nodes could be done in this goroutine.
+
 	// Any address from the pool uniquely identifies entire pool, so I take the first one (allocated as the last one).
-	var invalidAddress types.NodeAddress
+	// FIXME (wojciech): This is not needed for volatile addresses.
+	var invalidAddress A
 	// Trick to save on `if` later in the handler.
-	previousDeallocatedPool := []types.NodeAddress{0}
+	previousDeallocatedPool := []A{0}
 
 loop:
 	for {

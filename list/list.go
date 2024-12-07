@@ -1,209 +1,97 @@
 package list
 
 import (
-	"sort"
-
 	"github.com/outofforest/quantum/alloc"
+	"github.com/outofforest/quantum/persistent"
 	"github.com/outofforest/quantum/types"
 )
 
+// Pointer represents pointer to the list root.
+type Pointer struct {
+	VolatileAddress   types.VolatileAddress
+	PersistentAddress types.PersistentAddress
+}
+
 // Add adds address to the list.
 func Add(
-	listRoot *types.NodeAddress,
-	nodeAddress types.NodeAddress,
+	listRoot *Pointer,
+	nodeAddress types.PersistentAddress,
 	state *alloc.State,
-	allocator *alloc.Allocator,
-) error {
-	if *listRoot == 0 {
+	volatileAllocator *alloc.Allocator[types.VolatileAddress],
+	persistentAllocator *alloc.Allocator[types.PersistentAddress],
+) (Pointer, error) {
+	if listRoot.VolatileAddress == types.FreeAddress {
 		var err error
-		*listRoot, err = allocator.Allocate()
+		listRoot.VolatileAddress, err = volatileAllocator.Allocate()
 		if err != nil {
-			return err
+			return Pointer{}, err
 		}
-		node := ProjectNode(state.Node(*listRoot))
+		listRoot.PersistentAddress, err = persistentAllocator.Allocate()
+		if err != nil {
+			return Pointer{}, err
+		}
+		node := ProjectNode(state.Node(listRoot.VolatileAddress))
 
 		node.Slots[0] = nodeAddress
 		node.NumOfPointerAddresses = 1
 		// This is needed because list nodes are not zeroed.
-		node.NumOfSideListAddresses = 0
+		node.Next = 0
 
-		return nil
+		return Pointer{}, nil
 	}
 
-	node := ProjectNode(state.Node(*listRoot))
-	if node.NumOfPointerAddresses+node.NumOfSideListAddresses < NumOfAddresses {
+	node := ProjectNode(state.Node(listRoot.VolatileAddress))
+	if node.NumOfPointerAddresses < NumOfAddresses {
 		node.Slots[node.NumOfPointerAddresses] = nodeAddress
 		node.NumOfPointerAddresses++
 
-		return nil
+		return Pointer{}, nil
 	}
 
-	newNodeAddress, err := allocator.Allocate()
+	oldRoot := *listRoot
+
+	var err error
+	listRoot.VolatileAddress, err = volatileAllocator.Allocate()
 	if err != nil {
-		return err
+		return Pointer{}, err
 	}
-	node = ProjectNode(state.Node(newNodeAddress))
+
+	listRoot.PersistentAddress, err = persistentAllocator.Allocate()
+	if err != nil {
+		return Pointer{}, err
+	}
+	node = ProjectNode(state.Node(listRoot.VolatileAddress))
 
 	node.Slots[0] = nodeAddress
-	node.Slots[NumOfAddresses-1] = *listRoot
 	node.NumOfPointerAddresses = 1
-	node.NumOfSideListAddresses = 1
+	node.Next = oldRoot.PersistentAddress
 
-	*listRoot = newNodeAddress
-
-	return nil
-}
-
-// Attach attaches another list.
-func Attach(
-	listRoot *types.NodeAddress,
-	listAddress types.NodeAddress,
-	state *alloc.State,
-	allocator *alloc.Allocator,
-) error {
-	if *listRoot == 0 {
-		var err error
-		*listRoot, err = allocator.Allocate()
-		if err != nil {
-			return err
-		}
-		node := ProjectNode(state.Node(*listRoot))
-
-		node.Slots[NumOfAddresses-1] = listAddress
-		node.NumOfSideListAddresses = 1
-		// This is needed because list nodes are not zeroed.
-		node.NumOfPointerAddresses = 0
-
-		return nil
-	}
-
-	node := ProjectNode(state.Node(*listRoot))
-	if node.NumOfPointerAddresses+node.NumOfSideListAddresses < NumOfAddresses {
-		node.NumOfSideListAddresses++
-		node.Slots[NumOfAddresses-node.NumOfSideListAddresses] = listAddress
-
-		return nil
-	}
-
-	newNodeAddress, err := allocator.Allocate()
-	if err != nil {
-		return err
-	}
-	node = ProjectNode(state.Node(newNodeAddress))
-
-	node.Slots[NumOfAddresses-2] = *listRoot
-	node.Slots[NumOfAddresses-1] = listAddress
-	node.NumOfSideListAddresses = 2
-	// This is needed because list nodes are not zeroed.
-	node.NumOfPointerAddresses = 0
-
-	*listRoot = newNodeAddress
-
-	return nil
-}
-
-// Iterator iterates over items in the list.
-func Iterator(listRoot types.NodeAddress, state *alloc.State) func(func(types.NodeAddress) bool) {
-	return func(yield func(types.NodeAddress) bool) {
-		if listRoot == 0 {
-			return
-		}
-
-		stack := []types.NodeAddress{listRoot}
-		for {
-			if len(stack) == 0 {
-				return
-			}
-
-			volatileAddress := stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
-
-			node := ProjectNode(state.Node(volatileAddress))
-			for i := range node.NumOfPointerAddresses {
-				if !yield(node.Slots[i]) {
-					return
-				}
-			}
-
-			for i, j := uint16(0), NumOfAddresses-1; i < node.NumOfSideListAddresses; i, j = i+1, j-1 {
-				stack = append(stack, node.Slots[j])
-			}
-		}
-	}
-}
-
-// Nodes returns list of nodes used by the list.
-func Nodes(listRoot types.NodeAddress, state *alloc.State) []types.NodeAddress {
-	if listRoot == 0 {
-		return nil
-	}
-
-	nodes := []types.NodeAddress{}
-	stack := []types.NodeAddress{listRoot}
-
-	for {
-		if len(stack) == 0 {
-			sort.Slice(nodes, func(i, j int) bool {
-				return nodes[i] < nodes[j]
-			})
-
-			return nodes
-		}
-
-		volatileAddress := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		nodes = append(nodes, volatileAddress)
-
-		node := ProjectNode(state.Node(volatileAddress))
-		for i, j := uint16(0), NumOfAddresses-1; i < node.NumOfSideListAddresses; i, j = i+1, j-1 {
-			stack = append(stack, node.Slots[j])
-		}
-	}
+	return oldRoot, nil
 }
 
 // Deallocate deallocates nodes referenced by the list.
 func Deallocate(
-	listRoot types.NodeAddress,
+	listRoot types.PersistentAddress,
 	state *alloc.State,
-	deallocator *alloc.Deallocator,
-) {
-	if listRoot == 0 {
-		return
-	}
-
-	const maxStackSize = 5
-
-	stack := [maxStackSize]types.NodeAddress{listRoot}
-	stackLen := 1
-
+	store *persistent.FileStore,
+	deallocator *alloc.Deallocator[types.PersistentAddress],
+	nodeBuffAddress types.VolatileAddress,
+) error {
 	for {
-		if stackLen == 0 {
-			return
+		if listRoot == 0 {
+			return nil
 		}
 
-		stackLen--
-		p := stack[stackLen]
-		node := ProjectNode(state.Node(p))
+		if err := store.Read(listRoot, state.Bytes(nodeBuffAddress)); err != nil {
+			return err
+		}
 
+		node := ProjectNode(state.Node(nodeBuffAddress))
 		for i := range node.NumOfPointerAddresses {
 			deallocator.Deallocate(node.Slots[i])
 		}
 
-		for i, j := uint16(0), NumOfAddresses-1; i < node.NumOfSideListAddresses; i, j = i+1, j-1 {
-			if stackLen < maxStackSize {
-				stack[stackLen] = node.Slots[j]
-				stackLen++
-
-				continue
-			}
-
-			Deallocate(
-				node.Slots[j],
-				state,
-				deallocator,
-			)
-		}
-
-		deallocator.Deallocate(p)
+		deallocator.Deallocate(listRoot)
+		listRoot = node.Next
 	}
 }
