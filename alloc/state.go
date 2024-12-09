@@ -17,8 +17,8 @@ func NewState(
 	nodesPerGroup uint64,
 	useHugePages bool,
 ) (*State, func(), error) {
-	// Align allocated memory address to the node volatileSize. It might be required if using O_DIRECT option to open files.
-	// As a side effect it is also 64-byte aligned which is required by the AVX512 instructions.
+	// Align allocated memory address to the node volatileSize. It might be required if using O_DIRECT option to open
+	// files. As a side effect it is also 64-byte aligned which is required by the AVX512 instructions.
 	dataP, deallocateFunc, err := Allocate(volatileSize, types.NodeLength, useHugePages)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "memory allocation failed")
