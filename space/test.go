@@ -7,7 +7,6 @@ import (
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/types"
-	"github.com/outofforest/quantum/wal"
 )
 
 // TestKey represents key with explicit hash used in tests.
@@ -41,8 +40,7 @@ func NewSpaceTest[K, V comparable](
 	return &SpaceTest[K, V]{
 		s:           s,
 		tx:          txFactory.New(),
-		walRecorder: wal.NewRecorder(state, state.NewAllocator()),
-		allocator:   state.NewAllocator(),
+		allocator:   state.NewVolatileAllocator(),
 		hashKeyFunc: hashKeyFunc,
 		hashBuff:    s.NewHashBuff(),
 		hashMatches: s.NewHashMatches(),
@@ -55,24 +53,17 @@ func NewSpaceTest[K, V comparable](
 type SpaceTest[K, V comparable] struct {
 	s           *Space[K, V]
 	tx          *pipeline.TransactionRequest
-	walRecorder *wal.Recorder
-	allocator   *alloc.Allocator
+	allocator   *alloc.Allocator[types.VolatileAddress]
 	hashBuff    []byte
 	hashMatches []uint64
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash
 }
 
 // NewEntry initializes new entry.
-func (s *SpaceTest[K, V]) NewEntry(
-	snapshotID types.SnapshotID,
-	key TestKey[K],
-	stage uint8,
-) (*Entry[K, V], error) {
+func (s *SpaceTest[K, V]) NewEntry(key TestKey[K], stage uint8) *Entry[K, V] {
 	v := &Entry[K, V]{}
-	if err := s.s.initEntry(v, snapshotID, s.tx, s.walRecorder, s.allocator, key.Key, key.KeyHash, stage); err != nil {
-		return nil, err
-	}
-	return v, nil
+	s.s.initEntry(v, key.Key, key.KeyHash, stage)
+	return v
 }
 
 // Root returns pointer to the space root node.
@@ -86,33 +77,33 @@ func (s *SpaceTest[K, V]) DataNodeAssistant() *DataNodeAssistant[K, V] {
 }
 
 // KeyExists checks if key is set in the space.
-func (s *SpaceTest[K, V]) KeyExists(v *Entry[K, V]) (bool, error) {
-	return s.s.keyExists(v, s.tx, s.walRecorder, s.allocator, s.hashBuff, s.hashMatches, s.hashKeyFunc)
+func (s *SpaceTest[K, V]) KeyExists(v *Entry[K, V]) bool {
+	return s.s.keyExists(v, s.hashBuff, s.hashMatches, s.hashKeyFunc)
 }
 
 // ReadKey reads value for the key.
-func (s *SpaceTest[K, V]) ReadKey(v *Entry[K, V]) (V, error) {
-	return s.s.readKey(v, s.tx, s.walRecorder, s.allocator, s.hashBuff, s.hashMatches, s.hashKeyFunc)
+func (s *SpaceTest[K, V]) ReadKey(v *Entry[K, V]) V {
+	return s.s.readKey(v, s.hashBuff, s.hashMatches, s.hashKeyFunc)
 }
 
 // DeleteKey deletes key from space.
-func (s *SpaceTest[K, V]) DeleteKey(v *Entry[K, V]) error {
-	return s.s.deleteKey(v, s.tx, s.walRecorder, s.allocator, s.hashBuff, s.hashMatches, s.hashKeyFunc)
+func (s *SpaceTest[K, V]) DeleteKey(v *Entry[K, V]) {
+	s.s.deleteKey(v, s.tx, s.hashBuff, s.hashMatches, s.hashKeyFunc)
 }
 
 // SetKey sets value for the key.
 func (s *SpaceTest[K, V]) SetKey(v *Entry[K, V], value V) error {
-	return s.s.setKey(v, s.tx, s.walRecorder, s.allocator, value, s.hashBuff, s.hashMatches, s.hashKeyFunc)
+	return s.s.setKey(v, s.tx, s.allocator, value, s.hashBuff, s.hashMatches, s.hashKeyFunc)
 }
 
 // SplitDataNode splits data node.
 func (s *SpaceTest[K, V]) SplitDataNode(v *Entry[K, V], conflict bool) error {
 	var err error
 	if conflict {
-		_, err = s.s.splitDataNodeWithConflict(v.snapshotID, s.tx, s.walRecorder, s.allocator, v.parentIndex,
+		_, err = s.s.splitDataNodeWithConflict(s.tx, s.allocator, v.parentIndex,
 			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer, v.level, s.hashBuff, s.hashKeyFunc)
 	} else {
-		_, err = s.s.splitDataNodeWithoutConflict(v.snapshotID, s.tx, s.walRecorder, s.allocator, v.parentIndex,
+		_, err = s.s.splitDataNodeWithoutConflict(s.tx, s.allocator, v.parentIndex,
 			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer, v.level)
 	}
 	return err
@@ -120,22 +111,7 @@ func (s *SpaceTest[K, V]) SplitDataNode(v *Entry[K, V], conflict bool) error {
 
 // AddPointerNode adds pointer node.
 func (s *SpaceTest[K, V]) AddPointerNode(v *Entry[K, V], conflict bool) error {
-	return s.s.addPointerNode(v, s.tx, s.walRecorder, s.allocator, conflict, s.hashBuff, s.hashKeyFunc)
-}
-
-// WalkPointers walk all the pointers to find the key.
-func (s *SpaceTest[K, V]) WalkPointers(v *Entry[K, V]) error {
-	return s.s.walkPointers(v, s.tx, s.walRecorder, s.allocator, s.hashBuff, s.hashKeyFunc)
-}
-
-// WalkOnePointer walks one pointer only.
-func (s *SpaceTest[K, V]) WalkOnePointer(v *Entry[K, V]) (bool, error) {
-	return s.s.walkOnePointer(v, s.tx, s.walRecorder, s.allocator, s.hashBuff, s.hashKeyFunc)
-}
-
-// WalkDataItems walks items in data node to find position for the key.
-func (s *SpaceTest[K, V]) WalkDataItems(v *Entry[K, V]) bool {
-	return s.s.walkDataItems(v, s.hashMatches)
+	return s.s.addPointerNode(v, s.tx, s.allocator, conflict, s.hashBuff, s.hashKeyFunc)
 }
 
 // Query queries the space for a key.
@@ -144,6 +120,6 @@ func (s *SpaceTest[K, V]) Query(key TestKey[K]) (V, bool) {
 }
 
 // Find finds the location in the tree for key.
-func (s *SpaceTest[K, V]) Find(v *Entry[K, V]) error {
-	return s.s.find(v, s.tx, s.walRecorder, s.allocator, s.hashBuff, s.hashMatches, s.hashKeyFunc)
+func (s *SpaceTest[K, V]) Find(v *Entry[K, V]) {
+	s.s.find(v, s.hashBuff, s.hashMatches, s.hashKeyFunc)
 }

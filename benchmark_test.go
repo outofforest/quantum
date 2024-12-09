@@ -4,13 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"io"
 	"os"
 	"testing"
 	"unsafe"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/outofforest/logger"
 	"github.com/outofforest/parallel"
@@ -23,7 +23,7 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-// echo 100 | sudo tee /proc/sys/vm/nr_hugepages
+// echo 50 | sudo tee /proc/sys/vm/nr_hugepages
 // go test -benchtime=1x -timeout=24h -bench=. -run=^$ -cpuprofile profile.out
 // go tool pprof -http="localhost:8000" pprofbin ./profile.out
 // go test -c -o bench ./benchmark_test.go
@@ -58,9 +58,17 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 		func() {
 			_, _ = rand.Read(accountBytes)
 
+			store, err := fileStore(
+				// "./db.quantum",
+				"./disk",
+			)
+			if err != nil {
+				panic(err)
+			}
+
 			var size uint64 = 20 * 1024 * 1024 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
-				size,
+				size, store.Size(),
 				100,
 				true,
 			)
@@ -68,16 +76,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				panic(err)
 			}
 			defer stateDeallocFunc()
-
-			store, err := fileStore(
-				// "/tmp/d0/wojciech/db.quantum",
-				"./disk",
-				size)
-			if err != nil {
-				panic(err)
-			}
-
-			// store = persistent.NewDummyStore()
 
 			db, err := quantum.New(quantum.Config{
 				State: state,
@@ -182,21 +180,10 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 	}
 }
 
-func fileStore(path string, size uint64) (persistent.Store, error) {
-	file, err := os.OpenFile(path, os.O_RDWR, 0o600)
+func fileStore(path string) (*persistent.FileStore, error) {
+	file, err := os.OpenFile(path, os.O_RDWR|unix.O_DIRECT, 0o600)
 	if err != nil {
 		return nil, err
-	}
-
-	fileSize, err := file.Seek(0, io.SeekEnd)
-	if err != nil {
-		_ = file.Close()
-		return nil, errors.WithStack(err)
-	}
-
-	if uint64(fileSize) < size {
-		_ = file.Close()
-		return nil, errors.New("file size too small")
 	}
 
 	return persistent.NewFileStore(file)

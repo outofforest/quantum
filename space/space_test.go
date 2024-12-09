@@ -23,14 +23,12 @@ const (
 func TestCRUDOnRootDataNode(t *testing.T) {
 	requireT := require.New(t)
 
+	const amount txtypes.Amount = 100
 	var (
-		snapshotID types.SnapshotID = 1
-
 		account = TestKey[txtypes.Account]{
 			Key:     txtypes.Account{0x01},
 			KeyHash: 1,
 		}
-		amount txtypes.Amount = 100
 	)
 
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
@@ -44,16 +42,10 @@ func TestCRUDOnRootDataNode(t *testing.T) {
 	requireT.False(exists)
 	requireT.Equal(txtypes.Amount(0), balance)
 
-	v, err := s.NewEntry(snapshotID, account, StageData)
-	requireT.NoError(err)
+	v := s.NewEntry(account, StageData)
 
-	exists, err = s.KeyExists(v)
-	requireT.NoError(err)
-	requireT.False(exists)
-
-	balance, err = s.ReadKey(v)
-	requireT.NoError(err)
-	requireT.Equal(txtypes.Amount(0), balance)
+	requireT.False(s.KeyExists(v))
+	requireT.Equal(txtypes.Amount(0), s.ReadKey(v))
 
 	// Create.
 
@@ -65,101 +57,57 @@ func TestCRUDOnRootDataNode(t *testing.T) {
 	requireT.True(exists)
 	requireT.Equal(amount, balance)
 
-	exists, err = s.KeyExists(v)
-	requireT.NoError(err)
-	requireT.True(exists)
+	requireT.True(s.KeyExists(v))
+	requireT.Equal(amount, s.ReadKey(v))
 
-	balance, err = s.ReadKey(v)
-	requireT.NoError(err)
-	requireT.Equal(amount, balance)
+	v2 := s.NewEntry(account, StageData)
 
-	v2, err := s.NewEntry(snapshotID, account, StageData)
-	requireT.NoError(err)
+	requireT.True(s.KeyExists(v2))
+	requireT.Equal(amount, s.ReadKey(v2))
 
-	exists, err = s.KeyExists(v2)
-	requireT.NoError(err)
-	requireT.True(exists)
+	v3 := s.NewEntry(account, StagePointer0)
 
-	balance, err = s.ReadKey(v2)
-	requireT.NoError(err)
-	requireT.Equal(amount, balance)
-
-	v3, err := s.NewEntry(snapshotID, account, StagePointer0)
-	requireT.NoError(err)
-
-	exists, err = s.KeyExists(v3)
-	requireT.NoError(err)
-	requireT.True(exists)
-
-	balance, err = s.ReadKey(v3)
-	requireT.NoError(err)
-	requireT.Equal(amount, balance)
+	requireT.True(s.KeyExists(v3))
+	requireT.Equal(amount, s.ReadKey(v3))
 
 	// Update 1.
 
 	requireT.NoError(s.SetKey(v3, amount+1))
 
-	exists, err = s.KeyExists(v3)
-	requireT.NoError(err)
-	requireT.True(exists)
-
-	balance, err = s.ReadKey(v3)
-	requireT.NoError(err)
-	requireT.Equal(amount+1, balance)
+	requireT.True(s.KeyExists(v3))
+	requireT.Equal(amount+1, s.ReadKey(v3))
 
 	balance, exists = s.Query(account)
 	requireT.True(exists)
 	requireT.Equal(amount+1, balance)
 
-	v4, err := s.NewEntry(snapshotID, account, StagePointer0)
-	requireT.NoError(err)
+	v4 := s.NewEntry(account, StagePointer0)
 
-	exists, err = s.KeyExists(v4)
-	requireT.NoError(err)
-	requireT.True(exists)
-
-	balance, err = s.ReadKey(v4)
-	requireT.NoError(err)
-	requireT.Equal(amount+1, balance)
+	requireT.True(s.KeyExists(v4))
+	requireT.Equal(amount+1, s.ReadKey(v4))
 
 	// Update 2.
 
 	requireT.NoError(s.SetKey(v4, amount+2))
 
-	exists, err = s.KeyExists(v4)
-	requireT.NoError(err)
-	requireT.True(exists)
-
-	balance, err = s.ReadKey(v4)
-	requireT.NoError(err)
-	requireT.Equal(amount+2, balance)
+	requireT.True(s.KeyExists(v4))
+	requireT.Equal(amount+2, s.ReadKey(v4))
 
 	balance, exists = s.Query(account)
 	requireT.True(exists)
 	requireT.Equal(amount+2, balance)
 
-	v5, err := s.NewEntry(snapshotID, account, StagePointer0)
-	requireT.NoError(err)
+	v5 := s.NewEntry(account, StagePointer0)
 
-	exists, err = s.KeyExists(v5)
-	requireT.NoError(err)
-	requireT.True(exists)
-
-	balance, err = s.ReadKey(v5)
-	requireT.NoError(err)
-	requireT.Equal(amount+2, balance)
+	requireT.True(s.KeyExists(v5))
+	requireT.Equal(amount+2, s.ReadKey(v5))
 
 	// Delete 1.
 
-	requireT.NoError(s.DeleteKey(v5))
+	s.DeleteKey(v5)
 
-	exists, err = s.KeyExists(v5)
-	requireT.NoError(err)
-	requireT.False(exists)
-
-	balance, err = s.ReadKey(v5)
-	requireT.NoError(err)
-	requireT.Equal(txtypes.Amount(0), balance)
+	requireT.False(s.KeyExists(v5))
+	requireT.Equal(txtypes.Amount(0), s.ReadKey(v5))
 
 	balance, exists = s.Query(account)
 	requireT.False(exists)
@@ -167,8 +115,7 @@ func TestCRUDOnRootDataNode(t *testing.T) {
 
 	// Recreate.
 
-	v, err = s.NewEntry(snapshotID, account, StagePointer0)
-	requireT.NoError(err)
+	v = s.NewEntry(account, StagePointer0)
 
 	requireT.NoError(s.SetKey(v, amount))
 
@@ -178,18 +125,12 @@ func TestCRUDOnRootDataNode(t *testing.T) {
 
 	// Delete 2.
 
-	v2, err = s.NewEntry(snapshotID, account, StagePointer0)
-	requireT.NoError(err)
+	v2 = s.NewEntry(account, StagePointer0)
 
-	requireT.NoError(s.DeleteKey(v2))
+	s.DeleteKey(v2)
 
-	exists, err = s.KeyExists(v2)
-	requireT.NoError(err)
-	requireT.False(exists)
-
-	balance, err = s.ReadKey(v2)
-	requireT.NoError(err)
-	requireT.Equal(txtypes.Amount(0), balance)
+	requireT.False(s.KeyExists(v2))
+	requireT.Equal(txtypes.Amount(0), s.ReadKey(v2))
 
 	balance, exists = s.Query(account)
 	requireT.False(exists)
@@ -200,9 +141,8 @@ func TestCRUDOnRootDataNode(t *testing.T) {
 // by each other.
 func TestSetConflictingHashesOnRootDataNode(t *testing.T) {
 	const (
-		numOfItems                  = 50
-		snapshotID types.SnapshotID = 1
-		keyHash    types.KeyHash    = 1 // Same key hash is intentionally used for all the items to test conflicts.
+		numOfItems               = 50
+		keyHash    types.KeyHash = 1 // Same key hash is intentionally used for all the items to test conflicts.
 	)
 
 	requireT := require.New(t)
@@ -215,11 +155,10 @@ func TestSetConflictingHashesOnRootDataNode(t *testing.T) {
 	// Create.
 
 	for i := range uint8(numOfItems) {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{i},
 			KeyHash: keyHash,
 		}, StagePointer0)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 	}
 
@@ -232,18 +171,12 @@ func TestSetConflictingHashesOnRootDataNode(t *testing.T) {
 		}
 		amount := txtypes.Amount(i)
 
-		v, err := s.NewEntry(snapshotID, key, StagePointer0)
-		requireT.NoError(err)
+		v := s.NewEntry(key, StagePointer0)
 
-		exists, err := s.KeyExists(v)
-		requireT.NoError(err)
-		requireT.True(exists)
+		requireT.True(s.KeyExists(v))
+		requireT.Equal(amount, s.ReadKey(v))
 
-		balance, err := s.ReadKey(v)
-		requireT.NoError(err)
-		requireT.Equal(amount, balance)
-
-		balance, exists = s.Query(key)
+		balance, exists := s.Query(key)
 		requireT.True(exists)
 		requireT.Equal(amount, balance)
 	}
@@ -257,22 +190,15 @@ func TestSetConflictingHashesOnRootDataNode(t *testing.T) {
 		}
 		amount := txtypes.Amount(10 * i)
 
-		v, err := s.NewEntry(snapshotID, key, StagePointer0)
-		requireT.NoError(err)
+		v := s.NewEntry(key, StagePointer0)
 		requireT.NoError(s.SetKey(v, amount))
 
-		v2, err := s.NewEntry(snapshotID, key, StagePointer0)
-		requireT.NoError(err)
+		v2 := s.NewEntry(key, StagePointer0)
 
-		exists, err := s.KeyExists(v2)
-		requireT.NoError(err)
-		requireT.True(exists)
+		requireT.True(s.KeyExists(v2))
+		requireT.Equal(amount, s.ReadKey(v2))
 
-		balance, err := s.ReadKey(v2)
-		requireT.NoError(err)
-		requireT.Equal(amount, balance)
-
-		balance, exists = s.Query(key)
+		balance, exists := s.Query(key)
 		requireT.True(exists)
 		requireT.Equal(amount, balance)
 	}
@@ -286,18 +212,12 @@ func TestSetConflictingHashesOnRootDataNode(t *testing.T) {
 		}
 		amount := txtypes.Amount(i)
 
-		v, err := s.NewEntry(snapshotID, key, StagePointer0)
-		requireT.NoError(err)
+		v := s.NewEntry(key, StagePointer0)
 
-		exists, err := s.KeyExists(v)
-		requireT.NoError(err)
-		requireT.True(exists)
+		requireT.True(s.KeyExists(v))
+		requireT.Equal(amount, s.ReadKey(v))
 
-		balance, err := s.ReadKey(v)
-		requireT.NoError(err)
-		requireT.Equal(amount, balance)
-
-		balance, exists = s.Query(key)
+		balance, exists := s.Query(key)
 		requireT.True(exists)
 		requireT.Equal(amount, balance)
 	}
@@ -310,22 +230,15 @@ func TestSetConflictingHashesOnRootDataNode(t *testing.T) {
 			KeyHash: keyHash,
 		}
 
-		v, err := s.NewEntry(snapshotID, key, StagePointer0)
-		requireT.NoError(err)
-		requireT.NoError(s.DeleteKey(v))
+		v := s.NewEntry(key, StagePointer0)
+		s.DeleteKey(v)
 
-		v2, err := s.NewEntry(snapshotID, key, StagePointer0)
-		requireT.NoError(err)
+		v2 := s.NewEntry(key, StagePointer0)
 
-		exists, err := s.KeyExists(v2)
-		requireT.NoError(err)
-		requireT.False(exists)
+		requireT.False(s.KeyExists(v2))
+		requireT.Equal(txtypes.Amount(0), s.ReadKey(v2))
 
-		balance, err := s.ReadKey(v2)
-		requireT.NoError(err)
-		requireT.Equal(txtypes.Amount(0), balance)
-
-		balance, exists = s.Query(key)
+		balance, exists := s.Query(key)
 		requireT.False(exists)
 		requireT.Equal(txtypes.Amount(0), balance)
 	}
@@ -339,18 +252,12 @@ func TestSetConflictingHashesOnRootDataNode(t *testing.T) {
 		}
 		amount := txtypes.Amount(i)
 
-		v, err := s.NewEntry(snapshotID, key, StagePointer0)
-		requireT.NoError(err)
+		v := s.NewEntry(key, StagePointer0)
 
-		exists, err := s.KeyExists(v)
-		requireT.NoError(err)
-		requireT.True(exists)
+		requireT.True(s.KeyExists(v))
+		requireT.Equal(amount, s.ReadKey(v))
 
-		balance, err := s.ReadKey(v)
-		requireT.NoError(err)
-		requireT.Equal(amount, balance)
-
-		balance, exists = s.Query(key)
+		balance, exists := s.Query(key)
 		requireT.True(exists)
 		requireT.Equal(amount, balance)
 	}
@@ -362,9 +269,8 @@ func TestSetConflictingHashesOnRootDataNode(t *testing.T) {
 func TestAddingPointerNodeWithoutConflictResolution(t *testing.T) {
 	const (
 		// It is selected this way to be sure that nothing is moved to the next data node.
-		numOfItems                  = NumOfPointers
-		snapshotID types.SnapshotID = 1
-		keyHash    types.KeyHash    = 1 // Same key hash is intentionally used for all the items.
+		numOfItems               = NumOfPointers
+		keyHash    types.KeyHash = 1 // Same key hash is intentionally used for all the items.
 	)
 
 	requireT := require.New(t)
@@ -377,23 +283,21 @@ func TestAddingPointerNodeWithoutConflictResolution(t *testing.T) {
 	// Create.
 
 	for i := range uint8(numOfItems - 1) {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{i},
 			KeyHash: keyHash,
 		}, StagePointer0)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 		requireT.Equal(uint8(0), v.level)
 	}
 
 	// Add pointer node and set the last item.
 
-	v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+	v := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{numOfItems - 1},
 		KeyHash: keyHash,
 	}, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v))
+	s.Find(v)
 
 	// Store the address of the data node to be sure that no items have been moved.
 	dataNodeAddress := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress
@@ -411,18 +315,12 @@ func TestAddingPointerNodeWithoutConflictResolution(t *testing.T) {
 		}
 		amount := txtypes.Amount(i)
 
-		v, err := s.NewEntry(snapshotID, key, StagePointer0)
-		requireT.NoError(err)
+		v := s.NewEntry(key, StagePointer0)
 
-		exists, err := s.KeyExists(v)
-		requireT.NoError(err)
-		requireT.True(exists)
+		requireT.True(s.KeyExists(v))
+		requireT.Equal(amount, s.ReadKey(v))
 
-		balance, err := s.ReadKey(v)
-		requireT.NoError(err)
-		requireT.Equal(amount, balance)
-
-		balance, exists = s.Query(key)
+		balance, exists := s.Query(key)
 		requireT.True(exists)
 		requireT.Equal(amount, balance)
 
@@ -438,9 +336,8 @@ func TestAddingPointerNodeWithoutConflictResolution(t *testing.T) {
 func TestAddingPointerNodeWithConflictResolution(t *testing.T) {
 	const (
 		// It is selected this way so half of the items is moved to another data node.
-		numOfItems                  = NumOfPointers
-		snapshotID types.SnapshotID = 1
-		keyHash    types.KeyHash    = 1 // Same key hash is intentionally used for all the items.
+		numOfItems               = NumOfPointers
+		keyHash    types.KeyHash = 1 // Same key hash is intentionally used for all the items.
 	)
 
 	hashKeyFunc := func(key *txtypes.Account, buff []byte, level uint8) types.KeyHash {
@@ -457,23 +354,21 @@ func TestAddingPointerNodeWithConflictResolution(t *testing.T) {
 	// Create.
 
 	for i := range uint8(numOfItems - 1) {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{i},
 			KeyHash: keyHash,
 		}, StagePointer0)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 		requireT.Equal(uint8(0), v.level)
 	}
 
 	// Add pointer node and set the last item.
 
-	v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+	v := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{numOfItems - 1},
 		KeyHash: keyHash,
 	}, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v))
+	s.Find(v)
 
 	// Store the address of the data node to be sure that half of the items is moved to another data node.
 	dataNodeAddress := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress
@@ -484,7 +379,7 @@ func TestAddingPointerNodeWithConflictResolution(t *testing.T) {
 
 	// Verify that all the items has been moved correctly without recomputing hashes.
 
-	dataNodes := map[types.NodeAddress]uint64{}
+	dataNodes := map[types.VolatileAddress]uint64{}
 
 	for i := range uint8(numOfItems) {
 		key := TestKey[txtypes.Account]{
@@ -493,18 +388,12 @@ func TestAddingPointerNodeWithConflictResolution(t *testing.T) {
 		}
 		amount := txtypes.Amount(i)
 
-		v, err := s.NewEntry(snapshotID, key, StagePointer0)
-		requireT.NoError(err)
+		v := s.NewEntry(key, StagePointer0)
 
-		exists, err := s.KeyExists(v)
-		requireT.NoError(err)
-		requireT.True(exists)
+		requireT.True(s.KeyExists(v))
+		requireT.Equal(amount, s.ReadKey(v))
 
-		balance, err := s.ReadKey(v)
-		requireT.NoError(err)
-		requireT.Equal(amount, balance)
-
-		balance, exists = s.Query(key)
+		balance, exists := s.Query(key)
 		requireT.True(exists)
 		requireT.Equal(amount, balance)
 
@@ -525,11 +414,8 @@ func TestAddingPointerNodeWithConflictResolution(t *testing.T) {
 // TestAddingPointerNodeForNonConflictingDataItems verifies that key hashes are not recomputed if there is no conflict
 // and data items are redistributed if space is instructed to add new pointer node without conflict resolution.
 func TestAddingPointerNodeForNonConflictingDataItems(t *testing.T) {
-	const (
-		// It is selected this way so half of the items is moved to another data node.
-		numOfItems                  = NumOfPointers
-		snapshotID types.SnapshotID = 1
-	)
+	// It is selected this way so half of the items is moved to another data node.
+	const numOfItems = NumOfPointers
 
 	requireT := require.New(t)
 
@@ -541,23 +427,21 @@ func TestAddingPointerNodeForNonConflictingDataItems(t *testing.T) {
 	// Create.
 
 	for i := range uint8(numOfItems - 1) {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{i},
 			KeyHash: types.KeyHash(i + 1), // +1 to avoid 0
 		}, StagePointer0)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 		requireT.Equal(uint8(0), v.level)
 	}
 
 	// Add pointer node and set the last item.
 
-	v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+	v := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{numOfItems - 1},
 		KeyHash: types.KeyHash(numOfItems),
 	}, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v))
+	s.Find(v)
 
 	// Store the address of the data node to be sure that half of the items is moved to another data node.
 	dataNodeAddress := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress
@@ -568,7 +452,7 @@ func TestAddingPointerNodeForNonConflictingDataItems(t *testing.T) {
 
 	// Verify that all the items has been moved correctly without recomputing hashes.
 
-	dataNodes := map[types.NodeAddress]uint64{}
+	dataNodes := map[types.VolatileAddress]uint64{}
 
 	for i := range uint8(numOfItems) {
 		key := TestKey[txtypes.Account]{
@@ -577,18 +461,12 @@ func TestAddingPointerNodeForNonConflictingDataItems(t *testing.T) {
 		}
 		amount := txtypes.Amount(i)
 
-		v, err := s.NewEntry(snapshotID, key, StagePointer0)
-		requireT.NoError(err)
+		v := s.NewEntry(key, StagePointer0)
 
-		exists, err := s.KeyExists(v)
-		requireT.NoError(err)
-		requireT.True(exists)
+		requireT.True(s.KeyExists(v))
+		requireT.Equal(amount, s.ReadKey(v))
 
-		balance, err := s.ReadKey(v)
-		requireT.NoError(err)
-		requireT.Equal(amount, balance)
-
-		balance, exists = s.Query(key)
+		balance, exists := s.Query(key)
 		requireT.True(exists)
 		requireT.Equal(amount, balance)
 
@@ -609,11 +487,8 @@ func TestAddingPointerNodeForNonConflictingDataItems(t *testing.T) {
 // TestDataNodeSplitWithoutConflictResolution verifies that data nodes are allocated in the right order when there
 // is a time to split them. This test assumes there are no key hash conflicts to be resolved.
 func TestDataNodeSplitWithoutConflictResolution(t *testing.T) {
-	const (
-		// It is selected this way so at the end each pointer references a data node containing one data item.
-		numOfItems                  = NumOfPointers
-		snapshotID types.SnapshotID = 1
-	)
+	// It is selected this way so at the end each pointer references a data node containing one data item.
+	const numOfItems = NumOfPointers
 
 	requireT := require.New(t)
 
@@ -625,21 +500,19 @@ func TestDataNodeSplitWithoutConflictResolution(t *testing.T) {
 	// Store items in the root data node.
 
 	for i := uint8(1); i <= numOfItems; i++ {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{i},
 			KeyHash: types.KeyHash(i),
 		}, StagePointer0)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 	}
 
 	// Convert root node into pointer node.
 
-	v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+	v := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{0x01},
 		KeyHash: types.KeyHash(1), // +1 to avoid 0
 	}, StageData)
-	requireT.NoError(err)
 	requireT.NoError(s.AddPointerNode(v, false))
 
 	// Verify the current structure of the tree.
@@ -701,12 +574,11 @@ func TestDataNodeSplitWithoutConflictResolution(t *testing.T) {
 
 	for i := uint8(1); i <= numOfItems; i++ {
 		for {
-			v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+			v := s.NewEntry(TestKey[txtypes.Account]{
 				Key:     txtypes.Account{i},
 				KeyHash: types.KeyHash(i),
 			}, StageData)
-			requireT.NoError(err)
-			requireT.NoError(s.Find(v))
+			s.Find(v)
 
 			if v.nextDataNode == nil {
 				break
@@ -758,9 +630,8 @@ func TestDataNodeSplitWithoutConflictResolution(t *testing.T) {
 func TestDataNodeSplitWithConflictResolution(t *testing.T) {
 	const (
 		// It is selected this way so at the end each pointer references a data node containing one data item.
-		numOfItems                  = NumOfPointers
-		snapshotID types.SnapshotID = 1
-		keyHash    types.KeyHash    = 1 // Same for all data items to create conflicts.
+		numOfItems               = NumOfPointers
+		keyHash    types.KeyHash = 1 // Same for all data items to create conflicts.
 	)
 
 	requireT := require.New(t)
@@ -777,21 +648,19 @@ func TestDataNodeSplitWithConflictResolution(t *testing.T) {
 	// Store items in the root data node.
 
 	for i := uint8(1); i <= numOfItems; i++ {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{i},
 			KeyHash: keyHash,
 		}, StagePointer0)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 	}
 
 	// Convert root node into pointer node.
 
-	v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+	v := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{0x01},
 		KeyHash: types.KeyHash(1), // +1 to avoid 0
 	}, StageData)
-	requireT.NoError(err)
 	requireT.NoError(s.AddPointerNode(v, true))
 
 	// Verify the current structure of the tree.
@@ -855,12 +724,11 @@ func TestDataNodeSplitWithConflictResolution(t *testing.T) {
 	// Split everything without conflict resolution because hashes has been recomputed above.
 	for i := uint8(1); i <= numOfItems; i++ {
 		for {
-			v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+			v := s.NewEntry(TestKey[txtypes.Account]{
 				Key:     txtypes.Account{i},
 				KeyHash: types.KeyHash(i),
 			}, StageData)
-			requireT.NoError(err)
-			requireT.NoError(s.Find(v))
+			s.Find(v)
 
 			if v.nextDataNode == nil {
 				break
@@ -913,26 +781,22 @@ func TestDataNodeSplitWithConflictResolution(t *testing.T) {
 func TestFindingAvailableFreeSlot(t *testing.T) {
 	requireT := require.New(t)
 
-	const snapshotID types.SnapshotID = 1
-
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
-	v1, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+	v1 := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{1},
 		KeyHash: 1,
 	}, StageData)
-	requireT.NoError(err)
 	requireT.NoError(s.SetKey(v1, 1))
 
-	v2, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+	v2 := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{2},
 		KeyHash: 2,
 	}, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v2))
+	s.Find(v2)
 	requireT.NotNil(v2.keyHashP)
 	requireT.Equal(types.KeyHash(0), *v2.keyHashP)
 }
@@ -941,11 +805,8 @@ func TestFindingAvailableFreeSlot(t *testing.T) {
 func TestFindStages(t *testing.T) {
 	requireT := require.New(t)
 
-	const (
-		snapshotID types.SnapshotID = 1
-		// This key hash means that item will always go to the pointer at index 0.
-		keyHash = 1 << 63
-	)
+	// This key hash means that item will always go to the pointer at index 0.
+	const keyHash = 1 << 63
 
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
@@ -959,21 +820,19 @@ func TestFindStages(t *testing.T) {
 		KeyHash: keyHash,
 	}
 
-	v, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
+	v := s.NewEntry(key, StageData)
 	requireT.NoError(s.SetKey(v, txtypes.Amount(10)))
 
 	for range 8 {
 		requireT.NoError(s.AddPointerNode(v, false))
-		requireT.NoError(s.Find(v))
+		s.Find(v)
 	}
 
 	requireT.Equal(uint8(8), v.level)
 
 	// Test StagePointer0.
 
-	v, err = s.NewEntry(snapshotID, key, StagePointer0)
-	requireT.NoError(err)
+	v = s.NewEntry(key, StagePointer0)
 
 	requireT.Equal(StagePointer0, v.stage)
 	requireT.Equal(uint8(0), v.level)
@@ -981,21 +840,21 @@ func TestFindStages(t *testing.T) {
 	requireT.Nil(v.itemP)
 	requireT.False(v.exists)
 
-	requireT.NoError(s.Find(v))
+	s.Find(v)
 	requireT.Equal(StagePointer1, v.stage)
 	requireT.Equal(uint8(3), v.level)
 	requireT.Nil(v.keyHashP)
 	requireT.Nil(v.itemP)
 	requireT.False(v.exists)
 
-	requireT.NoError(s.Find(v))
+	s.Find(v)
 	requireT.Equal(StageData, v.stage)
 	requireT.Equal(uint8(8), v.level)
 	requireT.Nil(v.keyHashP)
 	requireT.Nil(v.itemP)
 	requireT.False(v.exists)
 
-	requireT.NoError(s.Find(v))
+	s.Find(v)
 	requireT.Equal(StageData, v.stage)
 	requireT.Equal(uint8(8), v.level)
 	requireT.NotNil(v.keyHashP)
@@ -1016,11 +875,8 @@ func TestFindStages(t *testing.T) {
 func TestSwitchingFromMutableToImmutablePath(t *testing.T) {
 	requireT := require.New(t)
 
-	const (
-		snapshotID types.SnapshotID = 1
-		// After first split this key hash stays in data node 0, but after second split it will go to the data node 16.
-		keyHash types.KeyHash = 16
-	)
+	// After first split this key hash stays in data node 0, but after second split it will go to the data node 16.
+	const keyHash types.KeyHash = 16
 
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
@@ -1034,15 +890,13 @@ func TestSwitchingFromMutableToImmutablePath(t *testing.T) {
 		KeyHash: keyHash,
 	}
 
-	v64, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+	v64 := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{0x01},
 		KeyHash: types.KeyHash(64),
 	}, StageData)
-	requireT.NoError(err)
 	requireT.NoError(s.SetKey(v64, txtypes.Amount(64)))
 
-	v16, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
+	v16 := s.NewEntry(key, StageData)
 	requireT.NoError(s.SetKey(v16, txtypes.Amount(16)))
 	requireT.NoError(s.AddPointerNode(v16, false))
 
@@ -1060,28 +914,24 @@ func TestSwitchingFromMutableToImmutablePath(t *testing.T) {
 
 	// Let's locate the key hash 16 in the data item 0.
 
-	v16Read, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v16Read))
+	v16Read := s.NewEntry(key, StageData)
+	s.Find(v16Read)
 	// Verify the next expected data node address.
 	requireT.Equal(&pointerNode.Pointers[16].VolatileAddress, v16Read.nextDataNode)
 
-	v16Exists, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v16Exists))
+	v16Exists := s.NewEntry(key, StageData)
+	s.Find(v16Exists)
 
-	v16Delete, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v16Delete))
+	v16Delete := s.NewEntry(key, StageData)
+	s.Find(v16Delete)
 
 	// Now let's split data node 0 using key hash 64.
 
-	v64, err = s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+	v64 = s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{0x01},
 		KeyHash: types.KeyHash(64),
 	}, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v64))
+	s.Find(v64)
 	requireT.NoError(s.SplitDataNode(v64, false))
 
 	// The key hash 16 should be moved to the brand new data node 16.
@@ -1107,20 +957,16 @@ func TestSwitchingFromMutableToImmutablePath(t *testing.T) {
 	// When walking the tree now, it should not follow the current pointer node, but go back and switch
 	// to the immutable path.
 
-	balance, err := s.ReadKey(v16Read)
-	requireT.NoError(err)
-	requireT.Equal(txtypes.Amount(16), balance)
+	requireT.Equal(txtypes.Amount(16), s.ReadKey(v16Read))
 	requireT.Nil(v16Read.nextDataNode)
 
-	exists, err := s.KeyExists(v16Exists)
-	requireT.NoError(err)
-	requireT.True(exists)
+	requireT.True(s.KeyExists(v16Exists))
 	requireT.Nil(v16Exists.nextDataNode)
 
-	requireT.NoError(s.DeleteKey(v16Delete))
+	s.DeleteKey(v16Delete)
 	requireT.Nil(v16Delete.nextDataNode)
 
-	balance, exists = s.Query(key)
+	balance, exists := s.Query(key)
 	requireT.False(exists)
 	requireT.Equal(txtypes.Amount(0), balance)
 }
@@ -1128,8 +974,6 @@ func TestSwitchingFromMutableToImmutablePath(t *testing.T) {
 // TestExistsReturnsFalseIfKeyHashIsDifferent verifies that after changing the key hash Exists returns false.
 func TestExistsReturnsFalseIfKeyHashIsDifferent(t *testing.T) {
 	requireT := require.New(t)
-
-	const snapshotID types.SnapshotID = 1
 
 	// This is the key placed in the middle.
 	var key = TestKey[txtypes.Account]{
@@ -1143,28 +987,23 @@ func TestExistsReturnsFalseIfKeyHashIsDifferent(t *testing.T) {
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 	}
 
-	v5, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5))
+	v5 := s.NewEntry(key, StageData)
+	s.Find(v5)
 
-	v5A, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5A))
+	v5A := s.NewEntry(key, StageData)
+	s.Find(v5A)
 
 	// Test that false is returned if hash is different.
 
 	*v5.keyHashP = 1
-	exists, err := s.KeyExists(v5A)
-	requireT.NoError(err)
-	requireT.False(exists)
+	requireT.False(s.KeyExists(v5A))
 	*v5.keyHashP = key.KeyHash
 	// v5A now points to first free slot.
 	requireT.Equal(types.KeyHash(0), *v5A.keyHashP)
@@ -1174,8 +1013,6 @@ func TestExistsReturnsFalseIfKeyHashIsDifferent(t *testing.T) {
 func TestExistsReturnsFalseIfKeyIsDifferent(t *testing.T) {
 	requireT := require.New(t)
 
-	const snapshotID types.SnapshotID = 1
-
 	// This is the key placed in the middle.
 	var key = TestKey[txtypes.Account]{
 		Key:     txtypes.Account{5},
@@ -1188,28 +1025,23 @@ func TestExistsReturnsFalseIfKeyIsDifferent(t *testing.T) {
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 	}
 
-	v5, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5))
+	v5 := s.NewEntry(key, StageData)
+	s.Find(v5)
 
-	v5A, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5A))
+	v5A := s.NewEntry(key, StageData)
+	s.Find(v5A)
 
 	// Test that false is returned if key is different.
 
 	v5.itemP.Key = txtypes.Account{0x01}
-	exists, err := s.KeyExists(v5A)
-	requireT.NoError(err)
-	requireT.False(exists)
+	requireT.False(s.KeyExists(v5A))
 	v5.itemP.Key = key.Key
 	// v5B now points to first free slot.
 	requireT.Equal(types.KeyHash(0), *v5A.keyHashP)
@@ -1220,8 +1052,6 @@ func TestExistsReturnsFalseIfKeyIsDifferent(t *testing.T) {
 func TestExistsReturnsTrueAfterReplacingItem(t *testing.T) {
 	requireT := require.New(t)
 
-	const snapshotID types.SnapshotID = 1
-
 	// This is the key placed in the middle.
 	var key = TestKey[txtypes.Account]{
 		Key:     txtypes.Account{5},
@@ -1234,53 +1064,45 @@ func TestExistsReturnsTrueAfterReplacingItem(t *testing.T) {
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 	}
 
-	v5, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5))
+	v5 := s.NewEntry(key, StageData)
+	s.Find(v5)
 
-	v5A, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5A))
+	v5A := s.NewEntry(key, StageData)
+	s.Find(v5A)
 
-	v5B, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5B))
+	v5B := s.NewEntry(key, StageData)
+	s.Find(v5B)
 
 	// Test checking replaced item.
 
 	// Delete v5A.
-	requireT.NoError(s.DeleteKey(v5A))
+	s.DeleteKey(v5A)
 
 	// This item is inserted on first free slot, which is the one previously occupied by v5A.
 	key100 := TestKey[txtypes.Account]{
 		Key:     txtypes.Account{100},
 		KeyHash: 100,
 	}
-	v100, err := s.NewEntry(snapshotID, key100, StageData)
-	requireT.NoError(err)
+	v100 := s.NewEntry(key100, StageData)
 	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
 
 	// Now v5B points to invalid item.
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's insert v5 on another free position.
-	v5B2, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
+	v5B2 := s.NewEntry(key, StageData)
 	requireT.NoError(s.SetKey(v5B2, txtypes.Amount(5)))
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// When checking, it will refer the right slot.
-	exists, err := s.KeyExists(v5B)
-	requireT.NoError(err)
-	requireT.True(exists)
+	requireT.True(s.KeyExists(v5B))
 	requireT.Equal(key.KeyHash, *v5B.keyHashP)
 	requireT.Equal(key.KeyHash, *v5B2.keyHashP)
 	requireT.Equal(v5B.keyHashP, v5B2.keyHashP)
@@ -1291,8 +1113,6 @@ func TestExistsReturnsTrueAfterReplacingItem(t *testing.T) {
 func TestExistsReturnsTrueAfterMovingItem(t *testing.T) {
 	requireT := require.New(t)
 
-	const snapshotID types.SnapshotID = 1
-
 	// This is the key placed in the middle.
 	var key = TestKey[txtypes.Account]{
 		Key:     txtypes.Account{5},
@@ -1305,58 +1125,50 @@ func TestExistsReturnsTrueAfterMovingItem(t *testing.T) {
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 	}
 
-	v5, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5))
+	v5 := s.NewEntry(key, StageData)
+	s.Find(v5)
 
-	v5A, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5A))
+	v5A := s.NewEntry(key, StageData)
+	s.Find(v5A)
 
-	v5B, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5B))
+	v5B := s.NewEntry(key, StageData)
+	s.Find(v5B)
 
 	// Test checking moved item.
 
 	// Delete v5A.
-	requireT.NoError(s.DeleteKey(v5A))
+	s.DeleteKey(v5A)
 
 	// This item is inserted on first free slot, which is the one previously occupied by v5A.
 	key100 := TestKey[txtypes.Account]{
 		Key:     txtypes.Account{100},
 		KeyHash: 100,
 	}
-	v100, err := s.NewEntry(snapshotID, key100, StageData)
-	requireT.NoError(err)
+	v100 := s.NewEntry(key100, StageData)
 	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
 
 	// Now v5B points to invalid item.
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's insert v5 on another free position.
-	v5B2, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
+	v5B2 := s.NewEntry(key, StageData)
 	requireT.NoError(s.SetKey(v5B2, txtypes.Amount(5)))
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's delete v100 to make the original slot free.
-	requireT.NoError(s.DeleteKey(v100))
+	s.DeleteKey(v100)
 	requireT.Equal(types.KeyHash(0), *v100.keyHashP)
 	requireT.Equal(types.KeyHash(0), *v5B.keyHashP)
 
 	// When checking, it will refer the right slot.
-	exists, err := s.KeyExists(v5B)
-	requireT.NoError(err)
-	requireT.True(exists)
+	requireT.True(s.KeyExists(v5B))
 	requireT.Equal(key.KeyHash, *v5B.keyHashP)
 	requireT.Equal(key.KeyHash, *v5B2.keyHashP)
 	requireT.Equal(v5B.keyHashP, v5B2.keyHashP)
@@ -1366,18 +1178,15 @@ func TestExistsReturnsTrueAfterMovingItem(t *testing.T) {
 func TestExistsReturnsFalseIfSlotHasNotBeenFound(t *testing.T) {
 	requireT := require.New(t)
 
-	const snapshotID types.SnapshotID = 1
-
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
-	v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+	v := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{0x01},
 		KeyHash: types.KeyHash(1),
 	}, StageData)
-	requireT.NoError(err)
 	requireT.NoError(s.SetKey(v, txtypes.Amount(1)))
 
 	// Check false is returned if we were not able to find slot for an item.
@@ -1394,20 +1203,15 @@ func TestExistsReturnsFalseIfSlotHasNotBeenFound(t *testing.T) {
 		Key:     txtypes.Account{100},
 		KeyHash: 100,
 	}
-	v100, err := s.NewEntry(snapshotID, key100, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v100))
+	v100 := s.NewEntry(key100, StageData)
+	s.Find(v100)
 	requireT.Nil(v100.keyHashP)
-	exists, err := s.KeyExists(v100)
-	requireT.NoError(err)
-	requireT.False(exists)
+	requireT.False(s.KeyExists(v100))
 }
 
 // TestReadReturnsDefaultValueIfKeyHashIsDifferent verifies that after changing the key hash Read returns default value.
 func TestReadReturnsDefaultValueIfKeyHashIsDifferent(t *testing.T) {
 	requireT := require.New(t)
-
-	const snapshotID types.SnapshotID = 1
 
 	// This is the key placed in the middle.
 	var key = TestKey[txtypes.Account]{
@@ -1421,28 +1225,23 @@ func TestReadReturnsDefaultValueIfKeyHashIsDifferent(t *testing.T) {
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 	}
 
-	v5, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5))
+	v5 := s.NewEntry(key, StageData)
+	s.Find(v5)
 
-	v5A, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5A))
+	v5A := s.NewEntry(key, StageData)
+	s.Find(v5A)
 
 	// Test that default value is returned if hash is different.
 
 	*v5.keyHashP = 1
-	balance, err := s.ReadKey(v5A)
-	requireT.NoError(err)
-	requireT.Equal(txtypes.Amount(0), balance)
+	requireT.Equal(txtypes.Amount(0), s.ReadKey(v5A))
 	*v5.keyHashP = key.KeyHash
 	// v5A now points to first free slot.
 	requireT.Equal(types.KeyHash(0), *v5A.keyHashP)
@@ -1452,8 +1251,6 @@ func TestReadReturnsDefaultValueIfKeyHashIsDifferent(t *testing.T) {
 func TestReadReturnsDefaultValueIfKeyIsDifferent(t *testing.T) {
 	requireT := require.New(t)
 
-	const snapshotID types.SnapshotID = 1
-
 	// This is the key placed in the middle.
 	var key = TestKey[txtypes.Account]{
 		Key:     txtypes.Account{5},
@@ -1466,28 +1263,23 @@ func TestReadReturnsDefaultValueIfKeyIsDifferent(t *testing.T) {
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 	}
 
-	v5, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5))
+	v5 := s.NewEntry(key, StageData)
+	s.Find(v5)
 
-	v5A, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5A))
+	v5A := s.NewEntry(key, StageData)
+	s.Find(v5A)
 
 	// Test that default value is returned if key is different.
 
 	v5.itemP.Key = txtypes.Account{0x01}
-	balance, err := s.ReadKey(v5A)
-	requireT.NoError(err)
-	requireT.Equal(txtypes.Amount(0), balance)
+	requireT.Equal(txtypes.Amount(0), s.ReadKey(v5A))
 	v5.itemP.Key = key.Key
 	// v5B now points to first free slot.
 	requireT.Equal(types.KeyHash(0), *v5A.keyHashP)
@@ -1498,8 +1290,6 @@ func TestReadReturnsDefaultValueIfKeyIsDifferent(t *testing.T) {
 func TestReadReturnsCorrectValueAfterReplacingItem(t *testing.T) {
 	requireT := require.New(t)
 
-	const snapshotID types.SnapshotID = 1
-
 	// This is the key placed in the middle.
 	var key = TestKey[txtypes.Account]{
 		Key:     txtypes.Account{5},
@@ -1512,53 +1302,45 @@ func TestReadReturnsCorrectValueAfterReplacingItem(t *testing.T) {
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 	}
 
-	v5, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5))
+	v5 := s.NewEntry(key, StageData)
+	s.Find(v5)
 
-	v5A, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5A))
+	v5A := s.NewEntry(key, StageData)
+	s.Find(v5A)
 
-	v5B, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5B))
+	v5B := s.NewEntry(key, StageData)
+	s.Find(v5B)
 
 	// Test checking replaced item.
 
 	// Delete v5A.
-	requireT.NoError(s.DeleteKey(v5A))
+	s.DeleteKey(v5A)
 
 	// This item is inserted on first free slot, which is the one previously occupied by v5A.
 	key100 := TestKey[txtypes.Account]{
 		Key:     txtypes.Account{100},
 		KeyHash: 100,
 	}
-	v100, err := s.NewEntry(snapshotID, key100, StageData)
-	requireT.NoError(err)
+	v100 := s.NewEntry(key100, StageData)
 	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
 
 	// Now v5B points to invalid item.
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's insert v5 on another free position.
-	v5B2, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
+	v5B2 := s.NewEntry(key, StageData)
 	requireT.NoError(s.SetKey(v5B2, txtypes.Amount(5)))
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// When checking, it will refer the right slot.
-	balance, err := s.ReadKey(v5B)
-	requireT.NoError(err)
-	requireT.Equal(txtypes.Amount(5), balance)
+	requireT.Equal(txtypes.Amount(5), s.ReadKey(v5B))
 	requireT.Equal(key.KeyHash, *v5B.keyHashP)
 	requireT.Equal(key.KeyHash, *v5B2.keyHashP)
 	requireT.Equal(v5B.keyHashP, v5B2.keyHashP)
@@ -1569,8 +1351,6 @@ func TestReadReturnsCorrectValueAfterReplacingItem(t *testing.T) {
 func TestReadReturnsCorrectValueAfterMovingItem(t *testing.T) {
 	requireT := require.New(t)
 
-	const snapshotID types.SnapshotID = 1
-
 	// This is the key placed in the middle.
 	var key = TestKey[txtypes.Account]{
 		Key:     txtypes.Account{5},
@@ -1583,58 +1363,50 @@ func TestReadReturnsCorrectValueAfterMovingItem(t *testing.T) {
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 	}
 
-	v5, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5))
+	v5 := s.NewEntry(key, StageData)
+	s.Find(v5)
 
-	v5A, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5A))
+	v5A := s.NewEntry(key, StageData)
+	s.Find(v5A)
 
-	v5B, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5B))
+	v5B := s.NewEntry(key, StageData)
+	s.Find(v5B)
 
 	// Test checking moved item.
 
 	// Delete v5A.
-	requireT.NoError(s.DeleteKey(v5A))
+	s.DeleteKey(v5A)
 
 	// This item is inserted on first free slot, which is the one previously occupied by v5A.
 	key100 := TestKey[txtypes.Account]{
 		Key:     txtypes.Account{100},
 		KeyHash: 100,
 	}
-	v100, err := s.NewEntry(snapshotID, key100, StageData)
-	requireT.NoError(err)
+	v100 := s.NewEntry(key100, StageData)
 	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
 
 	// Now v5B points to invalid item.
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's insert v5 on another free position.
-	v5B2, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
+	v5B2 := s.NewEntry(key, StageData)
 	requireT.NoError(s.SetKey(v5B2, txtypes.Amount(5)))
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's delete v100 to make the original slot free.
-	requireT.NoError(s.DeleteKey(v100))
+	s.DeleteKey(v100)
 	requireT.Equal(types.KeyHash(0), *v100.keyHashP)
 	requireT.Equal(types.KeyHash(0), *v5B.keyHashP)
 
 	// When checking, it will refer the right slot.
-	balance, err := s.ReadKey(v5B)
-	requireT.NoError(err)
-	requireT.Equal(txtypes.Amount(5), balance)
+	requireT.Equal(txtypes.Amount(5), s.ReadKey(v5B))
 	requireT.Equal(key.KeyHash, *v5B.keyHashP)
 	requireT.Equal(key.KeyHash, *v5B2.keyHashP)
 	requireT.Equal(v5B.keyHashP, v5B2.keyHashP)
@@ -1644,18 +1416,15 @@ func TestReadReturnsCorrectValueAfterMovingItem(t *testing.T) {
 func TestReadReturnsDefaultValueIfSlotHasNotBeenFound(t *testing.T) {
 	requireT := require.New(t)
 
-	const snapshotID types.SnapshotID = 1
-
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
-	v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+	v := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{0x01},
 		KeyHash: types.KeyHash(1),
 	}, StageData)
-	requireT.NoError(err)
 	requireT.NoError(s.SetKey(v, txtypes.Amount(1)))
 
 	// Check false is returned if we were not able to find slot for an item.
@@ -1672,41 +1441,33 @@ func TestReadReturnsDefaultValueIfSlotHasNotBeenFound(t *testing.T) {
 		Key:     txtypes.Account{100},
 		KeyHash: 100,
 	}
-	v100, err := s.NewEntry(snapshotID, key100, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v100))
+	v100 := s.NewEntry(key100, StageData)
+	s.Find(v100)
 	requireT.Nil(v100.keyHashP)
-	balance, err := s.ReadKey(v100)
-	requireT.NoError(err)
-	requireT.Equal(txtypes.Amount(0), balance)
+	requireT.Equal(txtypes.Amount(0), s.ReadKey(v100))
 }
 
 // TestDeletingOnEmptySpace verifies that deleting on empty space works and does nothing.
 func TestDeletingOnEmptySpace(t *testing.T) {
 	requireT := require.New(t)
 
-	const snapshotID types.SnapshotID = 1
-
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
-	v5, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+	v5 := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{5},
 		KeyHash: 5,
 	}, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5))
-	requireT.NoError(s.DeleteKey(v5))
+	s.Find(v5)
+	s.DeleteKey(v5)
 	requireT.Equal(types.FreeAddress, s.Root().VolatileAddress)
 }
 
 // TestDeleteDoesNothingIfKeyHashIsDifferent verifies that after changing the key hash Delete does nothing.
 func TestDeleteDoesNothingIfKeyHashIsDifferent(t *testing.T) {
 	requireT := require.New(t)
-
-	const snapshotID types.SnapshotID = 1
 
 	// This is the key placed in the middle.
 	var key = TestKey[txtypes.Account]{
@@ -1720,26 +1481,23 @@ func TestDeleteDoesNothingIfKeyHashIsDifferent(t *testing.T) {
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 	}
 
-	v5, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5))
+	v5 := s.NewEntry(key, StageData)
+	s.Find(v5)
 
-	v5A, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5A))
+	v5A := s.NewEntry(key, StageData)
+	s.Find(v5A)
 
 	// Test that nothing happens if hash is different.
 
 	*v5.keyHashP = 1
-	requireT.NoError(s.DeleteKey(v5A))
+	s.DeleteKey(v5A)
 	requireT.Equal(types.KeyHash(1), *v5.keyHashP)
 	*v5.keyHashP = key.KeyHash
 	// v5A now points to first free slot.
@@ -1759,8 +1517,6 @@ func TestDeleteDoesNothingIfKeyHashIsDifferent(t *testing.T) {
 func TestDeleteDoesNothingIfKeyIsDifferent(t *testing.T) {
 	requireT := require.New(t)
 
-	const snapshotID types.SnapshotID = 1
-
 	// This is the key placed in the middle.
 	var key = TestKey[txtypes.Account]{
 		Key:     txtypes.Account{5},
@@ -1773,26 +1529,23 @@ func TestDeleteDoesNothingIfKeyIsDifferent(t *testing.T) {
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 	}
 
-	v5, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5))
+	v5 := s.NewEntry(key, StageData)
+	s.Find(v5)
 
-	v5A, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5A))
+	v5A := s.NewEntry(key, StageData)
+	s.Find(v5A)
 
 	// Test that nothing happens if key is different.
 
 	v5.itemP.Key = txtypes.Account{0x01}
-	requireT.NoError(s.DeleteKey(v5A))
+	s.DeleteKey(v5A)
 	requireT.Equal(key.KeyHash, *v5.keyHashP)
 	requireT.Equal(txtypes.Account{0x01}, v5.itemP.Key)
 	v5.itemP.Key = key.Key
@@ -1813,8 +1566,6 @@ func TestDeleteDoesNothingIfKeyIsDifferent(t *testing.T) {
 func TestDeleteDoesNothingIfSlotIsFree(t *testing.T) {
 	requireT := require.New(t)
 
-	const snapshotID types.SnapshotID = 1
-
 	// This is the key placed in the middle.
 	var key = TestKey[txtypes.Account]{
 		Key:     txtypes.Account{5},
@@ -1827,26 +1578,23 @@ func TestDeleteDoesNothingIfSlotIsFree(t *testing.T) {
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 	}
 
-	v5, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5))
+	v5 := s.NewEntry(key, StageData)
+	s.Find(v5)
 
-	v5A, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5A))
+	v5A := s.NewEntry(key, StageData)
+	s.Find(v5A)
 
 	// Test that nothing happens if slot is free.
 
 	*v5.keyHashP = 0
-	requireT.NoError(s.DeleteKey(v5A))
+	s.DeleteKey(v5A)
 	requireT.Equal(types.KeyHash(0), *v5.keyHashP)
 	*v5.keyHashP = key.KeyHash
 	// v5C still points to the same slot.
@@ -1867,8 +1615,6 @@ func TestDeleteDoesNothingIfSlotIsFree(t *testing.T) {
 func TestDeleteOnReplacedItem(t *testing.T) {
 	requireT := require.New(t)
 
-	const snapshotID types.SnapshotID = 1
-
 	// This is the key placed in the middle.
 	var key = TestKey[txtypes.Account]{
 		Key:     txtypes.Account{5},
@@ -1881,51 +1627,45 @@ func TestDeleteOnReplacedItem(t *testing.T) {
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 	}
 
-	v5, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5))
+	v5 := s.NewEntry(key, StageData)
+	s.Find(v5)
 
-	v5A, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5A))
+	v5A := s.NewEntry(key, StageData)
+	s.Find(v5A)
 
-	v5B, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5B))
+	v5B := s.NewEntry(key, StageData)
+	s.Find(v5B)
 
 	// Test deleting replaced item.
 
 	// Delete v5A.
-	requireT.NoError(s.DeleteKey(v5A))
+	s.DeleteKey(v5A)
 
 	// This item is inserted on first free slot, which is the one previously occupied by v5A.
 	key100 := TestKey[txtypes.Account]{
 		Key:     txtypes.Account{100},
 		KeyHash: 100,
 	}
-	v100, err := s.NewEntry(snapshotID, key100, StageData)
-	requireT.NoError(err)
+	v100 := s.NewEntry(key100, StageData)
 	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
 
 	// Now v5E points to invalid item.
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's insert v5 on another free position.
-	v5B2, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
+	v5B2 := s.NewEntry(key, StageData)
 	requireT.NoError(s.SetKey(v5B2, txtypes.Amount(5)))
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// When deleting, it will free the right slot.
-	requireT.NoError(s.DeleteKey(v5B))
+	s.DeleteKey(v5B)
 	requireT.Equal(types.KeyHash(0), *v5B.keyHashP)
 	requireT.Equal(types.KeyHash(0), *v5B2.keyHashP)
 	requireT.Equal(v5B.keyHashP, v5B2.keyHashP)
@@ -1946,8 +1686,6 @@ func TestDeleteOnReplacedItem(t *testing.T) {
 func TestDeleteOnMovedItem(t *testing.T) {
 	requireT := require.New(t)
 
-	const snapshotID types.SnapshotID = 1
-
 	// This is the key placed in the middle.
 	var key = TestKey[txtypes.Account]{
 		Key:     txtypes.Account{5},
@@ -1960,56 +1698,50 @@ func TestDeleteOnMovedItem(t *testing.T) {
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 	}
 
-	v5, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5))
+	v5 := s.NewEntry(key, StageData)
+	s.Find(v5)
 
-	v5A, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5A))
+	v5A := s.NewEntry(key, StageData)
+	s.Find(v5A)
 
-	v5B, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v5B))
+	v5B := s.NewEntry(key, StageData)
+	s.Find(v5B)
 
 	// Test deleting moved item.
 
 	// Delete v5A.
-	requireT.NoError(s.DeleteKey(v5A))
+	s.DeleteKey(v5A)
 
 	// This item is inserted on first free slot, which is the one previously occupied by v5A.
 	key100 := TestKey[txtypes.Account]{
 		Key:     txtypes.Account{100},
 		KeyHash: 100,
 	}
-	v100, err := s.NewEntry(snapshotID, key100, StageData)
-	requireT.NoError(err)
+	v100 := s.NewEntry(key100, StageData)
 	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
 
 	// Now v5G points to invalid item.
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's insert v5 on another free position.
-	v5B2, err := s.NewEntry(snapshotID, key, StageData)
-	requireT.NoError(err)
+	v5B2 := s.NewEntry(key, StageData)
 	requireT.NoError(s.SetKey(v5B2, txtypes.Amount(5)))
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's delete v100 to make the original slot free.
-	requireT.NoError(s.DeleteKey(v100))
+	s.DeleteKey(v100)
 	requireT.Equal(types.KeyHash(0), *v100.keyHashP)
 	requireT.Equal(types.KeyHash(0), *v5B.keyHashP)
 
 	// When checking, it will refer the right slot.
-	requireT.NoError(s.DeleteKey(v5B))
+	s.DeleteKey(v5B)
 	requireT.Equal(types.KeyHash(0), *v5B.keyHashP)
 	requireT.Equal(types.KeyHash(0), *v5B2.keyHashP)
 	requireT.Equal(v5B.keyHashP, v5B2.keyHashP)
@@ -2019,8 +1751,6 @@ func TestDeleteOnMovedItem(t *testing.T) {
 func TestDeleteDoesNothingIfSlotHasNotBeenFound(t *testing.T) {
 	requireT := require.New(t)
 
-	const snapshotID types.SnapshotID = 1
-
 	// This is the key placed in the middle.
 	var key = TestKey[txtypes.Account]{
 		Key:     txtypes.Account{5},
@@ -2033,11 +1763,10 @@ func TestDeleteDoesNothingIfSlotHasNotBeenFound(t *testing.T) {
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
-		v, err := s.NewEntry(snapshotID, TestKey[txtypes.Account]{
+		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(err)
 		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
 	}
 
@@ -2055,11 +1784,10 @@ func TestDeleteDoesNothingIfSlotHasNotBeenFound(t *testing.T) {
 		Key:     txtypes.Account{100},
 		KeyHash: 100,
 	}
-	v100, err := s.NewEntry(snapshotID, key100, StageData)
-	requireT.NoError(err)
-	requireT.NoError(s.Find(v100))
+	v100 := s.NewEntry(key100, StageData)
+	s.Find(v100)
 	requireT.Nil(v100.keyHashP)
-	requireT.NoError(s.DeleteKey(v100))
+	s.DeleteKey(v100)
 	requireT.Nil(v100.keyHashP)
 
 	// Verify that nothing has been deleted.
