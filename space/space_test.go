@@ -5,6 +5,7 @@ package space
 
 import (
 	"testing"
+	"unsafe"
 
 	"github.com/stretchr/testify/require"
 
@@ -1004,7 +1005,6 @@ func TestExistsReturnsFalseIfKeyHashIsDifferent(t *testing.T) {
 
 	*v5.keyHashP = 1
 	requireT.False(s.KeyExists(v5A))
-	*v5.keyHashP = key.KeyHash
 	// v5A now points to first free slot.
 	requireT.Equal(types.KeyHash(0), *v5A.keyHashP)
 }
@@ -1042,8 +1042,7 @@ func TestExistsReturnsFalseIfKeyIsDifferent(t *testing.T) {
 
 	v5.itemP.Key = txtypes.Account{0x01}
 	requireT.False(s.KeyExists(v5A))
-	v5.itemP.Key = key.Key
-	// v5B now points to first free slot.
+	// v5A now points to first free slot.
 	requireT.Equal(types.KeyHash(0), *v5A.keyHashP)
 }
 
@@ -1105,7 +1104,7 @@ func TestExistsReturnsTrueAfterReplacingItem(t *testing.T) {
 	requireT.True(s.KeyExists(v5B))
 	requireT.Equal(key.KeyHash, *v5B.keyHashP)
 	requireT.Equal(key.KeyHash, *v5B2.keyHashP)
-	requireT.Equal(v5B.keyHashP, v5B2.keyHashP)
+	requireT.Equal(unsafe.Pointer(v5B.keyHashP), unsafe.Pointer(v5B2.keyHashP))
 }
 
 // TestExistsReturnsTrueAfterMovingItem verifies that Exists returns true if the item is moved to another slot
@@ -1171,7 +1170,7 @@ func TestExistsReturnsTrueAfterMovingItem(t *testing.T) {
 	requireT.True(s.KeyExists(v5B))
 	requireT.Equal(key.KeyHash, *v5B.keyHashP)
 	requireT.Equal(key.KeyHash, *v5B2.keyHashP)
-	requireT.Equal(v5B.keyHashP, v5B2.keyHashP)
+	requireT.Equal(unsafe.Pointer(v5B.keyHashP), unsafe.Pointer(v5B2.keyHashP))
 }
 
 // TestExistsReturnsFalseIfSlotHasNotBeenFound verifies that Exists returns false if slot has not been found.
@@ -1242,7 +1241,6 @@ func TestReadReturnsDefaultValueIfKeyHashIsDifferent(t *testing.T) {
 
 	*v5.keyHashP = 1
 	requireT.Equal(txtypes.Amount(0), s.ReadKey(v5A))
-	*v5.keyHashP = key.KeyHash
 	// v5A now points to first free slot.
 	requireT.Equal(types.KeyHash(0), *v5A.keyHashP)
 }
@@ -1280,8 +1278,7 @@ func TestReadReturnsDefaultValueIfKeyIsDifferent(t *testing.T) {
 
 	v5.itemP.Key = txtypes.Account{0x01}
 	requireT.Equal(txtypes.Amount(0), s.ReadKey(v5A))
-	v5.itemP.Key = key.Key
-	// v5B now points to first free slot.
+	// v5A now points to first free slot.
 	requireT.Equal(types.KeyHash(0), *v5A.keyHashP)
 }
 
@@ -1343,7 +1340,7 @@ func TestReadReturnsCorrectValueAfterReplacingItem(t *testing.T) {
 	requireT.Equal(txtypes.Amount(5), s.ReadKey(v5B))
 	requireT.Equal(key.KeyHash, *v5B.keyHashP)
 	requireT.Equal(key.KeyHash, *v5B2.keyHashP)
-	requireT.Equal(v5B.keyHashP, v5B2.keyHashP)
+	requireT.Equal(unsafe.Pointer(v5B.keyHashP), unsafe.Pointer(v5B2.keyHashP))
 }
 
 // TestReadReturnsCorrectValueAfterMovingItem verifies that Read returns expected value if the item is moved
@@ -1409,7 +1406,7 @@ func TestReadReturnsCorrectValueAfterMovingItem(t *testing.T) {
 	requireT.Equal(txtypes.Amount(5), s.ReadKey(v5B))
 	requireT.Equal(key.KeyHash, *v5B.keyHashP)
 	requireT.Equal(key.KeyHash, *v5B2.keyHashP)
-	requireT.Equal(v5B.keyHashP, v5B2.keyHashP)
+	requireT.Equal(unsafe.Pointer(v5B.keyHashP), unsafe.Pointer(v5B2.keyHashP))
 }
 
 // TestReadReturnsDefaultValueIfSlotHasNotBeenFound verifies that Read returns default value if slot has not been found.
@@ -1549,7 +1546,7 @@ func TestDeleteDoesNothingIfKeyIsDifferent(t *testing.T) {
 	requireT.Equal(key.KeyHash, *v5.keyHashP)
 	requireT.Equal(txtypes.Account{0x01}, v5.itemP.Key)
 	v5.itemP.Key = key.Key
-	// v5B now points to first free slot.
+	// v5A now points to first free slot.
 	requireT.Equal(types.KeyHash(0), *v5A.keyHashP)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
@@ -1668,7 +1665,7 @@ func TestDeleteOnReplacedItem(t *testing.T) {
 	s.DeleteKey(v5B)
 	requireT.Equal(types.KeyHash(0), *v5B.keyHashP)
 	requireT.Equal(types.KeyHash(0), *v5B2.keyHashP)
-	requireT.Equal(v5B.keyHashP, v5B2.keyHashP)
+	requireT.Equal(unsafe.Pointer(v5B.keyHashP), unsafe.Pointer(v5B2.keyHashP))
 
 	// v100 still exists.
 	balance, exists := s.Query(key100)
@@ -1727,7 +1724,7 @@ func TestDeleteOnMovedItem(t *testing.T) {
 	v100 := s.NewEntry(key100, StageData)
 	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
 
-	// Now v5G points to invalid item.
+	// Now v5B points to invalid item.
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's insert v5 on another free position.
@@ -1740,11 +1737,11 @@ func TestDeleteOnMovedItem(t *testing.T) {
 	requireT.Equal(types.KeyHash(0), *v100.keyHashP)
 	requireT.Equal(types.KeyHash(0), *v5B.keyHashP)
 
-	// When checking, it will refer the right slot.
+	// When deleting, it will refer the right slot.
 	s.DeleteKey(v5B)
 	requireT.Equal(types.KeyHash(0), *v5B.keyHashP)
 	requireT.Equal(types.KeyHash(0), *v5B2.keyHashP)
-	requireT.Equal(v5B.keyHashP, v5B2.keyHashP)
+	requireT.Equal(unsafe.Pointer(v5B.keyHashP), unsafe.Pointer(v5B2.keyHashP))
 }
 
 // TestDeleteDoesNothingIfSlotHasNotBeenFound verifies that Delete does nothing if slot has not been found.
@@ -1794,4 +1791,289 @@ func TestDeleteDoesNothingIfSlotHasNotBeenFound(t *testing.T) {
 	for _, kh := range keyHashes {
 		requireT.Equal(types.KeyHash(1), kh)
 	}
+}
+
+// TestSetFindsAnotherSlotIfKeyHashIsDifferent verifies that new item is placed in different slot if the key hash
+// on the current one differs.
+func TestSetFindsAnotherSlotIfKeyHashIsDifferent(t *testing.T) {
+	requireT := require.New(t)
+
+	// This is the key placed in the middle.
+	var key = TestKey[txtypes.Account]{
+		Key:     txtypes.Account{5},
+		KeyHash: 5,
+	}
+
+	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
+	requireT.NoError(err)
+
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+
+	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
+		v := s.NewEntry(TestKey[txtypes.Account]{
+			Key:     txtypes.Account{uint8(i)},
+			KeyHash: i,
+		}, StageData)
+		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+	}
+
+	v5 := s.NewEntry(key, StageData)
+	s.Find(v5)
+
+	v5A := s.NewEntry(key, StageData)
+	s.Find(v5A)
+
+	*v5.keyHashP = 1
+	requireT.NoError(s.SetKey(v5A, txtypes.Amount(10)))
+	requireT.Equal(types.KeyHash(1), *v5.keyHashP)
+	requireT.Equal(txtypes.Amount(5), v5.itemP.Value)
+	// v5A now points to different slot.
+	requireT.NotEqual(unsafe.Pointer(v5.keyHashP), unsafe.Pointer(v5A.keyHashP))
+}
+
+// TestSetFindsAnotherSlotIfKeyIsDifferent verifies that new item is placed in different slot if the key
+// on the current one differs.
+func TestSetFindsAnotherSlotIfKeyIsDifferent(t *testing.T) {
+	requireT := require.New(t)
+
+	// This is the key placed in the middle.
+	var key = TestKey[txtypes.Account]{
+		Key:     txtypes.Account{5},
+		KeyHash: 5,
+	}
+
+	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
+	requireT.NoError(err)
+
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+
+	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
+		v := s.NewEntry(TestKey[txtypes.Account]{
+			Key:     txtypes.Account{uint8(i)},
+			KeyHash: i,
+		}, StageData)
+		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+	}
+
+	v5 := s.NewEntry(key, StageData)
+	s.Find(v5)
+
+	v5A := s.NewEntry(key, StageData)
+	s.Find(v5A)
+
+	v5.itemP.Key = txtypes.Account{0x01}
+	requireT.NoError(s.SetKey(v5A, txtypes.Amount(10)))
+	requireT.Equal(key.KeyHash, *v5.keyHashP)
+	requireT.Equal(txtypes.Account{0x01}, v5.itemP.Key)
+	// v5A now points to another slot.
+	requireT.Equal(txtypes.Amount(5), v5.itemP.Value)
+	requireT.Equal(txtypes.Amount(10), v5A.itemP.Value)
+	requireT.NotEqual(unsafe.Pointer(v5.keyHashP), unsafe.Pointer(v5A.keyHashP))
+}
+
+// TestSetOnReplacedItem verifies that item is correctly set after moving it to another slot and putting another
+// item into the previous one.
+func TestSetOnReplacedItem(t *testing.T) {
+	requireT := require.New(t)
+
+	// This is the key placed in the middle.
+	var key = TestKey[txtypes.Account]{
+		Key:     txtypes.Account{5},
+		KeyHash: 5,
+	}
+
+	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
+	requireT.NoError(err)
+
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+
+	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
+		v := s.NewEntry(TestKey[txtypes.Account]{
+			Key:     txtypes.Account{uint8(i)},
+			KeyHash: i,
+		}, StageData)
+		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+	}
+
+	v5 := s.NewEntry(key, StageData)
+	s.Find(v5)
+
+	v5A := s.NewEntry(key, StageData)
+	s.Find(v5A)
+
+	v5B := s.NewEntry(key, StageData)
+	s.Find(v5B)
+
+	// Test setting replaced item.
+
+	// Delete v5A.
+	s.DeleteKey(v5A)
+
+	// This item is inserted on first free slot, which is the one previously occupied by v5A.
+	key100 := TestKey[txtypes.Account]{
+		Key:     txtypes.Account{100},
+		KeyHash: 100,
+	}
+	v100 := s.NewEntry(key100, StageData)
+	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
+
+	// Now v5E points to invalid item.
+	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
+
+	// Let's insert v5 on another free position.
+	v5B2 := s.NewEntry(key, StageData)
+	requireT.NoError(s.SetKey(v5B2, txtypes.Amount(5)))
+	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
+
+	// When setting, it will update the right slot.
+	requireT.NoError(s.SetKey(v5B, txtypes.Amount(10)))
+	requireT.Equal(key.KeyHash, *v5B.keyHashP)
+	requireT.Equal(key.KeyHash, *v5B2.keyHashP)
+	requireT.Equal(unsafe.Pointer(v5B.keyHashP), unsafe.Pointer(v5B2.keyHashP))
+
+	// v100 still exists.
+	balance, exists := s.Query(key100)
+	requireT.True(exists)
+	requireT.Equal(txtypes.Amount(100), balance)
+
+	// v5 exists.
+	balance, exists = s.Query(key)
+	requireT.True(exists)
+	requireT.Equal(txtypes.Amount(10), balance)
+}
+
+// TestSetOnMovedItem verifies that item is correctly set after moving it to another slot and leaving
+// the previous one free.
+func TestSetOnMovedItem(t *testing.T) {
+	requireT := require.New(t)
+
+	// This is the key placed in the middle.
+	var key = TestKey[txtypes.Account]{
+		Key:     txtypes.Account{5},
+		KeyHash: 5,
+	}
+
+	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
+	requireT.NoError(err)
+
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+
+	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
+		v := s.NewEntry(TestKey[txtypes.Account]{
+			Key:     txtypes.Account{uint8(i)},
+			KeyHash: i,
+		}, StageData)
+		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+	}
+
+	v5 := s.NewEntry(key, StageData)
+	s.Find(v5)
+
+	v5A := s.NewEntry(key, StageData)
+	s.Find(v5A)
+
+	v5B := s.NewEntry(key, StageData)
+	s.Find(v5B)
+
+	// Test setting moved item.
+
+	// Delete v5A.
+	s.DeleteKey(v5A)
+
+	// This item is inserted on first free slot, which is the one previously occupied by v5A.
+	key100 := TestKey[txtypes.Account]{
+		Key:     txtypes.Account{100},
+		KeyHash: 100,
+	}
+	v100 := s.NewEntry(key100, StageData)
+	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
+
+	// Now v5B points to invalid item.
+	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
+
+	// Let's insert v5 on another free position.
+	v5B2 := s.NewEntry(key, StageData)
+	requireT.NoError(s.SetKey(v5B2, txtypes.Amount(5)))
+	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
+
+	// Let's delete v100 to make the original slot free.
+	s.DeleteKey(v100)
+	requireT.Equal(types.KeyHash(0), *v100.keyHashP)
+	requireT.Equal(types.KeyHash(0), *v5B.keyHashP)
+
+	// When setting, it will update the right slot.
+	requireT.NoError(s.SetKey(v5B, txtypes.Amount(10)))
+	requireT.Equal(key.KeyHash, *v5B.keyHashP)
+	requireT.Equal(key.KeyHash, *v5B2.keyHashP)
+	requireT.Equal(unsafe.Pointer(v5B.keyHashP), unsafe.Pointer(v5B2.keyHashP))
+
+	// v5 exists.
+	balance, exists := s.Query(key)
+	requireT.True(exists)
+	requireT.Equal(txtypes.Amount(10), balance)
+}
+
+// TestSetTheSameSlotTwiceUsingSameEntry verifies that the same slot set twice using the same entry is updated with
+// second value.
+func TestSetTheSameSlotTwiceUsingSameEntry(t *testing.T) {
+	requireT := require.New(t)
+
+	// This is the key placed in the middle.
+	var key = TestKey[txtypes.Account]{
+		Key:     txtypes.Account{5},
+		KeyHash: 5,
+	}
+
+	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
+	requireT.NoError(err)
+
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+
+	v5 := s.NewEntry(key, StageData)
+	requireT.NoError(s.SetKey(v5, txtypes.Amount(5)))
+
+	balance, exists := s.Query(key)
+	requireT.True(exists)
+	requireT.Equal(txtypes.Amount(5), balance)
+
+	keyHashP := v5.keyHashP
+
+	requireT.NoError(s.SetKey(v5, txtypes.Amount(10)))
+	requireT.Equal(unsafe.Pointer(v5.keyHashP), unsafe.Pointer(keyHashP))
+
+	balance, exists = s.Query(key)
+	requireT.True(exists)
+	requireT.Equal(txtypes.Amount(10), balance)
+}
+
+// TestSetTheSameSlotTwiceUsingDifferentEntry verifies that the same slot set twice using different entry is updated
+// with second value.
+func TestSetTheSameSlotTwiceUsingDifferentEntry(t *testing.T) {
+	requireT := require.New(t)
+
+	// This is the key placed in the middle.
+	var key = TestKey[txtypes.Account]{
+		Key:     txtypes.Account{5},
+		KeyHash: 5,
+	}
+
+	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
+	requireT.NoError(err)
+
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+
+	v5 := s.NewEntry(key, StageData)
+	requireT.NoError(s.SetKey(v5, txtypes.Amount(5)))
+
+	balance, exists := s.Query(key)
+	requireT.True(exists)
+	requireT.Equal(txtypes.Amount(5), balance)
+
+	v5B := s.NewEntry(key, StageData)
+	requireT.NoError(s.SetKey(v5B, txtypes.Amount(10)))
+	requireT.Equal(unsafe.Pointer(v5.keyHashP), unsafe.Pointer(v5B.keyHashP))
+
+	balance, exists = s.Query(key)
+	requireT.True(exists)
+	requireT.Equal(txtypes.Amount(10), balance)
 }
