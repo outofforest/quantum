@@ -82,11 +82,12 @@ func Deallocate(
 			return nil
 		}
 
-		if err := store.Read(listRoot, state.Bytes(nodeBuffAddress)); err != nil {
+		n := state.Node(nodeBuffAddress)
+		if err := store.Read(listRoot, n); err != nil {
 			return err
 		}
 
-		node := ProjectNode(state.Node(nodeBuffAddress))
+		node := ProjectNode(n)
 		for i := range node.NumOfPointerAddresses {
 			deallocator.Deallocate(node.Slots[i])
 		}

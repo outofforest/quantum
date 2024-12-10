@@ -81,11 +81,11 @@ func (t *TransactionRequest) AddListRequest(lr *ListRequest) {
 
 // StoreRequest is used to request writing nodes to the store.
 type StoreRequest struct {
-	NoSnapshots       bool
-	PointersToStore   int8
-	Store             [StoreCapacity]types.NodeRoot
-	RequestedRevision uint32
-	Next              *StoreRequest
+	NoSnapshots     bool
+	PointersToStore int8
+	PointersLast    int8
+	Store           [StoreCapacity]types.NodeRoot
+	Next            *StoreRequest
 }
 
 // ListRequest is used to request writing list nodes to the store.
