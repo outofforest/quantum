@@ -3,7 +3,6 @@ package space
 import (
 	"math"
 	"math/bits"
-	"sort"
 	"sync/atomic"
 	"unsafe"
 
@@ -102,44 +101,6 @@ func (s *Space[K, V]) Query(key K, hashBuff []byte, hashMatches []uint64) (V, bo
 func (s *Space[K, V]) Iterator() func(func(item *types.DataItem[K, V]) bool) {
 	return func(yield func(item *types.DataItem[K, V]) bool) {
 		s.iterate(s.config.SpaceRoot.Pointer, yield)
-	}
-}
-
-// Nodes returns the list of nodes allocated by the tree.
-func (s *Space[K, V]) Nodes() []types.VolatileAddress {
-	switch s.config.SpaceRoot.Pointer.VolatileAddress.State() {
-	case types.StateFree:
-		return nil
-	case types.StateData:
-		return []types.VolatileAddress{s.config.SpaceRoot.Pointer.VolatileAddress}
-	}
-
-	nodes := []types.VolatileAddress{}
-	stack := []types.VolatileAddress{s.config.SpaceRoot.Pointer.VolatileAddress.Naked()}
-
-	for {
-		if len(stack) == 0 {
-			sort.Slice(nodes, func(i, j int) bool {
-				return nodes[i] < nodes[j]
-			})
-
-			return nodes
-		}
-
-		pointerNodeAddress := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		nodes = append(nodes, pointerNodeAddress)
-
-		pointerNode := ProjectPointerNode(s.config.State.Node(pointerNodeAddress.Naked()))
-		for pi := range pointerNode.Pointers {
-			switch pointerNode.Pointers[pi].VolatileAddress.State() {
-			case types.StateFree:
-			case types.StateData:
-				nodes = append(nodes, pointerNode.Pointers[pi].VolatileAddress)
-			case types.StatePointer:
-				stack = append(stack, pointerNode.Pointers[pi].VolatileAddress.Naked())
-			}
-		}
 	}
 }
 

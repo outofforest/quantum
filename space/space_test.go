@@ -19,6 +19,28 @@ const (
 	stateSize     = 100 * nodesPerGroup * types.NodeLength
 )
 
+// TestKeyHashes verifies that different inputs produce different key hashes.
+func TestKeyHashes(t *testing.T) {
+	key1 := [16]byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}
+	key2 := [16]byte{0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f}
+	buff := make([]byte, len(key1)+1)
+
+	hashes := map[types.KeyHash]struct{}{
+		hashKey(&key1, nil, 0):  {},
+		hashKey(&key1, buff, 0): {},
+		hashKey(&key1, buff, 1): {},
+		hashKey(&key1, buff, 2): {},
+		hashKey(&key1, buff, 3): {},
+		hashKey(&key2, nil, 0):  {},
+		hashKey(&key2, buff, 0): {},
+		hashKey(&key2, buff, 1): {},
+		hashKey(&key2, buff, 2): {},
+		hashKey(&key2, buff, 3): {},
+	}
+
+	require.Len(t, hashes, 10)
+}
+
 // TestCRUDOnRootDataNode tests basic CRUD operations using one data item on single data node being the root
 // of the space.
 func TestCRUDOnRootDataNode(t *testing.T) {
