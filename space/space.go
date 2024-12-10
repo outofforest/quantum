@@ -104,6 +104,54 @@ func (s *Space[K, V]) Iterator() func(func(item *types.DataItem[K, V]) bool) {
 	}
 }
 
+// Stats returns space-related statistics.
+func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
+	switch s.config.SpaceRoot.Pointer.VolatileAddress.State() {
+	case types.StateFree:
+		return 0, 0, 0, 0
+	case types.StateData:
+		return 1, 0, 1, 0
+	}
+
+	stack := []types.VolatileAddress{s.config.SpaceRoot.Pointer.VolatileAddress.Naked()}
+
+	levels := map[types.VolatileAddress]uint64{
+		s.config.SpaceRoot.Pointer.VolatileAddress.Naked(): 1,
+	}
+	var maxLevel, pointerNodes, dataNodes, dataItems uint64
+
+	for {
+		if len(stack) == 0 {
+			return maxLevel, pointerNodes, dataNodes, float64(dataItems) / float64(dataNodes*s.numOfDataItems)
+		}
+
+		n := stack[len(stack)-1]
+		level := levels[n] + 1
+		pointerNodes++
+		stack = stack[:len(stack)-1]
+
+		pointerNode := ProjectPointerNode(s.config.State.Node(n.Naked()))
+		for pi := range pointerNode.Pointers {
+			volatileAddress := types.Load(&pointerNode.Pointers[pi].VolatileAddress)
+			switch volatileAddress.State() {
+			case types.StateFree:
+			case types.StateData:
+				dataNodes++
+				if level > maxLevel {
+					maxLevel = level
+				}
+				//nolint:gofmt,revive // looks like a bug in linter
+				for _, _ = range s.config.DataNodeAssistant.Iterator(s.config.State.Node(volatileAddress)) {
+					dataItems++
+				}
+			case types.StatePointer:
+				stack = append(stack, volatileAddress.Naked())
+				levels[volatileAddress.Naked()] = level
+			}
+		}
+	}
+}
+
 func (s *Space[K, V]) iterate(pointer *types.Pointer, yield func(item *types.DataItem[K, V]) bool) {
 	volatileAddress := types.Load(&pointer.VolatileAddress)
 	switch volatileAddress.State() {
