@@ -110,7 +110,8 @@ type Pointer struct {
 	SnapshotID        SnapshotID
 	VolatileAddress   VolatileAddress
 	PersistentAddress PersistentAddress
-	Revision          uint32
+	// Revision must be placed in aligned location to guarantee atomic reads on x86 CPUs.
+	Revision uintptr
 }
 
 // NodeRoot represents the root of node.

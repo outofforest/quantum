@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"sync/atomic"
+	"unsafe"
 
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -198,7 +198,8 @@ func (db *DB) Run(ctx context.Context) error {
 					pointerHashReaders = append(pointerHashReaders, nextReader)
 					prevHashReader = nextReader
 				}
-				storeNodesReader := pipeline.NewReader(prevHashReader)
+				skipNodesReader := pipeline.NewReader(prevHashReader)
+				storeNodesReader := pipeline.NewReader(skipNodesReader)
 
 				spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
 					var lastSyncCh chan<- struct{}
@@ -257,6 +258,9 @@ func (db *DB) Run(ctx context.Context) error {
 						return db.updatePointerHashes(ctx, reader, uint64(i))
 					})
 				}
+				spawn("skipNodes", parallel.Fail, func(ctx context.Context) error {
+					return db.skipNodes(ctx, skipNodesReader)
+				})
 				spawn("storeNodes", parallel.Fail, func(ctx context.Context) error {
 					return db.storeNodes(ctx, storeNodesReader)
 				})
@@ -565,8 +569,6 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 }
 
 func (db *DB) processDeallocations(ctx context.Context, pipeReader *pipeline.Reader) error {
-	var revisionCounter uint32
-
 	volatileAllocator := db.config.State.NewVolatileAllocator()
 	persistentAllocator := db.config.State.NewPersistentAllocator()
 	persistentDeallocator := db.config.State.NewPersistentDeallocator()
@@ -583,12 +585,9 @@ func (db *DB) processDeallocations(ctx context.Context, pipeReader *pipeline.Rea
 				continue
 			}
 
-			revisionCounter++
-			sr.RequestedRevision = revisionCounter
-
 			for i := range sr.PointersToStore {
 				root := sr.Store[i]
-				atomic.StoreUint32(&root.Pointer.Revision, revisionCounter)
+				root.Pointer.Revision = uintptr(unsafe.Pointer(sr))
 
 				//nolint:nestif
 				if root.Pointer.SnapshotID != db.singularityNode.LastSnapshotID {
@@ -666,8 +665,7 @@ func (db *DB) updateDataHashes(
 			index := sr.PointersToStore - 1
 			pointer := sr.Store[index].Pointer
 
-			if uint64(pointer.VolatileAddress)&1 != mod ||
-				atomic.LoadUint32(&pointer.Revision) != sr.RequestedRevision {
+			if uint64(pointer.VolatileAddress)&1 != mod || pointer.Revision != uintptr(unsafe.Pointer(sr)) {
 				continue
 			}
 
@@ -823,7 +821,7 @@ func (db *DB) updatePointerHashes(
 				if uint64(pointer.VolatileAddress)&1 != mod {
 					continue
 				}
-				if atomic.LoadUint32(&pointer.Revision) != req.StoreRequest.RequestedRevision {
+				if pointer.Revision != uintptr(unsafe.Pointer(req.StoreRequest)) {
 					// Pointers are processed from the data node up t the root node. If at any level
 					// revision test fails, it doesn't make sense to process parent nodes because revision
 					// test will fail there for sure.
@@ -855,6 +853,32 @@ func (db *DB) updatePointerHashes(
 	}
 }
 
+func (db *DB) skipNodes(ctx context.Context, pipeReader *pipeline.Reader) error {
+	for processedCount := uint64(0); ; processedCount++ {
+		req, err := pipeReader.Read(ctx)
+		if err != nil {
+			return err
+		}
+
+		prevPointer := &req.StoreRequest
+		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+			for i := sr.PointersToStore - 1; i >= 0; i-- {
+				if sr.Store[i].Pointer.Revision != uintptr(unsafe.Pointer(sr)) {
+					sr.PointersLast = i + 1
+					break
+				}
+			}
+			if sr.PointersLast == sr.PointersToStore {
+				*prevPointer = sr.Next
+			} else {
+				prevPointer = &sr.Next
+			}
+		}
+
+		pipeReader.Acknowledge(processedCount+1, req)
+	}
+}
+
 func (db *DB) storeNodes(ctx context.Context, pipeReader *pipeline.Reader) error {
 	volatileDeallocator := db.config.State.NewVolatileDeallocator()
 
@@ -867,7 +891,7 @@ func (db *DB) storeNodes(ctx context.Context, pipeReader *pipeline.Reader) error
 		for lr := req.ListRequest; lr != nil; lr = lr.Next {
 			for i := range lr.ListsToStore {
 				if err := db.config.Store.Write(lr.List[i].PersistentAddress,
-					db.config.State.Bytes(lr.List[i].VolatileAddress)); err != nil {
+					db.config.State.Node(lr.List[i].VolatileAddress)); err != nil {
 					return err
 				}
 				volatileDeallocator.Deallocate(lr.List[i].VolatileAddress)
@@ -875,16 +899,14 @@ func (db *DB) storeNodes(ctx context.Context, pipeReader *pipeline.Reader) error
 		}
 
 		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-			for i := sr.PointersToStore - 1; i >= 0; i-- {
+			for i := sr.PointersToStore - 1; i >= sr.PointersLast; i-- {
 				pointer := sr.Store[i].Pointer
 
-				if atomic.LoadUint32(&pointer.Revision) != sr.RequestedRevision {
-					break
-				}
-
-				if err := db.config.Store.Write(pointer.PersistentAddress,
-					db.config.State.Bytes(pointer.VolatileAddress)); err != nil {
-					return err
+				if pointer.Revision == uintptr(unsafe.Pointer(sr)) {
+					if err := db.config.Store.Write(pointer.PersistentAddress,
+						db.config.State.Node(pointer.VolatileAddress)); err != nil {
+						return err
+					}
 				}
 			}
 		}

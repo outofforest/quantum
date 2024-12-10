@@ -187,7 +187,6 @@ func runPump[A Address](
 	// FIXME (wojciech): Zeroing deallocated volatile nodes could be done in this goroutine.
 
 	// Any address from the pool uniquely identifies entire pool, so I take the first one (allocated as the last one).
-	// FIXME (wojciech): This is not needed for volatile addresses.
 	var invalidAddress A
 	// Trick to save on `if` later in the handler.
 	previousDeallocatedPool := []A{0}
