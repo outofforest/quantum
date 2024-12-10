@@ -41,6 +41,95 @@ func TestKeyHashes(t *testing.T) {
 	require.Len(t, hashes, 10)
 }
 
+// TestPointerSlotReductionUsingDataNodes verifies the sequence of pointer slot reduction chain if slots are occupied
+// by data nodes only.
+func TestPointerSlotReductionUsingDataNodes(t *testing.T) {
+	requireT := require.New(t)
+
+	for i := range uint64(NumOfPointers) {
+		pointerNode := &PointerNode{}
+		hops := pointerHops[i]
+
+		index, nextIndex := reducePointerSlot(pointerNode, i)
+		if len(hops) > 0 {
+			requireT.Equal(hops[len(hops)-1], index)
+		} else {
+			requireT.Equal(i, index)
+		}
+		if len(hops) > 1 {
+			requireT.Equal(hops[len(hops)-2], nextIndex)
+		} else {
+			requireT.Equal(i, nextIndex)
+		}
+
+		for hi := len(hops) - 1; hi >= 0; hi-- {
+			pointerNode.Pointers[hops[hi]].VolatileAddress = 1 // To mark it as data node.
+			index, nextIndex := reducePointerSlot(pointerNode, i)
+			requireT.Equal(hops[hi], index)
+			if hi > 0 {
+				requireT.Equal(hops[hi-1], nextIndex)
+			} else {
+				requireT.Equal(i, nextIndex)
+			}
+		}
+
+		pointerNode.Pointers[i].VolatileAddress = 1 // To mark it as data node.
+		index, nextIndex = reducePointerSlot(pointerNode, i)
+		requireT.Equal(i, index)
+		requireT.Equal(i, nextIndex)
+	}
+}
+
+// TestPointerSlotReductionUsingPointerNodes verifies the sequence of pointer slot reduction chain if slots are occupied
+// by pointer nodes and one data node.
+func TestPointerSlotReductionUsingPointerNodes(t *testing.T) {
+	requireT := require.New(t)
+
+	for i := range uint64(NumOfPointers) {
+		pointerNode := &PointerNode{}
+		hops := pointerHops[i]
+
+		index, nextIndex := reducePointerSlot(pointerNode, i)
+		if len(hops) > 0 {
+			requireT.Equal(hops[len(hops)-1], index)
+		} else {
+			requireT.Equal(i, index)
+		}
+		if len(hops) > 1 {
+			requireT.Equal(hops[len(hops)-2], nextIndex)
+		} else {
+			requireT.Equal(i, nextIndex)
+		}
+
+		for hi := len(hops) - 1; hi >= 0; hi-- {
+			pointerNode.Pointers[hops[hi]].VolatileAddress = 1 // To mark it as data node.
+			if hi < len(hops)-1 {
+				pointerNode.Pointers[hops[hi+1]].VolatileAddress = types.FlagPointerNode // To mark it as pointer node.
+			}
+			index, nextIndex := reducePointerSlot(pointerNode, i)
+			requireT.Equal(hops[hi], index)
+			if hi > 0 {
+				requireT.Equal(hops[hi-1], nextIndex)
+			} else {
+				requireT.Equal(i, nextIndex)
+			}
+		}
+
+		pointerNode.Pointers[i].VolatileAddress = 1 // To mark it as data node.
+		if len(hops) > 0 {
+			pointerNode.Pointers[hops[0]].VolatileAddress = types.FlagPointerNode // To mark it as pointer node.
+		}
+		index, nextIndex = reducePointerSlot(pointerNode, i)
+		requireT.Equal(i, index)
+		requireT.Equal(i, nextIndex)
+
+		pointerNode.Pointers[i].VolatileAddress = types.FlagPointerNode // To mark it as pointer node.
+		index, nextIndex = reducePointerSlot(pointerNode, i)
+		requireT.Equal(i, index)
+		requireT.Equal(i, nextIndex)
+	}
+}
+
 // TestCRUDOnRootDataNode tests basic CRUD operations using one data item on single data node being the root
 // of the space.
 func TestCRUDOnRootDataNode(t *testing.T) {
