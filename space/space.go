@@ -10,6 +10,7 @@ import (
 
 	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/alloc"
+	"github.com/outofforest/quantum/persistent"
 	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space/compare"
 	"github.com/outofforest/quantum/types"
@@ -97,13 +98,6 @@ func (s *Space[K, V]) Query(key K, hashBuff []byte, hashMatches []uint64) (V, bo
 	return s.query(key, keyHash, hashBuff, hashMatches, hashKey)
 }
 
-// Iterator returns iterator iterating over items in space.
-func (s *Space[K, V]) Iterator() func(func(item *types.DataItem[K, V]) bool) {
-	return func(yield func(item *types.DataItem[K, V]) bool) {
-		s.iterate(s.config.SpaceRoot.Pointer, yield)
-	}
-}
-
 // Stats returns space-related statistics.
 func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 	switch s.config.SpaceRoot.Pointer.VolatileAddress.State() {
@@ -147,28 +141,6 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
 			case types.StatePointer:
 				stack = append(stack, volatileAddress.Naked())
 				levels[volatileAddress.Naked()] = level
-			}
-		}
-	}
-}
-
-func (s *Space[K, V]) iterate(pointer *types.Pointer, yield func(item *types.DataItem[K, V]) bool) {
-	volatileAddress := types.Load(&pointer.VolatileAddress)
-	switch volatileAddress.State() {
-	case types.StatePointer:
-		pointerNode := ProjectPointerNode(s.config.State.Node(volatileAddress.Naked()))
-		for pi := range pointerNode.Pointers {
-			p := &pointerNode.Pointers[pi]
-			if types.Load(&p.VolatileAddress).State() == types.StateFree {
-				continue
-			}
-
-			s.iterate(p, yield)
-		}
-	case types.StateData:
-		for _, item := range s.config.DataNodeAssistant.Iterator(s.config.State.Node(volatileAddress)) {
-			if !yield(item) {
-				return
 			}
 		}
 	}
@@ -756,6 +728,100 @@ func (v *Entry[K, V]) Delete(
 	v.space.deleteKey(v, tx, hashBuff, hashMatches, hashKey[K])
 }
 
+// PersistentIteratorAndDeallocator iterates over items using persistent nodes and deallocates them.
+func PersistentIteratorAndDeallocator[K, V comparable](
+	spaceRoot types.Pointer,
+	store *persistent.FileStore,
+	dataNodeAssistant *DataNodeAssistant[K, V],
+	deallocator *alloc.Deallocator[types.PersistentAddress],
+	nodeBuff unsafe.Pointer,
+	retErr *error,
+) func(func(item *types.DataItem[K, V]) bool) {
+	return func(yield func(item *types.DataItem[K, V]) bool) {
+		if spaceRoot.VolatileAddress == types.FreeAddress {
+			return
+		}
+
+		// FIXME (wojciech): What if tree is deeper?
+		stack := [pipeline.StoreCapacity * NumOfPointers]types.Pointer{
+			spaceRoot,
+		}
+		stackCount := 1
+
+		for {
+			if stackCount == 0 {
+				return
+			}
+
+			stackCount--
+			pointer := stack[stackCount]
+
+			if err := store.Read(pointer.PersistentAddress, nodeBuff); err != nil {
+				*retErr = err
+				return
+			}
+			deallocator.Deallocate(pointer.PersistentAddress)
+
+			switch pointer.VolatileAddress.State() {
+			case types.StatePointer:
+				pointerNode := ProjectPointerNode(nodeBuff)
+				for pi := range pointerNode.Pointers {
+					if pointerNode.Pointers[pi].VolatileAddress == types.FreeAddress {
+						continue
+					}
+
+					stack[stackCount] = pointerNode.Pointers[pi]
+					stackCount++
+				}
+			case types.StateData:
+				for _, item := range dataNodeAssistant.Iterator(nodeBuff) {
+					if !yield(item) {
+						return
+					}
+				}
+			}
+		}
+	}
+}
+
+// DeallocateVolatile deallocates volatile nodes.
+func DeallocateVolatile(
+	spaceRoot types.VolatileAddress,
+	deallocator *alloc.Deallocator[types.VolatileAddress],
+	state *alloc.State,
+) {
+	switch spaceRoot.State() {
+	case types.StateFree:
+		return
+	case types.StateData:
+		deallocator.Deallocate(spaceRoot)
+		return
+	}
+
+	deallocateVolatilePointerNode(spaceRoot, deallocator, state)
+}
+
+func deallocateVolatilePointerNode(
+	address types.VolatileAddress,
+	deallocator *alloc.Deallocator[types.VolatileAddress],
+	state *alloc.State,
+) {
+	addr := address.Naked()
+	pointerNode := ProjectPointerNode(state.Node(addr))
+	for pi := range pointerNode.Pointers {
+		p := &pointerNode.Pointers[pi]
+
+		volatileAddress := p.VolatileAddress
+		switch volatileAddress.State() {
+		case types.StateData:
+			deallocator.Deallocate(volatileAddress)
+		case types.StatePointer:
+			deallocateVolatilePointerNode(p.VolatileAddress, deallocator, state)
+		}
+	}
+	deallocator.Deallocate(addr)
+}
+
 func hashKey[K comparable](key *K, buff []byte, level uint8) types.KeyHash {
 	var hash types.KeyHash
 	p := photon.NewFromValue[K](key)
@@ -772,50 +838,6 @@ func hashKey[K comparable](key *K, buff []byte, level uint8) types.KeyHash {
 	}
 
 	return hash
-}
-
-// Deallocate deallocates all nodes used by the space.
-func Deallocate(
-	spaceRoot *types.Pointer,
-	volatileDeallocator *alloc.Deallocator[types.VolatileAddress],
-	persistentDeallocator *alloc.Deallocator[types.PersistentAddress],
-	state *alloc.State,
-) {
-	volatileAddress := types.Load(&spaceRoot.VolatileAddress)
-	switch volatileAddress.State() {
-	case types.StateFree:
-		return
-	case types.StateData:
-		volatileDeallocator.Deallocate(volatileAddress)
-		persistentDeallocator.Deallocate(spaceRoot.PersistentAddress)
-		return
-	}
-
-	deallocatePointerNode(spaceRoot, volatileDeallocator, persistentDeallocator, state)
-}
-
-func deallocatePointerNode(
-	pointer *types.Pointer,
-	volatileDeallocator *alloc.Deallocator[types.VolatileAddress],
-	persistentDeallocator *alloc.Deallocator[types.PersistentAddress],
-	state *alloc.State,
-) {
-	volatileAddress := types.Load(&pointer.VolatileAddress)
-	pointerNode := ProjectPointerNode(state.Node(volatileAddress.Naked()))
-	for pi := range pointerNode.Pointers {
-		p := &pointerNode.Pointers[pi]
-
-		volatileAddress := types.Load(&p.VolatileAddress)
-		switch volatileAddress.State() {
-		case types.StateData:
-			volatileDeallocator.Deallocate(volatileAddress)
-			persistentDeallocator.Deallocate(p.PersistentAddress)
-		case types.StatePointer:
-			deallocatePointerNode(p, volatileDeallocator, persistentDeallocator, state)
-		}
-	}
-	volatileDeallocator.Deallocate(volatileAddress)
-	persistentDeallocator.Deallocate(pointer.PersistentAddress)
 }
 
 var pointerHops = [NumOfPointers][]uint64{

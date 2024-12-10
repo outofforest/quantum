@@ -20,7 +20,6 @@ type TransactionRequestType uint64
 // TransactionRequest type constants.
 const (
 	None TransactionRequestType = iota
-	Sync
 	Commit
 	Close
 )
@@ -61,7 +60,6 @@ type TransactionRequest struct {
 	LastStoreRequest **StoreRequest
 	ListRequest      *ListRequest
 	LastListRequest  **ListRequest
-	SyncCh           chan<- struct{}
 	CommitCh         chan<- error
 	Next             *TransactionRequest
 	Type             TransactionRequestType

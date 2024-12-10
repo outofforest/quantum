@@ -1,6 +1,8 @@
 package list
 
 import (
+	"unsafe"
+
 	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/persistent"
 	"github.com/outofforest/quantum/types"
@@ -72,22 +74,20 @@ func Add(
 // Deallocate deallocates nodes referenced by the list.
 func Deallocate(
 	listRoot types.PersistentAddress,
-	state *alloc.State,
 	store *persistent.FileStore,
 	deallocator *alloc.Deallocator[types.PersistentAddress],
-	nodeBuffAddress types.VolatileAddress,
+	nodeBuff unsafe.Pointer,
 ) error {
 	for {
 		if listRoot == 0 {
 			return nil
 		}
 
-		n := state.Node(nodeBuffAddress)
-		if err := store.Read(listRoot, n); err != nil {
+		if err := store.Read(listRoot, nodeBuff); err != nil {
 			return err
 		}
 
-		node := ProjectNode(n)
+		node := ProjectNode(nodeBuff)
 		for i := range node.NumOfPointerAddresses {
 			deallocator.Deallocate(node.Slots[i])
 		}
