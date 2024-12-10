@@ -14,6 +14,10 @@ const (
 
 	// NodeLength is the number of bytes in the node.
 	NodeLength = 4096
+
+	// NumOfSpaces defines available number of spaces.
+	// FIXME (wojciech): Generalize this to any number of spaces.
+	NumOfSpaces = 2
 )
 
 type (
@@ -99,10 +103,6 @@ const (
 
 	// StatePointer means slot contains pointer.
 	StatePointer
-
-	// NumOfSpaces defines available number of spaces.
-	// FIXME (wojciech): Generalize this to any number of spaces.
-	NumOfSpaces = 2
 )
 
 // Pointer is the pointer to another block.
