@@ -416,7 +416,7 @@ func (db *DB) commit(
 		}
 		sort.Slice(lists, func(i, j int) bool { return lists[i] < lists[j] })
 
-		var sr *pipeline.StoreRequest
+		var lr *pipeline.ListRequest
 		for _, snapshotID := range lists {
 			listRoot := db.deallocationListsToCommit[snapshotID]
 			var deallocationListValue space.Entry[deallocationKey, types.PersistentAddress]
@@ -435,18 +435,18 @@ func (db *DB) commit(
 				return err
 			}
 
-			if sr == nil {
-				sr = &pipeline.StoreRequest{}
+			if lr == nil {
+				lr = &pipeline.ListRequest{}
 			}
-			sr.List[sr.ListsToStore] = *listRoot
-			sr.ListsToStore++
-			if sr.ListsToStore == pipeline.StoreCapacity {
-				tx.AddStoreRequest(sr)
-				sr = nil
+			lr.List[lr.ListsToStore] = *listRoot
+			lr.ListsToStore++
+			if lr.ListsToStore == pipeline.StoreCapacity {
+				tx.AddListRequest(lr)
+				lr = nil
 			}
 		}
-		if sr != nil {
-			tx.AddStoreRequest(sr)
+		if lr != nil {
+			tx.AddListRequest(lr)
 		}
 
 		clear(db.deallocationListsToCommit)
@@ -577,6 +577,7 @@ func (db *DB) processDeallocations(ctx context.Context, pipeReader *pipeline.Rea
 			return err
 		}
 
+		var lr *pipeline.ListRequest
 		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
 			if sr.PointersToStore == 0 {
 				continue
@@ -599,8 +600,15 @@ func (db *DB) processDeallocations(ctx context.Context, pipeReader *pipeline.Rea
 						}
 
 						if listNodePointer.VolatileAddress != types.FreeAddress {
-							sr.List[sr.ListsToStore] = listNodePointer
-							sr.ListsToStore++
+							if lr == nil {
+								lr = &pipeline.ListRequest{}
+							}
+							lr.List[lr.ListsToStore] = listNodePointer
+							lr.ListsToStore++
+							if lr.ListsToStore == pipeline.StoreCapacity {
+								req.AddListRequest(lr)
+								lr = nil
+							}
 						}
 
 						root.Pointer.PersistentAddress = 0
@@ -617,6 +625,9 @@ func (db *DB) processDeallocations(ctx context.Context, pipeReader *pipeline.Rea
 					root.Pointer.PersistentAddress = persistentAddress
 				}
 			}
+		}
+		if lr != nil {
+			req.AddListRequest(lr)
 		}
 
 		if req.Type == pipeline.Sync {
@@ -853,15 +864,17 @@ func (db *DB) storeNodes(ctx context.Context, pipeReader *pipeline.Reader) error
 			return err
 		}
 
-		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-			for i := range sr.ListsToStore {
-				if err := db.config.Store.Write(sr.List[i].PersistentAddress,
-					db.config.State.Bytes(sr.List[i].VolatileAddress)); err != nil {
+		for lr := req.ListRequest; lr != nil; lr = lr.Next {
+			for i := range lr.ListsToStore {
+				if err := db.config.Store.Write(lr.List[i].PersistentAddress,
+					db.config.State.Bytes(lr.List[i].VolatileAddress)); err != nil {
 					return err
 				}
-				volatileDeallocator.Deallocate(sr.List[i].VolatileAddress)
+				volatileDeallocator.Deallocate(lr.List[i].VolatileAddress)
 			}
+		}
 
+		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
 			for i := sr.PointersToStore - 1; i >= 0; i-- {
 				pointer := sr.Store[i].Pointer
 

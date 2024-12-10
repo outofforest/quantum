@@ -50,6 +50,7 @@ type TransactionRequestFactory struct {
 func (trf *TransactionRequestFactory) New() *TransactionRequest {
 	t := trf.massTR.New()
 	t.LastStoreRequest = &t.StoreRequest
+	t.LastListRequest = &t.ListRequest
 	return t
 }
 
@@ -58,6 +59,8 @@ type TransactionRequest struct {
 	Transaction      any
 	StoreRequest     *StoreRequest
 	LastStoreRequest **StoreRequest
+	ListRequest      *ListRequest
+	LastListRequest  **ListRequest
 	SyncCh           chan<- struct{}
 	CommitCh         chan<- error
 	Next             *TransactionRequest
@@ -70,15 +73,26 @@ func (t *TransactionRequest) AddStoreRequest(sr *StoreRequest) {
 	t.LastStoreRequest = &sr.Next
 }
 
+// AddListRequest adds list store request to the transaction.
+func (t *TransactionRequest) AddListRequest(lr *ListRequest) {
+	*t.LastListRequest = lr
+	t.LastListRequest = &lr.Next
+}
+
 // StoreRequest is used to request writing nodes to the store.
 type StoreRequest struct {
 	NoSnapshots       bool
 	PointersToStore   int8
 	Store             [StoreCapacity]types.NodeRoot
-	List              [StoreCapacity]list.Pointer
-	ListsToStore      int8
 	RequestedRevision uint32
 	Next              *StoreRequest
+}
+
+// ListRequest is used to request writing list nodes to the store.
+type ListRequest struct {
+	List         [StoreCapacity]list.Pointer
+	ListsToStore int8
+	Next         *ListRequest
 }
 
 // New creates new pipeline.
