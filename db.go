@@ -387,6 +387,7 @@ func (db *DB) commit(
 	deallocationHashMatches []uint64,
 ) error {
 	lastSr := tx.LastStoreRequest
+	//nolint:nestif
 	if len(db.deallocationListsToCommit) > 0 {
 		lists := make([]types.SnapshotID, 0, len(db.deallocationListsToCommit))
 		for snapshotID := range db.deallocationListsToCommit {
