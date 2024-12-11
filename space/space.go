@@ -1,8 +1,10 @@
 package space
 
 import (
+	"fmt"
 	"math"
 	"math/bits"
+	"reflect"
 	"sync/atomic"
 	"unsafe"
 
@@ -416,6 +418,7 @@ func (s *Space[K, V]) splitDataNodeWithoutConflict(
 			continue
 		}
 
+		// FIXME (wojciech): Items might be inserted on the first free slot in the new node.
 		newDataNodeItem := s.config.DataNodeAssistant.Item(newDataNode, s.config.DataNodeAssistant.ItemOffset(i))
 		*newDataNodeItem = *item
 		newKeyHashes[i] = keyHashes[i]
@@ -483,6 +486,7 @@ func (s *Space[K, V]) splitDataNodeWithConflict(
 			continue
 		}
 
+		// FIXME (wojciech): Items might be inserted on the first free slot in the new node.
 		newDataNodeItem := s.config.DataNodeAssistant.Item(newDataNode, s.config.DataNodeAssistant.ItemOffset(i))
 		*newDataNodeItem = *item
 		newKeyHashes[i] = keyHash
@@ -622,8 +626,7 @@ func (s *Space[K, V]) walkDataItems(v *Entry[K, V], hashMatches []uint64) bool {
 
 	var conflict bool
 	node := s.config.State.Node(types.Load(
-		&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress),
-	)
+		&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress))
 	keyHashes := s.config.DataNodeAssistant.KeyHashes(node)
 
 	zeroIndex, numOfMatches := compare.Compare(uint64(v.keyHash), (*uint64)(&keyHashes[0]), &hashMatches[0],
@@ -737,6 +740,9 @@ func PersistentIteratorAndDeallocator[K, V comparable](
 	nodeBuff unsafe.Pointer,
 	retErr *error,
 ) func(func(item *types.DataItem[K, V]) bool) {
+	var v V
+	t1 := reflect.TypeOf(v)
+	t2 := reflect.TypeOf(types.PersistentAddress(0))
 	return func(yield func(item *types.DataItem[K, V]) bool) {
 		if spaceRoot.VolatileAddress == types.FreeAddress {
 			return
@@ -774,7 +780,13 @@ func PersistentIteratorAndDeallocator[K, V comparable](
 					stackCount++
 				}
 			case types.StateData:
-				for _, item := range dataNodeAssistant.Iterator(nodeBuff) {
+				keyHashes := dataNodeAssistant.KeyHashes(nodeBuff)
+				for i, item := range dataNodeAssistant.Iterator(nodeBuff) {
+					var v any
+					v = item.Value
+					if t1 == t2 && v.(types.PersistentAddress) == 0 {
+						panic(fmt.Sprint("WTF5", item.Key, keyHashes[i], hashKey(&item.Key, nil, 0)))
+					}
 					if !yield(item) {
 						return
 					}

@@ -99,7 +99,7 @@ type Deallocator[A Address] struct {
 // Deallocate deallocates single node.
 func (d *Deallocator[A]) Deallocate(nodeAddress A) {
 	if nodeAddress == 0 {
-		return
+		panic("WTF2")
 	}
 
 	d.release = append(d.release, nodeAddress)
