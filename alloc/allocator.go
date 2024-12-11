@@ -98,10 +98,6 @@ type Deallocator[A Address] struct {
 
 // Deallocate deallocates single node.
 func (d *Deallocator[A]) Deallocate(nodeAddress A) {
-	if nodeAddress == 0 {
-		return
-	}
-
 	d.release = append(d.release, nodeAddress)
 	if len(d.release) == cap(d.release) {
 		d.sinkCh <- d.release

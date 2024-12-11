@@ -29,11 +29,9 @@ func NewState(
 	persistentAllocationCh, singularityPersistentAddress := NewAllocationCh[types.PersistentAddress](
 		persistentSize, nodesPerGroup, false)
 
-	singularityNode := (*types.SingularityNode)(unsafe.Add(dataP, types.NodeLength*singularityVolatileAddress))
 	return &State{
 		nodesPerGroup: nodesPerGroup,
 		singularityNodeRoot: types.NodeRoot{
-			Hash: &singularityNode.Hash,
 			Pointer: &types.Pointer{
 				Revision:          1,
 				VolatileAddress:   singularityVolatileAddress,
