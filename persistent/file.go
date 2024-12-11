@@ -3,12 +3,14 @@ package persistent
 import (
 	"io"
 	"os"
+	"runtime"
 	"syscall"
+	"time"
 	"unsafe"
 
-	"github.com/godzie44/go-uring/uring"
 	"github.com/pkg/errors"
 
+	"github.com/outofforest/go-uring/uring"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -18,56 +20,74 @@ const (
 	submitCount  = 2 << 5
 	mod          = submitCount - 1
 	ringCapacity = 10 * submitCount
-
-	opFSync       uint32 = 3
-	fsyncDataSync uint32 = 1
 )
 
-// NewFileStore creates new file-based store.
-func NewFileStore(file *os.File) (*FileStore, error) {
+// NewStore creates new persistent store.
+func NewStore(file *os.File) (*Store, error) {
 	size, err := file.Seek(0, io.SeekEnd)
 	if err != nil {
 		_ = file.Close()
 		return nil, errors.WithStack(err)
 	}
 
-	ringR, err := uring.New(1)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	ringW, err := uring.New(ringCapacity, uring.WithCQSize(ringCapacity))
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return &FileStore{
-		ringR:   ringR,
-		ringW:   ringW,
-		fd:      int32(file.Fd()),
-		file:    file,
-		size:    uint64(size),
-		cqeBuff: make([]*uring.CQEvent, ringCapacity),
+	return &Store{
+		file: file,
+		size: uint64(size),
 	}, nil
 }
 
-// FileStore defines persistent file-based store.
-type FileStore struct {
-	ringR, ringW *uring.Ring
-	fd           int32
-	file         *os.File
-	size         uint64
-	numOfEvents  uint32
-	cqeBuff      []*uring.CQEvent
-	err          error
+// Store defines persistent store.
+type Store struct {
+	file *os.File
+	size uint64
 }
 
 // Size returns the size of the store.
-func (s *FileStore) Size() uint64 {
+func (s *Store) Size() uint64 {
 	return s.size
 }
 
-// Read writes data to the store.
-func (s *FileStore) Read(address types.PersistentAddress, data unsafe.Pointer) error {
-	sqe, err := s.ringR.NextSQE()
+// NewReader creates new store reader.
+func (s *Store) NewReader() (*Reader, error) {
+	return newReader(s.file)
+}
+
+// NewWriter creates new store writer.
+func (s *Store) NewWriter(volatileOrigin unsafe.Pointer, volatileSize uint64) (*Writer, error) {
+	return newWriter(s.file, volatileOrigin, volatileSize)
+}
+
+// Close closes the store.
+func (s *Store) Close() {
+	_ = s.file.Close()
+}
+
+func newReader(file *os.File) (*Reader, error) {
+	// Required by uring.SetupSingleIssuer.
+	runtime.LockOSThread()
+
+	ring, err := uring.New(1, uring.WithCQSize(1),
+		uring.WithFlags(uring.SetupSingleIssuer),
+	)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return &Reader{
+		fd:   int32(file.Fd()),
+		ring: ring,
+	}, nil
+}
+
+// Reader reads nodes from persistent store.
+type Reader struct {
+	fd   int32
+	ring *uring.Ring
+}
+
+// Read reads data from the persistent store.
+func (r *Reader) Read(address types.PersistentAddress, data unsafe.Pointer) error {
+	sqe, err := r.ring.NextSQE()
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -81,20 +101,20 @@ func (s *FileStore) Read(address types.PersistentAddress, data unsafe.Pointer) e
 	// sqe.SpliceFdIn = 0
 
 	sqe.OpCode = uint8(uring.ReadCode)
-	sqe.Fd = s.fd
+	sqe.Fd = r.fd
 	sqe.Len = types.NodeLength
 	sqe.Off = uint64(address) * types.NodeLength
 	sqe.Addr = uint64(uintptr(data))
 
-	if _, err := s.ringR.Submit(); err != nil {
+	if _, err := r.ring.Submit(); err != nil {
 		return errors.WithStack(err)
 	}
 
 	for {
-		cqe, err := s.ringR.PeekCQE()
+		cqe, err := r.ring.PeekCQE()
 		if err != nil {
 			if errors.Is(err, syscall.EAGAIN) {
-				if _, err := s.ringR.WaitCQEvents(1); err != nil && !errors.Is(err, syscall.EINTR) {
+				if _, err := r.ring.WaitCQEvents(1); err != nil && !errors.Is(err, syscall.EINTR) {
 					return errors.WithStack(err)
 				}
 				continue
@@ -107,81 +127,144 @@ func (s *FileStore) Read(address types.PersistentAddress, data unsafe.Pointer) e
 
 		break
 	}
-	s.ringR.AdvanceCQ(1)
+	r.ring.AdvanceCQ(1)
 
 	return nil
 }
 
+// Close closes the reader.
+func (r *Reader) Close() {
+	_ = r.ring.Close()
+}
+
+func newWriter(
+	file *os.File,
+	volatileOrigin unsafe.Pointer,
+	volatileSize uint64,
+) (*Writer, error) {
+	// Required by uring.SetupSingleIssuer.
+	runtime.LockOSThread()
+
+	ring, err := uring.New(ringCapacity,
+		uring.WithCQSize(ringCapacity),
+		uring.WithFlags(uring.SetupSingleIssuer),
+		uring.WithSQPoll(100*time.Millisecond),
+	)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// By multiplying uring.MaxBufferSize * uring.MaxNumOfBuffers we see that currently it is possible to address
+	// 16TB of space using predfined buffers.
+	// The memory used by buffers is locked by the kernel which means tha `ulimit -l` command must report at least that
+	// size + margin for other possible locks if needed.
+
+	numOfBuffers := volatileSize / uring.MaxBufferSize
+	if numOfBuffers > uring.MaxNumOfBuffers {
+		return nil, errors.Errorf("number of buffers %d esceeds the maximum allowed number of buffers %d",
+			numOfBuffers, uring.MaxNumOfBuffers)
+	}
+	v := make([]syscall.Iovec, 0, numOfBuffers)
+	for i := range numOfBuffers {
+		v = append(v, syscall.Iovec{
+			Base: (*byte)(unsafe.Add(volatileOrigin, i*uring.MaxBufferSize)),
+			Len:  uring.MaxBufferSize,
+		})
+	}
+
+	if err := ring.RegisterBuffers(v); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return &Writer{
+		fd:      int32(file.Fd()),
+		origin:  volatileOrigin,
+		ring:    ring,
+		cqeBuff: make([]*uring.CQEvent, ringCapacity),
+	}, nil
+}
+
+// Writer writes nodes to the persistent store.
+type Writer struct {
+	fd      int32
+	origin  unsafe.Pointer
+	ring    *uring.Ring
+	cqeBuff []*uring.CQEvent
+
+	numOfEvents uint32
+	err         error
+}
+
 // Write writes data to the store.
-func (s *FileStore) Write(address types.PersistentAddress, data unsafe.Pointer) error {
-	sqe, err := s.ringW.NextSQE()
+func (w *Writer) Write(dstAddress types.PersistentAddress, srcAddress types.VolatileAddress) error {
+	sqe, err := w.ring.NextSQE()
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	// We don't need to do this because we never set them so they are 0s in the entire ring all the time.
 	// sqe.IoPrio = 0
 	// sqe.UserData = 0
-	// sqe.BufIG = 0
 	// sqe.Personality = 0
 	// sqe.SpliceFdIn = 0
 
-	sqe.OpCode = uint8(uring.WriteCode)
+	sqe.OpCode = uint8(uring.WriteFixed)
 	sqe.Flags = 0
 	sqe.OpcodeFlags = 0
-	sqe.Fd = s.fd
+	sqe.Fd = w.fd
 	sqe.Len = types.NodeLength
-	sqe.Off = uint64(address) * types.NodeLength
-	sqe.Addr = uint64(uintptr(data))
+	sqe.Off = uint64(dstAddress) * types.NodeLength
+	sqe.Addr = uint64(uintptr(unsafe.Add(w.origin, uint64(srcAddress)*types.NodeLength)))
+	sqe.BufIG = uint16(srcAddress * types.NodeLength / uring.MaxBufferSize)
 
-	s.numOfEvents++
+	w.numOfEvents++
 
 	switch {
 	// FIXME (wojciech): There will be more addresses representing singularity node.
-	case address == 0:
-		sqe, err := s.ringW.NextSQE()
+	case srcAddress == 0:
+		sqe, err := w.ring.NextSQE()
 		if err != nil {
 			return errors.WithStack(err)
 		}
 
-		sqe.OpCode = uint8(opFSync)
+		sqe.OpCode = uint8(uring.FSync)
 		sqe.Flags = uring.SqeIODrainFlag
-		sqe.OpcodeFlags = fsyncDataSync
-		sqe.Fd = s.fd
+		sqe.OpcodeFlags = uring.FSyncDataSync
+		sqe.Fd = w.fd
 		sqe.Len = 0
 		sqe.Off = 0
 		sqe.Addr = 0
+		sqe.BufIG = 0
 
-		s.numOfEvents++
+		w.numOfEvents++
 
-		if _, err := s.ringW.Submit(); err != nil {
+		if _, err := w.ring.Submit(); err != nil {
 			return errors.WithStack(err)
 		}
-		return s.awaitCompletionEvents(true)
-	case (s.numOfEvents+1)&mod == 0: // +1 is always left for fsync required during commit.
-		if _, err := s.ringW.Submit(); err != nil {
+		return w.awaitCompletionEvents(true)
+	case (w.numOfEvents+1)&mod == 0: // +1 is always left for fsync required during commit.
+		if _, err := w.ring.Submit(); err != nil {
 			return errors.WithStack(err)
 		}
-		if (s.numOfEvents + 1) >= ringCapacity {
-			return s.awaitCompletionEvents(false)
+		if (w.numOfEvents + 1) >= ringCapacity {
+			return w.awaitCompletionEvents(false)
 		}
 	}
 
 	return nil
 }
 
-// Close closes the store.
-func (s *FileStore) Close() {
-	if s.err == nil && s.numOfEvents > 0 {
-		if _, err := s.ringW.Submit(); err == nil {
-			_ = s.awaitCompletionEvents(true)
+// Close closes the writer.
+func (w *Writer) Close() {
+	if w.err == nil && w.numOfEvents > 0 {
+		if _, err := w.ring.Submit(); err == nil {
+			_ = w.awaitCompletionEvents(true)
 		}
 	}
-	_ = s.ringR.Close()
-	_ = s.ringW.Close()
-	_ = s.file.Close()
+	_ = w.ring.UnRegisterBuffers()
+	_ = w.ring.Close()
 }
 
-func (s *FileStore) awaitCompletionEvents(finalize bool) error {
+func (w *Writer) awaitCompletionEvents(finalize bool) error {
 	// Due to asynchronous preemption
 	// https://go.dev/doc/go1.14#runtime
 	// https://unskilled.blog/posts/preemption-in-go-an-introduction/
@@ -196,27 +279,27 @@ func (s *FileStore) awaitCompletionEvents(finalize bool) error {
 
 	for {
 		if finalize {
-			minNumOfEvents = s.numOfEvents
+			minNumOfEvents = w.numOfEvents
 		}
 
-		numOfEvents := uint32(s.ringW.PeekCQEventBatch(s.cqeBuff))
-		if numOfEvents < minNumOfEvents {
-			_, err := s.ringW.WaitCQEvents(minNumOfEvents - numOfEvents)
+		numOfEvents := uint32(w.ring.PeekCQEventBatch(w.cqeBuff))
+		for numOfEvents == 0 {
+			_, err := w.ring.WaitCQEvents(minNumOfEvents)
 			if err != nil && !errors.Is(err, syscall.EINTR) {
 				return errors.WithStack(err)
 			}
-			numOfEvents = uint32(s.ringW.PeekCQEventBatch(s.cqeBuff))
+			numOfEvents = uint32(w.ring.PeekCQEventBatch(w.cqeBuff))
 		}
 		for i := range numOfEvents {
-			if s.cqeBuff[i].Res < 0 {
-				s.err = s.cqeBuff[i].Error()
-				return errors.WithStack(s.err)
+			if w.cqeBuff[i].Res < 0 {
+				w.err = w.cqeBuff[i].Error()
+				return errors.WithStack(w.err)
 			}
 		}
-		s.ringW.AdvanceCQ(numOfEvents)
-		s.numOfEvents -= numOfEvents
+		w.ring.AdvanceCQ(numOfEvents)
+		w.numOfEvents -= numOfEvents
 
-		if !finalize || s.numOfEvents == 0 {
+		if !finalize || w.numOfEvents == 0 {
 			return nil
 		}
 	}

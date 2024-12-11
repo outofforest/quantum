@@ -1,13 +1,11 @@
 module github.com/outofforest/quantum
 
-go 1.23.3
-
-replace github.com/godzie44/go-uring => github.com/gohryt/go-uring v0.0.0-20240825103418-6afda088f948
+go 1.23
 
 require (
 	github.com/cespare/xxhash v1.1.0
-	github.com/godzie44/go-uring v0.0.0-20220926161041-69611e8b13d5
 	github.com/mmcloughlin/avo v0.6.0
+	github.com/outofforest/go-uring v0.0.0-20241211165750-10dd9709de9c
 	github.com/outofforest/logger v0.5.5
 	github.com/outofforest/mass v0.2.1
 	github.com/outofforest/parallel v0.2.3

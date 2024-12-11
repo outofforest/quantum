@@ -74,7 +74,7 @@ func Add(
 // Deallocate deallocates nodes referenced by the list.
 func Deallocate(
 	listRoot types.PersistentAddress,
-	store *persistent.FileStore,
+	storeReader *persistent.Reader,
 	deallocator *alloc.Deallocator[types.PersistentAddress],
 	nodeBuff unsafe.Pointer,
 ) error {
@@ -83,7 +83,7 @@ func Deallocate(
 			return nil
 		}
 
-		if err := store.Read(listRoot, nodeBuff); err != nil {
+		if err := storeReader.Read(listRoot, nodeBuff); err != nil {
 			return err
 		}
 

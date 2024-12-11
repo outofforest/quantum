@@ -731,7 +731,7 @@ func (v *Entry[K, V]) Delete(
 // PersistentIteratorAndDeallocator iterates over items using persistent nodes and deallocates them.
 func PersistentIteratorAndDeallocator[K, V comparable](
 	spaceRoot types.Pointer,
-	store *persistent.FileStore,
+	storeReader *persistent.Reader,
 	dataNodeAssistant *DataNodeAssistant[K, V],
 	deallocator *alloc.Deallocator[types.PersistentAddress],
 	nodeBuff unsafe.Pointer,
@@ -756,7 +756,7 @@ func PersistentIteratorAndDeallocator[K, V comparable](
 			stackCount--
 			pointer := stack[stackCount]
 
-			if err := store.Read(pointer.PersistentAddress, nodeBuff); err != nil {
+			if err := storeReader.Read(pointer.PersistentAddress, nodeBuff); err != nil {
 				*retErr = err
 				return
 			}
