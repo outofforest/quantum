@@ -28,7 +28,7 @@ import (
 // Config stores snapshot configuration.
 type Config struct {
 	State *alloc.State
-	Store *persistent.FileStore
+	Store *persistent.Store
 }
 
 // SpaceToCommit represents requested space which might require to be committed.
@@ -262,6 +262,7 @@ func (db *DB) deleteSnapshot(
 	snapshotHashMatches []uint64,
 	deallocationHashBuff []byte,
 	deallocationHashMatches []uint64,
+	storeReader *persistent.Reader,
 	nodeBuff1, nodeBuff2 unsafe.Pointer,
 ) error {
 	if snapshotID == db.snapshotInfo.PreviousSnapshotID {
@@ -304,7 +305,7 @@ func (db *DB) deleteSnapshot(
 		var err error
 		for nextDeallocSnapshot := range space.PersistentIteratorAndDeallocator(
 			nextSnapshotInfo.DeallocationRoot,
-			db.config.Store,
+			storeReader,
 			db.deallocationNodeAssistant,
 			persistentDeallocator,
 			nodeBuff1,
@@ -312,7 +313,7 @@ func (db *DB) deleteSnapshot(
 		) {
 			if nextDeallocSnapshot.Key.SnapshotID > snapshotInfo.PreviousSnapshotID &&
 				nextDeallocSnapshot.Key.SnapshotID <= snapshotID {
-				if err := list.Deallocate(nextDeallocSnapshot.Value, db.config.Store, persistentDeallocator,
+				if err := list.Deallocate(nextDeallocSnapshot.Value, storeReader, persistentDeallocator,
 					nodeBuff2); err != nil {
 					return err
 				}
@@ -516,6 +517,12 @@ func (db *DB) prepareTransactions(
 }
 
 func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Reader) error {
+	storeReader, err := db.config.Store.NewReader()
+	if err != nil {
+		return err
+	}
+	defer storeReader.Close()
+
 	volatileAllocator := db.config.State.NewVolatileAllocator()
 	persistentDeallocator := db.config.State.NewPersistentDeallocator()
 
@@ -558,7 +565,7 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 			case *deleteSnapshotTx:
 				if err := db.deleteSnapshot(tx.SnapshotID, req, volatileAllocator,
 					persistentDeallocator, snapshotHashBuff, snapshotHashMatches, deallocationHashBuff,
-					deallocationHashMatches, nodeBuff1, nodeBuff2); err != nil {
+					deallocationHashMatches, storeReader, nodeBuff1, nodeBuff2); err != nil {
 					return err
 				}
 			case *genesis.Tx:
@@ -898,6 +905,13 @@ func (db *DB) skipNodesAndCommit(ctx context.Context, pipeReader *pipeline.Reade
 }
 
 func (db *DB) storeNodes(ctx context.Context, pipeReader *pipeline.Reader) error {
+	storeWriter, err := db.config.Store.NewWriter(db.config.State.Origin(),
+		db.config.State.VolatileSize())
+	if err != nil {
+		return err
+	}
+	defer storeWriter.Close()
+
 	volatileDeallocator := db.config.State.NewVolatileDeallocator()
 
 	for processedCount := uint64(0); ; processedCount++ {
@@ -908,8 +922,7 @@ func (db *DB) storeNodes(ctx context.Context, pipeReader *pipeline.Reader) error
 
 		for lr := req.ListRequest; lr != nil; lr = lr.Next {
 			for i := range lr.ListsToStore {
-				if err := db.config.Store.Write(lr.List[i].PersistentAddress,
-					db.config.State.Node(lr.List[i].VolatileAddress)); err != nil {
+				if err := storeWriter.Write(lr.List[i].PersistentAddress, lr.List[i].VolatileAddress); err != nil {
 					return err
 				}
 				volatileDeallocator.Deallocate(lr.List[i].VolatileAddress)
@@ -921,8 +934,7 @@ func (db *DB) storeNodes(ctx context.Context, pipeReader *pipeline.Reader) error
 				pointer := sr.Store[i].Pointer
 
 				if pointer.Revision == uintptr(unsafe.Pointer(sr)) {
-					if err := db.config.Store.Write(pointer.PersistentAddress,
-						db.config.State.Node(pointer.VolatileAddress)); err != nil {
+					if err := storeWriter.Write(pointer.PersistentAddress, pointer.VolatileAddress); err != nil {
 						return err
 					}
 				}

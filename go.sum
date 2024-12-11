@@ -6,8 +6,6 @@ github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghf
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/gohryt/go-uring v0.0.0-20240825103418-6afda088f948 h1:xDgy/WxYHRqhVRxfUlH+iKzFDe5qiLz4/ZTs/58uoXg=
-github.com/gohryt/go-uring v0.0.0-20240825103418-6afda088f948/go.mod h1:ct8+i1XkPS1LQSX8i2XzBgwPSd5e///gqX7LSfrDSkM=
 github.com/klauspost/cpuid/v2 v2.2.8 h1:+StwCXwm9PdpiEkPyzBXIy+M9KUb4ODm0Zarf1kS5BM=
 github.com/klauspost/cpuid/v2 v2.2.8/go.mod h1:Lcz8mBdAVJIBVzewtcLocK12l3Y+JytZYpaMropDUws=
 github.com/kr/pretty v0.1.0 h1:L/CwN0zerZDmRFUapSPitk6f+Q3+0za1rQkzVuMiMFI=
@@ -20,6 +18,8 @@ github.com/libp2p/go-sockaddr v0.2.0 h1:Alhhj6lGxVAon9O32tOO89T601EugSx6YiGjy5BV
 github.com/libp2p/go-sockaddr v0.2.0/go.mod h1:5NxulaB17yJ07IpzRIleys4un0PJ7WLWgMDLBBWrGw8=
 github.com/mmcloughlin/avo v0.6.0 h1:QH6FU8SKoTLaVs80GA8TJuLNkUYl4VokHKlPhVDg4YY=
 github.com/mmcloughlin/avo v0.6.0/go.mod h1:8CoAGaCSYXtCPR+8y18Y9aB/kxb8JSS6FRI7mSkvD+8=
+github.com/outofforest/go-uring v0.0.0-20241211165750-10dd9709de9c h1:OyzoBXYDe14dwa1vQa0ySe3WLQ7EuRNwZ6q4why7sQA=
+github.com/outofforest/go-uring v0.0.0-20241211165750-10dd9709de9c/go.mod h1:5UPxuJHNAYxukNKkUl//934QAkAamBsQ1E+bRSnrSuM=
 github.com/outofforest/logger v0.3.3/go.mod h1:+M5sO17Va9V33t28Qs9VqRQ8bFV501Uhq2PtQY+R3Ms=
 github.com/outofforest/logger v0.5.5 h1:ndsFPPojrRMH2BZzk1MOmf+imooVqrzOG78NSqGfx/Q=
 github.com/outofforest/logger v0.5.5/go.mod h1:+h+DeEKd7Q2kYrRy8qME0cTgl8+7SqeFDWCti9cIgVk=

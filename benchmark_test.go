@@ -180,11 +180,11 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 	}
 }
 
-func fileStore(path string) (*persistent.FileStore, error) {
+func fileStore(path string) (*persistent.Store, error) {
 	file, err := os.OpenFile(path, os.O_RDWR|unix.O_DIRECT, 0o600)
 	if err != nil {
 		return nil, err
 	}
 
-	return persistent.NewFileStore(file)
+	return persistent.NewStore(file)
 }

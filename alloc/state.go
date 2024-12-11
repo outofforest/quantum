@@ -41,6 +41,7 @@ func NewState(
 			},
 		},
 		dataP:                      dataP,
+		volatileSize:               volatileSize,
 		volatileAllocationCh:       volatileAllocationCh,
 		volatileDeallocationCh:     make(chan []types.VolatileAddress, 10),
 		volatileAllocationPoolCh:   make(chan []types.VolatileAddress, 1),
@@ -56,6 +57,7 @@ type State struct {
 	nodesPerGroup              uint64
 	singularityNodeRoot        types.NodeRoot
 	dataP                      unsafe.Pointer
+	volatileSize               uint64
 	volatileAllocationCh       chan []types.VolatileAddress
 	volatileDeallocationCh     chan []types.VolatileAddress
 	volatileAllocationPoolCh   chan []types.VolatileAddress
@@ -93,6 +95,11 @@ func (s *State) SingularityNodeRoot() types.NodeRoot {
 // Origin returns the pointer to the allocated memory.
 func (s *State) Origin() unsafe.Pointer {
 	return s.dataP
+}
+
+// VolatileSize returns size of the volatile memory.
+func (s *State) VolatileSize() uint64 {
+	return s.volatileSize
 }
 
 // Node returns node bytes.
