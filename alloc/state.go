@@ -102,7 +102,7 @@ func (s *State) VolatileSize() uint64 {
 
 // Node returns node bytes.
 func (s *State) Node(nodeAddress types.VolatileAddress) unsafe.Pointer {
-	return unsafe.Add(s.dataP, nodeAddress*types.NodeLength)
+	return unsafe.Add(s.dataP, nodeAddress.Naked()*types.NodeLength)
 }
 
 // Bytes returns byte slice of a node.

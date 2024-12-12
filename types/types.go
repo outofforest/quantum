@@ -1,6 +1,9 @@
 package types
 
-import "sync/atomic"
+import (
+	"math"
+	"sync/atomic"
+)
 
 const (
 	// UInt64Length is the number of bytes taken by uint64.
@@ -40,18 +43,6 @@ type (
 	VolatileAddress uint64
 )
 
-// State returns node state.
-func (na VolatileAddress) State() State {
-	switch {
-	case na.IsSet(FlagPointerNode):
-		return StatePointer
-	case na == FreeAddress:
-		return StateFree
-	default:
-		return StateData
-	}
-}
-
 // IsSet checks if flag is set.
 func (na VolatileAddress) IsSet(flag VolatileAddress) bool {
 	return na&flag != FreeAddress
@@ -64,7 +55,7 @@ func (na VolatileAddress) Set(flag VolatileAddress) VolatileAddress {
 
 // Naked returns address without flags.
 func (na VolatileAddress) Naked() VolatileAddress {
-	return na & flagNaked
+	return na & FlagNaked
 }
 
 // Load loads node address atomically.
@@ -78,31 +69,13 @@ func Store(address *VolatileAddress, value VolatileAddress) {
 }
 
 const (
+	numOfFlags = 2
+
 	// FreeAddress means address is not assigned.
 	FreeAddress VolatileAddress = 0
 
-	// flagNaked is used to retrieve address without flags.
-	flagNaked = FlagPointerNode - 1
-
-	// FlagPointerNode says that this is pointer node.
-	FlagPointerNode VolatileAddress = 1 << 62
-
-	// FlagHashMod says that key hash must be recalculated.
-	FlagHashMod VolatileAddress = 1 << 63
-)
-
-// State enumerates possible slot states.
-type State byte
-
-const (
-	// StateFree means slot is free.
-	StateFree State = iota
-
-	// StateData means slot contains data.
-	StateData
-
-	// StatePointer means slot contains pointer.
-	StatePointer
+	// FlagNaked is used to retrieve address without flags.
+	FlagNaked VolatileAddress = math.MaxUint64 >> numOfFlags
 )
 
 // Pointer is the pointer to another block.
@@ -124,12 +97,6 @@ type NodeRoot struct {
 type Root struct {
 	Pointer Pointer
 	Hash    Hash
-}
-
-// DataItem stores single key-value pair.
-type DataItem[K, V comparable] struct {
-	Key   K
-	Value V
 }
 
 // SnapshotInfo stores information required to retrieve snapshot.
