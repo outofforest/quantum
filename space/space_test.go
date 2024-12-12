@@ -104,7 +104,7 @@ func TestPointerSlotReductionUsingPointerNodes(t *testing.T) {
 		for hi := len(hops) - 1; hi >= 0; hi-- {
 			pointerNode.Pointers[hops[hi]].VolatileAddress = 1 // To mark it as data node.
 			if hi < len(hops)-1 {
-				pointerNode.Pointers[hops[hi+1]].VolatileAddress = types.FlagPointerNode // To mark it as pointer node.
+				pointerNode.Pointers[hops[hi+1]].VolatileAddress = flagPointerNode // To mark it as pointer node.
 			}
 			index, nextIndex := reducePointerSlot(pointerNode, i)
 			requireT.Equal(hops[hi], index)
@@ -117,13 +117,13 @@ func TestPointerSlotReductionUsingPointerNodes(t *testing.T) {
 
 		pointerNode.Pointers[i].VolatileAddress = 1 // To mark it as data node.
 		if len(hops) > 0 {
-			pointerNode.Pointers[hops[0]].VolatileAddress = types.FlagPointerNode // To mark it as pointer node.
+			pointerNode.Pointers[hops[0]].VolatileAddress = flagPointerNode // To mark it as pointer node.
 		}
 		index, nextIndex = reducePointerSlot(pointerNode, i)
 		requireT.Equal(i, index)
 		requireT.Equal(i, nextIndex)
 
-		pointerNode.Pointers[i].VolatileAddress = types.FlagPointerNode // To mark it as pointer node.
+		pointerNode.Pointers[i].VolatileAddress = flagPointerNode // To mark it as pointer node.
 		index, nextIndex = reducePointerSlot(pointerNode, i)
 		requireT.Equal(i, index)
 		requireT.Equal(i, nextIndex)
@@ -1061,9 +1061,9 @@ func TestSwitchingFromMutableToImmutablePath(t *testing.T) {
 	// Now let's add a pointer node at the position of key hash 64.
 
 	requireT.NoError(s.AddPointerNode(v64, false))
-	requireT.True(pointerNode.Pointers[0].VolatileAddress.IsSet(types.FlagPointerNode))
+	requireT.True(pointerNode.Pointers[0].VolatileAddress.IsSet(flagPointerNode))
 	requireT.True(v16Read.storeRequest.Store[v16Read.storeRequest.PointersToStore-1].Pointer.VolatileAddress.
-		IsSet(types.FlagPointerNode))
+		IsSet(flagPointerNode))
 
 	// We are now in situation where key hash 16 is no longer in the place pointed to by v16.
 	// When walking the tree now, it should not follow the current pointer node, but go back and switch

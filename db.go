@@ -253,16 +253,13 @@ func (db *DB) deleteSnapshot(
 		},
 	)
 
-	//nolint:nestif
 	if nextSnapshotInfo.DeallocationRoot.VolatileAddress != types.FreeAddress {
-		var err error
 		for nextDeallocSnapshot := range space.IteratorAndDeallocator(
 			nextSnapshotInfo.DeallocationRoot,
 			db.config.State,
 			deallocationNodeAssistant,
 			volatileDeallocator,
 			persistentDeallocator,
-			&err,
 		) {
 			if nextDeallocSnapshot.Key.SnapshotID > snapshotInfo.PreviousSnapshotID &&
 				nextDeallocSnapshot.Key.SnapshotID <= snapshotID {
@@ -286,9 +283,6 @@ func (db *DB) deleteSnapshot(
 			); err != nil {
 				return err
 			}
-		}
-		if err != nil {
-			return err
 		}
 	}
 
