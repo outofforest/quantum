@@ -207,15 +207,14 @@ func (db *DB) deleteSnapshot(
 	snapshotID types.SnapshotID,
 	tx *pipeline.TransactionRequest,
 	volatileAllocator *alloc.Allocator[types.VolatileAddress],
+	volatileDeallocator *alloc.Deallocator[types.VolatileAddress],
 	persistentDeallocator *alloc.Deallocator[types.PersistentAddress],
 	snapshotSpace *space.Space[types.SnapshotID, types.SnapshotInfo],
 	snapshotHashBuff []byte,
 	snapshotHashMatches []uint64,
-	deallocationNodeAssistant *space.DataNodeAssistant[deallocationKey, types.PersistentAddress],
+	deallocationNodeAssistant *space.DataNodeAssistant[deallocationKey, list.Pointer],
 	deallocationHashBuff []byte,
 	deallocationHashMatches []uint64,
-	storeReader *persistent.Reader,
-	nodeBuff1, nodeBuff2 unsafe.Pointer,
 ) error {
 	if snapshotID == db.singularityNode.LastSnapshotID-1 {
 		return errors.New("deleting latest persistent snapshot is forbidden")
@@ -244,11 +243,8 @@ func (db *DB) deleteSnapshot(
 		Pointer: &snapshotInfo.DeallocationRoot,
 	}
 
-	// FIXME (wojciech): What??? Volatile nodes of that space have been deallocated long time ago, so this code
-	// is a complete disaster!!! It succeeded only because volatile address pool was so huge that the nodes haven't
-	// been reallocated before deleting the snapshot.
-	deallocationLists := space.New[deallocationKey, types.PersistentAddress](
-		space.Config[deallocationKey, types.PersistentAddress]{
+	deallocationLists := space.New[deallocationKey, list.Pointer](
+		space.Config[deallocationKey, list.Pointer]{
 			SpaceRoot:         deallocationListsRoot,
 			State:             db.config.State,
 			DataNodeAssistant: deallocationNodeAssistant,
@@ -260,25 +256,25 @@ func (db *DB) deleteSnapshot(
 	//nolint:nestif
 	if nextSnapshotInfo.DeallocationRoot.VolatileAddress != types.FreeAddress {
 		var err error
-		for nextDeallocSnapshot := range space.PersistentIteratorAndDeallocator(
+		for nextDeallocSnapshot := range space.IteratorAndDeallocator(
 			nextSnapshotInfo.DeallocationRoot,
-			storeReader,
+			db.config.State,
 			deallocationNodeAssistant,
+			volatileDeallocator,
 			persistentDeallocator,
-			nodeBuff1,
 			&err,
 		) {
 			if nextDeallocSnapshot.Key.SnapshotID > snapshotInfo.PreviousSnapshotID &&
 				nextDeallocSnapshot.Key.SnapshotID <= snapshotID {
-				if err := list.Deallocate(nextDeallocSnapshot.Value, storeReader, persistentDeallocator,
-					nodeBuff2); err != nil {
+				if err := list.Deallocate(nextDeallocSnapshot.Value, db.config.State, volatileDeallocator,
+					persistentDeallocator); err != nil {
 					return err
 				}
 
 				continue
 			}
 
-			var deallocationListValue space.Entry[deallocationKey, types.PersistentAddress]
+			var deallocationListValue space.Entry[deallocationKey, list.Pointer]
 			deallocationLists.Find(&deallocationListValue, nextDeallocSnapshot.Key, space.StageData, deallocationHashBuff,
 				deallocationHashMatches)
 			if err := deallocationListValue.Set(
@@ -338,13 +334,12 @@ func (db *DB) commit(
 	tx *pipeline.TransactionRequest,
 	deallocationListsToCommit map[types.SnapshotID]*list.Pointer,
 	volatileAllocator *alloc.Allocator[types.VolatileAddress],
-	volatileDeallocator *alloc.Deallocator[types.VolatileAddress],
 	persistentAllocator *alloc.Allocator[types.PersistentAddress],
 	persistentDeallocator *alloc.Deallocator[types.PersistentAddress],
 	snapshotSpace *space.Space[types.SnapshotID, types.SnapshotInfo],
 	snapshotHashBuff []byte,
 	snapshotHashMatches []uint64,
-	deallocationListSpace *space.Space[deallocationKey, types.PersistentAddress],
+	deallocationListSpace *space.Space[deallocationKey, list.Pointer],
 	deallocationHashBuff []byte,
 	deallocationHashMatches []uint64,
 ) error {
@@ -369,11 +364,7 @@ func (db *DB) commit(
 		for _, snapshotID := range lists {
 			listRoot := deallocationListsToCommit[snapshotID]
 
-			// It is safe to deallocate volatile nodes here despite they are used to write persistent nodes later.
-			// It's because deallocated nodes are never reallocated until current commit is finalized.
-			volatileDeallocator.Deallocate(listRoot.VolatileAddress)
-
-			var deallocationListValue space.Entry[deallocationKey, types.PersistentAddress]
+			var deallocationListValue space.Entry[deallocationKey, list.Pointer]
 			deallocationListSpace.Find(&deallocationListValue, deallocationKey{
 				ListSnapshotID: db.singularityNode.LastSnapshotID,
 				SnapshotID:     snapshotID,
@@ -382,7 +373,7 @@ func (db *DB) commit(
 			if err := deallocationListValue.Set(
 				tx,
 				volatileAllocator,
-				listRoot.PersistentAddress,
+				*listRoot,
 				deallocationHashBuff,
 				deallocationHashMatches,
 			); err != nil {
@@ -419,10 +410,6 @@ func (db *DB) commit(
 				sr.Store[i].Pointer.Revision = uintptr(unsafe.Pointer(sr))
 			}
 		}
-
-		// It is safe to deallocate volatile nodes here despite they are used to write persistent nodes later.
-		// It's because deallocated nodes are never reallocated until current commit is finalized.
-		space.DeallocateVolatile(db.snapshotInfo.DeallocationRoot.VolatileAddress, volatileDeallocator, db.config.State)
 	}
 
 	lastSr := tx.LastStoreRequest
@@ -498,28 +485,10 @@ func (db *DB) prepareTransactions(
 }
 
 func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Reader) error {
-	storeReader, err := db.config.Store.NewReader()
-	if err != nil {
-		return err
-	}
-	defer storeReader.Close()
-
 	volatileAllocator := db.config.State.NewVolatileAllocator()
 	volatileDeallocator := db.config.State.NewVolatileDeallocator()
 	persistentAllocator := db.config.State.NewPersistentAllocator()
 	persistentDeallocator := db.config.State.NewPersistentDeallocator()
-
-	// We use allocator to allocate this region to get aligned address effortlessly.
-	nodeBuff1Address, err := volatileAllocator.Allocate()
-	if err != nil {
-		return err
-	}
-	nodeBuff2Address, err := volatileAllocator.Allocate()
-	if err != nil {
-		return err
-	}
-	nodeBuff1 := db.config.State.Node(nodeBuff1Address)
-	nodeBuff2 := db.config.State.Node(nodeBuff2Address)
 
 	snapshotInfoNodeAssistant, err := space.NewDataNodeAssistant[types.SnapshotID, types.SnapshotInfo]()
 	if err != nil {
@@ -538,13 +507,13 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 
 	deallocationListsToCommit := map[types.SnapshotID]*list.Pointer{}
 
-	deallocationNodeAssistant, err := space.NewDataNodeAssistant[deallocationKey, types.PersistentAddress]()
+	deallocationNodeAssistant, err := space.NewDataNodeAssistant[deallocationKey, list.Pointer]()
 	if err != nil {
 		return err
 	}
 
-	deallocationListSpace := space.New[deallocationKey, types.PersistentAddress](
-		space.Config[deallocationKey, types.PersistentAddress]{
+	deallocationListSpace := space.New[deallocationKey, list.Pointer](
+		space.Config[deallocationKey, list.Pointer]{
 			SpaceRoot: types.NodeRoot{
 				Pointer: &db.snapshotInfo.DeallocationRoot,
 			},
@@ -580,10 +549,9 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 					return err
 				}
 			case *deleteSnapshotTx:
-				if err := db.deleteSnapshot(tx.SnapshotID, req, volatileAllocator,
+				if err := db.deleteSnapshot(tx.SnapshotID, req, volatileAllocator, volatileDeallocator,
 					persistentDeallocator, snapshotSpace, snapshotHashBuff, snapshotHashMatches,
-					deallocationNodeAssistant, deallocationHashBuff, deallocationHashMatches, storeReader, nodeBuff1,
-					nodeBuff2); err != nil {
+					deallocationNodeAssistant, deallocationHashBuff, deallocationHashMatches); err != nil {
 					return err
 				}
 			case *genesis.Tx:
@@ -615,10 +583,6 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 						}
 
 						if listNodePointer.VolatileAddress != types.FreeAddress {
-							// It is safe to deallocate volatile nodes here despite they are used to write persistent nodes later.
-							// It's because deallocated nodes are never reallocated until current commit is finalized.
-							volatileDeallocator.Deallocate(listNodePointer.VolatileAddress)
-
 							if lr == nil {
 								lr = &pipeline.ListRequest{}
 							}
@@ -651,9 +615,9 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 		}
 
 		if req.Type == pipeline.Commit {
-			if err := db.commit(req, deallocationListsToCommit, volatileAllocator, volatileDeallocator,
-				persistentAllocator, persistentDeallocator, snapshotSpace, snapshotHashBuff, snapshotHashMatches,
-				deallocationListSpace, deallocationHashBuff, deallocationHashMatches); err != nil {
+			if err := db.commit(req, deallocationListsToCommit, volatileAllocator, persistentAllocator,
+				persistentDeallocator, snapshotSpace, snapshotHashBuff, snapshotHashMatches, deallocationListSpace,
+				deallocationHashBuff, deallocationHashMatches); err != nil {
 				return err
 			}
 		}

@@ -10,7 +10,6 @@ import (
 
 	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/alloc"
-	"github.com/outofforest/quantum/persistent"
 	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space/compare"
 	"github.com/outofforest/quantum/types"
@@ -729,13 +728,13 @@ func (v *Entry[K, V]) Delete(
 	v.space.deleteKey(v, tx, hashBuff, hashMatches, hashKey[K])
 }
 
-// PersistentIteratorAndDeallocator iterates over items using persistent nodes and deallocates them.
-func PersistentIteratorAndDeallocator[K, V comparable](
+// IteratorAndDeallocator iterates over items and deallocates space.
+func IteratorAndDeallocator[K, V comparable](
 	spaceRoot types.Pointer,
-	storeReader *persistent.Reader,
+	state *alloc.State,
 	dataNodeAssistant *DataNodeAssistant[K, V],
-	deallocator *alloc.Deallocator[types.PersistentAddress],
-	nodeBuff unsafe.Pointer,
+	volatileDeallocator *alloc.Deallocator[types.VolatileAddress],
+	persistentDeallocator *alloc.Deallocator[types.PersistentAddress],
 	retErr *error,
 ) func(func(item *types.DataItem[K, V]) bool) {
 	return func(yield func(item *types.DataItem[K, V]) bool) {
@@ -757,15 +756,13 @@ func PersistentIteratorAndDeallocator[K, V comparable](
 			stackCount--
 			pointer := stack[stackCount]
 
-			if err := storeReader.Read(pointer.PersistentAddress, nodeBuff); err != nil {
-				*retErr = err
-				return
-			}
-			deallocator.Deallocate(pointer.PersistentAddress)
+			// It is safe to do deallocations here because nodes are not reallocated until commit is finalized.
+			volatileDeallocator.Deallocate(pointer.VolatileAddress)
+			persistentDeallocator.Deallocate(pointer.PersistentAddress)
 
 			switch pointer.VolatileAddress.State() {
 			case types.StatePointer:
-				pointerNode := ProjectPointerNode(nodeBuff)
+				pointerNode := ProjectPointerNode(state.Node(pointer.VolatileAddress))
 				for pi := range pointerNode.Pointers {
 					if pointerNode.Pointers[pi].VolatileAddress == types.FreeAddress {
 						continue
@@ -775,7 +772,7 @@ func PersistentIteratorAndDeallocator[K, V comparable](
 					stackCount++
 				}
 			case types.StateData:
-				for _, item := range dataNodeAssistant.Iterator(nodeBuff) {
+				for _, item := range dataNodeAssistant.Iterator(state.Node(pointer.VolatileAddress)) {
 					if !yield(item) {
 						return
 					}
@@ -783,44 +780,6 @@ func PersistentIteratorAndDeallocator[K, V comparable](
 			}
 		}
 	}
-}
-
-// DeallocateVolatile deallocates volatile nodes.
-func DeallocateVolatile(
-	spaceRoot types.VolatileAddress,
-	deallocator *alloc.Deallocator[types.VolatileAddress],
-	state *alloc.State,
-) {
-	switch spaceRoot.State() {
-	case types.StateFree:
-		return
-	case types.StateData:
-		deallocator.Deallocate(spaceRoot)
-		return
-	}
-
-	deallocateVolatilePointerNode(spaceRoot, deallocator, state)
-}
-
-func deallocateVolatilePointerNode(
-	address types.VolatileAddress,
-	deallocator *alloc.Deallocator[types.VolatileAddress],
-	state *alloc.State,
-) {
-	addr := address.Naked()
-	pointerNode := ProjectPointerNode(state.Node(addr))
-	for pi := range pointerNode.Pointers {
-		p := &pointerNode.Pointers[pi]
-
-		volatileAddress := p.VolatileAddress
-		switch volatileAddress.State() {
-		case types.StateData:
-			deallocator.Deallocate(volatileAddress)
-		case types.StatePointer:
-			deallocateVolatilePointerNode(p.VolatileAddress, deallocator, state)
-		}
-	}
-	deallocator.Deallocate(addr)
 }
 
 func hashKey[K comparable](key *K, buff []byte, level uint8) types.KeyHash {

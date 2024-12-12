@@ -7,14 +7,14 @@ import (
 )
 
 // NumOfAddresses defines number of available slots in the list node.
-const NumOfAddresses = 510
+const NumOfAddresses = 509
 
 // Node represents list node.
 type Node struct {
 	Slots [NumOfAddresses]types.PersistentAddress
 
 	NumOfPointerAddresses uint16
-	Next                  types.PersistentAddress
+	Next                  Pointer
 }
 
 // ProjectNode projects node to list node.
