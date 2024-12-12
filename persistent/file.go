@@ -47,11 +47,6 @@ func (s *Store) Size() uint64 {
 	return s.size
 }
 
-// NewReader creates new store reader.
-func (s *Store) NewReader() (*Reader, error) {
-	return newReader(s.file)
-}
-
 // NewWriter creates new store writer.
 func (s *Store) NewWriter(volatileOrigin unsafe.Pointer, volatileSize uint64) (*Writer, error) {
 	return newWriter(s.file, volatileOrigin, volatileSize)
@@ -60,81 +55,6 @@ func (s *Store) NewWriter(volatileOrigin unsafe.Pointer, volatileSize uint64) (*
 // Close closes the store.
 func (s *Store) Close() {
 	_ = s.file.Close()
-}
-
-func newReader(file *os.File) (*Reader, error) {
-	// Required by uring.SetupSingleIssuer.
-	runtime.LockOSThread()
-
-	ring, err := uring.New(1, uring.WithCQSize(1),
-		uring.WithFlags(uring.SetupSingleIssuer),
-	)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	return &Reader{
-		fd:   int32(file.Fd()),
-		ring: ring,
-	}, nil
-}
-
-// Reader reads nodes from persistent store.
-type Reader struct {
-	fd   int32
-	ring *uring.Ring
-}
-
-// Read reads data from the persistent store.
-func (r *Reader) Read(address types.PersistentAddress, data unsafe.Pointer) error {
-	sqe, err := r.ring.NextSQE()
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	// We don't need to do this because we never set them so they are 0s in the entire ring all the time.
-	// sqe.Flags = 0
-	// sqe.IoPrio = 0
-	// sqe.OpcodeFlags = 0
-	// sqe.UserData = 0
-	// sqe.BufIG = 0
-	// sqe.Personality = 0
-	// sqe.SpliceFdIn = 0
-
-	sqe.OpCode = uint8(uring.ReadCode)
-	sqe.Fd = r.fd
-	sqe.Len = types.NodeLength
-	sqe.Off = uint64(address) * types.NodeLength
-	sqe.Addr = uint64(uintptr(data))
-
-	if _, err := r.ring.Submit(); err != nil {
-		return errors.WithStack(err)
-	}
-
-	for {
-		cqe, err := r.ring.PeekCQE()
-		if err != nil {
-			if errors.Is(err, syscall.EAGAIN) {
-				if _, err := r.ring.WaitCQEvents(1); err != nil && !errors.Is(err, syscall.EINTR) {
-					return errors.WithStack(err)
-				}
-				continue
-			}
-			return errors.WithStack(err)
-		}
-		if err := cqe.Error(); err != nil {
-			return errors.WithStack(err)
-		}
-
-		break
-	}
-	r.ring.AdvanceCQ(1)
-
-	return nil
-}
-
-// Close closes the reader.
-func (r *Reader) Close() {
-	_ = r.ring.Close()
 }
 
 func newWriter(

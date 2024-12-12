@@ -1,10 +1,7 @@
 package list
 
 import (
-	"unsafe"
-
 	"github.com/outofforest/quantum/alloc"
-	"github.com/outofforest/quantum/persistent"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -37,7 +34,7 @@ func Add(
 		node.Slots[0] = nodeAddress
 		node.NumOfPointerAddresses = 1
 		// This is needed because list nodes are not zeroed.
-		node.Next = 0
+		node.Next = Pointer{}
 
 		return Pointer{}, nil
 	}
@@ -66,33 +63,31 @@ func Add(
 
 	node.Slots[0] = nodeAddress
 	node.NumOfPointerAddresses = 1
-	node.Next = oldRoot.PersistentAddress
+	node.Next = oldRoot
 
 	return oldRoot, nil
 }
 
 // Deallocate deallocates nodes referenced by the list.
 func Deallocate(
-	listRoot types.PersistentAddress,
-	storeReader *persistent.Reader,
-	deallocator *alloc.Deallocator[types.PersistentAddress],
-	nodeBuff unsafe.Pointer,
+	listRoot Pointer,
+	state *alloc.State,
+	volatileDeallocator *alloc.Deallocator[types.VolatileAddress],
+	persistentDeallocator *alloc.Deallocator[types.PersistentAddress],
 ) error {
 	for {
-		if listRoot == 0 {
+		// It is safe to do deallocations here because deallocated nodes are not reallocated until commit is finalized.
+		volatileDeallocator.Deallocate(listRoot.VolatileAddress)
+		persistentDeallocator.Deallocate(listRoot.PersistentAddress)
+
+		node := ProjectNode(state.Node(listRoot.VolatileAddress))
+		for i := range node.NumOfPointerAddresses {
+			persistentDeallocator.Deallocate(node.Slots[i])
+		}
+
+		if node.Next.VolatileAddress == types.FreeAddress {
 			return nil
 		}
-
-		if err := storeReader.Read(listRoot, nodeBuff); err != nil {
-			return err
-		}
-
-		node := ProjectNode(nodeBuff)
-		for i := range node.NumOfPointerAddresses {
-			deallocator.Deallocate(node.Slots[i])
-		}
-
-		deallocator.Deallocate(listRoot)
 		listRoot = node.Next
 	}
 }
