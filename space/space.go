@@ -416,6 +416,7 @@ func (s *Space[K, V]) splitDataNodeWithoutConflict(
 			continue
 		}
 
+		// FIXME (wojciech): Items might be inserted on the first free slot in the new node.
 		newDataNodeItem := s.config.DataNodeAssistant.Item(newDataNode, s.config.DataNodeAssistant.ItemOffset(i))
 		*newDataNodeItem = *item
 		newKeyHashes[i] = keyHashes[i]
@@ -483,6 +484,7 @@ func (s *Space[K, V]) splitDataNodeWithConflict(
 			continue
 		}
 
+		// FIXME (wojciech): Items might be inserted on the first free slot in the new node.
 		newDataNodeItem := s.config.DataNodeAssistant.Item(newDataNode, s.config.DataNodeAssistant.ItemOffset(i))
 		*newDataNodeItem = *item
 		newKeyHashes[i] = keyHash
@@ -622,8 +624,7 @@ func (s *Space[K, V]) walkDataItems(v *Entry[K, V], hashMatches []uint64) bool {
 
 	var conflict bool
 	node := s.config.State.Node(types.Load(
-		&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress),
-	)
+		&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress))
 	keyHashes := s.config.DataNodeAssistant.KeyHashes(node)
 
 	zeroIndex, numOfMatches := compare.Compare(uint64(v.keyHash), (*uint64)(&keyHashes[0]), &hashMatches[0],

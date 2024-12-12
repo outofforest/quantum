@@ -81,8 +81,8 @@ func (t *TransactionRequest) AddListRequest(lr *ListRequest) {
 type StoreRequest struct {
 	NoSnapshots     bool
 	PointersToStore int8
-	PointersLast    int8
 	Store           [StoreCapacity]types.NodeRoot
+	PointersLast    int8
 	Next            *StoreRequest
 }
 

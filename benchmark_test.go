@@ -66,7 +66,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				panic(err)
 			}
 
-			var size uint64 = 20 * 1024 * 1024 * 1024
+			var size uint64 = 5 * 1024 * 1024 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size, store.Size(),
 				100,
@@ -77,13 +77,10 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			}
 			defer stateDeallocFunc()
 
-			db, err := quantum.New(quantum.Config{
+			db := quantum.New(quantum.Config{
 				State: state,
 				Store: store,
 			})
-			if err != nil {
-				panic(err)
-			}
 
 			ctx, cancel := context.WithCancel(logger.WithLogger(context.Background(), logger.New(logger.DefaultConfig)))
 			b.Cleanup(cancel)
