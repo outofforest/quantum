@@ -332,8 +332,7 @@ func (s *Space[K, V]) set(
 	}
 
 	// Add pointer node.
-	var err error
-	volatileAddress, err = s.addPointerNode(v, tx, volatileAllocator, conflict)
+	volatileAddress, err := s.addPointerNode(v, tx, volatileAllocator, conflict)
 	if err != nil {
 		return err
 	}

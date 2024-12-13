@@ -2152,3 +2152,74 @@ func TestSetTheSameSlotTwiceUsingDifferentEntry(t *testing.T) {
 	requireT.True(exists)
 	requireT.Equal(txtypes.Amount(10), balance)
 }
+
+// TestSetManyItems sets a lot of items to trigger node splits and parent node creations.
+func TestSetManyItems(t *testing.T) {
+	requireT := require.New(t)
+
+	const numOfItems = 1000
+
+	state := alloc.NewForTest(t, stateSize)
+
+	s := NewSpaceTest[uint64, uint64](t, state, nil)
+
+	for i := range uint64(numOfItems) {
+		v := s.NewEntry(TestKey[uint64]{
+			Key:     i,
+			KeyHash: types.KeyHash(i + 1),
+		}, StageData)
+		requireT.NoError(s.SetKey(v, i))
+	}
+
+	for i := range uint64(numOfItems) {
+		key := TestKey[uint64]{
+			Key:     i,
+			KeyHash: types.KeyHash(i + 1),
+		}
+
+		v := s.NewEntry(key, StageData)
+		requireT.True(s.KeyExists(v))
+		requireT.Equal(i, s.ReadKey(v))
+
+		value, exists := s.Query(key)
+		requireT.True(exists)
+		requireT.Equal(i, value)
+	}
+}
+
+// TestSetManyItems sets a lot of items with conflicting key hash to trigger node splits and parent node creations.
+func TestSetManyItemsWithConflicts(t *testing.T) {
+	requireT := require.New(t)
+
+	const (
+		keyHash    = 1
+		numOfItems = 1000
+	)
+
+	state := alloc.NewForTest(t, stateSize)
+
+	s := NewSpaceTest[uint64, uint64](t, state, nil)
+
+	for i := range uint64(numOfItems) {
+		v := s.NewEntry(TestKey[uint64]{
+			Key:     i,
+			KeyHash: keyHash,
+		}, StageData)
+		requireT.NoError(s.SetKey(v, i))
+	}
+
+	for i := range uint64(numOfItems) {
+		key := TestKey[uint64]{
+			Key:     i,
+			KeyHash: keyHash,
+		}
+
+		v := s.NewEntry(key, StageData)
+		requireT.True(s.KeyExists(v))
+		requireT.Equal(i, s.ReadKey(v))
+
+		value, exists := s.Query(key)
+		requireT.True(exists)
+		requireT.Equal(i, value)
+	}
+}
