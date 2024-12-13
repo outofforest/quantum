@@ -53,11 +53,6 @@ func (na VolatileAddress) Set(flag VolatileAddress) VolatileAddress {
 	return na | flag
 }
 
-// Naked returns address without flags.
-func (na VolatileAddress) Naked() VolatileAddress {
-	return na & FlagNaked
-}
-
 // Load loads node address atomically.
 func Load(address *VolatileAddress) VolatileAddress {
 	return (VolatileAddress)(atomic.LoadUint64((*uint64)(address)))
@@ -75,7 +70,9 @@ const (
 	FreeAddress VolatileAddress = 0
 
 	// FlagNaked is used to retrieve address without flags.
-	FlagNaked VolatileAddress = math.MaxUint64 >> numOfFlags
+	// Funny fact is that in most of the cases flags are erased automatically by multiplying address by the NodeLength,
+	// which causes bit shifts and as a result flags go out of the scope of uint64.
+	FlagNaked = math.MaxUint64 >> numOfFlags
 )
 
 // Pointer is the pointer to another block.

@@ -43,6 +43,8 @@ func Allocate(size, alignment uint64, useHugePages bool) (unsafe.Pointer, func()
 
 			// 1GB hugepages.
 			_ = unmap(dataPOrig, allocatedSize, 1024*1024*1024)
+
+			return
 		}
 
 		// Standard pages.

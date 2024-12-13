@@ -98,7 +98,10 @@ type Deallocator[A Address] struct {
 
 // Deallocate deallocates single node.
 func (d *Deallocator[A]) Deallocate(nodeAddress A) {
-	d.release = append(d.release, nodeAddress)
+	// ANDing with FlagNaked is done to erase flags from volatile addresses.
+	// Persistent addresses don't have flags, but it is impossible to have so big values there anyway.
+	d.release = append(d.release, nodeAddress&types.FlagNaked)
+
 	if len(d.release) == cap(d.release) {
 		d.sinkCh <- d.release
 
