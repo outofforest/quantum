@@ -390,7 +390,7 @@ func TestAddingPointerNodeWithoutConflictResolution(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	// Create.
 
@@ -418,7 +418,7 @@ func TestAddingPointerNodeWithoutConflictResolution(t *testing.T) {
 	requireT.NoError(s.SetKey(v, txtypes.Amount(numOfItems-1)))
 	requireT.Equal(uint8(1), v.level)
 
-	// Verify that all the items has been moved correctly without recomputing hashes.
+	// Verify that all the items have been moved correctly without recomputing hashes.
 
 	for i := range uint8(numOfItems) {
 		key := TestKey[txtypes.Account]{
@@ -489,7 +489,7 @@ func TestAddingPointerNodeWithConflictResolution(t *testing.T) {
 	requireT.NoError(s.SetKey(v, txtypes.Amount(numOfItems-1)))
 	requireT.Equal(uint8(1), v.level)
 
-	// Verify that all the items has been moved correctly without recomputing hashes.
+	// Verify that all the items have been moved correctly and hashes were recomputed.
 
 	dataNodes := map[types.VolatileAddress]uint64{}
 
@@ -534,7 +534,7 @@ func TestAddingPointerNodeForNonConflictingDataItems(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	// Create.
 
@@ -562,7 +562,7 @@ func TestAddingPointerNodeForNonConflictingDataItems(t *testing.T) {
 	requireT.NoError(s.SetKey(v, txtypes.Amount(numOfItems-1)))
 	requireT.Equal(uint8(1), v.level)
 
-	// Verify that all the items has been moved correctly without recomputing hashes.
+	// Verify that all the items have been moved correctly without recomputing hashes.
 
 	dataNodes := map[types.VolatileAddress]uint64{}
 
@@ -607,7 +607,7 @@ func TestDataNodeSplitWithoutConflictResolution(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	// Store items in the root data node.
 
@@ -896,7 +896,7 @@ func TestFindingAvailableFreeSlot(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	v1 := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{1},
@@ -923,7 +923,7 @@ func TestFindStages(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	// Create levels in the tree.
 
@@ -993,7 +993,7 @@ func TestSwitchingFromMutableToImmutablePath(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	// Create levels in the tree.
 
@@ -1096,7 +1096,7 @@ func TestExistsReturnsFalseIfKeyHashIsDifferent(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1133,7 +1133,7 @@ func TestExistsReturnsFalseIfKeyIsDifferent(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1171,7 +1171,7 @@ func TestExistsReturnsTrueAfterReplacingItem(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1232,7 +1232,7 @@ func TestExistsReturnsTrueAfterMovingItem(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1291,7 +1291,7 @@ func TestExistsReturnsFalseIfSlotHasNotBeenFound(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	v := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{0x01},
@@ -1332,7 +1332,7 @@ func TestReadReturnsDefaultValueIfKeyHashIsDifferent(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1369,7 +1369,7 @@ func TestReadReturnsDefaultValueIfKeyIsDifferent(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1407,7 +1407,7 @@ func TestReadReturnsCorrectValueAfterReplacingItem(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1468,7 +1468,7 @@ func TestReadReturnsCorrectValueAfterMovingItem(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1527,7 +1527,7 @@ func TestReadReturnsDefaultValueIfSlotHasNotBeenFound(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	v := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{0x01},
@@ -1562,7 +1562,7 @@ func TestDeletingOnEmptySpace(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	v5 := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{5},
@@ -1586,7 +1586,7 @@ func TestDeleteDoesNothingIfKeyHashIsDifferent(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1634,7 +1634,7 @@ func TestDeleteDoesNothingIfKeyIsDifferent(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1683,7 +1683,7 @@ func TestDeleteDoesNothingIfSlotIsFree(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1732,7 +1732,7 @@ func TestDeleteOnReplacedItem(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1803,7 +1803,7 @@ func TestDeleteOnMovedItem(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1868,7 +1868,7 @@ func TestDeleteDoesNothingIfSlotHasNotBeenFound(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1918,7 +1918,7 @@ func TestSetFindsAnotherSlotIfKeyHashIsDifferent(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1956,7 +1956,7 @@ func TestSetFindsAnotherSlotIfKeyIsDifferent(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1996,7 +1996,7 @@ func TestSetOnReplacedItem(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -2067,7 +2067,7 @@ func TestSetOnMovedItem(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -2138,7 +2138,7 @@ func TestSetTheSameSlotTwiceUsingSameEntry(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	v5 := s.NewEntry(key, StageData)
 	requireT.NoError(s.SetKey(v5, txtypes.Amount(5)))
@@ -2171,7 +2171,7 @@ func TestSetTheSameSlotTwiceUsingDifferentEntry(t *testing.T) {
 	state, err := alloc.RunInTest(t, stateSize, nodesPerGroup)
 	requireT.NoError(err)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
 	v5 := s.NewEntry(key, StageData)
 	requireT.NoError(s.SetKey(v5, txtypes.Amount(5)))
