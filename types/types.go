@@ -2,7 +2,6 @@ package types
 
 import (
 	"math"
-	"sync/atomic"
 )
 
 const (
@@ -51,16 +50,6 @@ func (na VolatileAddress) IsSet(flag VolatileAddress) bool {
 // Set sets flag.
 func (na VolatileAddress) Set(flag VolatileAddress) VolatileAddress {
 	return na | flag
-}
-
-// Load loads node address atomically.
-func Load(address *VolatileAddress) VolatileAddress {
-	return (VolatileAddress)(atomic.LoadUint64((*uint64)(address)))
-}
-
-// Store stores node address atomically.
-func Store(address *VolatileAddress, value VolatileAddress) {
-	atomic.StoreUint64((*uint64)(address), (uint64)(value))
 }
 
 const (
