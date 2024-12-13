@@ -3,8 +3,6 @@ package alloc
 import (
 	"math/rand/v2"
 
-	"github.com/pkg/errors"
-
 	"github.com/outofforest/quantum/types"
 )
 
@@ -13,99 +11,63 @@ type Address interface {
 	types.VolatileAddress | types.PersistentAddress
 }
 
-// NewAllocationCh creates channel containing allocatable addresses.
-func NewAllocationCh[A Address](
+func newAllocationRing[A Address](
 	size uint64,
-	nodesPerGroup uint64,
 	randomize bool,
-) (chan []A, A) {
+) (*ring[A], A) {
 	const singularityNodeCount = 1
 
-	numOfNodes := size / types.NodeLength
-	numOfNodes -= singularityNodeCount
+	totalNumOfNodes := size / types.NodeLength
+	numOfNodes := totalNumOfNodes - singularityNodeCount
 
-	numOfGroups := numOfNodes / nodesPerGroup
-	numOfNodes = numOfGroups * nodesPerGroup
-	totalNumOfNodes := singularityNodeCount + numOfNodes
-
-	availableNodes := make([]A, 0, numOfNodes)
-	for i := A(singularityNodeCount); i < A(totalNumOfNodes); i++ {
-		availableNodes = append(availableNodes, i)
+	r, addresses := newRing[A](numOfNodes)
+	for i := range A(numOfNodes) {
+		addresses[i] = i + singularityNodeCount
 	}
 
 	// FIXME (wojciech): There is no evidence it helps. Consider removing this option.
 	if randomize {
 		// Randomly shuffle addresses so consecutive items possibly go to different regions of the device, improving
 		// performance eventually.
-		rand.Shuffle(len(availableNodes), func(i, j int) {
-			availableNodes[i], availableNodes[j] = availableNodes[j], availableNodes[i]
+		rand.Shuffle(len(addresses), func(i, j int) {
+			addresses[i], addresses[j] = addresses[j], addresses[i]
 		})
 	}
 
-	availableNodesCh := make(chan []A, numOfGroups)
-	for i := uint64(0); i < uint64(len(availableNodes)); i += nodesPerGroup {
-		availableNodesCh <- availableNodes[i : i+nodesPerGroup]
-	}
-
 	var singularityNode A
-	return availableNodesCh, singularityNode
+	return r, singularityNode
 }
 
-func newAllocator[A Address](state *State, tapCh <-chan []A) *Allocator[A] {
-	pool := <-tapCh
+func newAllocator[A Address](r *ring[A]) *Allocator[A] {
 	return &Allocator[A]{
-		state: state,
-		tapCh: tapCh,
-		pool:  pool,
+		r: r,
 	}
 }
 
 // Allocator allocates nodes in chunks.
 type Allocator[A Address] struct {
-	state *State
-	tapCh <-chan []A
-	pool  []A
+	r *ring[A]
 }
 
 // Allocate allocates single node.
 func (a *Allocator[A]) Allocate() (A, error) {
-	nodeAddress := a.pool[len(a.pool)-1]
-	a.pool = a.pool[:len(a.pool)-1]
-
-	if len(a.pool) == 0 {
-		var ok bool
-		if a.pool, ok = <-a.tapCh; !ok {
-			var a A
-			return 0, errors.Errorf("allocation failed: %T", a)
-		}
-	}
-
-	return nodeAddress, nil
+	return a.r.Get()
 }
 
-func newDeallocator[A Address](nodesPerGroup uint64, sinkCh chan<- []A) *Deallocator[A] {
+func newDeallocator[A Address](r *ring[A]) *Deallocator[A] {
 	return &Deallocator[A]{
-		sinkCh:  sinkCh,
-		release: make([]A, 0, nodesPerGroup),
+		r: r,
 	}
 }
 
 // Deallocator deallocates nodes in chunks.
 type Deallocator[A Address] struct {
-	sinkCh  chan<- []A
-	release []A
+	r *ring[A]
 }
 
 // Deallocate deallocates single node.
 func (d *Deallocator[A]) Deallocate(nodeAddress A) {
 	// ANDing with FlagNaked is done to erase flags from volatile addresses.
 	// Persistent addresses don't have flags, but it is impossible to have so big values there anyway.
-	d.release = append(d.release, nodeAddress&types.FlagNaked)
-
-	if len(d.release) == cap(d.release) {
-		d.sinkCh <- d.release
-
-		// FIXME (wojciech): Avoid heap allocation
-		d.release = make([]A, 0, cap(d.release))
-	}
+	d.r.Put(nodeAddress & types.FlagNaked)
 }

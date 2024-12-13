@@ -118,85 +118,77 @@ func (db *DB) Close() {
 
 // Run runs db goroutines.
 func (db *DB) Run(ctx context.Context) error {
+	defer db.config.Store.Close()
+
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-		spawn("state", parallel.Fail, db.config.State.Run)
-		spawn("pipeline", parallel.Exit, func(ctx context.Context) error {
-			defer db.config.State.Close()
-			defer db.config.Store.Close()
+		supervisorReader := db.queueReader
+		prepareTxReader := pipeline.CloneReader(db.queueReader)
+		prepareTxReaders := make([]*pipeline.Reader, 0, 3)
+		for range cap(prepareTxReaders) {
+			prepareTxReaders = append(prepareTxReaders, prepareTxReader)
+			prepareTxReader = pipeline.NewReader(prepareTxReader)
+		}
+		executeTxReader := prepareTxReader
+		prevHashReader := executeTxReader
+		dataHashReaders := make([]*pipeline.Reader, 0, 2)
+		for range cap(dataHashReaders) {
+			nextReader := pipeline.NewReader(prevHashReader)
+			dataHashReaders = append(dataHashReaders, nextReader)
+			prevHashReader = nextReader
+		}
+		pointerHashReaders := make([]*pipeline.Reader, 0, 2)
+		for range cap(pointerHashReaders) {
+			nextReader := pipeline.NewReader(prevHashReader)
+			pointerHashReaders = append(pointerHashReaders, nextReader)
+			prevHashReader = nextReader
+		}
+		storeNodesReader := pipeline.NewReader(prevHashReader)
 
-			return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-				supervisorReader := db.queueReader
-				prepareTxReader := pipeline.CloneReader(db.queueReader)
-				prepareTxReaders := make([]*pipeline.Reader, 0, 3)
-				for range cap(prepareTxReaders) {
-					prepareTxReaders = append(prepareTxReaders, prepareTxReader)
-					prepareTxReader = pipeline.NewReader(prepareTxReader)
+		spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
+			var lastCommitCh chan<- error
+			var processedCount uint64
+
+			for {
+				req, err := supervisorReader.Read(ctx)
+				if err != nil && lastCommitCh != nil {
+					lastCommitCh <- err
+					lastCommitCh = nil
 				}
-				executeTxReader := prepareTxReader
-				prevHashReader := executeTxReader
-				dataHashReaders := make([]*pipeline.Reader, 0, 2)
-				for range cap(dataHashReaders) {
-					nextReader := pipeline.NewReader(prevHashReader)
-					dataHashReaders = append(dataHashReaders, nextReader)
-					prevHashReader = nextReader
-				}
-				pointerHashReaders := make([]*pipeline.Reader, 0, 2)
-				for range cap(pointerHashReaders) {
-					nextReader := pipeline.NewReader(prevHashReader)
-					pointerHashReaders = append(pointerHashReaders, nextReader)
-					prevHashReader = nextReader
-				}
-				storeNodesReader := pipeline.NewReader(prevHashReader)
 
-				spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
-					var lastCommitCh chan<- error
-					var processedCount uint64
+				if req != nil {
+					processedCount++
+					supervisorReader.Acknowledge(processedCount, req)
 
-					for {
-						req, err := supervisorReader.Read(ctx)
-						if err != nil && lastCommitCh != nil {
-							lastCommitCh <- err
-							lastCommitCh = nil
-						}
-
-						if req != nil {
-							processedCount++
-							supervisorReader.Acknowledge(processedCount, req)
-
-							if req.Type == pipeline.Commit {
-								lastCommitCh = req.CommitCh
-								continue
-							}
-							if req.Type == pipeline.Close {
-								return errors.WithStack(ctx.Err())
-							}
-						}
+					if req.Type == pipeline.Commit {
+						lastCommitCh = req.CommitCh
+						continue
 					}
-				})
-				for i, reader := range prepareTxReaders {
-					spawn(fmt.Sprintf("prepareTx-%02d", i), parallel.Fail, func(ctx context.Context) error {
-						return db.prepareTransactions(ctx, reader)
-					})
+					if req.Type == pipeline.Close {
+						return errors.WithStack(ctx.Err())
+					}
 				}
-				spawn("executeTx", parallel.Fail, func(ctx context.Context) error {
-					return db.executeTransactions(ctx, executeTxReader)
-				})
-				for i, reader := range dataHashReaders {
-					spawn(fmt.Sprintf("datahash-%02d", i), parallel.Fail, func(ctx context.Context) error {
-						return db.updateDataHashes(ctx, reader, uint64(i))
-					})
-				}
-				for i, reader := range pointerHashReaders {
-					spawn(fmt.Sprintf("pointerhash-%02d", i), parallel.Fail, func(ctx context.Context) error {
-						return db.updatePointerHashes(ctx, reader, uint64(i))
-					})
-				}
-				spawn("storeNodes", parallel.Fail, func(ctx context.Context) error {
-					return db.storeNodes(ctx, storeNodesReader)
-				})
-
-				return nil
+			}
+		})
+		for i, reader := range prepareTxReaders {
+			spawn(fmt.Sprintf("prepareTx-%02d", i), parallel.Fail, func(ctx context.Context) error {
+				return db.prepareTransactions(ctx, reader)
 			})
+		}
+		spawn("executeTx", parallel.Fail, func(ctx context.Context) error {
+			return db.executeTransactions(ctx, executeTxReader)
+		})
+		for i, reader := range dataHashReaders {
+			spawn(fmt.Sprintf("datahash-%02d", i), parallel.Fail, func(ctx context.Context) error {
+				return db.updateDataHashes(ctx, reader, uint64(i))
+			})
+		}
+		for i, reader := range pointerHashReaders {
+			spawn(fmt.Sprintf("pointerhash-%02d", i), parallel.Fail, func(ctx context.Context) error {
+				return db.updatePointerHashes(ctx, reader, uint64(i))
+			})
+		}
+		spawn("storeNodes", parallel.Fail, func(ctx context.Context) error {
+			return db.storeNodes(ctx, storeNodesReader)
 		})
 
 		return nil
