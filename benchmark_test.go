@@ -34,7 +34,7 @@ import (
 
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
-		numOfAddresses = 5_000_000
+		numOfAddresses = 50_000_000
 		txsPerCommit   = 20_000
 		balance        = 100_000
 	)
@@ -72,7 +72,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			var size uint64 = 10 * 1024 * 1024 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size, store.Size(),
-				100,
 				true,
 			)
 			if err != nil {
