@@ -24,14 +24,12 @@ func (t *Tx) Execute(
 	s *space.Space[txtypes.Account, txtypes.Amount],
 	tx *pipeline.TransactionRequest,
 	allocator *alloc.Allocator[types.VolatileAddress],
-	hashBuff []byte,
-	hashMatches []uint64,
 ) error {
 	for _, a := range t.Accounts {
 		var v space.Entry[txtypes.Account, txtypes.Amount]
-		s.Find(&v, a.Account, space.StageData, hashBuff, hashMatches)
+		s.Find(&v, a.Account, space.StageData)
 
-		if err := s.SetKey(&v, tx, allocator, a.Amount, hashBuff, hashMatches); err != nil {
+		if err := s.SetKey(&v, tx, allocator, a.Amount); err != nil {
 			return err
 		}
 	}
