@@ -223,21 +223,21 @@ func (db *DB) deleteSnapshot(
 	var snapshotInfoValue space.Entry[types.SnapshotID, types.SnapshotInfo]
 	snapshotSpace.Find(&snapshotInfoValue, snapshotID, space.StageData, snapshotHashBuff, snapshotHashMatches)
 
-	if exists := snapshotInfoValue.Exists(snapshotHashBuff, snapshotHashMatches); !exists {
+	if exists := snapshotSpace.KeyExists(&snapshotInfoValue, snapshotHashBuff, snapshotHashMatches); !exists {
 		return errors.Errorf("snapshot %d to delete does not exist", snapshotID)
 	}
-	snapshotInfo := snapshotInfoValue.Value(snapshotHashBuff, snapshotHashMatches)
+	snapshotInfo := snapshotSpace.ReadKey(&snapshotInfoValue, snapshotHashBuff, snapshotHashMatches)
 
-	snapshotInfoValue.Delete(tx, snapshotHashBuff, snapshotHashMatches)
+	snapshotSpace.DeleteKey(&snapshotInfoValue, tx, snapshotHashBuff, snapshotHashMatches)
 
 	var nextSnapshotInfoValue space.Entry[types.SnapshotID, types.SnapshotInfo]
 	snapshotSpace.Find(&nextSnapshotInfoValue, snapshotInfo.NextSnapshotID, space.StageData, snapshotHashBuff,
 		snapshotHashMatches)
 
-	if exists := nextSnapshotInfoValue.Exists(snapshotHashBuff, snapshotHashMatches); !exists {
+	if exists := snapshotSpace.KeyExists(&nextSnapshotInfoValue, snapshotHashBuff, snapshotHashMatches); !exists {
 		return errors.Errorf("next snapshot %d does not exist", snapshotID)
 	}
-	nextSnapshotInfo := nextSnapshotInfoValue.Value(snapshotHashBuff, snapshotHashMatches)
+	nextSnapshotInfo := snapshotSpace.ReadKey(&nextSnapshotInfoValue, snapshotHashBuff, snapshotHashMatches)
 
 	deallocationListsRoot := types.NodeRoot{
 		Pointer: &snapshotInfo.DeallocationRoot,
@@ -273,26 +273,16 @@ func (db *DB) deleteSnapshot(
 		var deallocationListValue space.Entry[deallocationKey, list.Pointer]
 		deallocationLists.Find(&deallocationListValue, nextDeallocSnapshot.Key, space.StageData, deallocationHashBuff,
 			deallocationHashMatches)
-		if err := deallocationListValue.Set(
-			tx,
-			volatileAllocator,
-			nextDeallocSnapshot.Value,
-			deallocationHashBuff,
-			deallocationHashMatches,
-		); err != nil {
+		if err := deallocationLists.SetKey(&deallocationListValue, tx, volatileAllocator, nextDeallocSnapshot.Value,
+			deallocationHashBuff, deallocationHashMatches); err != nil {
 			return err
 		}
 	}
 
 	nextSnapshotInfo.DeallocationRoot = snapshotInfo.DeallocationRoot
 	nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
-	if err := nextSnapshotInfoValue.Set(
-		tx,
-		volatileAllocator,
-		nextSnapshotInfo,
-		snapshotHashBuff,
-		snapshotHashMatches,
-	); err != nil {
+	if err := snapshotSpace.SetKey(&nextSnapshotInfoValue, tx, volatileAllocator, nextSnapshotInfo, snapshotHashBuff,
+		snapshotHashMatches); err != nil {
 		return err
 	}
 
@@ -301,20 +291,16 @@ func (db *DB) deleteSnapshot(
 		snapshotSpace.Find(&previousSnapshotInfoValue, snapshotInfo.PreviousSnapshotID, space.StageData,
 			snapshotHashBuff, snapshotHashMatches)
 
-		if exists := previousSnapshotInfoValue.Exists(snapshotHashBuff, snapshotHashMatches); !exists {
+		if exists := snapshotSpace.KeyExists(&previousSnapshotInfoValue, snapshotHashBuff,
+			snapshotHashMatches); !exists {
 			return errors.Errorf("previous snapshot %d does not exist", snapshotID)
 		}
 
-		previousSnapshotInfo := previousSnapshotInfoValue.Value(snapshotHashBuff, snapshotHashMatches)
+		previousSnapshotInfo := snapshotSpace.ReadKey(&previousSnapshotInfoValue, snapshotHashBuff, snapshotHashMatches)
 		previousSnapshotInfo.NextSnapshotID = snapshotInfo.NextSnapshotID
 
-		if err := previousSnapshotInfoValue.Set(
-			tx,
-			volatileAllocator,
-			previousSnapshotInfo,
-			snapshotHashBuff,
-			snapshotHashMatches,
-		); err != nil {
+		if err := snapshotSpace.SetKey(&previousSnapshotInfoValue, tx, volatileAllocator, previousSnapshotInfo,
+			snapshotHashBuff, snapshotHashMatches); err != nil {
 			return err
 		}
 	}
@@ -362,13 +348,8 @@ func (db *DB) commit(
 				SnapshotID:     snapshotID,
 			}, space.StageData, deallocationHashBuff,
 				deallocationHashMatches)
-			if err := deallocationListValue.Set(
-				tx,
-				volatileAllocator,
-				*listRoot,
-				deallocationHashBuff,
-				deallocationHashMatches,
-			); err != nil {
+			if err := deallocationListSpace.SetKey(&deallocationListValue, tx, volatileAllocator, *listRoot,
+				deallocationHashBuff, deallocationHashMatches); err != nil {
 				return err
 			}
 
@@ -409,13 +390,8 @@ func (db *DB) commit(
 	var nextSnapshotInfoValue space.Entry[types.SnapshotID, types.SnapshotInfo]
 	snapshotSpace.Find(&nextSnapshotInfoValue, db.singularityNode.LastSnapshotID, space.StageData, snapshotHashBuff,
 		snapshotHashMatches)
-	if err := nextSnapshotInfoValue.Set(
-		tx,
-		volatileAllocator,
-		db.snapshotInfo,
-		snapshotHashBuff,
-		snapshotHashMatches,
-	); err != nil {
+	if err := snapshotSpace.SetKey(&nextSnapshotInfoValue, tx, volatileAllocator, db.snapshotInfo, snapshotHashBuff,
+		snapshotHashMatches); err != nil {
 		return err
 	}
 
@@ -537,7 +513,7 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 		if req.Transaction != nil {
 			switch tx := req.Transaction.(type) {
 			case *transfer.Tx:
-				if err := tx.Execute(req, volatileAllocator, hashBuff, hashMatches); err != nil {
+				if err := tx.Execute(s, req, volatileAllocator, hashBuff, hashMatches); err != nil {
 					return err
 				}
 			case *deleteSnapshotTx:

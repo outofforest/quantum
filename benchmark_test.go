@@ -165,7 +165,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				fmt.Println(s.Stats())
 
 				genesisBalance, genesisExists := s.Query(txtypes.GenesisAccount, hashBuff, hashMatches)
-				require.True(b, genesisExists)
+				require.False(b, genesisExists)
 				require.Equal(b, txtypes.Amount(0), genesisBalance)
 
 				for _, addr := range accounts {

@@ -82,7 +82,7 @@ func (s *Space[K, V]) Find(
 	hashBuff []byte,
 	hashMatches []uint64,
 ) {
-	if v.space == nil {
+	if v.keyHash == 0 {
 		keyHash := hashKey(&key, nil, 0)
 		s.initEntry(v, key, keyHash, stage)
 	}
@@ -94,6 +94,46 @@ func (s *Space[K, V]) Find(
 func (s *Space[K, V]) Query(key K, hashBuff []byte, hashMatches []uint64) (V, bool) {
 	keyHash := hashKey(&key, nil, 0)
 	return s.query(key, keyHash, hashBuff, hashMatches, hashKey)
+}
+
+// KeyExists checks if key exists in the space.
+func (s *Space[K, V]) KeyExists(
+	v *Entry[K, V],
+	hashBuff []byte,
+	hashMatches []uint64,
+) bool {
+	return s.keyExists(v, hashBuff, hashMatches, hashKey)
+}
+
+// ReadKey retrieves value of a key.
+func (s *Space[K, V]) ReadKey(
+	v *Entry[K, V],
+	hashBuff []byte,
+	hashMatches []uint64,
+) V {
+	return s.readKey(v, hashBuff, hashMatches, hashKey)
+}
+
+// DeleteKey deletes the key from the space.
+func (s *Space[K, V]) DeleteKey(
+	v *Entry[K, V],
+	tx *pipeline.TransactionRequest,
+	hashBuff []byte,
+	hashMatches []uint64,
+) {
+	s.deleteKey(v, tx, hashBuff, hashMatches, hashKey)
+}
+
+// SetKey sets key in the space.
+func (s *Space[K, V]) SetKey(
+	v *Entry[K, V],
+	tx *pipeline.TransactionRequest,
+	allocator *alloc.Allocator[types.VolatileAddress],
+	value V,
+	hashBuff []byte,
+	hashMatches []uint64,
+) error {
+	return s.setKey(v, tx, allocator, value, hashBuff, hashMatches, hashKey)
 }
 
 // Stats returns space-related statistics.
@@ -195,7 +235,6 @@ func (s *Space[K, V]) initEntry(
 ) {
 	initBytes := unsafe.Slice((*byte)(unsafe.Pointer(v)), s.initSize)
 	copy(initBytes, s.defaultInit)
-	v.space = s
 	v.keyHash = keyHash
 	v.item.Key = key
 	v.stage = stage
@@ -681,7 +720,6 @@ func (s *Space[K, V]) detectUpdate(v *Entry[K, V]) {
 type Entry[K, V comparable] struct {
 	storeRequest pipeline.StoreRequest
 
-	space           *Space[K, V]
 	itemP           *DataItem[K, V]
 	keyHashP        *types.KeyHash
 	keyHash         types.KeyHash
@@ -693,47 +731,6 @@ type Entry[K, V comparable] struct {
 	exists          bool
 	stage           uint8
 	level           uint8
-}
-
-// Value returns the value from entry.
-func (v *Entry[K, V]) Value(
-	hashBuff []byte,
-	hashMatches []uint64,
-) V {
-	return v.space.readKey(v, hashBuff, hashMatches, hashKey[K])
-}
-
-// Key returns the key from entry.
-func (v *Entry[K, V]) Key() K {
-	return v.item.Key
-}
-
-// Exists returns true if entry exists in the space.
-func (v *Entry[K, V]) Exists(
-	hashBuff []byte,
-	hashMatches []uint64,
-) bool {
-	return v.space.keyExists(v, hashBuff, hashMatches, hashKey[K])
-}
-
-// Set sts value for entry.
-func (v *Entry[K, V]) Set(
-	tx *pipeline.TransactionRequest,
-	allocator *alloc.Allocator[types.VolatileAddress],
-	value V,
-	hashBuff []byte,
-	hashMatches []uint64,
-) error {
-	return v.space.setKey(v, tx, allocator, value, hashBuff, hashMatches, hashKey[K])
-}
-
-// Delete deletes the entry.
-func (v *Entry[K, V]) Delete(
-	tx *pipeline.TransactionRequest,
-	hashBuff []byte,
-	hashMatches []uint64,
-) {
-	v.space.deleteKey(v, tx, hashBuff, hashMatches, hashKey[K])
 }
 
 // IteratorAndDeallocator iterates over items and deallocates space.
