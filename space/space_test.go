@@ -1,5 +1,5 @@
 // Github actions run on machines not supporting AVX-512 instructions.
-//go:build nogithub
+////go:build nogithub
 
 package space
 

@@ -118,5 +118,5 @@ func (s *SpaceTest[K, V]) Query(key TestKey[K]) (V, bool) {
 
 // Find finds the location in the tree for key.
 func (s *SpaceTest[K, V]) Find(v *Entry[K, V]) {
-	s.s.find(v)
+	s.s.find(v, v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress)
 }

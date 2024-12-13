@@ -78,7 +78,7 @@ func (s *Space[K, V]) Find(v *Entry[K, V], key K, stage uint8) {
 		s.initEntry(v, key, keyHash, stage)
 	}
 
-	s.find(v)
+	s.find(v, load(&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress))
 }
 
 // Query queries the key.
@@ -93,9 +93,10 @@ func (s *Space[K, V]) Query(key K) (V, bool) {
 func (s *Space[K, V]) KeyExists(
 	v *Entry[K, V],
 ) bool {
-	s.detectUpdate(v)
+	volatileAddress := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress
+	s.detectUpdate(v, volatileAddress)
 
-	s.find(v)
+	s.find(v, volatileAddress)
 
 	return v.exists
 }
@@ -104,9 +105,10 @@ func (s *Space[K, V]) KeyExists(
 func (s *Space[K, V]) ReadKey(
 	v *Entry[K, V],
 ) V {
-	s.detectUpdate(v)
+	volatileAddress := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress
+	s.detectUpdate(v, volatileAddress)
 
-	s.find(v)
+	s.find(v, volatileAddress)
 
 	if v.keyHashP == nil || *v.keyHashP == 0 {
 		return s.defaultValue
@@ -120,9 +122,10 @@ func (s *Space[K, V]) DeleteKey(
 	v *Entry[K, V],
 	tx *pipeline.TransactionRequest,
 ) {
-	s.detectUpdate(v)
+	volatileAddress := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress
+	s.detectUpdate(v, volatileAddress)
 
-	s.find(v)
+	s.find(v, volatileAddress)
 
 	if v.keyHashP != nil && *v.keyHashP != 0 {
 		// If we are here it means `s.find` found the slot with matching key so don't need to check hash and key again.
@@ -144,7 +147,8 @@ func (s *Space[K, V]) SetKey(
 ) error {
 	v.item.Value = value
 
-	s.detectUpdate(v)
+	volatileAddress := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress
+	s.detectUpdate(v, volatileAddress)
 
 	return s.set(v, tx, allocator)
 }
@@ -248,8 +252,8 @@ func (s *Space[K, V]) initEntry(
 	v.stage = stage
 }
 
-func (s *Space[K, V]) find(v *Entry[K, V]) {
-	volatileAddress := s.walkPointers(v)
+func (s *Space[K, V]) find(v *Entry[K, V], volatileAddress types.VolatileAddress) {
+	volatileAddress = s.walkPointers(v, volatileAddress)
 
 	switch {
 	case v.stage == StageData:
@@ -277,7 +281,8 @@ func (s *Space[K, V]) set(
 	tx *pipeline.TransactionRequest,
 	volatileAllocator *alloc.Allocator[types.VolatileAddress],
 ) error {
-	volatileAddress := s.walkPointers(v)
+	volatileAddress := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress
+	volatileAddress = s.walkPointers(v, volatileAddress)
 
 	if isFree(volatileAddress) {
 		var err error
@@ -525,10 +530,10 @@ func (s *Space[K, V]) addPointerNode(
 	return err
 }
 
-func (s *Space[K, V]) walkPointers(v *Entry[K, V]) types.VolatileAddress {
+func (s *Space[K, V]) walkPointers(v *Entry[K, V], volatileAddress types.VolatileAddress) types.VolatileAddress {
 	if v.nextDataNode != nil {
 		if isFree(load(v.nextDataNode)) {
-			return load(&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress)
+			return volatileAddress
 		}
 
 		v.storeRequest.PointersToStore--
@@ -537,13 +542,14 @@ func (s *Space[K, V]) walkPointers(v *Entry[K, V]) types.VolatileAddress {
 
 		v.keyHashP = nil
 		v.itemP = nil
+
+		volatileAddress = load(&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress)
 	}
 
-	lastVolatileAddress := load(&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress)
 	var stop bool
 	for {
-		if lastVolatileAddress, stop = s.walkOnePointer(v, lastVolatileAddress); stop {
-			return lastVolatileAddress
+		if volatileAddress, stop = s.walkOnePointer(v, volatileAddress); stop {
+			return volatileAddress
 		}
 	}
 }
@@ -620,14 +626,14 @@ func (s *Space[K, V]) walkDataItems(v *Entry[K, V], dataNodeAddress types.Volati
 	return conflict
 }
 
-func (s *Space[K, V]) detectUpdate(v *Entry[K, V]) {
+func (s *Space[K, V]) detectUpdate(v *Entry[K, V], volatileAddress types.VolatileAddress) {
 	v.stage = StageData
 
 	if v.keyHashP == nil {
 		return
 	}
 
-	if isPointer(v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress) ||
+	if isPointer(volatileAddress) ||
 		*s.config.DeletionCounter != v.deletionCounter ||
 		(*v.keyHashP != 0 && (*v.keyHashP != v.keyHash || v.itemP.Key != v.item.Key)) {
 		v.keyHashP = nil
