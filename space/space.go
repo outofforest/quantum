@@ -33,9 +33,12 @@ type Config[K, V comparable] struct {
 
 // New creates new space.
 func New[K, V comparable](config Config[K, V]) *Space[K, V] {
+	var k K
+
 	s := &Space[K, V]{
-		config:         config,
-		numOfDataItems: config.DataNodeAssistant.NumOfItems(),
+		config:      config,
+		hashBuff:    make([]byte, unsafe.Sizeof(k)+1),
+		hashMatches: make([]uint64, config.DataNodeAssistant.NumOfItems()),
 	}
 
 	defaultInit := Entry[K, V]{
@@ -56,72 +59,50 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 
 // Space represents the substate where values V are stored by key K.
 type Space[K, V comparable] struct {
-	config         Config[K, V]
-	initSize       uint64
-	defaultInit    []byte
-	defaultValue   V
-	numOfDataItems uint64
-}
-
-// NewHashBuff allocates buffer required to compute key hash.
-func (s *Space[K, V]) NewHashBuff() []byte {
-	var k K
-	return make([]byte, unsafe.Sizeof(k)+1)
-}
-
-// NewHashMatches allocates new slice used to match hashes.
-func (s *Space[K, V]) NewHashMatches() []uint64 {
-	return make([]uint64, s.numOfDataItems)
+	config       Config[K, V]
+	initSize     uint64
+	defaultInit  []byte
+	defaultValue V
+	hashBuff     []byte
+	hashMatches  []uint64
 }
 
 // Find locates key in the space.
-func (s *Space[K, V]) Find(
-	v *Entry[K, V],
-	key K,
-	stage uint8,
-	hashBuff []byte,
-	hashMatches []uint64,
-) {
+func (s *Space[K, V]) Find(v *Entry[K, V], key K, stage uint8) {
 	if v.keyHash == 0 {
 		keyHash := hashKey(&key, nil, 0)
 		s.initEntry(v, key, keyHash, stage)
 	}
 
-	s.find(v, hashBuff, hashMatches, hashKey)
+	s.find(v, hashKey)
 }
 
 // Query queries the key.
-func (s *Space[K, V]) Query(key K, hashBuff []byte, hashMatches []uint64) (V, bool) {
+func (s *Space[K, V]) Query(key K) (V, bool) {
 	keyHash := hashKey(&key, nil, 0)
-	return s.query(key, keyHash, hashBuff, hashMatches, hashKey)
+	return s.query(key, keyHash, hashKey)
 }
 
 // KeyExists checks if key exists in the space.
 func (s *Space[K, V]) KeyExists(
 	v *Entry[K, V],
-	hashBuff []byte,
-	hashMatches []uint64,
 ) bool {
-	return s.keyExists(v, hashBuff, hashMatches, hashKey)
+	return s.keyExists(v, hashKey)
 }
 
 // ReadKey retrieves value of a key.
 func (s *Space[K, V]) ReadKey(
 	v *Entry[K, V],
-	hashBuff []byte,
-	hashMatches []uint64,
 ) V {
-	return s.readKey(v, hashBuff, hashMatches, hashKey)
+	return s.readKey(v, hashKey)
 }
 
 // DeleteKey deletes the key from the space.
 func (s *Space[K, V]) DeleteKey(
 	v *Entry[K, V],
 	tx *pipeline.TransactionRequest,
-	hashBuff []byte,
-	hashMatches []uint64,
 ) {
-	s.deleteKey(v, tx, hashBuff, hashMatches, hashKey)
+	s.deleteKey(v, tx, hashKey)
 }
 
 // SetKey sets key in the space.
@@ -130,10 +111,8 @@ func (s *Space[K, V]) SetKey(
 	tx *pipeline.TransactionRequest,
 	allocator *alloc.Allocator[types.VolatileAddress],
 	value V,
-	hashBuff []byte,
-	hashMatches []uint64,
 ) error {
-	return s.setKey(v, tx, allocator, value, hashBuff, hashMatches, hashKey)
+	return s.setKey(v, tx, allocator, value, hashKey)
 }
 
 // Stats returns space-related statistics.
@@ -151,7 +130,8 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, uint64, float64) {
 
 	for {
 		if len(stack) == 0 {
-			return maxLevel, pointerNodes, dataNodes, dataItems, float64(dataItems) / float64(dataNodes*s.numOfDataItems)
+			return maxLevel, pointerNodes, dataNodes, dataItems,
+				float64(dataItems) / float64(dataNodes*uint64(len(s.hashMatches)))
 		}
 
 		n := stack[len(stack)-1]
@@ -188,8 +168,6 @@ func (s *Space[K, V]) Stats() (uint64, uint64, uint64, uint64, float64) {
 func (s *Space[K, V]) query(
 	key K,
 	keyHash types.KeyHash,
-	hashBuff []byte,
-	hashMatches []uint64,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) (V, bool) {
 	volatileAddress := s.config.SpaceRoot.Pointer.VolatileAddress
@@ -197,7 +175,7 @@ func (s *Space[K, V]) query(
 
 	for isPointer(volatileAddress) {
 		if volatileAddress.IsSet(flagHashMod) {
-			keyHash = hashKeyFunc(&key, hashBuff, level)
+			keyHash = hashKeyFunc(&key, s.hashBuff, level)
 		}
 
 		pointerNode := ProjectPointerNode(s.config.State.Node(volatileAddress))
@@ -214,10 +192,10 @@ func (s *Space[K, V]) query(
 	node := s.config.State.Node(volatileAddress)
 	keyHashes := s.config.DataNodeAssistant.KeyHashes(node)
 
-	_, numOfMatches := compare.Compare(uint64(keyHash), (*uint64)(&keyHashes[0]), &hashMatches[0],
-		s.numOfDataItems)
+	_, numOfMatches := compare.Compare(uint64(keyHash), (*uint64)(&keyHashes[0]), &s.hashMatches[0],
+		uint64(len(s.hashMatches)))
 	for i := range numOfMatches {
-		index := hashMatches[i]
+		index := s.hashMatches[i]
 		item := s.config.DataNodeAssistant.Item(node, s.config.DataNodeAssistant.ItemOffset(index))
 		if item.Key == key {
 			return item.Value, true
@@ -242,26 +220,22 @@ func (s *Space[K, V]) initEntry(
 
 func (s *Space[K, V]) keyExists(
 	v *Entry[K, V],
-	hashBuff []byte,
-	hashMatches []uint64,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) bool {
 	s.detectUpdate(v)
 
-	s.find(v, hashBuff, hashMatches, hashKeyFunc)
+	s.find(v, hashKeyFunc)
 
 	return v.exists
 }
 
 func (s *Space[K, V]) readKey(
 	v *Entry[K, V],
-	hashBuff []byte,
-	hashMatches []uint64,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) V {
 	s.detectUpdate(v)
 
-	s.find(v, hashBuff, hashMatches, hashKeyFunc)
+	s.find(v, hashKeyFunc)
 
 	if v.keyHashP == nil || *v.keyHashP == 0 {
 		return s.defaultValue
@@ -273,13 +247,11 @@ func (s *Space[K, V]) readKey(
 func (s *Space[K, V]) deleteKey(
 	v *Entry[K, V],
 	tx *pipeline.TransactionRequest,
-	hashBuff []byte,
-	hashMatches []uint64,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) {
 	s.detectUpdate(v)
 
-	s.find(v, hashBuff, hashMatches, hashKeyFunc)
+	s.find(v, hashKeyFunc)
 
 	if v.keyHashP != nil && *v.keyHashP != 0 {
 		// If we are here it means `s.find` found the slot with matching key so don't need to check hash and key again.
@@ -297,24 +269,17 @@ func (s *Space[K, V]) setKey(
 	tx *pipeline.TransactionRequest,
 	allocator *alloc.Allocator[types.VolatileAddress],
 	value V,
-	hashBuff []byte,
-	hashMatches []uint64,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) error {
 	v.item.Value = value
 
 	s.detectUpdate(v)
 
-	return s.set(v, tx, allocator, hashBuff, hashMatches, hashKeyFunc)
+	return s.set(v, tx, allocator, hashKeyFunc)
 }
 
-func (s *Space[K, V]) find(
-	v *Entry[K, V],
-	hashBuff []byte,
-	hashMatches []uint64,
-	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
-) {
-	s.walkPointers(v, hashBuff, hashKeyFunc)
+func (s *Space[K, V]) find(v *Entry[K, V], hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash) {
+	s.walkPointers(v, hashKeyFunc)
 
 	switch {
 	case v.stage == StageData:
@@ -335,18 +300,16 @@ func (s *Space[K, V]) find(
 		return
 	}
 
-	s.walkDataItems(v, hashMatches)
+	s.walkDataItems(v)
 }
 
 func (s *Space[K, V]) set(
 	v *Entry[K, V],
 	tx *pipeline.TransactionRequest,
 	volatileAllocator *alloc.Allocator[types.VolatileAddress],
-	hashBuff []byte,
-	hashMatches []uint64,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) error {
-	s.walkPointers(v, hashBuff, hashKeyFunc)
+	s.walkPointers(v, hashKeyFunc)
 
 	volatileAddress := types.Load(&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress)
 
@@ -363,7 +326,7 @@ func (s *Space[K, V]) set(
 
 	// Starting from here the data node is allocated.
 
-	conflict := s.walkDataItems(v, hashMatches)
+	conflict := s.walkDataItems(v)
 
 	if v.keyHashP != nil {
 		if *v.keyHashP == 0 {
@@ -392,16 +355,16 @@ func (s *Space[K, V]) set(
 			v.level--
 			v.nextDataNode = nil
 
-			return s.set(v, tx, volatileAllocator, hashBuff, hashMatches, hashKeyFunc)
+			return s.set(v, tx, volatileAllocator, hashKeyFunc)
 		}
 	}
 
 	// Add pointer node.
-	if err := s.addPointerNode(v, tx, volatileAllocator, conflict, hashBuff, hashKeyFunc); err != nil {
+	if err := s.addPointerNode(v, tx, volatileAllocator, conflict, hashKeyFunc); err != nil {
 		return err
 	}
 
-	return s.set(v, tx, volatileAllocator, hashBuff, hashMatches, hashKeyFunc)
+	return s.set(v, tx, volatileAllocator, hashKeyFunc)
 }
 
 func (s *Space[K, V]) splitToIndex(parentNodeAddress types.VolatileAddress, index uint64) (uint64, uint64) {
@@ -497,7 +460,6 @@ func (s *Space[K, V]) splitDataNodeWithConflict(
 	index uint64,
 	parentNodePointer *types.Pointer,
 	level uint8,
-	hashBuff []byte,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) (bool, error) {
 	newIndex, mask := s.splitToIndex(types.Load(&parentNodePointer.VolatileAddress), index)
@@ -526,7 +488,7 @@ func (s *Space[K, V]) splitDataNodeWithConflict(
 		offset := s.config.DataNodeAssistant.ItemOffset(uint64(i))
 		item := s.config.DataNodeAssistant.Item(existingDataNode, offset)
 
-		kh = hashKeyFunc(&item.Key, hashBuff, level-1)
+		kh = hashKeyFunc(&item.Key, s.hashBuff, level-1)
 		itemIndex := PointerIndex(kh, level-1)
 		if itemIndex&mask != newIndex {
 			keyHashes[i] = kh
@@ -569,7 +531,6 @@ func (s *Space[K, V]) addPointerNode(
 	tx *pipeline.TransactionRequest,
 	volatileAllocator *alloc.Allocator[types.VolatileAddress],
 	conflict bool,
-	hashBuff []byte,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) error {
 	pointerNodeVolatileAddress, err := volatileAllocator.Allocate()
@@ -594,18 +555,14 @@ func (s *Space[K, V]) addPointerNode(
 
 	if conflict {
 		_, err = s.splitDataNodeWithConflict(tx, volatileAllocator, 0, pointerNodeRoot.Pointer,
-			v.level+1, hashBuff, hashKeyFunc)
+			v.level+1, hashKeyFunc)
 	} else {
 		_, err = s.splitDataNodeWithoutConflict(tx, volatileAllocator, 0, pointerNodeRoot.Pointer, v.level+1)
 	}
 	return err
 }
 
-func (s *Space[K, V]) walkPointers(
-	v *Entry[K, V],
-	hashBuff []byte,
-	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
-) {
+func (s *Space[K, V]) walkPointers(v *Entry[K, V], hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash) {
 	if v.nextDataNode != nil {
 		if isFree(types.Load(v.nextDataNode)) {
 			return
@@ -620,7 +577,7 @@ func (s *Space[K, V]) walkPointers(
 	}
 
 	for {
-		if !s.walkOnePointer(v, hashBuff, hashKeyFunc) {
+		if !s.walkOnePointer(v, hashKeyFunc) {
 			return
 		}
 	}
@@ -628,7 +585,6 @@ func (s *Space[K, V]) walkPointers(
 
 func (s *Space[K, V]) walkOnePointer(
 	v *Entry[K, V],
-	hashBuff []byte,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) bool {
 	volatileAddress := types.Load(&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress)
@@ -636,7 +592,7 @@ func (s *Space[K, V]) walkOnePointer(
 		return false
 	}
 	if volatileAddress.IsSet(flagHashMod) {
-		v.keyHash = hashKeyFunc(&v.item.Key, hashBuff, v.level)
+		v.keyHash = hashKeyFunc(&v.item.Key, s.hashBuff, v.level)
 	}
 
 	pointerNode := ProjectPointerNode(s.config.State.Node(volatileAddress))
@@ -662,7 +618,7 @@ func (s *Space[K, V]) walkOnePointer(
 	return true
 }
 
-func (s *Space[K, V]) walkDataItems(v *Entry[K, V], hashMatches []uint64) bool {
+func (s *Space[K, V]) walkDataItems(v *Entry[K, V]) bool {
 	if v.keyHashP != nil {
 		return false
 	}
@@ -674,10 +630,10 @@ func (s *Space[K, V]) walkDataItems(v *Entry[K, V], hashMatches []uint64) bool {
 		&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress))
 	keyHashes := s.config.DataNodeAssistant.KeyHashes(node)
 
-	zeroIndex, numOfMatches := compare.Compare(uint64(v.keyHash), (*uint64)(&keyHashes[0]), &hashMatches[0],
-		s.numOfDataItems)
+	zeroIndex, numOfMatches := compare.Compare(uint64(v.keyHash), (*uint64)(&keyHashes[0]), &s.hashMatches[0],
+		uint64(len(s.hashMatches)))
 	for i := range numOfMatches {
-		index := hashMatches[i]
+		index := s.hashMatches[i]
 		item := s.config.DataNodeAssistant.Item(node, s.config.DataNodeAssistant.ItemOffset(index))
 		if item.Key == v.item.Key {
 			v.exists = true

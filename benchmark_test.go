@@ -105,9 +105,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				panic(err)
 			}
 
-			hashBuff := s.NewHashBuff()
-			hashMatches := s.NewHashMatches()
-
 			func() {
 				db.ApplyTransaction(&genesis.Tx{
 					Accounts: []genesis.InitialBalance{
@@ -124,7 +121,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				fmt.Println(s.Stats())
 				fmt.Println("===========================")
 
-				genesisBalance, genesisExists := s.Query(txtypes.GenesisAccount, hashBuff, hashMatches)
+				genesisBalance, genesisExists := s.Query(txtypes.GenesisAccount)
 				require.True(b, genesisExists)
 				require.Equal(b, txtypes.Amount(numOfAddresses*balance), genesisBalance)
 			}()
@@ -164,12 +161,12 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			func() {
 				fmt.Println(s.Stats())
 
-				genesisBalance, genesisExists := s.Query(txtypes.GenesisAccount, hashBuff, hashMatches)
+				genesisBalance, genesisExists := s.Query(txtypes.GenesisAccount)
 				require.False(b, genesisExists)
 				require.Equal(b, txtypes.Amount(0), genesisBalance)
 
 				for _, addr := range accounts {
-					accBalance, accExists := s.Query(addr, hashBuff, hashMatches)
+					accBalance, accExists := s.Query(addr)
 					require.True(b, accExists)
 					require.Equal(b, txtypes.Amount(balance), accBalance)
 				}
