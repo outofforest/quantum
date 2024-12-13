@@ -98,10 +98,10 @@ func (s *SpaceTest[K, V]) SplitDataNode(v *Entry[K, V], conflict bool) error {
 	var err error
 	if conflict {
 		_, err = s.s.splitDataNodeWithConflict(s.tx, s.allocator, v.parentIndex,
-			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer, v.level)
+			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer.VolatileAddress, v.level)
 	} else {
 		_, err = s.s.splitDataNodeWithoutConflict(s.tx, s.allocator, v.parentIndex,
-			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer, v.level)
+			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer.VolatileAddress, v.level)
 	}
 	return err
 }
