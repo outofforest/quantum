@@ -655,7 +655,6 @@ type Entry[K, V comparable] struct {
 }
 
 // IteratorAndDeallocator iterates over items and deallocates space.
-// FIXME (wojciech): hashKey is missing.
 func IteratorAndDeallocator[K, V comparable](
 	spaceRoot types.Pointer,
 	state *alloc.State,
