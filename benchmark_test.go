@@ -20,6 +20,7 @@ import (
 	"github.com/outofforest/quantum/tx/genesis"
 	"github.com/outofforest/quantum/tx/transfer"
 	txtypes "github.com/outofforest/quantum/tx/types"
+	"github.com/outofforest/quantum/tx/types/spaces"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -28,9 +29,11 @@ import (
 // go tool pprof -http="localhost:8000" pprofbin ./profile.out
 // go test -c -o bench ./benchmark_test.go
 
+// * soft memlock unlimited
+// * hard memlock unlimited
+
 func BenchmarkBalanceTransfer(b *testing.B) {
 	const (
-		spaceID        = 0x00
 		numOfAddresses = 5_000_000
 		txsPerCommit   = 20_000
 		balance        = 100_000
@@ -66,7 +69,7 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				panic(err)
 			}
 
-			var size uint64 = 5 * 1024 * 1024 * 1024
+			var size uint64 = 1 * 1024 * 1024 * 1024
 			state, stateDeallocFunc, err := alloc.NewState(
 				size, store.Size(),
 				100,
@@ -95,11 +98,9 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 				}
 			}()
 
-			defer func() {
-				db.Close()
-			}()
+			defer db.Close()
 
-			s, err := quantum.GetSpace[txtypes.Account, txtypes.Amount](spaceID, db)
+			s, err := quantum.GetSpace[txtypes.Account, txtypes.Amount](spaces.Balances, db)
 			if err != nil {
 				panic(err)
 			}

@@ -39,7 +39,6 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 	}
 
 	defaultInit := Entry[K, V]{
-		space: s,
 		storeRequest: pipeline.StoreRequest{
 			NoSnapshots:     s.config.NoSnapshots,
 			PointersToStore: 1,
@@ -98,48 +97,48 @@ func (s *Space[K, V]) Query(key K, hashBuff []byte, hashMatches []uint64) (V, bo
 }
 
 // Stats returns space-related statistics.
-func (s *Space[K, V]) Stats() (uint64, uint64, uint64, float64) {
-	switch {
-	case isFree(s.config.SpaceRoot.Pointer.VolatileAddress):
-		return 0, 0, 0, 0
-	case !isPointer(s.config.SpaceRoot.Pointer.VolatileAddress):
-		return 1, 0, 1, 0
+func (s *Space[K, V]) Stats() (uint64, uint64, uint64, uint64, float64) {
+	if isFree(s.config.SpaceRoot.Pointer.VolatileAddress) {
+		return 0, 0, 0, 0, 0
 	}
 
 	stack := []types.VolatileAddress{s.config.SpaceRoot.Pointer.VolatileAddress}
 
 	levels := map[types.VolatileAddress]uint64{
-		s.config.SpaceRoot.Pointer.VolatileAddress: 1,
+		s.config.SpaceRoot.Pointer.VolatileAddress: 0,
 	}
 	var maxLevel, pointerNodes, dataNodes, dataItems uint64
 
 	for {
 		if len(stack) == 0 {
-			return maxLevel, pointerNodes, dataNodes, float64(dataItems) / float64(dataNodes*s.numOfDataItems)
+			return maxLevel, pointerNodes, dataNodes, dataItems, float64(dataItems) / float64(dataNodes*s.numOfDataItems)
 		}
 
 		n := stack[len(stack)-1]
 		level := levels[n] + 1
-		pointerNodes++
 		stack = stack[:len(stack)-1]
 
-		pointerNode := ProjectPointerNode(s.config.State.Node(n))
-		for pi := range pointerNode.Pointers {
-			volatileAddress := types.Load(&pointerNode.Pointers[pi].VolatileAddress)
-			switch {
-			case isFree(volatileAddress):
-			case isPointer(volatileAddress):
+		switch {
+		case isPointer(n):
+			pointerNodes++
+			pointerNode := ProjectPointerNode(s.config.State.Node(n))
+			for pi := range pointerNode.Pointers {
+				volatileAddress := types.Load(&pointerNode.Pointers[pi].VolatileAddress)
+				if isFree(volatileAddress) {
+					continue
+				}
+
 				stack = append(stack, volatileAddress)
 				levels[volatileAddress] = level
-			default:
-				dataNodes++
-				if level > maxLevel {
-					maxLevel = level
-				}
-				for _, kh := range s.config.DataNodeAssistant.KeyHashes(s.config.State.Node(volatileAddress)) {
-					if kh != 0 {
-						dataItems++
-					}
+			}
+		case !isFree(n):
+			dataNodes++
+			if level > maxLevel {
+				maxLevel = level
+			}
+			for _, kh := range s.config.DataNodeAssistant.KeyHashes(s.config.State.Node(n)) {
+				if kh != 0 {
+					dataItems++
 				}
 			}
 		}
@@ -196,6 +195,7 @@ func (s *Space[K, V]) initEntry(
 ) {
 	initBytes := unsafe.Slice((*byte)(unsafe.Pointer(v)), s.initSize)
 	copy(initBytes, s.defaultInit)
+	v.space = s
 	v.keyHash = keyHash
 	v.item.Key = key
 	v.stage = stage
@@ -302,7 +302,7 @@ func (s *Space[K, V]) find(
 func (s *Space[K, V]) set(
 	v *Entry[K, V],
 	tx *pipeline.TransactionRequest,
-	allocator *alloc.Allocator[types.VolatileAddress],
+	volatileAllocator *alloc.Allocator[types.VolatileAddress],
 	hashBuff []byte,
 	hashMatches []uint64,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
@@ -312,7 +312,7 @@ func (s *Space[K, V]) set(
 	volatileAddress := types.Load(&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress)
 
 	if isFree(volatileAddress) {
-		dataNodeVolatileAddress, err := allocator.Allocate()
+		dataNodeVolatileAddress, err := volatileAllocator.Allocate()
 		if err != nil {
 			return err
 		}
@@ -342,7 +342,7 @@ func (s *Space[K, V]) set(
 
 	// Try to split data node.
 	if v.storeRequest.PointersToStore > 1 {
-		splitDone, err := s.splitDataNodeWithoutConflict(tx, allocator, v.parentIndex,
+		splitDone, err := s.splitDataNodeWithoutConflict(tx, volatileAllocator, v.parentIndex,
 			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer, v.level)
 		if err != nil {
 			return err
@@ -353,16 +353,16 @@ func (s *Space[K, V]) set(
 			v.level--
 			v.nextDataNode = nil
 
-			return s.set(v, tx, allocator, hashBuff, hashMatches, hashKeyFunc)
+			return s.set(v, tx, volatileAllocator, hashBuff, hashMatches, hashKeyFunc)
 		}
 	}
 
 	// Add pointer node.
-	if err := s.addPointerNode(v, tx, allocator, conflict, hashBuff, hashKeyFunc); err != nil {
+	if err := s.addPointerNode(v, tx, volatileAllocator, conflict, hashBuff, hashKeyFunc); err != nil {
 		return err
 	}
 
-	return s.set(v, tx, allocator, hashBuff, hashMatches, hashKeyFunc)
+	return s.set(v, tx, volatileAllocator, hashBuff, hashMatches, hashKeyFunc)
 }
 
 func (s *Space[K, V]) splitToIndex(parentNodeAddress types.VolatileAddress, index uint64) (uint64, uint64) {
@@ -387,7 +387,7 @@ func (s *Space[K, V]) splitToIndex(parentNodeAddress types.VolatileAddress, inde
 
 func (s *Space[K, V]) splitDataNodeWithoutConflict(
 	tx *pipeline.TransactionRequest,
-	allocator *alloc.Allocator[types.VolatileAddress],
+	volatileAllocator *alloc.Allocator[types.VolatileAddress],
 	index uint64,
 	parentNodePointer *types.Pointer,
 	level uint8,
@@ -397,7 +397,7 @@ func (s *Space[K, V]) splitDataNodeWithoutConflict(
 		return false, nil
 	}
 
-	newNodeVolatileAddress, err := allocator.Allocate()
+	newNodeVolatileAddress, err := volatileAllocator.Allocate()
 	if err != nil {
 		return false, err
 	}
@@ -454,7 +454,7 @@ func (s *Space[K, V]) splitDataNodeWithoutConflict(
 
 func (s *Space[K, V]) splitDataNodeWithConflict(
 	tx *pipeline.TransactionRequest,
-	allocator *alloc.Allocator[types.VolatileAddress],
+	volatileAllocator *alloc.Allocator[types.VolatileAddress],
 	index uint64,
 	parentNodePointer *types.Pointer,
 	level uint8,
@@ -466,7 +466,7 @@ func (s *Space[K, V]) splitDataNodeWithConflict(
 		return false, nil
 	}
 
-	newNodeVolatileAddress, err := allocator.Allocate()
+	newNodeVolatileAddress, err := volatileAllocator.Allocate()
 	if err != nil {
 		return false, err
 	}
@@ -528,12 +528,12 @@ func (s *Space[K, V]) splitDataNodeWithConflict(
 func (s *Space[K, V]) addPointerNode(
 	v *Entry[K, V],
 	tx *pipeline.TransactionRequest,
-	allocator *alloc.Allocator[types.VolatileAddress],
+	volatileAllocator *alloc.Allocator[types.VolatileAddress],
 	conflict bool,
 	hashBuff []byte,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) error {
-	pointerNodeVolatileAddress, err := allocator.Allocate()
+	pointerNodeVolatileAddress, err := volatileAllocator.Allocate()
 	if err != nil {
 		return err
 	}
@@ -554,10 +554,10 @@ func (s *Space[K, V]) addPointerNode(
 	types.Store(&pointerNodeRoot.Pointer.VolatileAddress, pointerNodeVolatileAddress)
 
 	if conflict {
-		_, err = s.splitDataNodeWithConflict(tx, allocator, 0, pointerNodeRoot.Pointer,
+		_, err = s.splitDataNodeWithConflict(tx, volatileAllocator, 0, pointerNodeRoot.Pointer,
 			v.level+1, hashBuff, hashKeyFunc)
 	} else {
-		_, err = s.splitDataNodeWithoutConflict(tx, allocator, 0, pointerNodeRoot.Pointer, v.level+1)
+		_, err = s.splitDataNodeWithoutConflict(tx, volatileAllocator, 0, pointerNodeRoot.Pointer, v.level+1)
 	}
 	return err
 }
@@ -679,9 +679,9 @@ func (s *Space[K, V]) detectUpdate(v *Entry[K, V]) {
 
 // Entry represents entry in the space.
 type Entry[K, V comparable] struct {
-	space        *Space[K, V]
 	storeRequest pipeline.StoreRequest
 
+	space           *Space[K, V]
 	itemP           *DataItem[K, V]
 	keyHashP        *types.KeyHash
 	keyHash         types.KeyHash
@@ -763,8 +763,8 @@ func IteratorAndDeallocator[K, V comparable](
 			stackCount--
 			pointer := stack[stackCount]
 
-			// It is safe to do deallocations here because nodes are not reallocated until commit is finalized.
-			volatileDeallocator.Deallocate(pointer.VolatileAddress.Naked())
+			// It is safe to deallocate here because nodes are not reallocated until commit is finalized.
+			volatileDeallocator.Deallocate(pointer.VolatileAddress)
 			persistentDeallocator.Deallocate(pointer.PersistentAddress)
 
 			switch {

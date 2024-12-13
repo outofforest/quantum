@@ -253,36 +253,34 @@ func (db *DB) deleteSnapshot(
 		},
 	)
 
-	if nextSnapshotInfo.DeallocationRoot.VolatileAddress != types.FreeAddress {
-		for nextDeallocSnapshot := range space.IteratorAndDeallocator(
-			nextSnapshotInfo.DeallocationRoot,
-			db.config.State,
-			deallocationNodeAssistant,
-			volatileDeallocator,
-			persistentDeallocator,
-		) {
-			if nextDeallocSnapshot.Key.SnapshotID > snapshotInfo.PreviousSnapshotID &&
-				nextDeallocSnapshot.Key.SnapshotID <= snapshotID {
-				if err := list.Deallocate(nextDeallocSnapshot.Value, db.config.State, volatileDeallocator,
-					persistentDeallocator); err != nil {
-					return err
-				}
-
-				continue
-			}
-
-			var deallocationListValue space.Entry[deallocationKey, list.Pointer]
-			deallocationLists.Find(&deallocationListValue, nextDeallocSnapshot.Key, space.StageData, deallocationHashBuff,
-				deallocationHashMatches)
-			if err := deallocationListValue.Set(
-				tx,
-				volatileAllocator,
-				nextDeallocSnapshot.Value,
-				deallocationHashBuff,
-				deallocationHashMatches,
-			); err != nil {
+	for nextDeallocSnapshot := range space.IteratorAndDeallocator(
+		nextSnapshotInfo.DeallocationRoot,
+		db.config.State,
+		deallocationNodeAssistant,
+		volatileDeallocator,
+		persistentDeallocator,
+	) {
+		if nextDeallocSnapshot.Key.SnapshotID > snapshotInfo.PreviousSnapshotID &&
+			nextDeallocSnapshot.Key.SnapshotID <= snapshotID {
+			if err := list.Deallocate(nextDeallocSnapshot.Value, db.config.State, volatileDeallocator,
+				persistentDeallocator); err != nil {
 				return err
 			}
+
+			continue
+		}
+
+		var deallocationListValue space.Entry[deallocationKey, list.Pointer]
+		deallocationLists.Find(&deallocationListValue, nextDeallocSnapshot.Key, space.StageData, deallocationHashBuff,
+			deallocationHashMatches)
+		if err := deallocationListValue.Set(
+			tx,
+			volatileAllocator,
+			nextDeallocSnapshot.Value,
+			deallocationHashBuff,
+			deallocationHashMatches,
+		); err != nil {
+			return err
 		}
 	}
 
@@ -571,7 +569,8 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 				if root.Pointer.SnapshotID != db.singularityNode.LastSnapshotID {
 					if root.Pointer.PersistentAddress != 0 {
 						listNodePointer, err := db.deallocateNode(root.Pointer.SnapshotID, root.Pointer.PersistentAddress,
-							deallocationListsToCommit, volatileAllocator, persistentAllocator, persistentDeallocator)
+							deallocationListsToCommit, volatileAllocator, persistentAllocator, persistentDeallocator,
+							sr.NoSnapshots)
 						if err != nil {
 							return err
 						}
@@ -859,7 +858,7 @@ func (db *DB) storeNodes(ctx context.Context, pipeReader *pipeline.Reader) error
 		}
 
 		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
-			for i := sr.PointersToStore - 1; i >= sr.PointersLast; i-- {
+			for i := sr.PointersToStore - 1; i >= 0; i-- {
 				pointer := sr.Store[i].Pointer
 
 				if pointer.Revision == uintptr(unsafe.Pointer(sr)) {
@@ -885,10 +884,11 @@ func (db *DB) deallocateNode(
 	volatileAllocator *alloc.Allocator[types.VolatileAddress],
 	persistentAllocator *alloc.Allocator[types.PersistentAddress],
 	persistentDeallocator *alloc.Deallocator[types.PersistentAddress],
+	immediateDeallocation bool,
 ) (list.Pointer, error) {
 	// Latest persistent snapshot cannot be deleted, so there is no gap between that snapshot and the pending one.
 	// It means the condition here don't need to include snapshot IDs greater than the previous snapshot ID.
-	if nodeSnapshotID == db.singularityNode.LastSnapshotID {
+	if nodeSnapshotID == db.singularityNode.LastSnapshotID || immediateDeallocation {
 		persistentDeallocator.Deallocate(nodeAddress)
 
 		return list.Pointer{}, nil
