@@ -31,13 +31,7 @@ func (t *Tx) Execute(
 		var v space.Entry[txtypes.Account, txtypes.Amount]
 		s.Find(&v, a.Account, space.StageData, hashBuff, hashMatches)
 
-		if err := v.Set(
-			tx,
-			allocator,
-			a.Amount,
-			hashBuff,
-			hashMatches,
-		); err != nil {
+		if err := s.SetKey(&v, tx, allocator, a.Amount, hashBuff, hashMatches); err != nil {
 			return err
 		}
 	}

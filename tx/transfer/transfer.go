@@ -33,38 +33,38 @@ func (t *Tx) Prepare(
 
 // Execute executes transaction.
 func (t *Tx) Execute(
+	s *space.Space[txtypes.Account, txtypes.Amount],
 	tx *pipeline.TransactionRequest,
 	allocator *alloc.Allocator[types.VolatileAddress],
 	hashBuff []byte,
 	hashMatches []uint64,
 ) error {
-	fromBalance := t.from.Value(hashBuff, hashMatches)
+	fromBalance := s.ReadKey(&t.from, hashBuff, hashMatches)
 	if fromBalance < t.Amount {
 		return errors.Errorf("sender's balance is too low, balance: %d, amount to send: %d", fromBalance, t.Amount)
 	}
 
-	toBalance := t.to.Value(hashBuff, hashMatches)
+	toBalance := s.ReadKey(&t.to, hashBuff, hashMatches)
 	if math.MaxUint64-toBalance < t.Amount {
 		return errors.Errorf(
 			"transfer cannot be executed because it would cause an overflow on the recipient's balance, balance: %d, amount to send: %d", //nolint:lll
 			toBalance, t.Amount)
 	}
 
-	if err := t.from.Set(
-		tx,
-		allocator,
-		fromBalance-t.Amount,
-		hashBuff,
-		hashMatches,
-	); err != nil {
-		return err
+	fromBalance -= t.Amount
+	toBalance += t.Amount
+
+	if fromBalance == 0 {
+		s.DeleteKey(&t.from, tx, hashBuff, hashMatches)
+	} else {
+		if err := s.SetKey(&t.from, tx, allocator, fromBalance, hashBuff, hashMatches); err != nil {
+			return err
+		}
 	}
 
-	return t.to.Set(
-		tx,
-		allocator,
-		toBalance+t.Amount,
-		hashBuff,
-		hashMatches,
-	)
+	if toBalance == 0 {
+		s.DeleteKey(&t.to, tx, hashBuff, hashMatches)
+	}
+
+	return s.SetKey(&t.to, tx, allocator, toBalance, hashBuff, hashMatches)
 }
