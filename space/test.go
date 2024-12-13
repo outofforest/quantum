@@ -108,7 +108,8 @@ func (s *SpaceTest[K, V]) SplitDataNode(v *Entry[K, V], conflict bool) error {
 
 // AddPointerNode adds pointer node.
 func (s *SpaceTest[K, V]) AddPointerNode(v *Entry[K, V], conflict bool) error {
-	return s.s.addPointerNode(v, s.tx, s.allocator, conflict)
+	_, err := s.s.addPointerNode(v, s.tx, s.allocator, conflict)
+	return err
 }
 
 // Query queries the space for a key.

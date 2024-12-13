@@ -150,7 +150,7 @@ func (s *Space[K, V]) SetKey(
 	volatileAddress := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress
 	s.detectUpdate(v, volatileAddress)
 
-	return s.set(v, tx, allocator)
+	return s.set(v, volatileAddress, tx, allocator)
 }
 
 // Stats returns space-related statistics.
@@ -278,10 +278,10 @@ func (s *Space[K, V]) find(v *Entry[K, V], volatileAddress types.VolatileAddress
 
 func (s *Space[K, V]) set(
 	v *Entry[K, V],
+	volatileAddress types.VolatileAddress,
 	tx *pipeline.TransactionRequest,
 	volatileAllocator *alloc.Allocator[types.VolatileAddress],
 ) error {
-	volatileAddress := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress
 	volatileAddress = s.walkPointers(v, volatileAddress)
 
 	if isFree(volatileAddress) {
@@ -326,16 +326,19 @@ func (s *Space[K, V]) set(
 			v.level--
 			v.nextDataNode = nil
 
-			return s.set(v, tx, volatileAllocator)
+			volatileAddress = v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress
+			return s.set(v, volatileAddress, tx, volatileAllocator)
 		}
 	}
 
 	// Add pointer node.
-	if err := s.addPointerNode(v, tx, volatileAllocator, conflict); err != nil {
+	var err error
+	volatileAddress, err = s.addPointerNode(v, tx, volatileAllocator, conflict)
+	if err != nil {
 		return err
 	}
 
-	return s.set(v, tx, volatileAllocator)
+	return s.set(v, volatileAddress, tx, volatileAllocator)
 }
 
 func (s *Space[K, V]) splitToIndex(parentNodeAddress types.VolatileAddress, index uint64) (uint64, uint64) {
@@ -501,10 +504,10 @@ func (s *Space[K, V]) addPointerNode(
 	tx *pipeline.TransactionRequest,
 	volatileAllocator *alloc.Allocator[types.VolatileAddress],
 	conflict bool,
-) error {
+) (types.VolatileAddress, error) {
 	pointerNodeVolatileAddress, err := volatileAllocator.Allocate()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	s.config.State.Clear(pointerNodeVolatileAddress)
 
@@ -527,7 +530,10 @@ func (s *Space[K, V]) addPointerNode(
 	} else {
 		_, err = s.splitDataNodeWithoutConflict(tx, volatileAllocator, 0, pointerNodeVolatileAddress, v.level+1)
 	}
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return pointerNodeVolatileAddress, nil
 }
 
 func (s *Space[K, V]) walkPointers(v *Entry[K, V], volatileAddress types.VolatileAddress) types.VolatileAddress {
