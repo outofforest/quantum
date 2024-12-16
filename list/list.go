@@ -5,38 +5,32 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
-// Pointer represents pointer to the list root.
-type Pointer struct {
-	VolatileAddress   types.VolatileAddress
-	PersistentAddress types.PersistentAddress
-}
-
 // Add adds address to the list.
 func Add(
-	listRoot *Pointer,
+	listRoot *types.ListRoot,
 	nodeAddress types.PersistentAddress,
 	state *alloc.State,
 	volatileAllocator *alloc.Allocator[types.VolatileAddress],
 	persistentAllocator *alloc.Allocator[types.PersistentAddress],
-) (Pointer, error) {
+) (types.ListRoot, error) {
 	if listRoot.VolatileAddress == types.FreeAddress {
 		var err error
 		listRoot.VolatileAddress, err = volatileAllocator.Allocate()
 		if err != nil {
-			return Pointer{}, err
+			return types.ListRoot{}, err
 		}
 		listRoot.PersistentAddress, err = persistentAllocator.Allocate()
 		if err != nil {
-			return Pointer{}, err
+			return types.ListRoot{}, err
 		}
 		node := ProjectNode(state.Node(listRoot.VolatileAddress))
 
 		node.Slots[0] = nodeAddress
 		node.NumOfPointerAddresses = 1
 		// This is needed because list nodes are not zeroed.
-		node.Next = Pointer{}
+		node.Next = types.ListRoot{}
 
-		return Pointer{}, nil
+		return types.ListRoot{}, nil
 	}
 
 	node := ProjectNode(state.Node(listRoot.VolatileAddress))
@@ -44,7 +38,7 @@ func Add(
 		node.Slots[node.NumOfPointerAddresses] = nodeAddress
 		node.NumOfPointerAddresses++
 
-		return Pointer{}, nil
+		return types.ListRoot{}, nil
 	}
 
 	oldRoot := *listRoot
@@ -52,12 +46,12 @@ func Add(
 	var err error
 	listRoot.VolatileAddress, err = volatileAllocator.Allocate()
 	if err != nil {
-		return Pointer{}, err
+		return types.ListRoot{}, err
 	}
 
 	listRoot.PersistentAddress, err = persistentAllocator.Allocate()
 	if err != nil {
-		return Pointer{}, err
+		return types.ListRoot{}, err
 	}
 	node = ProjectNode(state.Node(listRoot.VolatileAddress))
 
@@ -70,7 +64,7 @@ func Add(
 
 // Deallocate deallocates nodes referenced by the list.
 func Deallocate(
-	listRoot Pointer,
+	listRoot types.ListRoot,
 	state *alloc.State,
 	volatileDeallocator *alloc.Deallocator[types.VolatileAddress],
 	persistentDeallocator *alloc.Deallocator[types.PersistentAddress],

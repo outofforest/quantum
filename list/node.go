@@ -14,7 +14,7 @@ type Node struct {
 	Slots [NumOfAddresses]types.PersistentAddress
 
 	NumOfPointerAddresses uint16
-	Next                  Pointer
+	Next                  types.ListRoot
 }
 
 // ProjectNode projects node to list node.

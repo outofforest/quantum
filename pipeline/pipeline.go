@@ -10,7 +10,6 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/outofforest/mass"
-	"github.com/outofforest/quantum/list"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -81,13 +80,13 @@ func (t *TransactionRequest) AddListRequest(lr *ListRequest) {
 type StoreRequest struct {
 	NoSnapshots     bool
 	PointersToStore int8
-	Store           [StoreCapacity]types.NodeRoot
+	Store           [StoreCapacity]types.ToStore
 	Next            *StoreRequest
 }
 
 // ListRequest is used to request writing list nodes to the store.
 type ListRequest struct {
-	List         [StoreCapacity]list.Pointer
+	List         [StoreCapacity]types.ListRoot
 	ListsToStore int8
 	Next         *ListRequest
 }

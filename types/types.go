@@ -85,6 +85,19 @@ type Root struct {
 	Hash    Hash
 }
 
+// ToStore represents node to be stored.
+type ToStore struct {
+	VolatileAddress VolatileAddress
+	Pointer         *Pointer
+	Hash            *Hash
+}
+
+// ListRoot represents pointer to the list root.
+type ListRoot struct {
+	VolatileAddress   VolatileAddress
+	PersistentAddress PersistentAddress
+}
+
 // SnapshotInfo stores information required to retrieve snapshot.
 type SnapshotInfo struct {
 	PreviousSnapshotID SnapshotID
