@@ -139,7 +139,8 @@ func (w *Writer) Write(dstAddress types.PersistentAddress, srcAddress types.Vola
 	w.numOfEvents++
 
 	switch {
-	// FIXME (wojciech): There will be more addresses representing singularity node.
+	// Address 0 means we store singularity node. It is always the last write in the commit.
+	// That's why fsync is done after writing it.
 	case srcAddress == 0:
 		sqe, err := w.ring.NextSQE()
 		if err != nil {
