@@ -48,15 +48,15 @@ func TestBlake3OneMessage(t *testing.T) {
 		matrix := zeroMatrix
 		matrix[i] = on
 
-		hashesP, hashes1Dealloc, err := alloc.Allocate(16*types.HashLength, 32, false)
+		hashesP, hashesDealloc, err := alloc.Allocate(16*types.HashLength, 32, false)
 		require.NoError(t, err)
-		t.Cleanup(hashes1Dealloc)
+		t.Cleanup(hashesDealloc)
 
 		hashes := unsafe.Slice((*types.Hash)(hashesP), 16)
 
 		var hashPointers [16]*byte
-		for i := range hashes {
-			hashPointers[i] = &hashes[i][0]
+		for j := range hashes {
+			hashPointers[j] = &hashes[j][0]
 		}
 
 		Blake34096(&matrix[0], &hashPointers[0], math.MaxUint16)
@@ -74,20 +74,49 @@ func TestBlake3OneMessage(t *testing.T) {
 func TestBlake3Zeros(t *testing.T) {
 	matrix := zeroMatrix
 
-	hashesP, hashes1Dealloc, err := alloc.Allocate(16*types.HashLength, 32, false)
+	hashesP, hashesDealloc, err := alloc.Allocate(16*types.HashLength, 32, false)
 	require.NoError(t, err)
-	t.Cleanup(hashes1Dealloc)
+	t.Cleanup(hashesDealloc)
 
 	hashes := unsafe.Slice((*types.Hash)(hashesP), 16)
 
 	var hashPointers [16]*byte
-	for i := range hashes {
-		hashPointers[i] = &hashes[i][0]
+	for j := range hashes {
+		hashPointers[j] = &hashes[j][0]
 	}
 
 	Blake34096(&matrix[0], &hashPointers[0], math.MaxUint16)
 
 	for _, h := range hashes {
 		assert.Equal(t, zeroValueHash, h)
+	}
+}
+
+func TestLastHashIsStored(t *testing.T) {
+	for i := range len(zeroMatrix) {
+		matrix := zeroMatrix
+		matrix[i] = on
+
+		hashesP, hashesDealloc, err := alloc.Allocate(2*types.HashLength, 32, false)
+		require.NoError(t, err)
+		t.Cleanup(hashesDealloc)
+
+		hashes := unsafe.Slice((*types.Hash)(hashesP), 16)
+
+		var hashPointers [16]*byte
+		for j := range hashes {
+			if j <= i {
+				hashPointers[j] = &hashes[0][0]
+			} else {
+				hashPointers[j] = &hashes[1][0]
+			}
+		}
+
+		Blake34096(&matrix[0], &hashPointers[0], math.MaxUint16)
+
+		assert.Equal(t, oneValueHash, hashes[0])
+		if i < len(zeroMatrix)-1 {
+			assert.Equal(t, zeroValueHash, hashes[1])
+		}
 	}
 }
