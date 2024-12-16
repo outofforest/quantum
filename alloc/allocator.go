@@ -1,8 +1,6 @@
 package alloc
 
 import (
-	"math/rand/v2"
-
 	"github.com/outofforest/quantum/types"
 )
 
@@ -13,29 +11,23 @@ type Address interface {
 
 func newAllocationRing[A Address](
 	size uint64,
-	randomize bool,
-) (*ring[A], A) {
-	const singularityNodeCount = 1
-
+	singularityNodeCount uint64,
+) (*ring[A], []A) {
 	totalNumOfNodes := size / types.NodeLength
-	numOfNodes := totalNumOfNodes - singularityNodeCount
+	singularityNodeFrequency := A(totalNumOfNodes / singularityNodeCount)
 
-	r, addresses := newRing[A](numOfNodes)
-	for i := range A(numOfNodes) {
-		addresses[i] = i + singularityNodeCount
+	r, addresses := newRing[A](totalNumOfNodes - singularityNodeCount)
+	singularityNodes := make([]A, 0, singularityNodeCount)
+	for i, j := A(0), 0; i < A(totalNumOfNodes); i++ {
+		if i%singularityNodeFrequency == 0 {
+			singularityNodes = append(singularityNodes, i)
+		} else {
+			addresses[j] = i
+			j++
+		}
 	}
 
-	// FIXME (wojciech): There is no evidence it helps. Consider removing this option.
-	if randomize {
-		// Randomly shuffle addresses so consecutive items possibly go to different regions of the device, improving
-		// performance eventually.
-		rand.Shuffle(len(addresses), func(i, j int) {
-			addresses[i], addresses[j] = addresses[j], addresses[i]
-		})
-	}
-
-	var singularityNode A
-	return r, singularityNode
+	return r, singularityNodes
 }
 
 func newAllocator[A Address](r *ring[A]) *Allocator[A] {

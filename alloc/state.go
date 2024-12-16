@@ -9,44 +9,51 @@ import (
 	"github.com/outofforest/quantum/types"
 )
 
+const numOfPersistentSingularityNodes = 8
+
 // NewState creates new DB state.
 func NewState(
 	volatileSize, persistentSize uint64,
 	useHugePages bool,
 ) (*State, func(), error) {
-	// Align allocated memory address to the node volatileSize. It might be required if using O_DIRECT option to open
+	// Align allocated memory address to the node length. It might be required if using O_DIRECT option to open
 	// files. As a side effect it is also 64-byte aligned which is required by the AVX512 instructions.
 	dataP, deallocateFunc, err := Allocate(volatileSize, types.NodeLength, useHugePages)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "memory allocation failed")
 	}
 
-	volatileRing, singularityVolatileAddress := newAllocationRing[types.VolatileAddress](volatileSize, false)
-	persistentRing, singularityPersistentAddress := newAllocationRing[types.PersistentAddress](persistentSize, false)
+	volatileRing, singularityVolatileNodes := newAllocationRing[types.VolatileAddress](volatileSize, 1)
+	persistentRing, singularityPersistentNodes := newAllocationRing[types.PersistentAddress](persistentSize,
+		numOfPersistentSingularityNodes)
+
+	singularityNodeRoots := make([]types.ToStore, 0, numOfPersistentSingularityNodes)
+	for i := range numOfPersistentSingularityNodes {
+		singularityNodeRoots = append(singularityNodeRoots, types.ToStore{
+			VolatileAddress: singularityVolatileNodes[0],
+			Pointer: &types.Pointer{
+				VolatileAddress:   singularityVolatileNodes[0],
+				PersistentAddress: singularityPersistentNodes[i],
+			},
+		})
+	}
 
 	return &State{
-		singularityNodeRoot: types.ToStore{
-			VolatileAddress: singularityVolatileAddress,
-			Pointer: &types.Pointer{
-				Revision:          1,
-				VolatileAddress:   singularityVolatileAddress,
-				PersistentAddress: singularityPersistentAddress,
-			},
-		},
-		dataP:          dataP,
-		volatileSize:   volatileSize,
-		volatileRing:   volatileRing,
-		persistentRing: persistentRing,
+		singularityNodeRoots: singularityNodeRoots,
+		dataP:                dataP,
+		volatileSize:         volatileSize,
+		volatileRing:         volatileRing,
+		persistentRing:       persistentRing,
 	}, deallocateFunc, nil
 }
 
 // State stores the DB state.
 type State struct {
-	singularityNodeRoot types.ToStore
-	dataP               unsafe.Pointer
-	volatileSize        uint64
-	volatileRing        *ring[types.VolatileAddress]
-	persistentRing      *ring[types.PersistentAddress]
+	singularityNodeRoots []types.ToStore
+	dataP                unsafe.Pointer
+	volatileSize         uint64
+	volatileRing         *ring[types.VolatileAddress]
+	persistentRing       *ring[types.PersistentAddress]
 }
 
 // NewVolatileAllocator creates new volatile address allocator.
@@ -70,8 +77,8 @@ func (s *State) NewPersistentDeallocator() *Deallocator[types.PersistentAddress]
 }
 
 // SingularityNodeRoot returns node root of singularity node.
-func (s *State) SingularityNodeRoot() types.ToStore {
-	return s.singularityNodeRoot
+func (s *State) SingularityNodeRoot(snapshotID types.SnapshotID) types.ToStore {
+	return s.singularityNodeRoots[snapshotID%numOfPersistentSingularityNodes]
 }
 
 // Origin returns the pointer to the allocated memory.

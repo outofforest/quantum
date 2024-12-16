@@ -391,7 +391,7 @@ func (db *DB) commit(
 		PointersToStore: 1,
 		NoSnapshots:     true,
 	}
-	sr.Store[0] = db.config.State.SingularityNodeRoot()
+	sr.Store[0] = db.config.State.SingularityNodeRoot(db.singularityNode.LastSnapshotID)
 	sr.Store[0].Pointer.Revision = uintptr(unsafe.Pointer(sr))
 	tx.AddStoreRequest(sr)
 
