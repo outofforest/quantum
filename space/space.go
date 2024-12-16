@@ -46,7 +46,12 @@ func New[K, V comparable](config Config[K, V]) *Space[K, V] {
 		storeRequest: pipeline.StoreRequest{
 			NoSnapshots:     s.config.NoSnapshots,
 			PointersToStore: 1,
-			Store:           [pipeline.StoreCapacity]types.NodeRoot{s.config.SpaceRoot},
+			Store: [pipeline.StoreCapacity]types.ToStore{
+				{
+					Hash:    s.config.SpaceRoot.Hash,
+					Pointer: s.config.SpaceRoot.Pointer,
+				},
+			},
 		},
 	}
 
@@ -247,6 +252,7 @@ func (s *Space[K, V]) initEntry(
 ) {
 	initBytes := unsafe.Slice((*byte)(unsafe.Pointer(v)), s.initSize)
 	copy(initBytes, s.defaultInit)
+	v.storeRequest.Store[0].VolatileAddress = s.config.SpaceRoot.Pointer.VolatileAddress
 	v.keyHash = keyHash
 	v.item.Key = key
 	v.stage = stage
@@ -404,20 +410,22 @@ func (s *Space[K, V]) splitDataNodeWithoutConflict(
 	store(&parentNode.Pointers[newIndex].VolatileAddress, newNodeVolatileAddress)
 
 	tx.AddStoreRequest(&pipeline.StoreRequest{
-		Store: [pipeline.StoreCapacity]types.NodeRoot{
+		Store: [pipeline.StoreCapacity]types.ToStore{
 			{
-				Hash:    &parentNode.Hashes[index],
-				Pointer: &parentNode.Pointers[index],
+				Hash:            &parentNode.Hashes[index],
+				Pointer:         &parentNode.Pointers[index],
+				VolatileAddress: parentNode.Pointers[index].VolatileAddress,
 			},
 		},
 		PointersToStore: 1,
 		NoSnapshots:     s.config.NoSnapshots,
 	})
 	tx.AddStoreRequest(&pipeline.StoreRequest{
-		Store: [pipeline.StoreCapacity]types.NodeRoot{
+		Store: [pipeline.StoreCapacity]types.ToStore{
 			{
-				Hash:    &parentNode.Hashes[newIndex],
-				Pointer: &parentNode.Pointers[newIndex],
+				Hash:            &parentNode.Hashes[newIndex],
+				Pointer:         &parentNode.Pointers[newIndex],
+				VolatileAddress: newNodeVolatileAddress,
 			},
 		},
 		PointersToStore: 1,
@@ -475,20 +483,22 @@ func (s *Space[K, V]) splitDataNodeWithConflict(
 	store(&parentNode.Pointers[newIndex].VolatileAddress, newNodeVolatileAddress)
 
 	tx.AddStoreRequest(&pipeline.StoreRequest{
-		Store: [pipeline.StoreCapacity]types.NodeRoot{
+		Store: [pipeline.StoreCapacity]types.ToStore{
 			{
-				Hash:    &parentNode.Hashes[index],
-				Pointer: &parentNode.Pointers[index],
+				Hash:            &parentNode.Hashes[index],
+				Pointer:         &parentNode.Pointers[index],
+				VolatileAddress: parentNode.Pointers[index].VolatileAddress,
 			},
 		},
 		PointersToStore: 1,
 		NoSnapshots:     s.config.NoSnapshots,
 	})
 	tx.AddStoreRequest(&pipeline.StoreRequest{
-		Store: [pipeline.StoreCapacity]types.NodeRoot{
+		Store: [pipeline.StoreCapacity]types.ToStore{
 			{
-				Hash:    &parentNode.Hashes[newIndex],
-				Pointer: &parentNode.Pointers[newIndex],
+				Hash:            &parentNode.Hashes[newIndex],
+				Pointer:         &parentNode.Pointers[newIndex],
+				VolatileAddress: newNodeVolatileAddress,
 			},
 		},
 		PointersToStore: 1,
@@ -523,6 +533,7 @@ func (s *Space[K, V]) addPointerNode(
 		pointerNodeVolatileAddress = pointerNodeVolatileAddress.Set(flagHashMod)
 	}
 	store(&pointerNodeRoot.Pointer.VolatileAddress, pointerNodeVolatileAddress)
+	pointerNodeRoot.VolatileAddress = pointerNodeVolatileAddress
 
 	if conflict {
 		_, err = s.splitDataNodeWithConflict(tx, volatileAllocator, 0, pointerNodeVolatileAddress, v.level+1)
@@ -576,6 +587,7 @@ func (s *Space[K, V]) walkOnePointer(
 	v.level++
 	v.storeRequest.Store[v.storeRequest.PointersToStore].Hash = &pointerNode.Hashes[index]
 	v.storeRequest.Store[v.storeRequest.PointersToStore].Pointer = &pointerNode.Pointers[index]
+	v.storeRequest.Store[v.storeRequest.PointersToStore].VolatileAddress = pointerNode.Pointers[index].VolatileAddress
 	v.storeRequest.PointersToStore++
 	v.parentIndex = index
 	if nextIndex != index {

@@ -202,7 +202,7 @@ func (db *DB) deleteSnapshot(
 	volatileDeallocator *alloc.Deallocator[types.VolatileAddress],
 	persistentDeallocator *alloc.Deallocator[types.PersistentAddress],
 	snapshotSpace *space.Space[types.SnapshotID, types.SnapshotInfo],
-	deallocationNodeAssistant *space.DataNodeAssistant[deallocationKey, list.Pointer],
+	deallocationNodeAssistant *space.DataNodeAssistant[deallocationKey, types.ListRoot],
 ) error {
 	if snapshotID == db.singularityNode.LastSnapshotID-1 {
 		return errors.New("deleting latest persistent snapshot is forbidden")
@@ -230,8 +230,8 @@ func (db *DB) deleteSnapshot(
 		Pointer: &snapshotInfo.DeallocationRoot,
 	}
 
-	deallocationLists := space.New[deallocationKey, list.Pointer](
-		space.Config[deallocationKey, list.Pointer]{
+	deallocationLists := space.New[deallocationKey, types.ListRoot](
+		space.Config[deallocationKey, types.ListRoot]{
 			SpaceRoot:         deallocationListsRoot,
 			State:             db.config.State,
 			DataNodeAssistant: deallocationNodeAssistant,
@@ -257,7 +257,7 @@ func (db *DB) deleteSnapshot(
 			continue
 		}
 
-		var deallocationListValue space.Entry[deallocationKey, list.Pointer]
+		var deallocationListValue space.Entry[deallocationKey, types.ListRoot]
 		deallocationLists.Find(&deallocationListValue, nextDeallocSnapshot.Key, space.StageData)
 		if err := deallocationLists.SetKey(&deallocationListValue, tx, volatileAllocator,
 			nextDeallocSnapshot.Value); err != nil {
@@ -292,12 +292,12 @@ func (db *DB) deleteSnapshot(
 
 func (db *DB) commit(
 	tx *pipeline.TransactionRequest,
-	deallocationListsToCommit map[types.SnapshotID]*list.Pointer,
+	deallocationListsToCommit map[types.SnapshotID]*types.ListRoot,
 	volatileAllocator *alloc.Allocator[types.VolatileAddress],
 	persistentAllocator *alloc.Allocator[types.PersistentAddress],
 	persistentDeallocator *alloc.Deallocator[types.PersistentAddress],
 	snapshotSpace *space.Space[types.SnapshotID, types.SnapshotInfo],
-	deallocationListSpace *space.Space[deallocationKey, list.Pointer],
+	deallocationListSpace *space.Space[deallocationKey, types.ListRoot],
 ) error {
 	// Deallocations done in this function are done after standard deallocation are processed by the transaction
 	// execution goroutine. Deallocations done here don't go to deallocation lists but are deallocated immediately.
@@ -320,7 +320,7 @@ func (db *DB) commit(
 		for _, snapshotID := range lists {
 			listRoot := deallocationListsToCommit[snapshotID]
 
-			var deallocationListValue space.Entry[deallocationKey, list.Pointer]
+			var deallocationListValue space.Entry[deallocationKey, types.ListRoot]
 			deallocationListSpace.Find(&deallocationListValue, deallocationKey{
 				ListSnapshotID: db.singularityNode.LastSnapshotID,
 				SnapshotID:     snapshotID,
@@ -444,15 +444,15 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 		NoSnapshots:       true,
 	})
 
-	deallocationListsToCommit := map[types.SnapshotID]*list.Pointer{}
+	deallocationListsToCommit := map[types.SnapshotID]*types.ListRoot{}
 
-	deallocationNodeAssistant, err := space.NewDataNodeAssistant[deallocationKey, list.Pointer]()
+	deallocationNodeAssistant, err := space.NewDataNodeAssistant[deallocationKey, types.ListRoot]()
 	if err != nil {
 		return err
 	}
 
-	deallocationListSpace := space.New[deallocationKey, list.Pointer](
-		space.Config[deallocationKey, list.Pointer]{
+	deallocationListSpace := space.New[deallocationKey, types.ListRoot](
+		space.Config[deallocationKey, types.ListRoot]{
 			SpaceRoot: types.NodeRoot{
 				Pointer: &db.snapshotInfo.DeallocationRoot,
 			},
@@ -584,13 +584,14 @@ func (db *DB) updateDataHashes(
 
 			index := sr.PointersToStore - 1
 			pointer := sr.Store[index].Pointer
+			volatileAddress := sr.Store[index].VolatileAddress
 
-			if uint64(pointer.VolatileAddress)&1 != mod || pointer.Revision != uintptr(unsafe.Pointer(sr)) {
+			if uint64(volatileAddress)&1 != mod || pointer.Revision != uintptr(unsafe.Pointer(sr)) {
 				continue
 			}
 
 			mask |= 1 << slotIndex
-			matrix[slotIndex] = (*byte)(db.config.State.Node(pointer.VolatileAddress))
+			matrix[slotIndex] = (*byte)(db.config.State.Node(volatileAddress))
 			hashes[slotIndex] = &sr.Store[index].Hash[0]
 
 			slotIndex++
@@ -714,7 +715,7 @@ func (db *DB) updatePointerHashes(
 		for ri := range slots {
 			req := slots[ri]
 
-			var pointer *types.Pointer
+			var volatileAddress types.VolatileAddress
 			var hash *types.Hash
 			for {
 				if req.PointerIndex == 0 {
@@ -736,11 +737,13 @@ func (db *DB) updatePointerHashes(
 				}
 
 				req.PointerIndex--
-				pointer = req.StoreRequest.Store[req.PointerIndex].Pointer
+				volatileAddress = req.StoreRequest.Store[req.PointerIndex].VolatileAddress
 
-				if uint64(pointer.VolatileAddress)&1 != mod {
+				if uint64(volatileAddress)&1 != mod {
 					continue
 				}
+
+				pointer := req.StoreRequest.Store[req.PointerIndex].Pointer
 				if pointer.Revision != uintptr(unsafe.Pointer(req.StoreRequest)) {
 					// Pointers are processed from the data node up t the root node. If at any level
 					// revision test fails, it doesn't make sense to process parent nodes because revision
@@ -759,7 +762,7 @@ func (db *DB) updatePointerHashes(
 
 			slots[ri] = req
 			mask |= 1 << ri
-			matrix[ri] = (*byte)(db.config.State.Node(pointer.VolatileAddress))
+			matrix[ri] = (*byte)(db.config.State.Node(volatileAddress))
 			hashes[ri] = &hash[0]
 		}
 
@@ -800,7 +803,7 @@ func (db *DB) storeNodes(ctx context.Context, pipeReader *pipeline.Reader) error
 				pointer := sr.Store[i].Pointer
 
 				if pointer.Revision == uintptr(unsafe.Pointer(sr)) {
-					if err := storeWriter.Write(pointer.PersistentAddress, pointer.VolatileAddress); err != nil {
+					if err := storeWriter.Write(pointer.PersistentAddress, sr.Store[i].VolatileAddress); err != nil {
 						return err
 					}
 				}
@@ -818,23 +821,23 @@ func (db *DB) storeNodes(ctx context.Context, pipeReader *pipeline.Reader) error
 func (db *DB) deallocateNode(
 	nodeSnapshotID types.SnapshotID,
 	nodeAddress types.PersistentAddress,
-	deallocationListsToCommit map[types.SnapshotID]*list.Pointer,
+	deallocationListsToCommit map[types.SnapshotID]*types.ListRoot,
 	volatileAllocator *alloc.Allocator[types.VolatileAddress],
 	persistentAllocator *alloc.Allocator[types.PersistentAddress],
 	persistentDeallocator *alloc.Deallocator[types.PersistentAddress],
 	immediateDeallocation bool,
-) (list.Pointer, error) {
+) (types.ListRoot, error) {
 	// Latest persistent snapshot cannot be deleted, so there is no gap between that snapshot and the pending one.
 	// It means the condition here don't need to include snapshot IDs greater than the previous snapshot ID.
 	if nodeSnapshotID == db.singularityNode.LastSnapshotID || immediateDeallocation {
 		persistentDeallocator.Deallocate(nodeAddress)
 
-		return list.Pointer{}, nil
+		return types.ListRoot{}, nil
 	}
 
 	listRoot := deallocationListsToCommit[nodeSnapshotID]
 	if listRoot == nil {
-		listRoot = &list.Pointer{}
+		listRoot = &types.ListRoot{}
 		deallocationListsToCommit[nodeSnapshotID] = listRoot
 	}
 

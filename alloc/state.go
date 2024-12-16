@@ -25,7 +25,8 @@ func NewState(
 	persistentRing, singularityPersistentAddress := newAllocationRing[types.PersistentAddress](persistentSize, false)
 
 	return &State{
-		singularityNodeRoot: types.NodeRoot{
+		singularityNodeRoot: types.ToStore{
+			VolatileAddress: singularityVolatileAddress,
 			Pointer: &types.Pointer{
 				Revision:          1,
 				VolatileAddress:   singularityVolatileAddress,
@@ -41,7 +42,7 @@ func NewState(
 
 // State stores the DB state.
 type State struct {
-	singularityNodeRoot types.NodeRoot
+	singularityNodeRoot types.ToStore
 	dataP               unsafe.Pointer
 	volatileSize        uint64
 	volatileRing        *ring[types.VolatileAddress]
@@ -69,7 +70,7 @@ func (s *State) NewPersistentDeallocator() *Deallocator[types.PersistentAddress]
 }
 
 // SingularityNodeRoot returns node root of singularity node.
-func (s *State) SingularityNodeRoot() types.NodeRoot {
+func (s *State) SingularityNodeRoot() types.ToStore {
 	return s.singularityNodeRoot
 }
 
