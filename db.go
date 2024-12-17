@@ -620,7 +620,7 @@ type request struct {
 
 type reader struct {
 	pipeReader *pipeline.Reader
-	read       uint64
+	count      uint64
 
 	txRequest    *pipeline.TransactionRequest
 	storeRequest *pipeline.StoreRequest
@@ -630,15 +630,6 @@ func (r *reader) Read(ctx context.Context) (request, error) {
 loop:
 	for {
 		for r.storeRequest == nil {
-			if r.txRequest != nil && r.txRequest.Type == pipeline.Commit {
-				req := request{
-					TxRequest: r.txRequest,
-					Count:     r.read,
-				}
-				r.txRequest = nil
-				return req, nil
-			}
-
 			var err error
 			r.txRequest, err = r.pipeReader.Read(ctx)
 			if err != nil {
@@ -646,20 +637,29 @@ loop:
 			}
 
 			r.storeRequest = r.txRequest.StoreRequest
-			r.read++
+			r.count++
 		}
 
 		for r.storeRequest.PointersToStore < 2 || r.storeRequest.NoSnapshots {
 			r.storeRequest = r.storeRequest.Next
 			if r.storeRequest == nil {
-				continue loop
+				if r.txRequest.Type != pipeline.Commit {
+					continue loop
+				}
+
+				req := request{
+					TxRequest: r.txRequest,
+					Count:     r.count,
+				}
+				r.txRequest = nil
+				return req, nil
 			}
 		}
 
 		req := request{
 			StoreRequest: r.storeRequest,
 			TxRequest:    r.txRequest,
-			Count:        r.read,
+			Count:        r.count,
 			PointerIndex: r.storeRequest.PointersToStore - 1, // -1 to skip the data node
 		}
 
