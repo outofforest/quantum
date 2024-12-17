@@ -627,6 +627,7 @@ type reader struct {
 }
 
 func (r *reader) Read(ctx context.Context) (request, error) {
+loop:
 	for {
 		for r.storeRequest == nil {
 			if r.txRequest != nil && r.txRequest.Type == pipeline.Commit {
@@ -647,24 +648,22 @@ func (r *reader) Read(ctx context.Context) (request, error) {
 			r.storeRequest = r.txRequest.StoreRequest
 			r.read++
 		}
-		for r.storeRequest != nil && (r.storeRequest.PointersToStore < 2 || r.storeRequest.NoSnapshots) {
-			r.storeRequest = r.storeRequest.Next
-		}
 
-		if r.storeRequest == nil {
-			continue
+		for r.storeRequest.PointersToStore < 2 || r.storeRequest.NoSnapshots {
+			r.storeRequest = r.storeRequest.Next
+			if r.storeRequest == nil {
+				continue loop
+			}
 		}
 
 		req := request{
 			StoreRequest: r.storeRequest,
 			TxRequest:    r.txRequest,
 			Count:        r.read,
+			PointerIndex: r.storeRequest.PointersToStore - 1, // -1 to skip the data node
 		}
 
-		if r.storeRequest != nil {
-			req.PointerIndex = r.storeRequest.PointersToStore - 1
-			r.storeRequest = r.storeRequest.Next
-		}
+		r.storeRequest = r.storeRequest.Next
 
 		return req, nil
 	}
