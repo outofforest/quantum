@@ -137,7 +137,7 @@ type Reader struct {
 }
 
 // Read reads next request from the pipeline.
-func (qr *Reader) Read(ctx context.Context) (*TransactionRequest, error) {
+func (qr *Reader) Read(ctx context.Context) (*TransactionRequest, uint64, error) {
 	var h *TransactionRequest
 	var err error
 
@@ -177,19 +177,19 @@ func (qr *Reader) Read(ctx context.Context) (*TransactionRequest, error) {
 			slept = true
 
 			if ctx.Err() != nil {
-				return nil, errors.WithStack(ctx.Err())
+				return nil, 0, errors.WithStack(ctx.Err())
 			}
 		}
 	}
 
 	qr.head = &h.Next
 	qr.currentReadCount++
-	return h, err
+	return h, qr.currentReadCount, err
 }
 
 // Acknowledge acknowledges processing of requests so next worker in the pipeline might take them.
-func (qr *Reader) Acknowledge(count uint64, req *TransactionRequest) {
-	if *qr.processedCount+atomicDivider <= count || req.Type != None {
+func (qr *Reader) Acknowledge(count uint64, reqType TransactionRequestType) {
+	if *qr.processedCount+atomicDivider <= count || reqType != None {
 		atomic.StoreUint64(qr.processedCount, count)
 	}
 }
