@@ -3,7 +3,6 @@ package quantum
 import (
 	"context"
 	"fmt"
-	"math"
 	"sort"
 	"unsafe"
 
@@ -141,18 +140,16 @@ func (db *DB) Run(ctx context.Context) error {
 
 		spawn("supervisor", parallel.Exit, func(ctx context.Context) error {
 			var lastCommitCh chan<- error
-			var processedCount uint64
 
 			for {
-				req, err := supervisorReader.Read(ctx)
+				req, readCount, err := supervisorReader.Read(ctx)
 				if err != nil && lastCommitCh != nil {
 					lastCommitCh <- err
 					lastCommitCh = nil
 				}
 
 				if req != nil {
-					processedCount++
-					supervisorReader.Acknowledge(processedCount, req)
+					supervisorReader.Acknowledge(readCount, req.Type)
 
 					if req.Type == pipeline.Commit {
 						lastCommitCh = req.CommitCh
@@ -400,8 +397,8 @@ func (db *DB) prepareTransactions(
 		return err
 	}
 
-	for processedCount := uint64(0); ; processedCount++ {
-		req, err := pipeReader.Read(ctx)
+	for {
+		req, readCount, err := pipeReader.Read(ctx)
 		if err != nil {
 			return err
 		}
@@ -412,7 +409,7 @@ func (db *DB) prepareTransactions(
 			}
 		}
 
-		pipeReader.Acknowledge(processedCount+1, req)
+		pipeReader.Acknowledge(readCount, req.Type)
 	}
 }
 
@@ -461,8 +458,8 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 		return err
 	}
 
-	for processedCount := uint64(0); ; processedCount++ {
-		req, err := pipeReader.Read(ctx)
+	for {
+		req, readCount, err := pipeReader.Read(ctx)
 		if err != nil {
 			return err
 		}
@@ -546,7 +543,7 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 			}
 		}
 
-		pipeReader.Acknowledge(processedCount+1, req)
+		pipeReader.Acknowledge(readCount, req.Type)
 	}
 }
 
@@ -564,8 +561,8 @@ func (db *DB) updateDataHashes(
 	var mask uint16
 	var slotIndex int
 
-	for processedCount := uint64(0); ; processedCount++ {
-		req, err := pipeReader.Read(ctx)
+	for {
+		req, readCount, err := pipeReader.Read(ctx)
 		if err != nil {
 			return err
 		}
@@ -594,7 +591,7 @@ func (db *DB) updateDataHashes(
 				slotIndex = 0
 				mask = 0
 
-				pipeReader.Acknowledge(processedCount, req)
+				pipeReader.Acknowledge(readCount, req.Type)
 			}
 		}
 
@@ -606,66 +603,50 @@ func (db *DB) updateDataHashes(
 				mask = 0
 			}
 
-			pipeReader.Acknowledge(processedCount+1, req)
+			pipeReader.Acknowledge(readCount, req.Type)
 		}
 	}
 }
 
-type request struct {
-	TxRequest    *pipeline.TransactionRequest
-	Count        uint64
-	StoreRequest *pipeline.StoreRequest
-	PointerIndex int8
-}
-
 type reader struct {
 	pipeReader *pipeline.Reader
-	count      uint64
 
-	txRequest    *pipeline.TransactionRequest
-	storeRequest *pipeline.StoreRequest
+	TxRequest    *pipeline.TransactionRequest
+	StoreRequest *pipeline.StoreRequest
+	PointerIndex int8
+	Count        uint64
 }
 
-func (r *reader) Read(ctx context.Context) (request, error) {
+func (r *reader) Read(ctx context.Context) error {
+	if r.StoreRequest != nil {
+		r.StoreRequest = r.StoreRequest.Next
+	}
+
 loop:
 	for {
-		for r.storeRequest == nil {
+		for r.StoreRequest == nil {
 			var err error
-			r.txRequest, err = r.pipeReader.Read(ctx)
+			r.TxRequest, r.Count, err = r.pipeReader.Read(ctx)
 			if err != nil {
-				return request{}, err
+				return err
 			}
 
-			r.storeRequest = r.txRequest.StoreRequest
-			r.count++
+			r.StoreRequest = r.TxRequest.StoreRequest
 		}
 
-		for r.storeRequest.PointersToStore < 2 || r.storeRequest.NoSnapshots {
-			r.storeRequest = r.storeRequest.Next
-			if r.storeRequest == nil {
-				if r.txRequest.Type != pipeline.Commit {
+		for r.StoreRequest.PointersToStore < 2 || r.StoreRequest.NoSnapshots {
+			r.StoreRequest = r.StoreRequest.Next
+			if r.StoreRequest == nil {
+				if r.TxRequest.Type != pipeline.Commit {
 					continue loop
 				}
-
-				req := request{
-					TxRequest: r.txRequest,
-					Count:     r.count,
-				}
-				r.txRequest = nil
-				return req, nil
+				return nil
 			}
 		}
 
-		req := request{
-			StoreRequest: r.storeRequest,
-			TxRequest:    r.txRequest,
-			Count:        r.count,
-			PointerIndex: r.storeRequest.PointersToStore - 1, // -1 to skip the data node
-		}
+		r.PointerIndex = r.StoreRequest.PointersToStore - 1 // -1 to skip the data node
 
-		r.storeRequest = r.storeRequest.Next
-
-		return req, nil
+		return nil
 	}
 }
 
@@ -673,13 +654,14 @@ func (db *DB) updatePointerHashes(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
 ) error {
-	r := &reader{
-		pipeReader: pipeReader,
+	var slots [16]*reader
+	for i := range slots {
+		slots[i] = &reader{
+			pipeReader: pipeReader,
+		}
 	}
 
-	var slots [16]request
-
-	var commitReq request
+	var commitReq *reader
 
 	var matrix [16]*byte
 	matrixP := &matrix[0]
@@ -691,78 +673,72 @@ func (db *DB) updatePointerHashes(
 	for {
 		n := n2
 		n2 = 0
-		for _, req := range slots[:n] {
-			if req.PointerIndex == 0 {
+		for i, r := range slots[:n] {
+			if r.PointerIndex == 0 {
 				continue
 			}
 
-			req.PointerIndex--
-			if req.StoreRequest.Store[req.PointerIndex].Pointer.Revision != uintptr(unsafe.Pointer(req.StoreRequest)) {
+			r.PointerIndex--
+			if r.StoreRequest.Store[r.PointerIndex].Pointer.Revision != uintptr(unsafe.Pointer(r.StoreRequest)) {
 				// Pointers are processed from the data node up t the root node. If at any level
 				// revision test fails, it doesn't make sense to process parent nodes because revision
 				// test will fail there for sure.
 				continue
 			}
 
-			slots[n2] = req
+			slots[n2], slots[i] = r, slots[n2]
 			n2++
 		}
 
 	riLoop:
-		for ri := n2; ri < len(slots); ri++ {
+		for _, r := range slots[n2:] {
 			for {
-				req, err := r.Read(ctx)
-				if err != nil {
+				if err := r.Read(ctx); err != nil {
 					return err
 				}
 
-				if req.StoreRequest == nil && req.TxRequest.Type == pipeline.Commit {
-					commitReq = req
+				if r.StoreRequest == nil {
+					commitReq = r
 					break riLoop
 				}
 
-				if req.PointerIndex == 0 {
-					continue
-				}
-
-				req.PointerIndex--
-				if req.StoreRequest.Store[req.PointerIndex].Pointer.Revision != uintptr(unsafe.Pointer(req.StoreRequest)) {
+				r.PointerIndex--
+				if r.StoreRequest.Store[r.PointerIndex].Pointer.Revision != uintptr(unsafe.Pointer(r.StoreRequest)) {
 					// Pointers are processed from the data node up to the root node. If at any level
 					// revision test fails, it doesn't make sense to process parent nodes because revision
 					// test will fail there for sure.
 					continue
 				}
 
-				slots[n2] = req
 				n2++
 
 				break
 			}
 		}
 
-		if commitReq.TxRequest != nil {
-			pipeReader.Acknowledge(commitReq.Count, commitReq.TxRequest)
-			commitReq = request{}
-			n2 = 0
-		} else {
+		var minReader *reader
+		if n2 > 0 {
+			minReader = slots[0]
 			var mask uint16
 
-			minReq := request{
-				Count: math.MaxUint64,
-			}
-
-			for ri, req := range slots[:n2] {
-				if req.Count < minReq.Count {
-					minReq = req
+			for ri, r := range slots[:n2] {
+				if r.Count < minReader.Count {
+					minReader = r
 				}
 
 				mask |= 1 << ri
-				matrix[ri] = (*byte)(db.config.State.Node(req.StoreRequest.Store[req.PointerIndex].VolatileAddress))
-				hashes[ri] = &req.StoreRequest.Store[req.PointerIndex].Hash[0]
+				matrix[ri] = (*byte)(db.config.State.Node(r.StoreRequest.Store[r.PointerIndex].VolatileAddress))
+				hashes[ri] = &r.StoreRequest.Store[r.PointerIndex].Hash[0]
 			}
 
 			hash.Blake32048(matrixP, hashesP, mask)
-			pipeReader.Acknowledge(minReq.Count-1, minReq.TxRequest)
+		}
+		if commitReq == nil {
+			pipeReader.Acknowledge(minReader.Count-1, minReader.TxRequest.Type)
+		} else {
+			pipeReader.Acknowledge(commitReq.Count, pipeline.Commit)
+			commitReq = nil
+			n2 = 0
 		}
 	}
 }
@@ -775,8 +751,8 @@ func (db *DB) storeNodes(ctx context.Context, pipeReader *pipeline.Reader) error
 	}
 	defer storeWriter.Close()
 
-	for processedCount := uint64(0); ; processedCount++ {
-		req, err := pipeReader.Read(ctx)
+	for {
+		req, readCount, err := pipeReader.Read(ctx)
 		if err != nil {
 			return err
 		}
@@ -805,7 +781,7 @@ func (db *DB) storeNodes(ctx context.Context, pipeReader *pipeline.Reader) error
 			req.CommitCh <- nil
 		}
 
-		pipeReader.Acknowledge(processedCount+1, req)
+		pipeReader.Acknowledge(readCount, req.Type)
 	}
 }
 
