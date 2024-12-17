@@ -624,54 +624,50 @@ type reader struct {
 
 	txRequest    *pipeline.TransactionRequest
 	storeRequest *pipeline.StoreRequest
-	commitMode   bool
 }
 
 func (r *reader) Read(ctx context.Context) (request, error) {
 	for {
-		for r.storeRequest == nil && !r.commitMode {
+		for r.storeRequest == nil {
+			if r.txRequest != nil && r.txRequest.Type == pipeline.Commit {
+				req := request{
+					TxRequest: r.txRequest,
+					Count:     r.read,
+				}
+				r.txRequest = nil
+				return req, nil
+			}
+
 			var err error
 			r.txRequest, err = r.pipeReader.Read(ctx)
 			if err != nil {
 				return request{}, err
 			}
 
-			r.commitMode = r.txRequest.Type == pipeline.Commit
-
-			if r.txRequest.StoreRequest != nil {
-				r.storeRequest = r.txRequest.StoreRequest
-			}
+			r.storeRequest = r.txRequest.StoreRequest
 			r.read++
 		}
 		for r.storeRequest != nil && (r.storeRequest.PointersToStore < 2 || r.storeRequest.NoSnapshots) {
 			r.storeRequest = r.storeRequest.Next
 		}
 
-		if r.storeRequest == nil && !r.commitMode {
+		if r.storeRequest == nil {
 			continue
 		}
 
-		sr := r.storeRequest
 		req := request{
-			StoreRequest: sr,
+			StoreRequest: r.storeRequest,
 			TxRequest:    r.txRequest,
 			Count:        r.read,
 		}
 
-		if sr != nil {
-			r.storeRequest = sr.Next
-			req.PointerIndex = sr.PointersToStore - 1
+		if r.storeRequest != nil {
+			req.PointerIndex = r.storeRequest.PointersToStore - 1
+			r.storeRequest = r.storeRequest.Next
 		}
 
 		return req, nil
 	}
-}
-
-func (r *reader) Acknowledge(count uint64, req *pipeline.TransactionRequest, commit bool) {
-	if commit {
-		r.commitMode = false
-	}
-	r.pipeReader.Acknowledge(count, req)
 }
 
 func (db *DB) updatePointerHashes(
@@ -721,12 +717,13 @@ func (db *DB) updatePointerHashes(
 					return err
 				}
 
-				if req.TxRequest.Type == pipeline.Commit {
+				if req.StoreRequest == nil && req.TxRequest.Type == pipeline.Commit {
 					commitReq = req
+					break riLoop
 				}
 
-				if req.StoreRequest == nil {
-					break riLoop
+				if req.PointerIndex == 0 {
+					continue
 				}
 
 				req.PointerIndex--
@@ -744,9 +741,10 @@ func (db *DB) updatePointerHashes(
 			}
 		}
 
-		if n2 == 0 {
-			r.Acknowledge(commitReq.Count, commitReq.TxRequest, true)
+		if commitReq.TxRequest != nil {
+			pipeReader.Acknowledge(commitReq.Count, commitReq.TxRequest)
 			commitReq = request{}
+			n2 = 0
 		} else {
 			var mask uint16
 
@@ -765,7 +763,7 @@ func (db *DB) updatePointerHashes(
 			}
 
 			hash.Blake32048(matrixP, hashesP, mask)
-			r.Acknowledge(minReq.Count-1, minReq.TxRequest, false)
+			pipeReader.Acknowledge(minReq.Count-1, minReq.TxRequest)
 		}
 	}
 }
