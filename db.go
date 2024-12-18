@@ -611,9 +611,8 @@ func (db *DB) updateDataHashes(
 type reader struct {
 	pipeReader *pipeline.Reader
 
-	TxRequest    *pipeline.TransactionRequest
+	txRequest    *pipeline.TransactionRequest
 	StoreRequest *pipeline.StoreRequest
-	PointerIndex int8
 	Count        uint64
 }
 
@@ -626,42 +625,65 @@ loop:
 	for {
 		for r.StoreRequest == nil {
 			var err error
-			r.TxRequest, r.Count, err = r.pipeReader.Read(ctx)
+			r.txRequest, r.Count, err = r.pipeReader.Read(ctx)
 			if err != nil {
 				return err
 			}
 
-			r.StoreRequest = r.TxRequest.StoreRequest
+			r.StoreRequest = r.txRequest.StoreRequest
 		}
 
 		for r.StoreRequest.PointersToStore < 2 || r.StoreRequest.NoSnapshots {
 			r.StoreRequest = r.StoreRequest.Next
 			if r.StoreRequest == nil {
-				if r.TxRequest.Type != pipeline.Commit {
+				if r.txRequest.Type != pipeline.Commit {
 					continue loop
 				}
 				return nil
 			}
 		}
 
-		r.PointerIndex = r.StoreRequest.PointersToStore - 1 // -1 to skip the data node
-
 		return nil
 	}
+}
+
+type slot struct {
+	r *reader
+
+	StoreRequest *pipeline.StoreRequest
+	Count        uint64
+	PointerIndex int8
+}
+
+func (s *slot) Read(ctx context.Context) error {
+	if err := s.r.Read(ctx); err != nil {
+		return err
+	}
+	s.StoreRequest = s.r.StoreRequest
+	s.Count = s.r.Count
+	if s.StoreRequest == nil {
+		s.PointerIndex = 0
+	} else {
+		s.PointerIndex = s.StoreRequest.PointersToStore - 1 // -1 to skip the data node
+	}
+
+	return nil
 }
 
 func (db *DB) updatePointerHashes(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
 ) error {
-	var slots [16]*reader
-	for i := range slots {
-		slots[i] = &reader{
-			pipeReader: pipeReader,
-		}
+	r := &reader{
+		pipeReader: pipeReader,
 	}
 
-	var commitReq *reader
+	var slots [16]*slot
+	for i := range slots {
+		slots[i] = &slot{r: r}
+	}
+
+	var commitSlot *slot
 
 	var matrix [16]*byte
 	matrixP := &matrix[0]
@@ -673,37 +695,37 @@ func (db *DB) updatePointerHashes(
 	for {
 		n := n2
 		n2 = 0
-		for i, r := range slots[:n] {
-			if r.PointerIndex == 0 {
+		for i, s := range slots[:n] {
+			if s.PointerIndex == 0 {
 				continue
 			}
 
-			r.PointerIndex--
-			if r.StoreRequest.Store[r.PointerIndex].Pointer.Revision != uintptr(unsafe.Pointer(r.StoreRequest)) {
+			s.PointerIndex--
+			if s.StoreRequest.Store[s.PointerIndex].Pointer.Revision != uintptr(unsafe.Pointer(s.StoreRequest)) {
 				// Pointers are processed from the data node up t the root node. If at any level
 				// revision test fails, it doesn't make sense to process parent nodes because revision
 				// test will fail there for sure.
 				continue
 			}
 
-			slots[n2], slots[i] = r, slots[n2]
+			slots[n2], slots[i] = s, slots[n2]
 			n2++
 		}
 
 	riLoop:
-		for _, r := range slots[n2:] {
+		for _, s := range slots[n2:] {
 			for {
-				if err := r.Read(ctx); err != nil {
+				if err := s.Read(ctx); err != nil {
 					return err
 				}
 
-				if r.StoreRequest == nil {
-					commitReq = r
+				if s.StoreRequest == nil {
+					commitSlot = s
 					break riLoop
 				}
 
-				r.PointerIndex--
-				if r.StoreRequest.Store[r.PointerIndex].Pointer.Revision != uintptr(unsafe.Pointer(r.StoreRequest)) {
+				s.PointerIndex--
+				if s.StoreRequest.Store[s.PointerIndex].Pointer.Revision != uintptr(unsafe.Pointer(s.StoreRequest)) {
 					// Pointers are processed from the data node up to the root node. If at any level
 					// revision test fails, it doesn't make sense to process parent nodes because revision
 					// test will fail there for sure.
@@ -716,14 +738,14 @@ func (db *DB) updatePointerHashes(
 			}
 		}
 
-		var minReader *reader
+		var minSlot *slot
 		if n2 > 0 {
-			minReader = slots[0]
+			minSlot = slots[0]
 			var mask uint16
 
 			for ri, r := range slots[:n2] {
-				if r.Count < minReader.Count {
-					minReader = r
+				if r.Count < minSlot.Count {
+					minSlot = r
 				}
 
 				mask |= 1 << ri
@@ -733,11 +755,11 @@ func (db *DB) updatePointerHashes(
 
 			hash.Blake32048(matrixP, hashesP, mask)
 		}
-		if commitReq == nil {
-			pipeReader.Acknowledge(minReader.Count-1, minReader.TxRequest.Type)
+		if commitSlot == nil {
+			pipeReader.Acknowledge(minSlot.Count-1, pipeline.None)
 		} else {
-			pipeReader.Acknowledge(commitReq.Count, pipeline.Commit)
-			commitReq = nil
+			pipeReader.Acknowledge(commitSlot.Count, pipeline.Commit)
+			commitSlot = nil
 			n2 = 0
 		}
 	}
