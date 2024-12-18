@@ -368,9 +368,9 @@ func pipe03UpdateDataHashes(state *alloc.State, modMask, mod uint64) pipeline.Tx
 	var mask uint16
 	var slotIndex int
 
-	return func(tx *pipeline.TransactionRequest, readCount uint64) (uint64, error) {
-		var ackCount uint64
+	var ackCount uint64
 
+	return func(tx *pipeline.TransactionRequest, readCount uint64) (uint64, error) {
 		for sr := tx.StoreRequest; sr != nil; sr = sr.Next {
 			if sr.PointersToStore == 0 || sr.NoSnapshots {
 				continue
