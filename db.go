@@ -171,7 +171,7 @@ func (db *DB) Run(ctx context.Context) error {
 		})
 		for i, reader := range dataHashReaders {
 			spawn(fmt.Sprintf("datahash-%02d", i), parallel.Fail, func(ctx context.Context) error {
-				return db.updateDataHashes(ctx, reader, uint64(i))
+				return db.updateDataHashes(ctx, reader, uint64(len(dataHashReaders)-1), uint64(i))
 			})
 		}
 		spawn("pointerhash", parallel.Fail, func(ctx context.Context) error {
@@ -550,6 +550,7 @@ func (db *DB) executeTransactions(ctx context.Context, pipeReader *pipeline.Read
 func (db *DB) updateDataHashes(
 	ctx context.Context,
 	pipeReader *pipeline.Reader,
+	modMask uint64,
 	mod uint64,
 ) error {
 	var matrix [16]*byte
@@ -576,7 +577,7 @@ func (db *DB) updateDataHashes(
 			pointer := sr.Store[index].Pointer
 			volatileAddress := sr.Store[index].VolatileAddress
 
-			if uint64(volatileAddress)&1 != mod || pointer.Revision != uintptr(unsafe.Pointer(sr)) {
+			if uint64(volatileAddress)&modMask != mod || pointer.Revision != uintptr(unsafe.Pointer(sr)) {
 				continue
 			}
 
@@ -591,7 +592,7 @@ func (db *DB) updateDataHashes(
 				slotIndex = 0
 				mask = 0
 
-				pipeReader.Acknowledge(readCount, req.Type)
+				pipeReader.Acknowledge(readCount-1, req.Type)
 			}
 		}
 
