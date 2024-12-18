@@ -220,7 +220,7 @@ func (db *DB) Run(ctx context.Context) error {
 			})
 		}
 		spawn("pipe04PointerHash", parallel.Fail, func(ctx context.Context) error {
-			return pipe04UpdatePointerHashes(ctx, db.config.State, pointerHashReader)
+			return pointerHashReader.Run(ctx, pipe04UpdatePointerHashes(db.config.State))
 		})
 		spawn("pipe05StoreNodes", parallel.Fail, func(ctx context.Context) error {
 			storeWriter, err := db.config.Store.NewWriter(db.config.State.Origin(),
@@ -415,56 +415,53 @@ func pipe03UpdateDataHashes(state *alloc.State, modMask, mod uint64) pipeline.Tx
 }
 
 type reader struct {
-	pipeReader *pipeline.Reader
+	tx *pipeline.TransactionRequest
+	sr *pipeline.StoreRequest
 
-	txRequest    *pipeline.TransactionRequest
 	StoreRequest *pipeline.StoreRequest
 	Count        uint64
 }
 
-func (r *reader) Read(ctx context.Context) error {
-	if r.StoreRequest != nil {
-		r.StoreRequest = r.StoreRequest.Next
-	}
+func (r *reader) PushTx(tx *pipeline.TransactionRequest, readCount uint64) {
+	r.tx = tx
+	r.sr = tx.StoreRequest
+	r.Count = readCount
+}
 
-loop:
-	for {
-		for r.StoreRequest == nil {
-			var err error
-			r.txRequest, r.Count, err = r.pipeReader.Read(ctx)
-			if err != nil {
-				return err
-			}
-
-			r.StoreRequest = r.txRequest.StoreRequest
-		}
-
-		for r.StoreRequest.PointersToStore < 2 || r.StoreRequest.NoSnapshots {
-			r.StoreRequest = r.StoreRequest.Next
-			if r.StoreRequest == nil {
-				if r.txRequest.Type != pipeline.Commit {
-					continue loop
-				}
-				return nil
-			}
-		}
-
+func (r *reader) Read() error {
+	if r.sr == nil {
+		r.StoreRequest = nil
 		return nil
 	}
+
+	for r.sr.PointersToStore < 2 || r.sr.NoSnapshots {
+		r.sr = r.sr.Next
+		if r.sr == nil {
+			r.StoreRequest = nil
+			return nil
+		}
+	}
+
+	r.StoreRequest = r.sr
+	r.sr = r.sr.Next
+
+	return nil
 }
 
 type slot struct {
 	r *reader
 
+	TxRequest    *pipeline.TransactionRequest
 	StoreRequest *pipeline.StoreRequest
 	Count        uint64
 	PointerIndex int8
 }
 
-func (s *slot) Read(ctx context.Context) error {
-	if err := s.r.Read(ctx); err != nil {
+func (s *slot) Read() error {
+	if err := s.r.Read(); err != nil {
 		return err
 	}
+	s.TxRequest = s.r.tx
 	s.StoreRequest = s.r.StoreRequest
 	s.Count = s.r.Count
 	if s.StoreRequest == nil {
@@ -476,14 +473,8 @@ func (s *slot) Read(ctx context.Context) error {
 	return nil
 }
 
-func pipe04UpdatePointerHashes(
-	ctx context.Context,
-	state *alloc.State,
-	pipeReader *pipeline.Reader,
-) error {
-	r := &reader{
-		pipeReader: pipeReader,
-	}
+func pipe04UpdatePointerHashes(state *alloc.State) pipeline.TxFunc {
+	r := &reader{}
 
 	var slots [16]*slot
 	for i := range slots {
@@ -498,37 +489,49 @@ func pipe04UpdatePointerHashes(
 	var hashes [16]*byte
 	hashesP := &hashes[0]
 
-	n2 := 0
-	for {
-		n := n2
-		n2 = 0
-		for i, s := range slots[:n] {
-			if s.PointerIndex == 0 {
-				continue
-			}
+	var ackCount uint64
+	var n, n2 int
 
-			s.PointerIndex--
-			if s.StoreRequest.Store[s.PointerIndex].Pointer.Revision != uintptr(unsafe.Pointer(s.StoreRequest)) {
-				// Pointers are processed from the data node up t the root node. If at any level
-				// revision test fails, it doesn't make sense to process parent nodes because revision
-				// test will fail there for sure.
-				continue
-			}
+	phase0 := true
 
-			slots[n2], slots[i] = s, slots[n2]
-			n2++
+	return func(tx *pipeline.TransactionRequest, readCount uint64) (uint64, error) {
+		r.PushTx(tx, readCount)
+
+		if phase0 {
+			phase0 = false
+
+			for i, s := range slots[:n] {
+				if s.PointerIndex == 0 {
+					continue
+				}
+
+				s.PointerIndex--
+				if s.StoreRequest.Store[s.PointerIndex].Pointer.Revision != uintptr(unsafe.Pointer(s.StoreRequest)) {
+					// Pointers are processed from the data node up t the root node. If at any level
+					// revision test fails, it doesn't make sense to process parent nodes because revision
+					// test will fail there for sure.
+					continue
+				}
+
+				slots[n2], slots[i] = s, slots[n2]
+				n2++
+			}
 		}
 
 	riLoop:
 		for _, s := range slots[n2:] {
 			for {
-				if err := s.Read(ctx); err != nil {
-					return err
+				if err := s.Read(); err != nil {
+					return 0, err
 				}
 
 				if s.StoreRequest == nil {
-					commitSlot = s
-					break riLoop
+					if s.TxRequest.Type == pipeline.Commit {
+						commitSlot = s
+						break riLoop
+					} else {
+						return ackCount, nil
+					}
 				}
 
 				s.PointerIndex--
@@ -563,12 +566,17 @@ func pipe04UpdatePointerHashes(
 			hash.Blake32048(matrixP, hashesP, mask)
 		}
 		if commitSlot == nil {
-			pipeReader.Acknowledge(minSlot.Count-1, pipeline.None)
+			ackCount = minSlot.Count - 1
 		} else {
-			pipeReader.Acknowledge(commitSlot.Count, pipeline.Commit)
+			ackCount = commitSlot.Count
 			commitSlot = nil
-			n2 = 0
 		}
+
+		phase0 = true
+		n = n2
+		n2 = 0
+
+		return ackCount, nil
 	}
 }
 
