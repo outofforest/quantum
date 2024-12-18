@@ -168,7 +168,7 @@ func (db *DB) Run(ctx context.Context) error {
 					return err
 				}
 
-				return pipe01PrepareTransactions(ctx, balanceSpace, reader)
+				return reader.Run(ctx, pipe01PrepareTransactions(balanceSpace))
 			})
 		}
 		spawn("pipe02ExecuteTx", parallel.Fail, func(ctx context.Context) error {
@@ -209,19 +209,28 @@ func (db *DB) Run(ctx context.Context) error {
 				return err
 			}
 
-			return pipe02ExecuteTransactions(ctx, db.config.State, &db.singularityNode.LastSnapshotID, &db.snapshotInfo,
-				snapshotSpace, deallocationListSpace, deallocationNodeAssistant, balanceSpace, executeTxReader)
+			return executeTxReader.Run(ctx, pipe02ExecuteTransactions(db.config.State,
+				&db.singularityNode.LastSnapshotID, &db.snapshotInfo, snapshotSpace, deallocationListSpace,
+				deallocationNodeAssistant, balanceSpace))
 		})
 		for i, reader := range dataHashReaders {
 			spawn(fmt.Sprintf("pipe03DataHash-%02d", i), parallel.Fail, func(ctx context.Context) error {
-				return pipe03UpdateDataHashes(ctx, db.config.State, reader, uint64(len(dataHashReaders)-1), uint64(i))
+				return reader.Run(ctx, pipe03UpdateDataHashes(db.config.State, uint64(len(dataHashReaders)-1),
+					uint64(i)))
 			})
 		}
 		spawn("pipe04PointerHash", parallel.Fail, func(ctx context.Context) error {
 			return pipe04UpdatePointerHashes(ctx, db.config.State, pointerHashReader)
 		})
 		spawn("pipe05StoreNodes", parallel.Fail, func(ctx context.Context) error {
-			return pipe05StoreNodes(ctx, db.config.State, db.config.Store, storeNodesReader)
+			storeWriter, err := db.config.Store.NewWriter(db.config.State.Origin(),
+				db.config.State.VolatileSize())
+			if err != nil {
+				return err
+			}
+			defer storeWriter.Close()
+
+			return storeNodesReader.Run(ctx, pipe05StoreNodes(storeWriter))
 		})
 
 		return nil
@@ -235,29 +244,21 @@ func (db *DB) prepareNextSnapshot() {
 	db.snapshotInfo.DeallocationRoot = types.Pointer{}
 }
 
-func pipe01PrepareTransactions(
-	ctx context.Context,
-	balanceSpace *space.Space[txtypes.Account, txtypes.Amount],
-	pipeReader *pipeline.Reader,
-) error {
-	for {
-		req, readCount, err := pipeReader.Read(ctx)
-		if err != nil {
-			return err
+func pipe01PrepareTransactions(balanceSpace *space.Space[txtypes.Account, txtypes.Amount]) pipeline.TxFunc {
+	return func(tx *pipeline.TransactionRequest, readCount uint64) (uint64, error) {
+		if tx.Transaction == nil {
+			return readCount, nil
 		}
 
-		if req.Transaction != nil {
-			if transferTx, ok := req.Transaction.(*transfer.Tx); ok {
-				transferTx.Prepare(balanceSpace)
-			}
+		if transferTx, ok := tx.Transaction.(*transfer.Tx); ok {
+			transferTx.Prepare(balanceSpace)
 		}
 
-		pipeReader.Acknowledge(readCount, req.Type)
+		return readCount, nil
 	}
 }
 
 func pipe02ExecuteTransactions(
-	ctx context.Context,
 	state *alloc.State,
 	snapshotID *types.SnapshotID,
 	snapshotInfo *types.SnapshotInfo,
@@ -265,8 +266,7 @@ func pipe02ExecuteTransactions(
 	deallocationListSpace *space.Space[deallocationKey, types.ListRoot],
 	deallocationNodeAssistant *space.DataNodeAssistant[deallocationKey, types.ListRoot],
 	balanceSpace *space.Space[txtypes.Account, txtypes.Amount],
-	pipeReader *pipeline.Reader,
-) error {
+) pipeline.TxFunc {
 	volatileAllocator := state.NewVolatileAllocator()
 	volatileDeallocator := state.NewVolatileDeallocator()
 	persistentAllocator := state.NewPersistentAllocator()
@@ -274,34 +274,29 @@ func pipe02ExecuteTransactions(
 
 	deallocationListsToCommit := map[types.SnapshotID]*types.ListRoot{}
 
-	for {
-		req, readCount, err := pipeReader.Read(ctx)
-		if err != nil {
-			return err
-		}
-
-		if req.Transaction != nil {
-			switch tx := req.Transaction.(type) {
+	return func(tx *pipeline.TransactionRequest, readCount uint64) (uint64, error) {
+		if tx.Transaction != nil {
+			switch t := tx.Transaction.(type) {
 			case *transfer.Tx:
-				if err := tx.Execute(balanceSpace, req, volatileAllocator); err != nil {
-					return err
+				if err := t.Execute(balanceSpace, tx, volatileAllocator); err != nil {
+					return 0, err
 				}
 			case *deleteSnapshotTx:
-				if err := deleteSnapshot(*snapshotID, tx.SnapshotID, state, req, volatileAllocator,
+				if err := deleteSnapshot(*snapshotID, t.SnapshotID, state, tx, volatileAllocator,
 					volatileDeallocator, persistentDeallocator, snapshotSpace, deallocationNodeAssistant); err != nil {
-					return err
+					return 0, err
 				}
 			case *genesis.Tx:
-				if err := tx.Execute(balanceSpace, req, volatileAllocator); err != nil {
-					return err
+				if err := t.Execute(balanceSpace, tx, volatileAllocator); err != nil {
+					return 0, err
 				}
 			default:
-				return errors.New("unknown transaction type")
+				return 0, errors.New("unknown transaction type")
 			}
 		}
 
 		var lr *pipeline.ListRequest
-		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+		for sr := tx.StoreRequest; sr != nil; sr = sr.Next {
 			if sr.PointersToStore == 0 {
 				continue
 			}
@@ -317,7 +312,7 @@ func pipe02ExecuteTransactions(
 							root.Pointer.PersistentAddress, deallocationListsToCommit, volatileAllocator,
 							persistentAllocator, persistentDeallocator, sr.NoSnapshots)
 						if err != nil {
-							return err
+							return 0, err
 						}
 
 						if listNodePointer.VolatileAddress != types.FreeAddress {
@@ -327,7 +322,7 @@ func pipe02ExecuteTransactions(
 							lr.List[lr.ListsToStore] = listNodePointer
 							lr.ListsToStore++
 							if lr.ListsToStore == pipeline.StoreCapacity {
-								req.AddListRequest(lr)
+								tx.AddListRequest(lr)
 								lr = nil
 							}
 						}
@@ -342,34 +337,28 @@ func pipe02ExecuteTransactions(
 				if root.Pointer.PersistentAddress == 0 {
 					persistentAddress, err := persistentAllocator.Allocate()
 					if err != nil {
-						return err
+						return 0, err
 					}
 					root.Pointer.PersistentAddress = persistentAddress
 				}
 			}
 		}
 		if lr != nil {
-			req.AddListRequest(lr)
+			tx.AddListRequest(lr)
 		}
 
-		if req.Type == pipeline.Commit {
-			if err := commit(*snapshotID, *snapshotInfo, req, state, deallocationListsToCommit, volatileAllocator,
+		if tx.Type == pipeline.Commit {
+			if err := commit(*snapshotID, *snapshotInfo, tx, state, deallocationListsToCommit, volatileAllocator,
 				persistentAllocator, persistentDeallocator, snapshotSpace, deallocationListSpace); err != nil {
-				return err
+				return 0, err
 			}
 		}
 
-		pipeReader.Acknowledge(readCount, req.Type)
+		return readCount, nil
 	}
 }
 
-func pipe03UpdateDataHashes(
-	ctx context.Context,
-	state *alloc.State,
-	pipeReader *pipeline.Reader,
-	modMask uint64,
-	mod uint64,
-) error {
+func pipe03UpdateDataHashes(state *alloc.State, modMask, mod uint64) pipeline.TxFunc {
 	var matrix [16]*byte
 	matrixP := &matrix[0]
 
@@ -379,13 +368,10 @@ func pipe03UpdateDataHashes(
 	var mask uint16
 	var slotIndex int
 
-	for {
-		req, readCount, err := pipeReader.Read(ctx)
-		if err != nil {
-			return err
-		}
+	return func(tx *pipeline.TransactionRequest, readCount uint64) (uint64, error) {
+		var ackCount uint64
 
-		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+		for sr := tx.StoreRequest; sr != nil; sr = sr.Next {
 			if sr.PointersToStore == 0 || sr.NoSnapshots {
 				continue
 			}
@@ -409,11 +395,11 @@ func pipe03UpdateDataHashes(
 				slotIndex = 0
 				mask = 0
 
-				pipeReader.Acknowledge(readCount-1, req.Type)
+				ackCount = readCount - 1
 			}
 		}
 
-		if req.Type == pipeline.Commit {
+		if tx.Type == pipeline.Commit {
 			if mask != 0 {
 				hash.Blake34096(matrixP, hashesP, mask)
 
@@ -421,8 +407,10 @@ func pipe03UpdateDataHashes(
 				mask = 0
 			}
 
-			pipeReader.Acknowledge(readCount, req.Type)
+			ackCount = readCount
 		}
+
+		return ackCount, nil
 	}
 }
 
@@ -584,50 +572,33 @@ func pipe04UpdatePointerHashes(
 	}
 }
 
-func pipe05StoreNodes(
-	ctx context.Context,
-	state *alloc.State,
-	store *persistent.Store,
-	pipeReader *pipeline.Reader,
-) error {
-	storeWriter, err := store.NewWriter(state.Origin(),
-		state.VolatileSize())
-	if err != nil {
-		return err
-	}
-	defer storeWriter.Close()
-
-	for {
-		req, readCount, err := pipeReader.Read(ctx)
-		if err != nil {
-			return err
-		}
-
-		for lr := req.ListRequest; lr != nil; lr = lr.Next {
+func pipe05StoreNodes(storeWriter *persistent.Writer) pipeline.TxFunc {
+	return func(tx *pipeline.TransactionRequest, readCount uint64) (uint64, error) {
+		for lr := tx.ListRequest; lr != nil; lr = lr.Next {
 			for i := range lr.ListsToStore {
 				if err := storeWriter.Write(lr.List[i].PersistentAddress, lr.List[i].VolatileAddress); err != nil {
-					return err
+					return 0, err
 				}
 			}
 		}
 
-		for sr := req.StoreRequest; sr != nil; sr = sr.Next {
+		for sr := tx.StoreRequest; sr != nil; sr = sr.Next {
 			for i := sr.PointersToStore - 1; i >= 0; i-- {
 				pointer := sr.Store[i].Pointer
 
 				if pointer.Revision == uintptr(unsafe.Pointer(sr)) {
 					if err := storeWriter.Write(pointer.PersistentAddress, sr.Store[i].VolatileAddress); err != nil {
-						return err
+						return 0, err
 					}
 				}
 			}
 		}
 
-		if req.Type == pipeline.Commit {
-			req.CommitCh <- nil
+		if tx.Type == pipeline.Commit {
+			tx.CommitCh <- nil
 		}
 
-		pipeReader.Acknowledge(readCount, req.Type)
+		return readCount, nil
 	}
 }
 

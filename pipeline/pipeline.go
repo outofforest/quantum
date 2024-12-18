@@ -194,6 +194,26 @@ func (qr *Reader) Acknowledge(count uint64, reqType TransactionRequestType) {
 	}
 }
 
+// TxFunc represents function signature expected by the runner.
+type TxFunc func(tx *TransactionRequest, count uint64) (uint64, error)
+
+// Run runs the tx request processor.
+func (qr *Reader) Run(ctx context.Context, txFunc TxFunc) error {
+	for {
+		tx, readCount, err := qr.Read(ctx)
+		if err != nil {
+			return err
+		}
+
+		ackCount, err := txFunc(tx, readCount)
+		if err != nil {
+			return err
+		}
+
+		qr.Acknowledge(ackCount, tx.Type)
+	}
+}
+
 // NewReader creates new dependant reader.
 func NewReader(parentReaders ...*Reader) *Reader {
 	r := &Reader{
