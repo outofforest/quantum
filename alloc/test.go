@@ -8,7 +8,7 @@ import (
 
 // NewForTest creates state for unit tests.
 func NewForTest(t *testing.T, size uint64) *State {
-	state, stateDeallocFunc, err := NewState(size, size, false)
+	state, stateDeallocFunc, err := NewState(size, 2*size, false)
 	require.NoError(t, err)
 	t.Cleanup(stateDeallocFunc)
 
