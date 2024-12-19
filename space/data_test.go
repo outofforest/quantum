@@ -35,8 +35,8 @@ func TestDataNode(t *testing.T) {
 
 	itemP := unsafe.Add(nodeP, dataNode.NumOfItems()*types.UInt64Length)
 	for i := range dataNode.NumOfItems() {
-		requireT.Equal(uint32(i), *(*uint32)(itemP))
-		requireT.Equal(uint16(i), *(*uint16)(unsafe.Add(itemP, 4)))
+		requireT.Equal(uint32(i), *(*uint32)(itemP))                //nolint:testifylint
+		requireT.Equal(uint16(i), *(*uint16)(unsafe.Add(itemP, 4))) //nolint:testifylint
 
 		itemP = unsafe.Add(itemP, 8)
 	}
