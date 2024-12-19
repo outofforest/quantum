@@ -19,7 +19,7 @@ func newAllocationRing[A Address](
 	r, addresses := newRing[A](totalNumOfNodes - singularityNodeCount)
 	singularityNodes := make([]A, 0, singularityNodeCount)
 	for i, j := A(0), 0; i < A(totalNumOfNodes); i++ {
-		if i%singularityNodeFrequency == 0 {
+		if i%singularityNodeFrequency == 0 && len(singularityNodes) < cap(singularityNodes) {
 			singularityNodes = append(singularityNodes, i)
 		} else {
 			addresses[j] = i
