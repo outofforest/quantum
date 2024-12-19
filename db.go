@@ -168,7 +168,7 @@ func (db *DB) Run(ctx context.Context) error {
 					return err
 				}
 
-				return reader.Run(ctx, pipe01PrepareTransactions(balanceSpace))
+				return reader.Run(ctx, pipe01PrepareTransaction(balanceSpace))
 			})
 		}
 		spawn("pipe02ExecuteTx", parallel.Fail, func(ctx context.Context) error {
@@ -209,7 +209,7 @@ func (db *DB) Run(ctx context.Context) error {
 				return err
 			}
 
-			return executeTxReader.Run(ctx, pipe02ExecuteTransactions(db.config.State,
+			return executeTxReader.Run(ctx, pipe02ExecuteTransaction(db.config.State,
 				&db.singularityNode.LastSnapshotID, &db.snapshotInfo, snapshotSpace, deallocationListSpace,
 				deallocationNodeAssistant, balanceSpace))
 		})
@@ -244,7 +244,7 @@ func (db *DB) prepareNextSnapshot() {
 	db.snapshotInfo.DeallocationRoot = types.Pointer{}
 }
 
-func pipe01PrepareTransactions(balanceSpace *space.Space[txtypes.Account, txtypes.Amount]) pipeline.TxFunc {
+func pipe01PrepareTransaction(balanceSpace *space.Space[txtypes.Account, txtypes.Amount]) pipeline.TxFunc {
 	return func(tx *pipeline.TransactionRequest, readCount uint64) (uint64, error) {
 		if tx.Transaction == nil {
 			return readCount, nil
@@ -258,7 +258,7 @@ func pipe01PrepareTransactions(balanceSpace *space.Space[txtypes.Account, txtype
 	}
 }
 
-func pipe02ExecuteTransactions(
+func pipe02ExecuteTransaction(
 	state *alloc.State,
 	snapshotID *types.SnapshotID,
 	snapshotInfo *types.SnapshotInfo,
