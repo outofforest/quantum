@@ -10,5 +10,5 @@ import (
 )
 
 func TestPointerNode(t *testing.T) {
-	require.LessOrEqual(t, unsafe.Sizeof(Node{}), uintptr(types.NodeLength))
+	require.LessOrEqual(t, unsafe.Sizeof(node{}), uintptr(types.NodeLength))
 }
