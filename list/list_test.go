@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/outofforest/quantum/alloc"
+	"github.com/outofforest/quantum/state"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -15,7 +15,7 @@ const stateSize = (numOfAddresses + 6) * types.NodeLength
 func TestList(t *testing.T) {
 	requireT := require.New(t)
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 	volatileAllocator := state.NewVolatileAllocator()
 	persistentAllocator := state.NewPersistentAllocator()
 

@@ -1,8 +1,6 @@
-package persistent
+package state
 
 import (
-	"io"
-	"os"
 	"runtime"
 	"syscall"
 	"time"
@@ -17,56 +15,21 @@ import (
 const (
 	// We found that when this value is too large, together with O_DIRECT option it produces random ECANCELED errors
 	// on CQE. Our guess for now is that it might be caused by some queue overflows in the NVME device.
-	submitCount  = 2 << 5
-	mod          = submitCount - 1
-	ringCapacity = 10 * submitCount
+	submitCount   = 2 << 5
+	mod           = submitCount - 1
+	uringCapacity = 10 * submitCount
 )
 
-// NewStore creates new persistent store.
-func NewStore(file *os.File) (*Store, error) {
-	size, err := file.Seek(0, io.SeekEnd)
-	if err != nil {
-		_ = file.Close()
-		return nil, errors.WithStack(err)
-	}
-
-	return &Store{
-		file: file,
-		size: uint64(size),
-	}, nil
-}
-
-// Store defines persistent store.
-type Store struct {
-	file *os.File
-	size uint64
-}
-
-// Size returns the size of the store.
-func (s *Store) Size() uint64 {
-	return s.size
-}
-
-// NewWriter creates new store writer.
-func (s *Store) NewWriter(volatileOrigin unsafe.Pointer, volatileSize uint64) (*Writer, error) {
-	return newWriter(s.file, volatileOrigin, volatileSize)
-}
-
-// Close closes the store.
-func (s *Store) Close() {
-	_ = s.file.Close()
-}
-
 func newWriter(
-	file *os.File,
+	fileDescriptor int32,
 	volatileOrigin unsafe.Pointer,
 	volatileSize uint64,
 ) (*Writer, error) {
 	// Required by uring.SetupSingleIssuer.
 	runtime.LockOSThread()
 
-	ring, err := uring.New(ringCapacity,
-		uring.WithCQSize(ringCapacity),
+	ring, err := uring.New(uringCapacity,
+		uring.WithCQSize(uringCapacity),
 		uring.WithFlags(uring.SetupSingleIssuer),
 		uring.WithSQPoll(100*time.Millisecond),
 	)
@@ -97,10 +60,10 @@ func newWriter(
 	}
 
 	return &Writer{
-		fd:      int32(file.Fd()),
+		fd:      fileDescriptor,
 		origin:  volatileOrigin,
 		ring:    ring,
-		cqeBuff: make([]*uring.CQEvent, ringCapacity),
+		cqeBuff: make([]*uring.CQEvent, uringCapacity),
 	}, nil
 }
 
@@ -166,7 +129,7 @@ func (w *Writer) Write(dstAddress types.PersistentAddress, srcAddress types.Vola
 		if _, err := w.ring.Submit(); err != nil {
 			return errors.WithStack(err)
 		}
-		if (w.numOfEvents + 1) >= ringCapacity {
+		if (w.numOfEvents + 1) >= uringCapacity {
 			return w.awaitCompletionEvents(false)
 		}
 	}

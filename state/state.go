@@ -1,9 +1,12 @@
-package alloc
+package state
 
 import (
+	"io"
+	"os"
 	"unsafe"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 
 	"github.com/outofforest/photon"
 	"github.com/outofforest/quantum/types"
@@ -11,20 +14,31 @@ import (
 
 const numOfPersistentSingularityNodes = 8
 
-// NewState creates new DB state.
-func NewState(
-	volatileSize, persistentSize uint64,
+// New creates new DB state.
+func New(
+	volatileSize uint64,
 	useHugePages bool,
+	persistentPath string,
 ) (*State, func(), error) {
 	// Align allocated memory address to the node length. It might be required if using O_DIRECT option to open
 	// files. As a side effect it is also 64-byte aligned which is required by the AVX512 instructions.
-	dataP, deallocateFunc, err := Allocate(volatileSize, types.NodeLength, useHugePages)
+	origin, deallocateFunc, err := Allocate(volatileSize, types.NodeLength, useHugePages)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "memory allocation failed")
 	}
 
+	persistentFile, err := os.OpenFile(persistentPath, os.O_RDWR|unix.O_DIRECT, 0o600)
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+
+	persistentSize, err := persistentFile.Seek(0, io.SeekEnd)
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+
 	volatileRing, singularityVolatileNodes := newAllocationRing[types.VolatileAddress](volatileSize, 1)
-	persistentRing, singularityPersistentNodes := newAllocationRing[types.PersistentAddress](persistentSize,
+	persistentRing, singularityPersistentNodes := newAllocationRing[types.PersistentAddress](uint64(persistentSize),
 		numOfPersistentSingularityNodes)
 
 	singularityNodeRoots := make([]types.ToStore, 0, numOfPersistentSingularityNodes)
@@ -39,18 +53,23 @@ func NewState(
 	}
 
 	return &State{
-		singularityNodeRoots: singularityNodeRoots,
-		dataP:                dataP,
-		volatileSize:         volatileSize,
-		volatileRing:         volatileRing,
-		persistentRing:       persistentRing,
-	}, deallocateFunc, nil
+			singularityNodeRoots: singularityNodeRoots,
+			origin:               origin,
+			persistentFile:       int32(persistentFile.Fd()),
+			volatileSize:         volatileSize,
+			volatileRing:         volatileRing,
+			persistentRing:       persistentRing,
+		}, func() {
+			_ = persistentFile.Close()
+			deallocateFunc()
+		}, nil
 }
 
 // State stores the DB state.
 type State struct {
 	singularityNodeRoots []types.ToStore
-	dataP                unsafe.Pointer
+	origin               unsafe.Pointer
+	persistentFile       int32
 	volatileSize         uint64
 	volatileRing         *ring[types.VolatileAddress]
 	persistentRing       *ring[types.PersistentAddress]
@@ -76,24 +95,19 @@ func (s *State) NewPersistentDeallocator() *Deallocator[types.PersistentAddress]
 	return newDeallocator(s.persistentRing)
 }
 
+// NewPersistentWriter creates new persistent writer.
+func (s *State) NewPersistentWriter() (*Writer, error) {
+	return newWriter(s.persistentFile, s.origin, s.volatileSize)
+}
+
 // SingularityNodeRoot returns node root of singularity node.
 func (s *State) SingularityNodeRoot(snapshotID types.SnapshotID) types.ToStore {
 	return s.singularityNodeRoots[snapshotID%numOfPersistentSingularityNodes]
 }
 
-// Origin returns the pointer to the allocated memory.
-func (s *State) Origin() unsafe.Pointer {
-	return s.dataP
-}
-
-// VolatileSize returns size of the volatile memory.
-func (s *State) VolatileSize() uint64 {
-	return s.volatileSize
-}
-
 // Node returns node bytes.
 func (s *State) Node(nodeAddress types.VolatileAddress) unsafe.Pointer {
-	return unsafe.Add(s.dataP, nodeAddress*types.NodeLength)
+	return unsafe.Add(s.origin, nodeAddress*types.NodeLength)
 }
 
 // Bytes returns byte slice of a node.

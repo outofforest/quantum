@@ -6,7 +6,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/outofforest/quantum/alloc"
+	"github.com/outofforest/quantum/state"
 )
 
 var (
@@ -14,7 +14,7 @@ var (
 	values = func() []uint64 {
 		const numOfItems = 32
 
-		p, _, _ := alloc.Allocate(numOfItems*8, 64, false)
+		p, _, _ := state.Allocate(numOfItems*8, 64, false)
 		result := unsafe.Slice((*uint64)(p), numOfItems)
 
 		copy(result, []uint64{

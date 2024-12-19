@@ -1,4 +1,4 @@
-package alloc
+package state
 
 import (
 	"testing"
@@ -108,29 +108,13 @@ func TestSingularityNodes(t *testing.T) {
 	}
 }
 
-func TestOrigin(t *testing.T) {
-	requireT := require.New(t)
-
-	s := NewForTest(t, stateSize)
-
-	requireT.Equal(s.Node(0), s.Origin())
-}
-
-func TestVolatileSize(t *testing.T) {
-	requireT := require.New(t)
-
-	s := NewForTest(t, stateSize)
-
-	requireT.Equal(uint64(stateSize), s.VolatileSize())
-}
-
 func TestNode(t *testing.T) {
 	requireT := require.New(t)
 
 	s := NewForTest(t, stateSize)
 
 	for i := range types.VolatileAddress(stateSize / types.NodeLength) {
-		requireT.Equal(uintptr(s.Node(i))-uintptr(s.Origin()), uintptr(i*types.NodeLength))
+		requireT.Equal(uintptr(s.Node(i))-uintptr(s.origin), uintptr(i*types.NodeLength))
 	}
 }
 
@@ -146,7 +130,7 @@ func TestBytes(t *testing.T) {
 		}
 	}
 
-	data := unsafe.Slice((*byte)(s.Origin()), stateSize)
+	data := unsafe.Slice((*byte)(s.origin), stateSize)
 	for i, d := range data {
 		requireT.Equal(byte(i/types.NodeLength), d)
 	}
@@ -167,7 +151,7 @@ func TestClear(t *testing.T) {
 		}
 	}
 
-	data := unsafe.Slice((*byte)(s.Origin()), stateSize)
+	data := unsafe.Slice((*byte)(s.origin), stateSize)
 	for i, d := range data {
 		addr := i / types.NodeLength
 		if addr%2 == 0 {

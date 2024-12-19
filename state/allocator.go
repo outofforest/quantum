@@ -1,4 +1,4 @@
-package alloc
+package state
 
 import (
 	"github.com/outofforest/quantum/types"

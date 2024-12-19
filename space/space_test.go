@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/outofforest/quantum/alloc"
+	"github.com/outofforest/quantum/state"
 	txtypes "github.com/outofforest/quantum/tx/types"
 	"github.com/outofforest/quantum/types"
 )
@@ -140,7 +140,7 @@ func TestCRUDOnRootDataNode(t *testing.T) {
 		}
 	)
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
@@ -255,7 +255,7 @@ func TestSetConflictingHashesOnRootDataNode(t *testing.T) {
 
 	requireT := require.New(t)
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
 
@@ -382,7 +382,7 @@ func TestAddingPointerNodeWithoutConflictResolution(t *testing.T) {
 
 	requireT := require.New(t)
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -452,7 +452,7 @@ func TestAddingPointerNodeWithConflictResolution(t *testing.T) {
 
 	requireT := require.New(t)
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKeyFunc)
 
@@ -524,7 +524,7 @@ func TestAddingPointerNodeForNonConflictingDataItems(t *testing.T) {
 
 	requireT := require.New(t)
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -596,7 +596,7 @@ func TestDataNodeSplitWithoutConflictResolution(t *testing.T) {
 
 	requireT := require.New(t)
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -739,7 +739,7 @@ func TestDataNodeSplitWithConflictResolution(t *testing.T) {
 
 	requireT := require.New(t)
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	hashKeyFunc := func(key *txtypes.Account, buff []byte, level uint8) types.KeyHash {
 		return types.KeyHash(key[0])
@@ -883,7 +883,7 @@ func TestDataNodeSplitWithConflictResolution(t *testing.T) {
 func TestFindingAvailableFreeSlot(t *testing.T) {
 	requireT := require.New(t)
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -909,7 +909,7 @@ func TestFindStages(t *testing.T) {
 	// This key hash means that item will always go to the pointer at index 0.
 	const keyHash = 1 << 63
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -978,7 +978,7 @@ func TestSwitchingFromMutableToImmutablePath(t *testing.T) {
 	// After first split this key hash stays in data node 0, but after second split it will go to the data node 16.
 	const keyHash types.KeyHash = 16
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1080,7 +1080,7 @@ func TestExistsReturnsFalseIfKeyHashIsDifferent(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1116,7 +1116,7 @@ func TestExistsReturnsFalseIfKeyIsDifferent(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1153,7 +1153,7 @@ func TestExistsReturnsTrueAfterReplacingItem(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1213,7 +1213,7 @@ func TestExistsReturnsTrueAfterMovingItem(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1271,7 +1271,7 @@ func TestExistsReturnsTrueAfterMovingItem(t *testing.T) {
 func TestExistsReturnsFalseIfSlotHasNotBeenFound(t *testing.T) {
 	requireT := require.New(t)
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1311,7 +1311,7 @@ func TestReadReturnsDefaultValueIfKeyHashIsDifferent(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1347,7 +1347,7 @@ func TestReadReturnsDefaultValueIfKeyIsDifferent(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1384,7 +1384,7 @@ func TestReadReturnsCorrectValueAfterReplacingItem(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1444,7 +1444,7 @@ func TestReadReturnsCorrectValueAfterMovingItem(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1502,7 +1502,7 @@ func TestReadReturnsCorrectValueAfterMovingItem(t *testing.T) {
 func TestReadReturnsDefaultValueIfSlotHasNotBeenFound(t *testing.T) {
 	requireT := require.New(t)
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1536,7 +1536,7 @@ func TestReadReturnsDefaultValueIfSlotHasNotBeenFound(t *testing.T) {
 func TestDeletingOnEmptySpace(t *testing.T) {
 	requireT := require.New(t)
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1559,7 +1559,7 @@ func TestDeleteDoesNothingIfKeyHashIsDifferent(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1606,7 +1606,7 @@ func TestDeleteDoesNothingIfKeyIsDifferent(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1654,7 +1654,7 @@ func TestDeleteDoesNothingIfSlotIsFree(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1702,7 +1702,7 @@ func TestDeleteOnReplacedItem(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1772,7 +1772,7 @@ func TestDeleteOnMovedItem(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1836,7 +1836,7 @@ func TestDeleteDoesNothingIfSlotHasNotBeenFound(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1885,7 +1885,7 @@ func TestSetFindsAnotherSlotIfKeyHashIsDifferent(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1922,7 +1922,7 @@ func TestSetFindsAnotherSlotIfKeyIsDifferent(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -1961,7 +1961,7 @@ func TestSetOnReplacedItem(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -2031,7 +2031,7 @@ func TestSetOnMovedItem(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -2101,7 +2101,7 @@ func TestSetTheSameSlotTwiceUsingSameEntry(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -2133,7 +2133,7 @@ func TestSetTheSameSlotTwiceUsingDifferentEntry(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
 
@@ -2159,7 +2159,7 @@ func TestSetManyItems(t *testing.T) {
 
 	const numOfItems = 1000
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[uint64, uint64](t, state, nil)
 
@@ -2196,7 +2196,7 @@ func TestSetManyItemsWithConflicts(t *testing.T) {
 		numOfItems = 1000
 	)
 
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	s := NewSpaceTest[uint64, uint64](t, state, nil)
 

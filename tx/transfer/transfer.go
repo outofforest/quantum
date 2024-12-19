@@ -5,9 +5,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space"
+	"github.com/outofforest/quantum/state"
 	txtypes "github.com/outofforest/quantum/tx/types"
 	"github.com/outofforest/quantum/types"
 )
@@ -32,7 +32,7 @@ func (t *Tx) Prepare(s *space.Space[txtypes.Account, txtypes.Amount]) {
 func (t *Tx) Execute(
 	s *space.Space[txtypes.Account, txtypes.Amount],
 	tx *pipeline.TransactionRequest,
-	allocator *alloc.Allocator[types.VolatileAddress],
+	allocator *state.Allocator[types.VolatileAddress],
 ) error {
 	fromBalance := s.ReadKey(&t.from)
 	if fromBalance < t.Amount {

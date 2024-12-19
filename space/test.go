@@ -4,8 +4,8 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 
-	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/pipeline"
+	"github.com/outofforest/quantum/state"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -18,7 +18,7 @@ type TestKey[K comparable] struct {
 // NewSpaceTest creates new wrapper for space testing.
 func NewSpaceTest[K, V comparable](
 	t require.TestingT,
-	state *alloc.State,
+	state *state.State,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 ) *SpaceTest[K, V] {
 	dataNodeAssistant, err := NewDataNodeAssistant[K, V]()
@@ -53,7 +53,7 @@ func NewSpaceTest[K, V comparable](
 type SpaceTest[K, V comparable] struct {
 	s         *Space[K, V]
 	tx        *pipeline.TransactionRequest
-	allocator *alloc.Allocator[types.VolatileAddress]
+	allocator *state.Allocator[types.VolatileAddress]
 }
 
 // NewEntry initializes new entry.

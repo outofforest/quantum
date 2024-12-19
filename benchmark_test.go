@@ -10,13 +10,11 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 
 	"github.com/outofforest/logger"
 	"github.com/outofforest/parallel"
 	"github.com/outofforest/quantum"
-	"github.com/outofforest/quantum/alloc"
-	"github.com/outofforest/quantum/persistent"
+	"github.com/outofforest/quantum/state"
 	"github.com/outofforest/quantum/tx/genesis"
 	"github.com/outofforest/quantum/tx/transfer"
 	txtypes "github.com/outofforest/quantum/tx/types"
@@ -61,18 +59,11 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 		func() {
 			_, _ = rand.Read(accountBytes)
 
-			store, err := fileStore(
+			var size uint64 = 10 * 1024 * 1024 * 1024
+			state, stateDeallocFunc, err := state.New(
+				size, true,
 				// "./db.quantum",
 				"./disk",
-			)
-			if err != nil {
-				panic(err)
-			}
-
-			var size uint64 = 10 * 1024 * 1024 * 1024
-			state, stateDeallocFunc, err := alloc.NewState(
-				size, store.Size(),
-				true,
 			)
 			if err != nil {
 				panic(err)
@@ -81,7 +72,6 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 
 			db := quantum.New(quantum.Config{
 				State: state,
-				Store: store,
 			})
 
 			ctx, cancel := context.WithCancel(logger.WithLogger(context.Background(), logger.New(logger.DefaultConfig)))
@@ -172,13 +162,4 @@ func BenchmarkBalanceTransfer(b *testing.B) {
 			}()
 		}()
 	}
-}
-
-func fileStore(path string) (*persistent.Store, error) {
-	file, err := os.OpenFile(path, os.O_RDWR|unix.O_DIRECT, 0o600)
-	if err != nil {
-		return nil, err
-	}
-
-	return persistent.NewStore(file)
 }

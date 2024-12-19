@@ -6,9 +6,9 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 
-	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space"
+	"github.com/outofforest/quantum/state"
 	txtypes "github.com/outofforest/quantum/tx/types"
 	"github.com/outofforest/quantum/types"
 )
@@ -35,7 +35,7 @@ func TestPipe01PrepareTransactionsDoesNothingIfTransactionIsNil(t *testing.T) {
 }
 
 func newSpace(t *testing.T) *space.Space[txtypes.Account, txtypes.Amount] {
-	state := alloc.NewForTest(t, stateSize)
+	state := state.NewForTest(t, stateSize)
 
 	dataNodeAssistant, err := space.NewDataNodeAssistant[txtypes.Account, txtypes.Amount]()
 	require.NoError(t, err)

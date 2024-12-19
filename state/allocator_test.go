@@ -1,4 +1,4 @@
-package alloc
+package state
 
 import (
 	"testing"
