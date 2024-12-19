@@ -1,9 +1,9 @@
 package genesis
 
 import (
-	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space"
+	"github.com/outofforest/quantum/state"
 	txtypes "github.com/outofforest/quantum/tx/types"
 	"github.com/outofforest/quantum/types"
 )
@@ -23,7 +23,7 @@ type Tx struct {
 func (t *Tx) Execute(
 	s *space.Space[txtypes.Account, txtypes.Amount],
 	tx *pipeline.TransactionRequest,
-	allocator *alloc.Allocator[types.VolatileAddress],
+	allocator *state.Allocator[types.VolatileAddress],
 ) error {
 	for _, a := range t.Accounts {
 		var v space.Entry[txtypes.Account, txtypes.Amount]

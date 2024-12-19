@@ -11,12 +11,11 @@ import (
 
 	"github.com/outofforest/parallel"
 	"github.com/outofforest/photon"
-	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/hash"
 	"github.com/outofforest/quantum/list"
-	"github.com/outofforest/quantum/persistent"
 	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space"
+	"github.com/outofforest/quantum/state"
 	"github.com/outofforest/quantum/tx/genesis"
 	"github.com/outofforest/quantum/tx/transfer"
 	txtypes "github.com/outofforest/quantum/tx/types"
@@ -26,8 +25,7 @@ import (
 
 // Config stores snapshot configuration.
 type Config struct {
-	State *alloc.State
-	Store *persistent.Store
+	State *state.State
 }
 
 // SpaceToCommit represents requested space which might require to be committed.
@@ -117,8 +115,6 @@ func (db *DB) Close() {
 
 // Run runs db goroutines.
 func (db *DB) Run(ctx context.Context) error {
-	defer db.config.Store.Close()
-
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		supervisorReader := db.queueReader
 		prepareTxReader := pipeline.CloneReader(db.queueReader)
@@ -223,8 +219,7 @@ func (db *DB) Run(ctx context.Context) error {
 			return pointerHashReader.Run(ctx, pipe04UpdatePointerHashes(db.config.State))
 		})
 		spawn("pipe05StoreNodes", parallel.Fail, func(ctx context.Context) error {
-			storeWriter, err := db.config.Store.NewWriter(db.config.State.Origin(),
-				db.config.State.VolatileSize())
+			storeWriter, err := db.config.State.NewPersistentWriter()
 			if err != nil {
 				return err
 			}
@@ -259,7 +254,7 @@ func pipe01PrepareTransaction(balanceSpace *space.Space[txtypes.Account, txtypes
 }
 
 func pipe02ExecuteTransaction(
-	state *alloc.State,
+	state *state.State,
 	snapshotID *types.SnapshotID,
 	snapshotInfo *types.SnapshotInfo,
 	snapshotSpace *space.Space[types.SnapshotID, types.SnapshotInfo],
@@ -358,7 +353,7 @@ func pipe02ExecuteTransaction(
 	}
 }
 
-func pipe03UpdateDataHashes(state *alloc.State, modMask, mod uint64) pipeline.TxFunc {
+func pipe03UpdateDataHashes(state *state.State, modMask, mod uint64) pipeline.TxFunc {
 	var matrix [16]*byte
 	matrixP := &matrix[0]
 
@@ -473,7 +468,7 @@ func (s *slot) Read() error {
 	return nil
 }
 
-func pipe04UpdatePointerHashes(state *alloc.State) pipeline.TxFunc {
+func pipe04UpdatePointerHashes(state *state.State) pipeline.TxFunc {
 	r := &reader{}
 
 	var slots [16]*slot
@@ -580,7 +575,7 @@ func pipe04UpdatePointerHashes(state *alloc.State) pipeline.TxFunc {
 	}
 }
 
-func pipe05StoreNodes(storeWriter *persistent.Writer) pipeline.TxFunc {
+func pipe05StoreNodes(storeWriter *state.Writer) pipeline.TxFunc {
 	return func(tx *pipeline.TransactionRequest, readCount uint64) (uint64, error) {
 		for lr := tx.ListRequest; lr != nil; lr = lr.Next {
 			for i := range lr.ListsToStore {
@@ -613,11 +608,11 @@ func pipe05StoreNodes(storeWriter *persistent.Writer) pipeline.TxFunc {
 func deleteSnapshot(
 	snapshotID types.SnapshotID,
 	deleteSnapshotID types.SnapshotID,
-	state *alloc.State,
+	state *state.State,
 	tx *pipeline.TransactionRequest,
-	volatileAllocator *alloc.Allocator[types.VolatileAddress],
-	volatileDeallocator *alloc.Deallocator[types.VolatileAddress],
-	persistentDeallocator *alloc.Deallocator[types.PersistentAddress],
+	volatileAllocator *state.Allocator[types.VolatileAddress],
+	volatileDeallocator *state.Deallocator[types.VolatileAddress],
+	persistentDeallocator *state.Deallocator[types.PersistentAddress],
 	snapshotSpace *space.Space[types.SnapshotID, types.SnapshotInfo],
 	deallocationNodeAssistant *space.DataNodeAssistant[deallocationKey, types.ListRoot],
 ) error {
@@ -711,11 +706,11 @@ func commit(
 	snapshotID types.SnapshotID,
 	snapshotInfo types.SnapshotInfo,
 	tx *pipeline.TransactionRequest,
-	state *alloc.State,
+	state *state.State,
 	deallocationListsToCommit map[types.SnapshotID]*types.ListRoot,
-	volatileAllocator *alloc.Allocator[types.VolatileAddress],
-	persistentAllocator *alloc.Allocator[types.PersistentAddress],
-	persistentDeallocator *alloc.Deallocator[types.PersistentAddress],
+	volatileAllocator *state.Allocator[types.VolatileAddress],
+	persistentAllocator *state.Allocator[types.PersistentAddress],
+	persistentDeallocator *state.Deallocator[types.PersistentAddress],
 	snapshotSpace *space.Space[types.SnapshotID, types.SnapshotInfo],
 	deallocationListSpace *space.Space[deallocationKey, types.ListRoot],
 ) error {
@@ -815,14 +810,14 @@ func commit(
 }
 
 func deallocateNode(
-	state *alloc.State,
+	state *state.State,
 	snapshotID types.SnapshotID,
 	nodeSnapshotID types.SnapshotID,
 	nodeAddress types.PersistentAddress,
 	deallocationListsToCommit map[types.SnapshotID]*types.ListRoot,
-	volatileAllocator *alloc.Allocator[types.VolatileAddress],
-	persistentAllocator *alloc.Allocator[types.PersistentAddress],
-	persistentDeallocator *alloc.Deallocator[types.PersistentAddress],
+	volatileAllocator *state.Allocator[types.VolatileAddress],
+	persistentAllocator *state.Allocator[types.PersistentAddress],
+	persistentDeallocator *state.Deallocator[types.PersistentAddress],
 	immediateDeallocation bool,
 ) (types.ListRoot, error) {
 	// Latest persistent snapshot cannot be deleted, so there is no gap between that snapshot and the pending one.

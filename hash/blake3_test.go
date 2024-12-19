@@ -12,13 +12,13 @@ import (
 	blake3zeebo "github.com/zeebo/blake3"
 	blake3luke "lukechampine.com/blake3"
 
-	"github.com/outofforest/quantum/alloc"
+	"github.com/outofforest/quantum/state"
 	"github.com/outofforest/quantum/types"
 )
 
 //nolint:unparam
 func randData(size uint64) []byte {
-	dataP, _, _ := alloc.Allocate(size, 64, false)
+	dataP, _, _ := state.Allocate(size, 64, false)
 	data := unsafe.Slice((*byte)(dataP), size)
 	if _, err := rand.Read(data); err != nil {
 		panic(err)
@@ -88,7 +88,7 @@ func BenchmarkChecksum4KAVX(b *testing.B) {
 
 	var z [16]*byte
 	for i := range z {
-		zP, dealloc, err := alloc.Allocate(types.HashLength, 32, false)
+		zP, dealloc, err := state.Allocate(types.HashLength, 32, false)
 		require.NoError(b, err)
 		b.Cleanup(dealloc)
 		z[i] = (*byte)(zP)

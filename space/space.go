@@ -9,9 +9,9 @@ import (
 	"github.com/cespare/xxhash"
 
 	"github.com/outofforest/photon"
-	"github.com/outofforest/quantum/alloc"
 	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space/compare"
+	"github.com/outofforest/quantum/state"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -25,7 +25,7 @@ const (
 // Config stores space configuration.
 type Config[K, V comparable] struct {
 	SpaceRoot         types.NodeRoot
-	State             *alloc.State
+	State             *state.State
 	DataNodeAssistant *DataNodeAssistant[K, V]
 	DeletionCounter   *uint64
 	NoSnapshots       bool
@@ -147,7 +147,7 @@ func (s *Space[K, V]) DeleteKey(
 func (s *Space[K, V]) SetKey(
 	v *Entry[K, V],
 	tx *pipeline.TransactionRequest,
-	allocator *alloc.Allocator[types.VolatileAddress],
+	allocator *state.Allocator[types.VolatileAddress],
 	value V,
 ) error {
 	v.item.Value = value
@@ -286,7 +286,7 @@ func (s *Space[K, V]) set(
 	v *Entry[K, V],
 	volatileAddress types.VolatileAddress,
 	tx *pipeline.TransactionRequest,
-	volatileAllocator *alloc.Allocator[types.VolatileAddress],
+	volatileAllocator *state.Allocator[types.VolatileAddress],
 ) error {
 	volatileAddress = s.walkPointers(v, volatileAddress)
 
@@ -368,7 +368,7 @@ func (s *Space[K, V]) splitToIndex(parentNodeAddress types.VolatileAddress, inde
 
 func (s *Space[K, V]) splitDataNodeWithoutConflict(
 	tx *pipeline.TransactionRequest,
-	volatileAllocator *alloc.Allocator[types.VolatileAddress],
+	volatileAllocator *state.Allocator[types.VolatileAddress],
 	index uint64,
 	parentNodeAddress types.VolatileAddress,
 	level uint8,
@@ -437,7 +437,7 @@ func (s *Space[K, V]) splitDataNodeWithoutConflict(
 
 func (s *Space[K, V]) splitDataNodeWithConflict(
 	tx *pipeline.TransactionRequest,
-	volatileAllocator *alloc.Allocator[types.VolatileAddress],
+	volatileAllocator *state.Allocator[types.VolatileAddress],
 	index uint64,
 	parentNodeAddress types.VolatileAddress,
 	level uint8,
@@ -511,7 +511,7 @@ func (s *Space[K, V]) splitDataNodeWithConflict(
 func (s *Space[K, V]) addPointerNode(
 	v *Entry[K, V],
 	tx *pipeline.TransactionRequest,
-	volatileAllocator *alloc.Allocator[types.VolatileAddress],
+	volatileAllocator *state.Allocator[types.VolatileAddress],
 	conflict bool,
 ) (types.VolatileAddress, error) {
 	pointerNodeVolatileAddress, err := volatileAllocator.Allocate()
@@ -678,10 +678,10 @@ type Entry[K, V comparable] struct {
 // IteratorAndDeallocator iterates over items and deallocates space.
 func IteratorAndDeallocator[K, V comparable](
 	spaceRoot types.Pointer,
-	state *alloc.State,
+	state *state.State,
 	dataNodeAssistant *DataNodeAssistant[K, V],
-	volatileDeallocator *alloc.Deallocator[types.VolatileAddress],
-	persistentDeallocator *alloc.Deallocator[types.PersistentAddress],
+	volatileDeallocator *state.Deallocator[types.VolatileAddress],
+	persistentDeallocator *state.Deallocator[types.PersistentAddress],
 ) func(func(item *DataItem[K, V]) bool) {
 	return func(yield func(item *DataItem[K, V]) bool) {
 		if isFree(spaceRoot.VolatileAddress) {

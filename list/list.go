@@ -1,7 +1,7 @@
 package list
 
 import (
-	"github.com/outofforest/quantum/alloc"
+	"github.com/outofforest/quantum/state"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -9,9 +9,9 @@ import (
 func Add(
 	listRoot *types.ListRoot,
 	nodeAddress types.PersistentAddress,
-	state *alloc.State,
-	volatileAllocator *alloc.Allocator[types.VolatileAddress],
-	persistentAllocator *alloc.Allocator[types.PersistentAddress],
+	state *state.State,
+	volatileAllocator *state.Allocator[types.VolatileAddress],
+	persistentAllocator *state.Allocator[types.PersistentAddress],
 ) (types.ListRoot, error) {
 	if listRoot.VolatileAddress == types.FreeAddress {
 		var err error
@@ -65,9 +65,9 @@ func Add(
 // Deallocate deallocates nodes referenced by the list.
 func Deallocate(
 	listRoot types.ListRoot,
-	state *alloc.State,
-	volatileDeallocator *alloc.Deallocator[types.VolatileAddress],
-	persistentDeallocator *alloc.Deallocator[types.PersistentAddress],
+	state *state.State,
+	volatileDeallocator *state.Deallocator[types.VolatileAddress],
+	persistentDeallocator *state.Deallocator[types.PersistentAddress],
 ) error {
 	for {
 		// It is safe to do deallocations here because deallocated nodes are not reallocated until commit is finalized.

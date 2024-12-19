@@ -13,18 +13,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/outofforest/quantum/alloc"
+	"github.com/outofforest/quantum/state"
 	"github.com/outofforest/quantum/types"
 )
 
 var (
 	zeroNode = func() []byte {
-		b, _, _ := alloc.Allocate(types.NodeLength, 64, false)
+		b, _, _ := state.Allocate(types.NodeLength, 64, false)
 		return unsafe.Slice((*byte)(b), types.NodeLength)
 	}()
 	zn      = &zeroNode[0]
 	oneNode = func() []byte {
-		b, _, _ := alloc.Allocate(types.NodeLength, 64, false)
+		b, _, _ := state.Allocate(types.NodeLength, 64, false)
 		bSlice := unsafe.Slice((*byte)(b), types.NodeLength)
 		for i := range bSlice {
 			bSlice[i] = 0xff
@@ -48,7 +48,7 @@ func TestBlake3OneMessage(t *testing.T) {
 		matrix := zeroMatrix
 		matrix[i] = on
 
-		hashesP, hashesDealloc, err := alloc.Allocate(16*types.HashLength, 32, false)
+		hashesP, hashesDealloc, err := state.Allocate(16*types.HashLength, 32, false)
 		require.NoError(t, err)
 		t.Cleanup(hashesDealloc)
 
@@ -74,7 +74,7 @@ func TestBlake3OneMessage(t *testing.T) {
 func TestBlake3Zeros(t *testing.T) {
 	matrix := zeroMatrix
 
-	hashesP, hashesDealloc, err := alloc.Allocate(16*types.HashLength, 32, false)
+	hashesP, hashesDealloc, err := state.Allocate(16*types.HashLength, 32, false)
 	require.NoError(t, err)
 	t.Cleanup(hashesDealloc)
 
@@ -97,7 +97,7 @@ func TestLastHashIsStored(t *testing.T) {
 		matrix := zeroMatrix
 		matrix[i] = on
 
-		hashesP, hashesDealloc, err := alloc.Allocate(2*types.HashLength, 32, false)
+		hashesP, hashesDealloc, err := state.Allocate(2*types.HashLength, 32, false)
 		require.NoError(t, err)
 		t.Cleanup(hashesDealloc)
 
