@@ -29,7 +29,7 @@ const (
 
 	sleepDuration    = 5 * time.Microsecond
 	maxSleepDuration = 100 * time.Microsecond
-	atomicDivider    = 10
+	atomicDivider    = 16
 )
 
 // NewTransactionRequestFactory creates transaction request factory.
@@ -114,13 +114,13 @@ type Pipeline struct {
 }
 
 // Push pushes new request into the pipeline.
-func (p *Pipeline) Push(item *TransactionRequest) {
+func (p *Pipeline) Push(tx *TransactionRequest) {
 	p.count++
 
-	*p.tail = item
-	p.tail = &item.Next
+	*p.tail = tx
+	p.tail = &tx.Next
 
-	if p.count%atomicDivider == 0 || item.Type != None {
+	if p.count%atomicDivider == 0 || tx.Type != None {
 		atomic.StoreUint64(p.availableCount, p.count)
 	}
 }
