@@ -9,9 +9,9 @@ import (
 const ringCapacity = 10
 
 func prepRing() *ring[int] {
-	r, addresses := newRing[int](ringCapacity)
-	for i := range addresses {
-		addresses[i] = i
+	r, items := newRing[int](ringCapacity)
+	for i := range items {
+		items[i] = i
 	}
 	return r
 }
@@ -20,7 +20,7 @@ func TestRingMaxAllocation(t *testing.T) {
 	requireT := require.New(t)
 	r := prepRing()
 
-	for i := range ringCapacity {
+	for i := range ringCapacity - 1 {
 		item, err := r.Get()
 		requireT.NoError(err, i)
 		requireT.Equal(i, item)
@@ -35,7 +35,7 @@ func TestRingAllocationDeallocationWithoutCommitFromTheBeginning(t *testing.T) {
 	requireT := require.New(t)
 	r := prepRing()
 
-	for i := range ringCapacity {
+	for i := range ringCapacity - 1 {
 		item, err := r.Get()
 		requireT.NoError(err, i)
 		requireT.Equal(i, item)
@@ -52,7 +52,7 @@ func TestRingAllocationDeallocationWithCommitFromTheBeginning(t *testing.T) {
 	requireT := require.New(t)
 	r := prepRing()
 
-	for i := range ringCapacity {
+	for i := range ringCapacity - 1 {
 		item, err := r.Get()
 		requireT.NoError(err, i)
 		requireT.Equal(i, item)
@@ -66,7 +66,7 @@ func TestRingAllocationDeallocationWithCommitFromTheBeginning(t *testing.T) {
 		for i := range ringCapacity - 1 {
 			item, err := r.Get()
 			requireT.NoError(err, i)
-			requireT.Equal(i, item)
+			requireT.Equal((i+ringCapacity-1)%ringCapacity, item)
 
 			r.Put(item)
 		}
@@ -79,7 +79,7 @@ func TestRingAllocationDeallocationWithCommitFromTheBeginning(t *testing.T) {
 
 		item, err = r.Get()
 		requireT.NoError(err)
-		requireT.Equal(ringCapacity-1, item)
+		requireT.Equal(ringCapacity-2, item)
 
 		r.Put(item)
 		r.Commit()
@@ -161,7 +161,7 @@ func TestRingAllocationDeallocationWithoutCommitFromTheEnd(t *testing.T) {
 
 	// Prepare
 
-	for range ringCapacity {
+	for range ringCapacity - 1 {
 		item, err := r.Get()
 		requireT.NoError(err)
 		r.Put(item)
@@ -174,7 +174,7 @@ func TestRingAllocationDeallocationWithoutCommitFromTheEnd(t *testing.T) {
 	for i := range ringCapacity - 1 {
 		item, err := r.Get()
 		requireT.NoError(err, i)
-		requireT.Equal(i, item)
+		requireT.Equal((i+ringCapacity-1)%ringCapacity, item)
 
 		r.Put(item)
 	}
@@ -190,7 +190,7 @@ func TestRingAllocationDeallocationWithCommitFromTheEnd(t *testing.T) {
 
 	// Prepare
 
-	for range ringCapacity {
+	for range ringCapacity - 1 {
 		item, err := r.Get()
 		requireT.NoError(err)
 		r.Put(item)
@@ -204,7 +204,7 @@ func TestRingAllocationDeallocationWithCommitFromTheEnd(t *testing.T) {
 		for i := range ringCapacity - 1 {
 			item, err := r.Get()
 			requireT.NoError(err, i)
-			requireT.Equal((i+ringCapacity)%ringCapacity, item)
+			requireT.Equal((i+ringCapacity-1)%ringCapacity, item)
 
 			r.Put(item)
 		}
@@ -217,7 +217,7 @@ func TestRingAllocationDeallocationWithCommitFromTheEnd(t *testing.T) {
 
 		item, err = r.Get()
 		requireT.NoError(err)
-		requireT.Equal(ringCapacity-1, item)
+		requireT.Equal(ringCapacity-2, item)
 
 		r.Put(item)
 		r.Commit()
@@ -275,4 +275,63 @@ func TestRingDeallocationPanicsIfDeallocatingMoreThanAllocated(t *testing.T) {
 	requireT.NoError(err)
 
 	r.Put(103)
+}
+
+func TestRingDeallocationPanicsIfDeallocatingMoreThanAllocatedAfterAllocatingEntireRing(t *testing.T) {
+	requireT := require.New(t)
+	r := prepRing()
+
+	for {
+		_, err := r.Get()
+		if err != nil {
+			break
+		}
+	}
+
+	for range ringCapacity - 1 {
+		r.Put(100)
+	}
+
+	requireT.Panics(func() {
+		r.Put(101)
+	})
+}
+
+func TestCommitOnEmptyRing(t *testing.T) {
+	requireT := require.New(t)
+	r := prepRing()
+
+	for {
+		_, err := r.Get()
+		if err != nil {
+			break
+		}
+	}
+
+	r.Commit()
+
+	_, err := r.Get()
+	requireT.Error(err)
+}
+
+func TestCommitOnRingWithOneItem(t *testing.T) {
+	requireT := require.New(t)
+	r := prepRing()
+
+	for {
+		_, err := r.Get()
+		if err != nil {
+			break
+		}
+	}
+
+	r.Put(100)
+	r.Commit()
+
+	item, err := r.Get()
+	requireT.NoError(err)
+	requireT.Equal(9, item)
+
+	_, err = r.Get()
+	requireT.Error(err)
 }

@@ -28,7 +28,7 @@ func TestVolatileAllocation(t *testing.T) {
 		addresses = append(addresses, address)
 	}
 
-	requireT.Equal([]types.VolatileAddress{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09}, addresses)
+	requireT.Equal([]types.VolatileAddress{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, addresses)
 
 	deallocator.Deallocate(0x0a)
 	deallocator.Deallocate(0x0b)
@@ -49,7 +49,7 @@ func TestVolatileAllocation(t *testing.T) {
 		addresses = append(addresses, address)
 	}
 
-	requireT.Equal([]types.VolatileAddress{0x0a, 0x0b}, addresses)
+	requireT.Equal([]types.VolatileAddress{0x09, 0x0a, 0x0b}, addresses)
 }
 
 func TestPersistentAllocation(t *testing.T) {
@@ -69,7 +69,7 @@ func TestPersistentAllocation(t *testing.T) {
 		addresses = append(addresses, address)
 	}
 
-	requireT.Equal([]types.PersistentAddress{0x01, 0x03, 0x05, 0x07, 0x09, 0x0b, 0x0d, 0x0f, 0x10, 0x11, 0x12, 0x13},
+	requireT.Equal([]types.PersistentAddress{0x01, 0x03, 0x05, 0x07, 0x09, 0x0b, 0x0d, 0x0f, 0x10, 0x11, 0x12},
 		addresses)
 
 	deallocator.Deallocate(0x0a)
@@ -91,7 +91,7 @@ func TestPersistentAllocation(t *testing.T) {
 		addresses = append(addresses, address)
 	}
 
-	requireT.Equal([]types.PersistentAddress{0x0a, 0x0b}, addresses)
+	requireT.Equal([]types.PersistentAddress{0x13, 0x0a, 0x0b}, addresses)
 }
 
 func TestSingularityNodes(t *testing.T) {
