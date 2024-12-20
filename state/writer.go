@@ -42,16 +42,22 @@ func newWriter(
 	// The memory used by buffers is locked by the kernel which means tha `ulimit -l` command must report at least that
 	// size + margin for other possible locks if needed.
 
-	numOfBuffers := volatileSize / uring.MaxBufferSize
+	numOfBuffers := (volatileSize + uring.MaxBufferSize - 1) / uring.MaxBufferSize
 	if numOfBuffers > uring.MaxNumOfBuffers {
 		return nil, errors.Errorf("number of buffers %d esceeds the maximum allowed number of buffers %d",
 			numOfBuffers, uring.MaxNumOfBuffers)
 	}
 	v := make([]syscall.Iovec, 0, numOfBuffers)
 	for i := range numOfBuffers {
+		bufferSize := uint64(uring.MaxBufferSize)
+		if bufferSize > volatileSize {
+			bufferSize = volatileSize
+		}
+		volatileSize -= bufferSize
+
 		v = append(v, syscall.Iovec{
 			Base: (*byte)(unsafe.Add(volatileOrigin, i*uring.MaxBufferSize)),
-			Len:  uring.MaxBufferSize,
+			Len:  bufferSize,
 		})
 	}
 
