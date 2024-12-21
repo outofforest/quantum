@@ -20,6 +20,7 @@ func NewSpaceTest[K, V comparable](
 	t require.TestingT,
 	state *state.State,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
+	noSnapshots bool,
 ) *SpaceTest[K, V] {
 	dataNodeAssistant, err := NewDataNodeAssistant[K, V]()
 	require.NoError(t, err)
@@ -32,7 +33,7 @@ func NewSpaceTest[K, V comparable](
 		State:             state,
 		DataNodeAssistant: dataNodeAssistant,
 		DeletionCounter:   lo.ToPtr[uint64](0),
-		NoSnapshots:       false,
+		NoSnapshots:       noSnapshots,
 	})
 	if hashKeyFunc != nil {
 		s.hashKeyFunc = hashKeyFunc

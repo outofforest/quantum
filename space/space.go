@@ -534,6 +534,8 @@ func (s *Space[K, V]) addPointerNode(
 	}
 	store(&pointerNodeRoot.Pointer.VolatileAddress, pointerNodeVolatileAddress)
 	pointerNodeRoot.VolatileAddress = pointerNodeVolatileAddress
+	pointerNodeRoot.Pointer.PersistentAddress = 0
+	pointerNodeRoot.Pointer.SnapshotID = 0
 
 	if conflict {
 		_, err = s.splitDataNodeWithConflict(tx, volatileAllocator, 0, pointerNodeVolatileAddress, v.level+1)

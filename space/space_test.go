@@ -1,14 +1,16 @@
 // Github actions run on machines not supporting AVX-512 instructions.
-//go:build nogithub
+////go:build nogithub
 
 package space
 
 import (
+	"sort"
 	"testing"
 	"unsafe"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/state"
 	txtypes "github.com/outofforest/quantum/tx/types"
 	"github.com/outofforest/quantum/types"
@@ -142,7 +144,7 @@ func TestCRUDOnRootDataNode(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey, false)
 
 	// Read non-existing.
 
@@ -257,7 +259,7 @@ func TestSetConflictingHashesOnRootDataNode(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey, false)
 
 	// Create.
 
@@ -384,7 +386,7 @@ func TestAddingPointerNodeWithoutConflictResolution(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	// Create.
 
@@ -454,7 +456,7 @@ func TestAddingPointerNodeWithConflictResolution(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKeyFunc)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKeyFunc, false)
 
 	// Create.
 
@@ -526,7 +528,7 @@ func TestAddingPointerNodeForNonConflictingDataItems(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	// Create.
 
@@ -598,7 +600,7 @@ func TestDataNodeSplitWithoutConflictResolution(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	// Store items in the root data node.
 
@@ -745,7 +747,7 @@ func TestDataNodeSplitWithConflictResolution(t *testing.T) {
 		return types.KeyHash(key[0])
 	}
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKeyFunc)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKeyFunc, false)
 
 	// Store items in the root data node.
 
@@ -885,7 +887,7 @@ func TestFindingAvailableFreeSlot(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	v1 := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{1},
@@ -911,7 +913,7 @@ func TestFindStages(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	// Create levels in the tree.
 
@@ -980,7 +982,7 @@ func TestSwitchingFromMutableToImmutablePath(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	// Create levels in the tree.
 
@@ -1082,7 +1084,7 @@ func TestExistsReturnsFalseIfKeyHashIsDifferent(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1118,7 +1120,7 @@ func TestExistsReturnsFalseIfKeyIsDifferent(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1155,7 +1157,7 @@ func TestExistsReturnsTrueAfterReplacingItem(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1215,7 +1217,7 @@ func TestExistsReturnsTrueAfterMovingItem(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1273,7 +1275,7 @@ func TestExistsReturnsFalseIfSlotHasNotBeenFound(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	v := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{0x01},
@@ -1313,7 +1315,7 @@ func TestReadReturnsDefaultValueIfKeyHashIsDifferent(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1349,7 +1351,7 @@ func TestReadReturnsDefaultValueIfKeyIsDifferent(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1386,7 +1388,7 @@ func TestReadReturnsCorrectValueAfterReplacingItem(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1446,7 +1448,7 @@ func TestReadReturnsCorrectValueAfterMovingItem(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1504,7 +1506,7 @@ func TestReadReturnsDefaultValueIfSlotHasNotBeenFound(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	v := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{0x01},
@@ -1538,7 +1540,7 @@ func TestDeletingOnEmptySpace(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	v5 := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{5},
@@ -1561,7 +1563,7 @@ func TestDeleteDoesNothingIfKeyHashIsDifferent(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1608,7 +1610,7 @@ func TestDeleteDoesNothingIfKeyIsDifferent(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1656,7 +1658,7 @@ func TestDeleteDoesNothingIfSlotIsFree(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1704,7 +1706,7 @@ func TestDeleteOnReplacedItem(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1774,7 +1776,7 @@ func TestDeleteOnMovedItem(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1838,7 +1840,7 @@ func TestDeleteDoesNothingIfSlotHasNotBeenFound(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1887,7 +1889,7 @@ func TestSetFindsAnotherSlotIfKeyHashIsDifferent(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1924,7 +1926,7 @@ func TestSetFindsAnotherSlotIfKeyIsDifferent(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -1963,7 +1965,7 @@ func TestSetOnReplacedItem(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -2033,7 +2035,7 @@ func TestSetOnMovedItem(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
@@ -2103,7 +2105,7 @@ func TestSetTheSameSlotTwiceUsingSameEntry(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	v5 := s.NewEntry(key, StageData)
 	requireT.NoError(s.SetKey(v5, txtypes.Amount(5)))
@@ -2135,7 +2137,7 @@ func TestSetTheSameSlotTwiceUsingDifferentEntry(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
 
 	v5 := s.NewEntry(key, StageData)
 	requireT.NoError(s.SetKey(v5, txtypes.Amount(5)))
@@ -2161,7 +2163,7 @@ func TestSetManyItems(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[uint64, uint64](t, state, nil)
+	s := NewSpaceTest[uint64, uint64](t, state, nil, false)
 
 	for i := range uint64(numOfItems) {
 		v := s.NewEntry(TestKey[uint64]{
@@ -2198,7 +2200,7 @@ func TestSetManyItemsWithConflicts(t *testing.T) {
 
 	state := state.NewForTest(t, stateSize)
 
-	s := NewSpaceTest[uint64, uint64](t, state, nil)
+	s := NewSpaceTest[uint64, uint64](t, state, nil, false)
 
 	for i := range uint64(numOfItems) {
 		v := s.NewEntry(TestKey[uint64]{
@@ -2222,4 +2224,129 @@ func TestSetManyItemsWithConflicts(t *testing.T) {
 		requireT.True(exists)
 		requireT.Equal(i, value)
 	}
+}
+
+// TestSetManyItemsUsingExternalAPI sets a lot of items using external API.
+func TestSetManyItemsUsingExternalAPI(t *testing.T) {
+	requireT := require.New(t)
+
+	const numOfItems = 1000
+
+	state := state.NewForTest(t, stateSize)
+	volatileAllocator := state.NewVolatileAllocator()
+	txFactory := pipeline.NewTransactionRequestFactory()
+
+	st := NewSpaceTest[uint64, uint64](t, state, nil, false)
+	s := st.s
+
+	for i := range uint64(numOfItems) {
+		var v Entry[uint64, uint64]
+		s.Find(&v, i, StagePointer0)
+		requireT.NoError(s.SetKey(&v, txFactory.New(), volatileAllocator, i))
+	}
+
+	for i := range uint64(numOfItems) {
+		value, exists := s.Query(i)
+		requireT.True(exists)
+		requireT.Equal(i, value)
+	}
+}
+
+// TestSpaceDelayedDeallocation tests space deallocation.
+func TestSpaceDeallocation(t *testing.T) {
+	requireT := require.New(t)
+
+	const numOfItems = 1000
+
+	state := state.NewForTest(t, stateSize)
+
+	s := NewSpaceTest[uint64, uint64](t, state, nil, false)
+
+	expectedVolatileAddresses := []types.VolatileAddress{}
+	expectedPersistentAddresses := []types.PersistentAddress{}
+	persistentAllocator := state.NewPersistentAllocator()
+	for i := range uint64(numOfItems) {
+		v := s.NewEntry(TestKey[uint64]{
+			Key:     i,
+			KeyHash: types.KeyHash(i + 1),
+		}, StageData)
+		requireT.NoError(s.SetKey(v, i))
+		for i := range v.storeRequest.PointersToStore {
+			if v.storeRequest.Store[i].Pointer.PersistentAddress != 0 {
+				continue
+			}
+
+			var err error
+			v.storeRequest.Store[i].Pointer.PersistentAddress, err = persistentAllocator.Allocate()
+			requireT.NoError(err)
+
+			expectedVolatileAddresses = append(expectedVolatileAddresses,
+				v.storeRequest.Store[i].Pointer.VolatileAddress&types.FlagNaked)
+			expectedPersistentAddresses = append(expectedPersistentAddresses,
+				v.storeRequest.Store[i].Pointer.PersistentAddress)
+		}
+	}
+	sort.Slice(expectedVolatileAddresses, func(i, j int) bool {
+		return expectedVolatileAddresses[i] < expectedVolatileAddresses[j]
+	})
+	sort.Slice(expectedPersistentAddresses, func(i, j int) bool {
+		return expectedPersistentAddresses[i] < expectedPersistentAddresses[j]
+	})
+
+	volatileAllocator := state.NewVolatileAllocator()
+	for {
+		_, err := volatileAllocator.Allocate()
+		if err != nil {
+			break
+		}
+	}
+	for {
+		_, err := persistentAllocator.Allocate()
+		if err != nil {
+			break
+		}
+	}
+
+	volatileDeallocator := state.NewVolatileDeallocator()
+	persistentDeallocator := state.NewPersistentDeallocator()
+
+	//nolint:gofmt // Bug in GoLand
+	for _ = range IteratorAndDeallocator(*s.s.config.SpaceRoot.Pointer, state, s.s.config.DataNodeAssistant,
+		volatileDeallocator, persistentDeallocator) {
+	}
+
+	volatileDeallocator.Deallocate(0x00)
+	persistentDeallocator.Deallocate(0x00)
+
+	state.Commit()
+
+	_, err := volatileAllocator.Allocate()
+	requireT.NoError(err)
+
+	_, err = persistentAllocator.Allocate()
+	requireT.NoError(err)
+
+	volatileAddresses := []types.VolatileAddress{}
+	persistentAddresses := []types.PersistentAddress{}
+
+	for {
+		volatileAddress, err := volatileAllocator.Allocate()
+		if err != nil {
+			break
+		}
+		volatileAddresses = append(volatileAddresses, volatileAddress)
+	}
+	for {
+		persistentAddress, err := persistentAllocator.Allocate()
+		if err != nil {
+			break
+		}
+		persistentAddresses = append(persistentAddresses, persistentAddress)
+	}
+
+	sort.Slice(volatileAddresses, func(i, j int) bool { return volatileAddresses[i] < volatileAddresses[j] })
+	sort.Slice(persistentAddresses, func(i, j int) bool { return persistentAddresses[i] < persistentAddresses[j] })
+
+	requireT.Equal(expectedVolatileAddresses, volatileAddresses)
+	requireT.Equal(expectedPersistentAddresses, persistentAddresses)
 }
