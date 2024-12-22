@@ -2422,9 +2422,9 @@ func TestNodesToStoreOnRootNode(t *testing.T) {
 	requireT.Equal(numOfItems, count)
 }
 
-// TestNodesToStoreOnParentNodeCreationWithConflict verifies that correct store requests are produced when new pointer
+// TestNodesToStoreOnPointerNodeCreationWithConflict verifies that correct store requests are produced when new pointer
 // node with conflict resolution is created.
-func TestNodesToStoreOnParentNodeCreationWithConflict(t *testing.T) {
+func TestNodesToStoreOnPointerNodeCreationWithConflict(t *testing.T) {
 	requireT := require.New(t)
 
 	const keyHash = 1
@@ -2483,9 +2483,9 @@ func TestNodesToStoreOnParentNodeCreationWithConflict(t *testing.T) {
 	requireT.Nil(sr.Next)
 }
 
-// TestNodesToStoreOnParentNodeCreationWithoutConflict verifies that correct store requests are produced when new
+// TestNodesToStoreOnPointerNodeCreationWithoutConflict verifies that correct store requests are produced when new
 // pointer node without conflict resolution is created.
-func TestNodesToStoreOnParentNodeCreationWithoutConflict(t *testing.T) {
+func TestNodesToStoreOnPointerNodeCreationWithoutConflict(t *testing.T) {
 	requireT := require.New(t)
 
 	appState := state.NewForTest(t, stateSize)
@@ -2650,4 +2650,121 @@ func TestNoSnapshotsIsTrueWithConflicts(t *testing.T) {
 			requireT.True(sr.NoSnapshots)
 		}
 	}
+}
+
+// TestNodesToStoreOnDeletion verifies that store requests are generated when item is deleted.
+func TestNodesToStoreOnDeletion(t *testing.T) {
+	requireT := require.New(t)
+
+	appState := state.NewForTest(t, stateSize)
+	txFactory := pipeline.NewTransactionRequestFactory()
+
+	s := NewSpaceTest[uint64, uint64](t, appState, nil, false)
+
+	numOfItems := s.s.config.DataNodeAssistant.NumOfItems()
+	for i := range numOfItems {
+		v := s.NewEntry(TestKey[uint64]{
+			Key:     i,
+			KeyHash: types.KeyHash(i + 1),
+		}, StageData)
+
+		tx := txFactory.New()
+		requireT.NoError(s.SetKey(tx, v, i))
+		requireT.NotNil(tx.StoreRequest)
+		requireT.Equal(int8(1), tx.StoreRequest.PointersToStore)
+		requireT.Nil(tx.StoreRequest.Next)
+	}
+
+	v := s.NewEntry(TestKey[uint64]{
+		Key:     numOfItems,
+		KeyHash: types.KeyHash(numOfItems + 1),
+	}, StageData)
+
+	requireT.NoError(s.SetKey(txFactory.New(), v, numOfItems))
+
+	tx := txFactory.New()
+	s.DeleteKey(tx, v)
+
+	pointerNode := ProjectPointerNode(appState.Node(s.s.config.SpaceRoot.Pointer.VolatileAddress))
+
+	sr := tx.StoreRequest
+	requireT.NotNil(sr)
+	requireT.Equal(int8(2), sr.PointersToStore)
+	requireT.Equal(s.s.config.SpaceRoot.Pointer.VolatileAddress, sr.Store[0].VolatileAddress)
+	requireT.Equal(s.s.config.SpaceRoot.Pointer.VolatileAddress, sr.Store[0].Pointer.VolatileAddress)
+	requireT.Equal(pointerNode.Pointers[NumOfPointers/2].VolatileAddress, sr.Store[1].VolatileAddress)
+	requireT.Equal(pointerNode.Pointers[NumOfPointers/2].VolatileAddress, sr.Store[1].Pointer.VolatileAddress)
+	requireT.Nil(sr.Next)
+}
+
+// TestNoSnapshotsIsFalseWhenDeleting verifies that NoSnapshot is set to false when deleting item.
+func TestNoSnapshotsIsFalseWhenDeleting(t *testing.T) {
+	requireT := require.New(t)
+
+	appState := state.NewForTest(t, stateSize)
+	txFactory := pipeline.NewTransactionRequestFactory()
+
+	s := NewSpaceTest[uint64, uint64](t, appState, nil, false)
+
+	numOfItems := s.s.config.DataNodeAssistant.NumOfItems()
+	for i := range numOfItems {
+		v := s.NewEntry(TestKey[uint64]{
+			Key:     i,
+			KeyHash: types.KeyHash(i + 1),
+		}, StageData)
+
+		tx := txFactory.New()
+		requireT.NoError(s.SetKey(tx, v, i))
+		requireT.NotNil(tx.StoreRequest)
+		requireT.Equal(int8(1), tx.StoreRequest.PointersToStore)
+		requireT.Nil(tx.StoreRequest.Next)
+	}
+
+	v := s.NewEntry(TestKey[uint64]{
+		Key:     numOfItems,
+		KeyHash: types.KeyHash(numOfItems + 1),
+	}, StageData)
+
+	requireT.NoError(s.SetKey(txFactory.New(), v, numOfItems))
+
+	tx := txFactory.New()
+	s.DeleteKey(tx, v)
+	requireT.NotNil(tx.StoreRequest)
+	requireT.False(tx.StoreRequest.NoSnapshots)
+}
+
+// TestNoSnapshotsIsTrueWhenDeleting verifies that NoSnapshot is set to true when deleting item.
+func TestNoSnapshotsIsTrueWhenDeleting(t *testing.T) {
+	requireT := require.New(t)
+
+	appState := state.NewForTest(t, stateSize)
+	txFactory := pipeline.NewTransactionRequestFactory()
+
+	s := NewSpaceTest[uint64, uint64](t, appState, nil, true)
+
+	numOfItems := s.s.config.DataNodeAssistant.NumOfItems()
+	for i := range numOfItems {
+		v := s.NewEntry(TestKey[uint64]{
+			Key:     i,
+			KeyHash: types.KeyHash(i + 1),
+		}, StageData)
+
+		tx := txFactory.New()
+		requireT.NoError(s.SetKey(tx, v, i))
+		requireT.NotNil(tx.StoreRequest)
+		requireT.Equal(int8(1), tx.StoreRequest.PointersToStore)
+		requireT.Nil(tx.StoreRequest.Next)
+	}
+
+	v := s.NewEntry(TestKey[uint64]{
+		Key:     numOfItems,
+		KeyHash: types.KeyHash(numOfItems + 1),
+	}, StageData)
+
+	requireT.NoError(s.SetKey(txFactory.New(), v, numOfItems))
+
+	tx := txFactory.New()
+	s.DeleteKey(tx, v)
+	requireT.NotNil(tx.StoreRequest)
+	requireT.True(tx.StoreRequest.NoSnapshots)
 }
