@@ -1,6 +1,3 @@
-// GitHub actions run on machines not supporting AVX-512 instructions.
-//go:build nogithub
-
 //nolint:lll
 
 package hash
