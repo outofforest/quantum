@@ -1,5 +1,5 @@
-// Github actions run on machines not supporting AVX-512 instructions.
-//go:build nogithub
+// GitHub actions run on machines not supporting AVX-512 instructions.
+////go:build nogithub
 
 package space
 
@@ -142,9 +142,10 @@ func TestCRUDOnRootDataNode(t *testing.T) {
 		}
 	)
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, hashKey, false)
 
 	// Read non-existing.
 
@@ -159,7 +160,7 @@ func TestCRUDOnRootDataNode(t *testing.T) {
 
 	// Create.
 
-	requireT.NoError(s.SetKey(v, amount))
+	requireT.NoError(s.SetKey(tx, v, amount))
 
 	// Read existing.
 
@@ -182,7 +183,7 @@ func TestCRUDOnRootDataNode(t *testing.T) {
 
 	// Update 1.
 
-	requireT.NoError(s.SetKey(v3, amount+1))
+	requireT.NoError(s.SetKey(tx, v3, amount+1))
 
 	requireT.True(s.KeyExists(v3))
 	requireT.Equal(amount+1, s.ReadKey(v3))
@@ -198,7 +199,7 @@ func TestCRUDOnRootDataNode(t *testing.T) {
 
 	// Update 2.
 
-	requireT.NoError(s.SetKey(v4, amount+2))
+	requireT.NoError(s.SetKey(tx, v4, amount+2))
 
 	requireT.True(s.KeyExists(v4))
 	requireT.Equal(amount+2, s.ReadKey(v4))
@@ -214,7 +215,7 @@ func TestCRUDOnRootDataNode(t *testing.T) {
 
 	// Delete 1.
 
-	s.DeleteKey(v5)
+	s.DeleteKey(tx, v5)
 
 	requireT.False(s.KeyExists(v5))
 	requireT.Equal(txtypes.Amount(0), s.ReadKey(v5))
@@ -227,7 +228,7 @@ func TestCRUDOnRootDataNode(t *testing.T) {
 
 	v = s.NewEntry(account, StagePointer0)
 
-	requireT.NoError(s.SetKey(v, amount))
+	requireT.NoError(s.SetKey(tx, v, amount))
 
 	balance, exists = s.Query(account)
 	requireT.True(exists)
@@ -237,7 +238,7 @@ func TestCRUDOnRootDataNode(t *testing.T) {
 
 	v2 = s.NewEntry(account, StagePointer0)
 
-	s.DeleteKey(v2)
+	s.DeleteKey(tx, v2)
 
 	requireT.False(s.KeyExists(v2))
 	requireT.Equal(txtypes.Amount(0), s.ReadKey(v2))
@@ -257,9 +258,10 @@ func TestSetConflictingHashesOnRootDataNode(t *testing.T) {
 
 	requireT := require.New(t)
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKey, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, hashKey, false)
 
 	// Create.
 
@@ -268,7 +270,7 @@ func TestSetConflictingHashesOnRootDataNode(t *testing.T) {
 			Key:     txtypes.Account{i},
 			KeyHash: keyHash,
 		}, StagePointer0)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	// Verify items exist.
@@ -300,7 +302,7 @@ func TestSetConflictingHashesOnRootDataNode(t *testing.T) {
 		amount := txtypes.Amount(10 * i)
 
 		v := s.NewEntry(key, StagePointer0)
-		requireT.NoError(s.SetKey(v, amount))
+		requireT.NoError(s.SetKey(tx, v, amount))
 
 		v2 := s.NewEntry(key, StagePointer0)
 
@@ -340,7 +342,7 @@ func TestSetConflictingHashesOnRootDataNode(t *testing.T) {
 		}
 
 		v := s.NewEntry(key, StagePointer0)
-		s.DeleteKey(v)
+		s.DeleteKey(tx, v)
 
 		v2 := s.NewEntry(key, StagePointer0)
 
@@ -384,9 +386,10 @@ func TestAddingPointerNodeWithoutConflictResolution(t *testing.T) {
 
 	requireT := require.New(t)
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	// Create.
 
@@ -395,7 +398,7 @@ func TestAddingPointerNodeWithoutConflictResolution(t *testing.T) {
 			Key:     txtypes.Account{i},
 			KeyHash: keyHash,
 		}, StagePointer0)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 		requireT.Equal(uint8(0), v.level)
 	}
 
@@ -410,8 +413,8 @@ func TestAddingPointerNodeWithoutConflictResolution(t *testing.T) {
 	// Store the address of the data node to be sure that no items have been moved.
 	dataNodeAddress := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress
 
-	requireT.NoError(s.AddPointerNode(v, false))
-	requireT.NoError(s.SetKey(v, txtypes.Amount(numOfItems-1)))
+	requireT.NoError(s.AddPointerNode(tx, v, false))
+	requireT.NoError(s.SetKey(tx, v, txtypes.Amount(numOfItems-1)))
 	requireT.Equal(uint8(1), v.level)
 
 	// Verify that all the items have been moved correctly without recomputing hashes.
@@ -454,9 +457,10 @@ func TestAddingPointerNodeWithConflictResolution(t *testing.T) {
 
 	requireT := require.New(t)
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKeyFunc, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, hashKeyFunc, false)
 
 	// Create.
 
@@ -465,7 +469,7 @@ func TestAddingPointerNodeWithConflictResolution(t *testing.T) {
 			Key:     txtypes.Account{i},
 			KeyHash: keyHash,
 		}, StagePointer0)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 		requireT.Equal(uint8(0), v.level)
 	}
 
@@ -480,8 +484,8 @@ func TestAddingPointerNodeWithConflictResolution(t *testing.T) {
 	// Store the address of the data node to be sure that half of the items is moved to another data node.
 	dataNodeAddress := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress
 
-	requireT.NoError(s.AddPointerNode(v, true))
-	requireT.NoError(s.SetKey(v, txtypes.Amount(numOfItems-1)))
+	requireT.NoError(s.AddPointerNode(tx, v, true))
+	requireT.NoError(s.SetKey(tx, v, txtypes.Amount(numOfItems-1)))
 	requireT.Equal(uint8(1), v.level)
 
 	// Verify that all the items have been moved correctly and hashes were recomputed.
@@ -526,9 +530,10 @@ func TestAddingPointerNodeForNonConflictingDataItems(t *testing.T) {
 
 	requireT := require.New(t)
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	// Create.
 
@@ -537,7 +542,7 @@ func TestAddingPointerNodeForNonConflictingDataItems(t *testing.T) {
 			Key:     txtypes.Account{i},
 			KeyHash: types.KeyHash(i + 1), // +1 to avoid 0
 		}, StagePointer0)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 		requireT.Equal(uint8(0), v.level)
 	}
 
@@ -552,8 +557,8 @@ func TestAddingPointerNodeForNonConflictingDataItems(t *testing.T) {
 	// Store the address of the data node to be sure that half of the items is moved to another data node.
 	dataNodeAddress := v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress
 
-	requireT.NoError(s.AddPointerNode(v, false))
-	requireT.NoError(s.SetKey(v, txtypes.Amount(numOfItems-1)))
+	requireT.NoError(s.AddPointerNode(tx, v, false))
+	requireT.NoError(s.SetKey(tx, v, txtypes.Amount(numOfItems-1)))
 	requireT.Equal(uint8(1), v.level)
 
 	// Verify that all the items have been moved correctly without recomputing hashes.
@@ -598,9 +603,10 @@ func TestDataNodeSplitWithoutConflictResolution(t *testing.T) {
 
 	requireT := require.New(t)
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	// Store items in the root data node.
 
@@ -609,7 +615,7 @@ func TestDataNodeSplitWithoutConflictResolution(t *testing.T) {
 			Key:     txtypes.Account{i},
 			KeyHash: types.KeyHash(i),
 		}, StagePointer0)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	// Convert root node into pointer node.
@@ -618,14 +624,14 @@ func TestDataNodeSplitWithoutConflictResolution(t *testing.T) {
 		Key:     txtypes.Account{0x01},
 		KeyHash: types.KeyHash(1), // +1 to avoid 0
 	}, StageData)
-	requireT.NoError(s.AddPointerNode(v, false))
+	requireT.NoError(s.AddPointerNode(tx, v, false))
 
 	// Verify the current structure of the tree.
 	// Root node should be a pointer node with two data node children at indexes 0 and NumOfPointers / 2.
 	// Each data node should contain numOfItems / 2 items. First node should contain items with hashes 1-31 and 64,
 	// Second node should contain items with hashes 32-63.
 
-	pointerNode := ProjectPointerNode(state.Node(s.Root().VolatileAddress))
+	pointerNode := ProjectPointerNode(appState.Node(s.Root().VolatileAddress))
 	dataNodeAIndex := 0
 	dataNodeBIndex := NumOfPointers / 2
 	for i, p := range pointerNode.Pointers {
@@ -637,8 +643,8 @@ func TestDataNodeSplitWithoutConflictResolution(t *testing.T) {
 	}
 
 	dataNodeAssistant := s.DataNodeAssistant()
-	dataNodeAKeyHashes := dataNodeAssistant.KeyHashes(state.Node(pointerNode.Pointers[dataNodeAIndex].VolatileAddress))
-	dataNodeBKeyHashes := dataNodeAssistant.KeyHashes(state.Node(pointerNode.Pointers[dataNodeBIndex].VolatileAddress))
+	dataNodeAKeyHashes := dataNodeAssistant.KeyHashes(appState.Node(pointerNode.Pointers[dataNodeAIndex].VolatileAddress))
+	dataNodeBKeyHashes := dataNodeAssistant.KeyHashes(appState.Node(pointerNode.Pointers[dataNodeBIndex].VolatileAddress))
 
 	keyHashes := map[types.KeyHash]int{}
 	for _, kh := range dataNodeAKeyHashes {
@@ -689,7 +695,7 @@ func TestDataNodeSplitWithoutConflictResolution(t *testing.T) {
 				break
 			}
 
-			requireT.NoError(s.SplitDataNode(v, false))
+			requireT.NoError(s.SplitDataNode(tx, v, false))
 		}
 	}
 
@@ -699,7 +705,7 @@ func TestDataNodeSplitWithoutConflictResolution(t *testing.T) {
 	for _, p := range pointerNode.Pointers {
 		requireT.NotEqual(types.FreeAddress, p.VolatileAddress)
 
-		keyHashes := dataNodeAssistant.KeyHashes(state.Node(p.VolatileAddress))
+		keyHashes := dataNodeAssistant.KeyHashes(appState.Node(p.VolatileAddress))
 		var found bool
 		for _, kh := range keyHashes {
 			if kh != 0 {
@@ -741,13 +747,14 @@ func TestDataNodeSplitWithConflictResolution(t *testing.T) {
 
 	requireT := require.New(t)
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
 	hashKeyFunc := func(key *txtypes.Account, buff []byte, level uint8) types.KeyHash {
 		return types.KeyHash(key[0])
 	}
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, hashKeyFunc, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, hashKeyFunc, false)
 
 	// Store items in the root data node.
 
@@ -756,7 +763,7 @@ func TestDataNodeSplitWithConflictResolution(t *testing.T) {
 			Key:     txtypes.Account{i},
 			KeyHash: keyHash,
 		}, StagePointer0)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	// Convert root node into pointer node.
@@ -765,14 +772,14 @@ func TestDataNodeSplitWithConflictResolution(t *testing.T) {
 		Key:     txtypes.Account{0x01},
 		KeyHash: types.KeyHash(1), // +1 to avoid 0
 	}, StageData)
-	requireT.NoError(s.AddPointerNode(v, true))
+	requireT.NoError(s.AddPointerNode(tx, v, true))
 
 	// Verify the current structure of the tree.
 	// Root node should be a pointer node with two data node children at indexes 0 and NumOfPointers / 2.
 	// Each data node should contain numOfItems / 2 items. First node should contain items with hashes 1-31 and 64,
 	// Second node should contain items with hashes 32-63.
 
-	pointerNode := ProjectPointerNode(state.Node(s.Root().VolatileAddress))
+	pointerNode := ProjectPointerNode(appState.Node(s.Root().VolatileAddress))
 	dataNodeAIndex := 0
 	dataNodeBIndex := NumOfPointers / 2
 	for i, p := range pointerNode.Pointers {
@@ -784,8 +791,8 @@ func TestDataNodeSplitWithConflictResolution(t *testing.T) {
 	}
 
 	dataNodeAssistant := s.DataNodeAssistant()
-	dataNodeAKeyHashes := dataNodeAssistant.KeyHashes(state.Node(pointerNode.Pointers[dataNodeAIndex].VolatileAddress))
-	dataNodeBKeyHashes := dataNodeAssistant.KeyHashes(state.Node(pointerNode.Pointers[dataNodeBIndex].VolatileAddress))
+	dataNodeAKeyHashes := dataNodeAssistant.KeyHashes(appState.Node(pointerNode.Pointers[dataNodeAIndex].VolatileAddress))
+	dataNodeBKeyHashes := dataNodeAssistant.KeyHashes(appState.Node(pointerNode.Pointers[dataNodeBIndex].VolatileAddress))
 
 	keyHashes := map[types.KeyHash]int{}
 	for _, kh := range dataNodeAKeyHashes {
@@ -840,7 +847,7 @@ func TestDataNodeSplitWithConflictResolution(t *testing.T) {
 
 			// We split with conflict resolving all the time to test that path of the logic, but provided hashing
 			// function returns the same results all the time.
-			requireT.NoError(s.SplitDataNode(v, true))
+			requireT.NoError(s.SplitDataNode(tx, v, true))
 		}
 	}
 
@@ -850,7 +857,7 @@ func TestDataNodeSplitWithConflictResolution(t *testing.T) {
 	for _, p := range pointerNode.Pointers {
 		requireT.NotEqual(types.FreeAddress, p.VolatileAddress)
 
-		keyHashes := dataNodeAssistant.KeyHashes(state.Node(p.VolatileAddress))
+		keyHashes := dataNodeAssistant.KeyHashes(appState.Node(p.VolatileAddress))
 		var found bool
 		for _, kh := range keyHashes {
 			if kh != 0 {
@@ -885,15 +892,16 @@ func TestDataNodeSplitWithConflictResolution(t *testing.T) {
 func TestFindingAvailableFreeSlot(t *testing.T) {
 	requireT := require.New(t)
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	v1 := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{1},
 		KeyHash: 1,
 	}, StageData)
-	requireT.NoError(s.SetKey(v1, 1))
+	requireT.NoError(s.SetKey(tx, v1, 1))
 
 	v2 := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{2},
@@ -911,9 +919,10 @@ func TestFindStages(t *testing.T) {
 	// This key hash means that item will always go to the pointer at index 0.
 	const keyHash = 1 << 63
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	// Create levels in the tree.
 
@@ -923,10 +932,10 @@ func TestFindStages(t *testing.T) {
 	}
 
 	v := s.NewEntry(key, StageData)
-	requireT.NoError(s.SetKey(v, txtypes.Amount(10)))
+	requireT.NoError(s.SetKey(tx, v, txtypes.Amount(10)))
 
 	for range 8 {
-		requireT.NoError(s.AddPointerNode(v, false))
+		requireT.NoError(s.AddPointerNode(tx, v, false))
 		s.Find(v)
 	}
 
@@ -980,9 +989,10 @@ func TestSwitchingFromMutableToImmutablePath(t *testing.T) {
 	// After first split this key hash stays in data node 0, but after second split it will go to the data node 16.
 	const keyHash types.KeyHash = 16
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	// Create levels in the tree.
 
@@ -995,20 +1005,20 @@ func TestSwitchingFromMutableToImmutablePath(t *testing.T) {
 		Key:     txtypes.Account{0x01},
 		KeyHash: types.KeyHash(64),
 	}, StageData)
-	requireT.NoError(s.SetKey(v64, txtypes.Amount(64)))
+	requireT.NoError(s.SetKey(tx, v64, txtypes.Amount(64)))
 
 	v16 := s.NewEntry(key, StageData)
-	requireT.NoError(s.SetKey(v16, txtypes.Amount(16)))
-	requireT.NoError(s.AddPointerNode(v16, false))
+	requireT.NoError(s.SetKey(tx, v16, txtypes.Amount(16)))
+	requireT.NoError(s.AddPointerNode(tx, v16, false))
 
 	// Now there are data nodes 0 and 32. The key hashes 0 and 16 should be in data node 0.
 
-	pointerNode := ProjectPointerNode(state.Node(s.Root().VolatileAddress))
+	pointerNode := ProjectPointerNode(appState.Node(s.Root().VolatileAddress))
 	requireT.NotEqual(types.FreeAddress, pointerNode.Pointers[0].VolatileAddress)
 	requireT.Equal(types.FreeAddress, pointerNode.Pointers[16].VolatileAddress)
 
 	dataNodeAssistant := s.DataNodeAssistant()
-	keyHashes := dataNodeAssistant.KeyHashes(state.Node(pointerNode.Pointers[0].VolatileAddress))
+	keyHashes := dataNodeAssistant.KeyHashes(appState.Node(pointerNode.Pointers[0].VolatileAddress))
 
 	requireT.Equal(types.KeyHash(64), keyHashes[0])
 	requireT.Equal(keyHash, keyHashes[1])
@@ -1033,7 +1043,7 @@ func TestSwitchingFromMutableToImmutablePath(t *testing.T) {
 		KeyHash: types.KeyHash(64),
 	}, StageData)
 	s.Find(v64)
-	requireT.NoError(s.SplitDataNode(v64, false))
+	requireT.NoError(s.SplitDataNode(tx, v64, false))
 
 	// The key hash 16 should be moved to the brand new data node 16.
 
@@ -1044,12 +1054,12 @@ func TestSwitchingFromMutableToImmutablePath(t *testing.T) {
 	requireT.NotEqual(types.FreeAddress, pointerNode.Pointers[16].VolatileAddress)
 
 	// And key hash 16 has been moved there.
-	keyHashes = dataNodeAssistant.KeyHashes(state.Node(pointerNode.Pointers[16].VolatileAddress))
+	keyHashes = dataNodeAssistant.KeyHashes(appState.Node(pointerNode.Pointers[16].VolatileAddress))
 	requireT.Equal(keyHash, keyHashes[1])
 
 	// Now let's add a pointer node at the position of key hash 64.
 
-	requireT.NoError(s.AddPointerNode(v64, false))
+	requireT.NoError(s.AddPointerNode(tx, v64, false))
 	requireT.True(pointerNode.Pointers[0].VolatileAddress.IsSet(flagPointerNode))
 	requireT.True(v16Read.storeRequest.Store[v16Read.storeRequest.PointersToStore-1].Pointer.VolatileAddress.
 		IsSet(flagPointerNode))
@@ -1064,7 +1074,7 @@ func TestSwitchingFromMutableToImmutablePath(t *testing.T) {
 	requireT.True(s.KeyExists(v16Exists))
 	requireT.Nil(v16Exists.nextDataNode)
 
-	s.DeleteKey(v16Delete)
+	s.DeleteKey(tx, v16Delete)
 	requireT.Nil(v16Delete.nextDataNode)
 
 	balance, exists := s.Query(key)
@@ -1082,16 +1092,17 @@ func TestExistsReturnsFalseIfKeyHashIsDifferent(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	v5 := s.NewEntry(key, StageData)
@@ -1118,16 +1129,17 @@ func TestExistsReturnsFalseIfKeyIsDifferent(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	v5 := s.NewEntry(key, StageData)
@@ -1155,16 +1167,17 @@ func TestExistsReturnsTrueAfterReplacingItem(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	v5 := s.NewEntry(key, StageData)
@@ -1179,7 +1192,7 @@ func TestExistsReturnsTrueAfterReplacingItem(t *testing.T) {
 	// Test checking replaced item.
 
 	// Delete v5A.
-	s.DeleteKey(v5A)
+	s.DeleteKey(tx, v5A)
 
 	// This item is inserted on first free slot, which is the one previously occupied by v5A.
 	key100 := TestKey[txtypes.Account]{
@@ -1187,14 +1200,14 @@ func TestExistsReturnsTrueAfterReplacingItem(t *testing.T) {
 		KeyHash: 100,
 	}
 	v100 := s.NewEntry(key100, StageData)
-	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
+	requireT.NoError(s.SetKey(tx, v100, txtypes.Amount(100)))
 
 	// Now v5B points to invalid item.
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's insert v5 on another free position.
 	v5B2 := s.NewEntry(key, StageData)
-	requireT.NoError(s.SetKey(v5B2, txtypes.Amount(5)))
+	requireT.NoError(s.SetKey(tx, v5B2, txtypes.Amount(5)))
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// When checking, it will refer the right slot.
@@ -1215,16 +1228,17 @@ func TestExistsReturnsTrueAfterMovingItem(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	v5 := s.NewEntry(key, StageData)
@@ -1239,7 +1253,7 @@ func TestExistsReturnsTrueAfterMovingItem(t *testing.T) {
 	// Test checking moved item.
 
 	// Delete v5A.
-	s.DeleteKey(v5A)
+	s.DeleteKey(tx, v5A)
 
 	// This item is inserted on first free slot, which is the one previously occupied by v5A.
 	key100 := TestKey[txtypes.Account]{
@@ -1247,18 +1261,18 @@ func TestExistsReturnsTrueAfterMovingItem(t *testing.T) {
 		KeyHash: 100,
 	}
 	v100 := s.NewEntry(key100, StageData)
-	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
+	requireT.NoError(s.SetKey(tx, v100, txtypes.Amount(100)))
 
 	// Now v5B points to invalid item.
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's insert v5 on another free position.
 	v5B2 := s.NewEntry(key, StageData)
-	requireT.NoError(s.SetKey(v5B2, txtypes.Amount(5)))
+	requireT.NoError(s.SetKey(tx, v5B2, txtypes.Amount(5)))
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's delete v100 to make the original slot free.
-	s.DeleteKey(v100)
+	s.DeleteKey(tx, v100)
 	requireT.Equal(types.KeyHash(0), *v100.keyHashP)
 	requireT.Equal(types.KeyHash(0), *v5B.keyHashP)
 
@@ -1273,21 +1287,22 @@ func TestExistsReturnsTrueAfterMovingItem(t *testing.T) {
 func TestExistsReturnsFalseIfSlotHasNotBeenFound(t *testing.T) {
 	requireT := require.New(t)
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	v := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{0x01},
 		KeyHash: types.KeyHash(1),
 	}, StageData)
-	requireT.NoError(s.SetKey(v, txtypes.Amount(1)))
+	requireT.NoError(s.SetKey(tx, v, txtypes.Amount(1)))
 
 	// Check false is returned if we were not able to find slot for an item.
 
 	// Set all slots as busy.
 	dataNodeAssistant := s.DataNodeAssistant()
-	keyHashes := dataNodeAssistant.KeyHashes(state.Node(s.Root().VolatileAddress))
+	keyHashes := dataNodeAssistant.KeyHashes(appState.Node(s.Root().VolatileAddress))
 	for i := range keyHashes {
 		keyHashes[i] = 1
 	}
@@ -1313,16 +1328,17 @@ func TestReadReturnsDefaultValueIfKeyHashIsDifferent(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	v5 := s.NewEntry(key, StageData)
@@ -1349,16 +1365,17 @@ func TestReadReturnsDefaultValueIfKeyIsDifferent(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	v5 := s.NewEntry(key, StageData)
@@ -1386,16 +1403,17 @@ func TestReadReturnsCorrectValueAfterReplacingItem(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	v5 := s.NewEntry(key, StageData)
@@ -1410,7 +1428,7 @@ func TestReadReturnsCorrectValueAfterReplacingItem(t *testing.T) {
 	// Test checking replaced item.
 
 	// Delete v5A.
-	s.DeleteKey(v5A)
+	s.DeleteKey(tx, v5A)
 
 	// This item is inserted on first free slot, which is the one previously occupied by v5A.
 	key100 := TestKey[txtypes.Account]{
@@ -1418,14 +1436,14 @@ func TestReadReturnsCorrectValueAfterReplacingItem(t *testing.T) {
 		KeyHash: 100,
 	}
 	v100 := s.NewEntry(key100, StageData)
-	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
+	requireT.NoError(s.SetKey(tx, v100, txtypes.Amount(100)))
 
 	// Now v5B points to invalid item.
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's insert v5 on another free position.
 	v5B2 := s.NewEntry(key, StageData)
-	requireT.NoError(s.SetKey(v5B2, txtypes.Amount(5)))
+	requireT.NoError(s.SetKey(tx, v5B2, txtypes.Amount(5)))
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// When checking, it will refer the right slot.
@@ -1446,16 +1464,17 @@ func TestReadReturnsCorrectValueAfterMovingItem(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	v5 := s.NewEntry(key, StageData)
@@ -1470,7 +1489,7 @@ func TestReadReturnsCorrectValueAfterMovingItem(t *testing.T) {
 	// Test checking moved item.
 
 	// Delete v5A.
-	s.DeleteKey(v5A)
+	s.DeleteKey(tx, v5A)
 
 	// This item is inserted on first free slot, which is the one previously occupied by v5A.
 	key100 := TestKey[txtypes.Account]{
@@ -1478,18 +1497,18 @@ func TestReadReturnsCorrectValueAfterMovingItem(t *testing.T) {
 		KeyHash: 100,
 	}
 	v100 := s.NewEntry(key100, StageData)
-	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
+	requireT.NoError(s.SetKey(tx, v100, txtypes.Amount(100)))
 
 	// Now v5B points to invalid item.
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's insert v5 on another free position.
 	v5B2 := s.NewEntry(key, StageData)
-	requireT.NoError(s.SetKey(v5B2, txtypes.Amount(5)))
+	requireT.NoError(s.SetKey(tx, v5B2, txtypes.Amount(5)))
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's delete v100 to make the original slot free.
-	s.DeleteKey(v100)
+	s.DeleteKey(tx, v100)
 	requireT.Equal(types.KeyHash(0), *v100.keyHashP)
 	requireT.Equal(types.KeyHash(0), *v5B.keyHashP)
 
@@ -1504,21 +1523,22 @@ func TestReadReturnsCorrectValueAfterMovingItem(t *testing.T) {
 func TestReadReturnsDefaultValueIfSlotHasNotBeenFound(t *testing.T) {
 	requireT := require.New(t)
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	v := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{0x01},
 		KeyHash: types.KeyHash(1),
 	}, StageData)
-	requireT.NoError(s.SetKey(v, txtypes.Amount(1)))
+	requireT.NoError(s.SetKey(tx, v, txtypes.Amount(1)))
 
 	// Check false is returned if we were not able to find slot for an item.
 
 	// Set all slots as busy.
 	dataNodeAssistant := s.DataNodeAssistant()
-	keyHashes := dataNodeAssistant.KeyHashes(state.Node(s.Root().VolatileAddress))
+	keyHashes := dataNodeAssistant.KeyHashes(appState.Node(s.Root().VolatileAddress))
 	for i := range keyHashes {
 		keyHashes[i] = 1
 	}
@@ -1538,16 +1558,17 @@ func TestReadReturnsDefaultValueIfSlotHasNotBeenFound(t *testing.T) {
 func TestDeletingOnEmptySpace(t *testing.T) {
 	requireT := require.New(t)
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	v5 := s.NewEntry(TestKey[txtypes.Account]{
 		Key:     txtypes.Account{5},
 		KeyHash: 5,
 	}, StageData)
 	s.Find(v5)
-	s.DeleteKey(v5)
+	s.DeleteKey(tx, v5)
 	requireT.Equal(types.FreeAddress, s.Root().VolatileAddress)
 }
 
@@ -1561,16 +1582,17 @@ func TestDeleteDoesNothingIfKeyHashIsDifferent(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	v5 := s.NewEntry(key, StageData)
@@ -1582,7 +1604,7 @@ func TestDeleteDoesNothingIfKeyHashIsDifferent(t *testing.T) {
 	// Test that nothing happens if hash is different.
 
 	*v5.keyHashP = 1
-	s.DeleteKey(v5A)
+	s.DeleteKey(tx, v5A)
 	requireT.Equal(types.KeyHash(1), *v5.keyHashP)
 	*v5.keyHashP = key.KeyHash
 	// v5A now points to first free slot.
@@ -1608,16 +1630,17 @@ func TestDeleteDoesNothingIfKeyIsDifferent(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	v5 := s.NewEntry(key, StageData)
@@ -1629,7 +1652,7 @@ func TestDeleteDoesNothingIfKeyIsDifferent(t *testing.T) {
 	// Test that nothing happens if key is different.
 
 	v5.itemP.Key = txtypes.Account{0x01}
-	s.DeleteKey(v5A)
+	s.DeleteKey(tx, v5A)
 	requireT.Equal(key.KeyHash, *v5.keyHashP)
 	requireT.Equal(txtypes.Account{0x01}, v5.itemP.Key)
 	v5.itemP.Key = key.Key
@@ -1656,16 +1679,17 @@ func TestDeleteDoesNothingIfSlotIsFree(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	v5 := s.NewEntry(key, StageData)
@@ -1677,7 +1701,7 @@ func TestDeleteDoesNothingIfSlotIsFree(t *testing.T) {
 	// Test that nothing happens if slot is free.
 
 	*v5.keyHashP = 0
-	s.DeleteKey(v5A)
+	s.DeleteKey(tx, v5A)
 	requireT.Equal(types.KeyHash(0), *v5.keyHashP)
 	*v5.keyHashP = key.KeyHash
 	// v5C still points to the same slot.
@@ -1704,16 +1728,17 @@ func TestDeleteOnReplacedItem(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	v5 := s.NewEntry(key, StageData)
@@ -1728,7 +1753,7 @@ func TestDeleteOnReplacedItem(t *testing.T) {
 	// Test deleting replaced item.
 
 	// Delete v5A.
-	s.DeleteKey(v5A)
+	s.DeleteKey(tx, v5A)
 
 	// This item is inserted on first free slot, which is the one previously occupied by v5A.
 	key100 := TestKey[txtypes.Account]{
@@ -1736,18 +1761,18 @@ func TestDeleteOnReplacedItem(t *testing.T) {
 		KeyHash: 100,
 	}
 	v100 := s.NewEntry(key100, StageData)
-	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
+	requireT.NoError(s.SetKey(tx, v100, txtypes.Amount(100)))
 
 	// Now v5E points to invalid item.
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's insert v5 on another free position.
 	v5B2 := s.NewEntry(key, StageData)
-	requireT.NoError(s.SetKey(v5B2, txtypes.Amount(5)))
+	requireT.NoError(s.SetKey(tx, v5B2, txtypes.Amount(5)))
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// When deleting, it will free the right slot.
-	s.DeleteKey(v5B)
+	s.DeleteKey(tx, v5B)
 	requireT.Equal(types.KeyHash(0), *v5B.keyHashP)
 	requireT.Equal(types.KeyHash(0), *v5B2.keyHashP)
 	requireT.Equal(unsafe.Pointer(v5B.keyHashP), unsafe.Pointer(v5B2.keyHashP))
@@ -1774,16 +1799,17 @@ func TestDeleteOnMovedItem(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	v5 := s.NewEntry(key, StageData)
@@ -1798,7 +1824,7 @@ func TestDeleteOnMovedItem(t *testing.T) {
 	// Test deleting moved item.
 
 	// Delete v5A.
-	s.DeleteKey(v5A)
+	s.DeleteKey(tx, v5A)
 
 	// This item is inserted on first free slot, which is the one previously occupied by v5A.
 	key100 := TestKey[txtypes.Account]{
@@ -1806,23 +1832,23 @@ func TestDeleteOnMovedItem(t *testing.T) {
 		KeyHash: 100,
 	}
 	v100 := s.NewEntry(key100, StageData)
-	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
+	requireT.NoError(s.SetKey(tx, v100, txtypes.Amount(100)))
 
 	// Now v5B points to invalid item.
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's insert v5 on another free position.
 	v5B2 := s.NewEntry(key, StageData)
-	requireT.NoError(s.SetKey(v5B2, txtypes.Amount(5)))
+	requireT.NoError(s.SetKey(tx, v5B2, txtypes.Amount(5)))
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's delete v100 to make the original slot free.
-	s.DeleteKey(v100)
+	s.DeleteKey(tx, v100)
 	requireT.Equal(types.KeyHash(0), *v100.keyHashP)
 	requireT.Equal(types.KeyHash(0), *v5B.keyHashP)
 
 	// When deleting, it will refer the right slot.
-	s.DeleteKey(v5B)
+	s.DeleteKey(tx, v5B)
 	requireT.Equal(types.KeyHash(0), *v5B.keyHashP)
 	requireT.Equal(types.KeyHash(0), *v5B2.keyHashP)
 	requireT.Equal(unsafe.Pointer(v5B.keyHashP), unsafe.Pointer(v5B2.keyHashP))
@@ -1838,23 +1864,24 @@ func TestDeleteDoesNothingIfSlotHasNotBeenFound(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	// Try to delete if we were not able to find slot for an item.
 
 	// Set all slots as busy.
 	dataNodeAssistant := s.DataNodeAssistant()
-	keyHashes := dataNodeAssistant.KeyHashes(state.Node(s.Root().VolatileAddress))
+	keyHashes := dataNodeAssistant.KeyHashes(appState.Node(s.Root().VolatileAddress))
 	for i := range keyHashes {
 		keyHashes[i] = 1
 	}
@@ -1867,7 +1894,7 @@ func TestDeleteDoesNothingIfSlotHasNotBeenFound(t *testing.T) {
 	v100 := s.NewEntry(key100, StageData)
 	s.Find(v100)
 	requireT.Nil(v100.keyHashP)
-	s.DeleteKey(v100)
+	s.DeleteKey(tx, v100)
 	requireT.Nil(v100.keyHashP)
 
 	// Verify that nothing has been deleted.
@@ -1887,16 +1914,17 @@ func TestSetFindsAnotherSlotIfKeyHashIsDifferent(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	v5 := s.NewEntry(key, StageData)
@@ -1906,7 +1934,7 @@ func TestSetFindsAnotherSlotIfKeyHashIsDifferent(t *testing.T) {
 	s.Find(v5A)
 
 	*v5.keyHashP = 1
-	requireT.NoError(s.SetKey(v5A, txtypes.Amount(10)))
+	requireT.NoError(s.SetKey(tx, v5A, txtypes.Amount(10)))
 	requireT.Equal(types.KeyHash(1), *v5.keyHashP)
 	requireT.Equal(txtypes.Amount(5), v5.itemP.Value)
 	// v5A now points to different slot.
@@ -1924,16 +1952,17 @@ func TestSetFindsAnotherSlotIfKeyIsDifferent(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	v5 := s.NewEntry(key, StageData)
@@ -1943,7 +1972,7 @@ func TestSetFindsAnotherSlotIfKeyIsDifferent(t *testing.T) {
 	s.Find(v5A)
 
 	v5.itemP.Key = txtypes.Account{0x01}
-	requireT.NoError(s.SetKey(v5A, txtypes.Amount(10)))
+	requireT.NoError(s.SetKey(tx, v5A, txtypes.Amount(10)))
 	requireT.Equal(key.KeyHash, *v5.keyHashP)
 	requireT.Equal(txtypes.Account{0x01}, v5.itemP.Key)
 	// v5A now points to another slot.
@@ -1963,16 +1992,17 @@ func TestSetOnReplacedItem(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	v5 := s.NewEntry(key, StageData)
@@ -1987,7 +2017,7 @@ func TestSetOnReplacedItem(t *testing.T) {
 	// Test setting replaced item.
 
 	// Delete v5A.
-	s.DeleteKey(v5A)
+	s.DeleteKey(tx, v5A)
 
 	// This item is inserted on first free slot, which is the one previously occupied by v5A.
 	key100 := TestKey[txtypes.Account]{
@@ -1995,18 +2025,18 @@ func TestSetOnReplacedItem(t *testing.T) {
 		KeyHash: 100,
 	}
 	v100 := s.NewEntry(key100, StageData)
-	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
+	requireT.NoError(s.SetKey(tx, v100, txtypes.Amount(100)))
 
 	// Now v5E points to invalid item.
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's insert v5 on another free position.
 	v5B2 := s.NewEntry(key, StageData)
-	requireT.NoError(s.SetKey(v5B2, txtypes.Amount(5)))
+	requireT.NoError(s.SetKey(tx, v5B2, txtypes.Amount(5)))
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// When setting, it will update the right slot.
-	requireT.NoError(s.SetKey(v5B, txtypes.Amount(10)))
+	requireT.NoError(s.SetKey(tx, v5B, txtypes.Amount(10)))
 	requireT.Equal(key.KeyHash, *v5B.keyHashP)
 	requireT.Equal(key.KeyHash, *v5B2.keyHashP)
 	requireT.Equal(unsafe.Pointer(v5B.keyHashP), unsafe.Pointer(v5B2.keyHashP))
@@ -2033,16 +2063,17 @@ func TestSetOnMovedItem(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	for i := types.KeyHash(1); i <= 2*key.KeyHash; i++ {
 		v := s.NewEntry(TestKey[txtypes.Account]{
 			Key:     txtypes.Account{uint8(i)},
 			KeyHash: i,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, txtypes.Amount(i)))
+		requireT.NoError(s.SetKey(tx, v, txtypes.Amount(i)))
 	}
 
 	v5 := s.NewEntry(key, StageData)
@@ -2057,7 +2088,7 @@ func TestSetOnMovedItem(t *testing.T) {
 	// Test setting moved item.
 
 	// Delete v5A.
-	s.DeleteKey(v5A)
+	s.DeleteKey(tx, v5A)
 
 	// This item is inserted on first free slot, which is the one previously occupied by v5A.
 	key100 := TestKey[txtypes.Account]{
@@ -2065,23 +2096,23 @@ func TestSetOnMovedItem(t *testing.T) {
 		KeyHash: 100,
 	}
 	v100 := s.NewEntry(key100, StageData)
-	requireT.NoError(s.SetKey(v100, txtypes.Amount(100)))
+	requireT.NoError(s.SetKey(tx, v100, txtypes.Amount(100)))
 
 	// Now v5B points to invalid item.
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's insert v5 on another free position.
 	v5B2 := s.NewEntry(key, StageData)
-	requireT.NoError(s.SetKey(v5B2, txtypes.Amount(5)))
+	requireT.NoError(s.SetKey(tx, v5B2, txtypes.Amount(5)))
 	requireT.Equal(types.KeyHash(100), *v5B.keyHashP)
 
 	// Let's delete v100 to make the original slot free.
-	s.DeleteKey(v100)
+	s.DeleteKey(tx, v100)
 	requireT.Equal(types.KeyHash(0), *v100.keyHashP)
 	requireT.Equal(types.KeyHash(0), *v5B.keyHashP)
 
 	// When setting, it will update the right slot.
-	requireT.NoError(s.SetKey(v5B, txtypes.Amount(10)))
+	requireT.NoError(s.SetKey(tx, v5B, txtypes.Amount(10)))
 	requireT.Equal(key.KeyHash, *v5B.keyHashP)
 	requireT.Equal(key.KeyHash, *v5B2.keyHashP)
 	requireT.Equal(unsafe.Pointer(v5B.keyHashP), unsafe.Pointer(v5B2.keyHashP))
@@ -2103,12 +2134,13 @@ func TestSetTheSameSlotTwiceUsingSameEntry(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	v5 := s.NewEntry(key, StageData)
-	requireT.NoError(s.SetKey(v5, txtypes.Amount(5)))
+	requireT.NoError(s.SetKey(tx, v5, txtypes.Amount(5)))
 
 	balance, exists := s.Query(key)
 	requireT.True(exists)
@@ -2116,7 +2148,7 @@ func TestSetTheSameSlotTwiceUsingSameEntry(t *testing.T) {
 
 	keyHashP := v5.keyHashP
 
-	requireT.NoError(s.SetKey(v5, txtypes.Amount(10)))
+	requireT.NoError(s.SetKey(tx, v5, txtypes.Amount(10)))
 	requireT.Equal(unsafe.Pointer(v5.keyHashP), unsafe.Pointer(keyHashP))
 
 	balance, exists = s.Query(key)
@@ -2135,19 +2167,20 @@ func TestSetTheSameSlotTwiceUsingDifferentEntry(t *testing.T) {
 		KeyHash: 5,
 	}
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, state, nil, false)
+	s := NewSpaceTest[txtypes.Account, txtypes.Amount](t, appState, nil, false)
 
 	v5 := s.NewEntry(key, StageData)
-	requireT.NoError(s.SetKey(v5, txtypes.Amount(5)))
+	requireT.NoError(s.SetKey(tx, v5, txtypes.Amount(5)))
 
 	balance, exists := s.Query(key)
 	requireT.True(exists)
 	requireT.Equal(txtypes.Amount(5), balance)
 
 	v5B := s.NewEntry(key, StageData)
-	requireT.NoError(s.SetKey(v5B, txtypes.Amount(10)))
+	requireT.NoError(s.SetKey(tx, v5B, txtypes.Amount(10)))
 	requireT.Equal(unsafe.Pointer(v5.keyHashP), unsafe.Pointer(v5B.keyHashP))
 
 	balance, exists = s.Query(key)
@@ -2161,16 +2194,17 @@ func TestSetManyItems(t *testing.T) {
 
 	const numOfItems = 1000
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[uint64, uint64](t, state, nil, false)
+	s := NewSpaceTest[uint64, uint64](t, appState, nil, false)
 
 	for i := range uint64(numOfItems) {
 		v := s.NewEntry(TestKey[uint64]{
 			Key:     i,
 			KeyHash: types.KeyHash(i + 1),
 		}, StageData)
-		requireT.NoError(s.SetKey(v, i))
+		requireT.NoError(s.SetKey(tx, v, i))
 	}
 
 	for i := range uint64(numOfItems) {
@@ -2198,16 +2232,17 @@ func TestSetManyItemsWithConflicts(t *testing.T) {
 		numOfItems = 1000
 	)
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[uint64, uint64](t, state, nil, false)
+	s := NewSpaceTest[uint64, uint64](t, appState, nil, false)
 
 	for i := range uint64(numOfItems) {
 		v := s.NewEntry(TestKey[uint64]{
 			Key:     i,
 			KeyHash: keyHash,
 		}, StageData)
-		requireT.NoError(s.SetKey(v, i))
+		requireT.NoError(s.SetKey(tx, v, i))
 	}
 
 	for i := range uint64(numOfItems) {
@@ -2232,11 +2267,11 @@ func TestSetManyItemsUsingExternalAPI(t *testing.T) {
 
 	const numOfItems = 1000
 
-	state := state.NewForTest(t, stateSize)
-	volatileAllocator := state.NewVolatileAllocator()
+	appState := state.NewForTest(t, stateSize)
+	volatileAllocator := appState.NewVolatileAllocator()
 	txFactory := pipeline.NewTransactionRequestFactory()
 
-	st := NewSpaceTest[uint64, uint64](t, state, nil, false)
+	st := NewSpaceTest[uint64, uint64](t, appState, nil, false)
 	s := st.s
 
 	for i := range uint64(numOfItems) {
@@ -2258,19 +2293,20 @@ func TestSpaceDeallocation(t *testing.T) {
 
 	const numOfItems = 1000
 
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
+	tx := pipeline.NewTransactionRequestFactory().New()
 
-	s := NewSpaceTest[uint64, uint64](t, state, nil, false)
+	s := NewSpaceTest[uint64, uint64](t, appState, nil, false)
 
 	expectedVolatileAddresses := []types.VolatileAddress{}
 	expectedPersistentAddresses := []types.PersistentAddress{}
-	persistentAllocator := state.NewPersistentAllocator()
+	persistentAllocator := appState.NewPersistentAllocator()
 	for i := range uint64(numOfItems) {
 		v := s.NewEntry(TestKey[uint64]{
 			Key:     i,
 			KeyHash: types.KeyHash(i + 1),
 		}, StageData)
-		requireT.NoError(s.SetKey(v, i))
+		requireT.NoError(s.SetKey(tx, v, i))
 		for i := range v.storeRequest.PointersToStore {
 			if v.storeRequest.Store[i].Pointer.PersistentAddress != 0 {
 				continue
@@ -2293,7 +2329,7 @@ func TestSpaceDeallocation(t *testing.T) {
 		return expectedPersistentAddresses[i] < expectedPersistentAddresses[j]
 	})
 
-	volatileAllocator := state.NewVolatileAllocator()
+	volatileAllocator := appState.NewVolatileAllocator()
 	for {
 		_, err := volatileAllocator.Allocate()
 		if err != nil {
@@ -2307,18 +2343,18 @@ func TestSpaceDeallocation(t *testing.T) {
 		}
 	}
 
-	volatileDeallocator := state.NewVolatileDeallocator()
-	persistentDeallocator := state.NewPersistentDeallocator()
+	volatileDeallocator := appState.NewVolatileDeallocator()
+	persistentDeallocator := appState.NewPersistentDeallocator()
 
 	//nolint:gofmt // Bug in GoLand
-	for _ = range IteratorAndDeallocator(*s.s.config.SpaceRoot.Pointer, state, s.s.config.DataNodeAssistant,
+	for _ = range IteratorAndDeallocator(*s.s.config.SpaceRoot.Pointer, appState, s.s.config.DataNodeAssistant,
 		volatileDeallocator, persistentDeallocator) {
 	}
 
 	volatileDeallocator.Deallocate(0x00)
 	persistentDeallocator.Deallocate(0x00)
 
-	state.Commit()
+	appState.Commit()
 
 	_, err := volatileAllocator.Allocate()
 	requireT.NoError(err)

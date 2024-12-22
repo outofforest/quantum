@@ -18,7 +18,7 @@ type TestKey[K comparable] struct {
 // NewSpaceTest creates new wrapper for space testing.
 func NewSpaceTest[K, V comparable](
 	t require.TestingT,
-	state *state.State,
+	appState *state.State,
 	hashKeyFunc func(key *K, buff []byte, level uint8) types.KeyHash,
 	noSnapshots bool,
 ) *SpaceTest[K, V] {
@@ -30,7 +30,7 @@ func NewSpaceTest[K, V comparable](
 			Pointer: &types.Pointer{},
 			Hash:    &types.Hash{},
 		},
-		State:             state,
+		State:             appState,
 		DataNodeAssistant: dataNodeAssistant,
 		DeletionCounter:   lo.ToPtr[uint64](0),
 		NoSnapshots:       noSnapshots,
@@ -39,12 +39,9 @@ func NewSpaceTest[K, V comparable](
 		s.hashKeyFunc = hashKeyFunc
 	}
 
-	txFactory := pipeline.NewTransactionRequestFactory()
-
 	return &SpaceTest[K, V]{
 		s:         s,
-		tx:        txFactory.New(),
-		allocator: state.NewVolatileAllocator(),
+		allocator: appState.NewVolatileAllocator(),
 	}
 }
 
@@ -52,8 +49,8 @@ func NewSpaceTest[K, V comparable](
 //
 //nolint:revive
 type SpaceTest[K, V comparable] struct {
-	s         *Space[K, V]
-	tx        *pipeline.TransactionRequest
+	s *Space[K, V]
+
 	allocator *state.Allocator[types.VolatileAddress]
 }
 
@@ -85,31 +82,31 @@ func (s *SpaceTest[K, V]) ReadKey(v *Entry[K, V]) V {
 }
 
 // DeleteKey deletes key from space.
-func (s *SpaceTest[K, V]) DeleteKey(v *Entry[K, V]) {
-	s.s.DeleteKey(v, s.tx)
+func (s *SpaceTest[K, V]) DeleteKey(tx *pipeline.TransactionRequest, v *Entry[K, V]) {
+	s.s.DeleteKey(v, tx)
 }
 
 // SetKey sets value for the key.
-func (s *SpaceTest[K, V]) SetKey(v *Entry[K, V], value V) error {
-	return s.s.SetKey(v, s.tx, s.allocator, value)
+func (s *SpaceTest[K, V]) SetKey(tx *pipeline.TransactionRequest, v *Entry[K, V], value V) error {
+	return s.s.SetKey(v, tx, s.allocator, value)
 }
 
 // SplitDataNode splits data node.
-func (s *SpaceTest[K, V]) SplitDataNode(v *Entry[K, V], conflict bool) error {
+func (s *SpaceTest[K, V]) SplitDataNode(tx *pipeline.TransactionRequest, v *Entry[K, V], conflict bool) error {
 	var err error
 	if conflict {
-		_, err = s.s.splitDataNodeWithConflict(s.tx, s.allocator, v.parentIndex,
+		_, err = s.s.splitDataNodeWithConflict(tx, s.allocator, v.parentIndex,
 			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer.VolatileAddress, v.level)
 	} else {
-		_, err = s.s.splitDataNodeWithoutConflict(s.tx, s.allocator, v.parentIndex,
+		_, err = s.s.splitDataNodeWithoutConflict(tx, s.allocator, v.parentIndex,
 			v.storeRequest.Store[v.storeRequest.PointersToStore-2].Pointer.VolatileAddress, v.level)
 	}
 	return err
 }
 
 // AddPointerNode adds pointer node.
-func (s *SpaceTest[K, V]) AddPointerNode(v *Entry[K, V], conflict bool) error {
-	_, err := s.s.addPointerNode(v, s.tx, s.allocator, conflict)
+func (s *SpaceTest[K, V]) AddPointerNode(tx *pipeline.TransactionRequest, v *Entry[K, V], conflict bool) error {
+	_, err := s.s.addPointerNode(v, tx, s.allocator, conflict)
 	return err
 }
 

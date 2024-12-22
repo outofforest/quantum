@@ -680,7 +680,7 @@ type Entry[K, V comparable] struct {
 // IteratorAndDeallocator iterates over items and deallocates space.
 func IteratorAndDeallocator[K, V comparable](
 	spaceRoot types.Pointer,
-	state *state.State,
+	appState *state.State,
 	dataNodeAssistant *DataNodeAssistant[K, V],
 	volatileDeallocator *state.Deallocator[types.VolatileAddress],
 	persistentDeallocator *state.Deallocator[types.PersistentAddress],
@@ -710,7 +710,7 @@ func IteratorAndDeallocator[K, V comparable](
 
 			switch {
 			case isPointer(pointer.VolatileAddress):
-				pointerNode := ProjectPointerNode(state.Node(pointer.VolatileAddress))
+				pointerNode := ProjectPointerNode(appState.Node(pointer.VolatileAddress))
 				for pi := range pointerNode.Pointers {
 					if isFree(pointerNode.Pointers[pi].VolatileAddress) {
 						continue
@@ -720,7 +720,7 @@ func IteratorAndDeallocator[K, V comparable](
 					stackCount++
 				}
 			case !isFree(pointer.VolatileAddress):
-				n := state.Node(pointer.VolatileAddress)
+				n := appState.Node(pointer.VolatileAddress)
 				keyHashes := dataNodeAssistant.KeyHashes(n)
 
 				for i, kh := range keyHashes {
