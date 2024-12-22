@@ -15,6 +15,80 @@ import (
 
 const stateSize = 100 * types.NodeLength
 
+func TestImmediateDeallocation(t *testing.T) {
+	requireT := require.New(t)
+
+	appState := state.NewForTest(t, 10*types.NodeLength)
+	volatileAllocator := appState.NewVolatileAllocator()
+	persistentAllocator := appState.NewPersistentAllocator()
+	persistentDeallocator := appState.NewPersistentDeallocator()
+	deallocationListsToCommit := map[types.SnapshotID]*types.ListRoot{}
+
+	persistentAddress, err := persistentAllocator.Allocate()
+	requireT.NoError(err)
+
+	listRoot, err := deallocateNode(appState, 10, 1, persistentAddress,
+		deallocationListsToCommit, volatileAllocator, persistentAllocator, persistentDeallocator, true)
+	requireT.NoError(err)
+	requireT.Zero(listRoot.VolatileAddress)
+	requireT.Zero(listRoot.PersistentAddress)
+	requireT.Empty(deallocationListsToCommit)
+
+	for {
+		if _, err := persistentAllocator.Allocate(); err != nil {
+			break
+		}
+	}
+
+	persistentDeallocator.Deallocate(0x00)
+	appState.Commit()
+
+	_, err = persistentAllocator.Allocate()
+	requireT.NoError(err)
+
+	deallocatedPersistentAddress, err := persistentAllocator.Allocate()
+	requireT.NoError(err)
+
+	requireT.Equal(persistentAddress, deallocatedPersistentAddress)
+}
+
+func TestSameSnapshotDeallocation(t *testing.T) {
+	requireT := require.New(t)
+
+	appState := state.NewForTest(t, 10*types.NodeLength)
+	volatileAllocator := appState.NewVolatileAllocator()
+	persistentAllocator := appState.NewPersistentAllocator()
+	persistentDeallocator := appState.NewPersistentDeallocator()
+	deallocationListsToCommit := map[types.SnapshotID]*types.ListRoot{}
+
+	persistentAddress, err := persistentAllocator.Allocate()
+	requireT.NoError(err)
+
+	listRoot, err := deallocateNode(appState, 10, 10, persistentAddress,
+		deallocationListsToCommit, volatileAllocator, persistentAllocator, persistentDeallocator, false)
+	requireT.NoError(err)
+	requireT.Zero(listRoot.VolatileAddress)
+	requireT.Zero(listRoot.PersistentAddress)
+	requireT.Empty(deallocationListsToCommit)
+
+	for {
+		if _, err := persistentAllocator.Allocate(); err != nil {
+			break
+		}
+	}
+
+	persistentDeallocator.Deallocate(0x00)
+	appState.Commit()
+
+	_, err = persistentAllocator.Allocate()
+	requireT.NoError(err)
+
+	deallocatedPersistentAddress, err := persistentAllocator.Allocate()
+	requireT.NoError(err)
+
+	requireT.Equal(persistentAddress, deallocatedPersistentAddress)
+}
+
 func TestPipe01PrepareTransactionsDoesNothingIfTransactionIsNil(t *testing.T) {
 	requireT := require.New(t)
 
@@ -35,7 +109,7 @@ func TestPipe01PrepareTransactionsDoesNothingIfTransactionIsNil(t *testing.T) {
 }
 
 func newSpace(t *testing.T) *space.Space[txtypes.Account, txtypes.Amount] {
-	state := state.NewForTest(t, stateSize)
+	appState := state.NewForTest(t, stateSize)
 
 	dataNodeAssistant, err := space.NewDataNodeAssistant[txtypes.Account, txtypes.Amount]()
 	require.NoError(t, err)
@@ -45,7 +119,7 @@ func newSpace(t *testing.T) *space.Space[txtypes.Account, txtypes.Amount] {
 			Pointer: &types.Pointer{},
 			Hash:    &types.Hash{},
 		},
-		State:             state,
+		State:             appState,
 		DataNodeAssistant: dataNodeAssistant,
 		DeletionCounter:   lo.ToPtr[uint64](0),
 		NoSnapshots:       false,
