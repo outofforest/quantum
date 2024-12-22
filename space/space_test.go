@@ -1,6 +1,3 @@
-// GitHub actions run on machines not supporting AVX-512 instructions.
-//go:build nogithub
-
 package space
 
 import (
@@ -2294,7 +2291,7 @@ func TestSpaceDeallocation(t *testing.T) {
 	const numOfItems = 1000
 
 	appState := state.NewForTest(t, stateSize)
-	tx := pipeline.NewTransactionRequestFactory().New()
+	txFactory := pipeline.NewTransactionRequestFactory()
 
 	s := NewSpaceTest[uint64, uint64](t, appState, nil, false)
 
@@ -2306,8 +2303,11 @@ func TestSpaceDeallocation(t *testing.T) {
 			Key:     i,
 			KeyHash: types.KeyHash(i + 1),
 		}, StageData)
+
+		tx := txFactory.New()
 		requireT.NoError(s.SetKey(tx, v, i))
-		for i := range v.storeRequest.PointersToStore {
+		requireT.NotNil(tx.StoreRequest)
+		for i := range tx.StoreRequest.PointersToStore {
 			if v.storeRequest.Store[i].Pointer.PersistentAddress != 0 {
 				continue
 			}

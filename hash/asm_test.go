@@ -1,8 +1,3 @@
-// GitHub actions run on machines not supporting AVX-512 instructions.
-//go:build nogithub
-
-//nolint:lll
-
 package hash
 
 import (
@@ -44,7 +39,7 @@ var (
 )
 
 func TestBlake3OneMessage(t *testing.T) {
-	for i := range len(zeroMatrix) {
+	for i := range zeroMatrix {
 		matrix := zeroMatrix
 		matrix[i] = on
 
@@ -93,7 +88,7 @@ func TestBlake3Zeros(t *testing.T) {
 }
 
 func TestLastHashIsStored(t *testing.T) {
-	for i := range len(zeroMatrix) {
+	for i := range zeroMatrix {
 		matrix := zeroMatrix
 		matrix[i] = on
 
