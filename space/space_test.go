@@ -2386,3 +2386,38 @@ func TestSpaceDeallocation(t *testing.T) {
 	requireT.Equal(expectedVolatileAddresses, volatileAddresses)
 	requireT.Equal(expectedPersistentAddresses, persistentAddresses)
 }
+
+// TestNodesToStoreOnRootNode verifies that correct store requests are produced when setting items in the root node.
+func TestNodesToStoreOnRootNode(t *testing.T) {
+	requireT := require.New(t)
+
+	appState := state.NewForTest(t, stateSize)
+	txFactory := pipeline.NewTransactionRequestFactory()
+
+	s := NewSpaceTest[uint64, uint64](t, appState, nil, false)
+
+	tx := txFactory.New()
+	numOfItems := s.s.config.DataNodeAssistant.NumOfItems()
+	for i := range numOfItems {
+		v := s.NewEntry(TestKey[uint64]{
+			Key:     i,
+			KeyHash: types.KeyHash(i + 1),
+		}, StageData)
+
+		requireT.NoError(s.SetKey(tx, v, i))
+	}
+
+	var count uint64
+	for sr := tx.StoreRequest; sr != nil; sr = sr.Next {
+		count++
+		requireT.Equal(int8(1), sr.PointersToStore)
+		requireT.Equal(s.s.config.SpaceRoot.Pointer.VolatileAddress, sr.Store[0].VolatileAddress)
+		requireT.Equal(s.s.config.SpaceRoot.Pointer.VolatileAddress, sr.Store[0].Pointer.VolatileAddress)
+		requireT.Zero(sr.Store[0].Pointer.PersistentAddress)
+		requireT.Zero(sr.Store[0].Pointer.SnapshotID)
+		requireT.Zero(sr.Store[0].Pointer.Revision)
+		requireT.NotNil(sr.Store[0].Hash)
+	}
+
+	requireT.Equal(numOfItems, count)
+}
