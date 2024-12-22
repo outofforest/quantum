@@ -102,7 +102,9 @@ func (s *State) NewPersistentWriter() (*Writer, error) {
 
 // SingularityNodeRoot returns node root of singularity node.
 func (s *State) SingularityNodeRoot(snapshotID types.SnapshotID) types.ToStore {
-	return s.singularityNodeRoots[snapshotID%numOfPersistentSingularityNodes]
+	toStore := s.singularityNodeRoots[snapshotID%numOfPersistentSingularityNodes]
+	toStore.Pointer.SnapshotID = snapshotID
+	return toStore
 }
 
 // Node returns node bytes.
