@@ -1,5 +1,3 @@
-//nolint:lll
-
 package hash
 
 import (
