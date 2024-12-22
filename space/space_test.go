@@ -2421,3 +2421,64 @@ func TestNodesToStoreOnRootNode(t *testing.T) {
 
 	requireT.Equal(numOfItems, count)
 }
+
+// TestNodesToStoreOnParentNodeCreation verifies that correct store requests are produced when new pointer node
+// is created.
+func TestNodesToStoreOnParentNodeCreation(t *testing.T) {
+	requireT := require.New(t)
+
+	const keyHash = 1
+
+	appState := state.NewForTest(t, stateSize)
+	txFactory := pipeline.NewTransactionRequestFactory()
+
+	s := NewSpaceTest[uint64, uint64](t, appState, nil, false)
+
+	numOfItems := s.s.config.DataNodeAssistant.NumOfItems()
+	for i := range numOfItems {
+		v := s.NewEntry(TestKey[uint64]{
+			Key:     i,
+			KeyHash: keyHash,
+		}, StageData)
+
+		tx := txFactory.New()
+		requireT.NoError(s.SetKey(tx, v, i))
+		requireT.NotNil(tx.StoreRequest)
+		requireT.Equal(int8(1), tx.StoreRequest.PointersToStore)
+		requireT.Nil(tx.StoreRequest.Next)
+	}
+
+	oldRootVolatileAddress := s.s.config.SpaceRoot.Pointer.VolatileAddress
+
+	v := s.NewEntry(TestKey[uint64]{
+		Key:     numOfItems,
+		KeyHash: keyHash,
+	}, StageData)
+
+	tx := txFactory.New()
+	requireT.NoError(s.SetKey(tx, v, numOfItems))
+	requireT.NotEqual(oldRootVolatileAddress, s.s.config.SpaceRoot.Pointer.VolatileAddress)
+
+	pointerNode := ProjectPointerNode(appState.Node(s.s.config.SpaceRoot.Pointer.VolatileAddress))
+
+	sr := tx.StoreRequest
+	requireT.NotNil(sr)
+	requireT.Equal(int8(1), sr.PointersToStore)
+	requireT.Equal(pointerNode.Pointers[0].VolatileAddress, sr.Store[0].VolatileAddress)
+	requireT.Equal(pointerNode.Pointers[0].VolatileAddress, sr.Store[0].Pointer.VolatileAddress)
+
+	sr = sr.Next
+	requireT.NotNil(sr)
+	requireT.Equal(int8(1), sr.PointersToStore)
+	requireT.Equal(pointerNode.Pointers[NumOfPointers/2].VolatileAddress, sr.Store[0].VolatileAddress)
+	requireT.Equal(pointerNode.Pointers[NumOfPointers/2].VolatileAddress, sr.Store[0].Pointer.VolatileAddress)
+
+	sr = sr.Next
+	requireT.NotNil(sr)
+	requireT.Equal(int8(2), sr.PointersToStore)
+	requireT.Equal(s.s.config.SpaceRoot.Pointer.VolatileAddress, sr.Store[0].VolatileAddress)
+	requireT.Equal(s.s.config.SpaceRoot.Pointer.VolatileAddress, sr.Store[0].Pointer.VolatileAddress)
+	requireT.Equal(pointerNode.Pointers[0].VolatileAddress, sr.Store[1].VolatileAddress)
+	requireT.Equal(pointerNode.Pointers[0].VolatileAddress, sr.Store[1].Pointer.VolatileAddress)
+	requireT.Nil(sr.Next)
+}
