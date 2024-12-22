@@ -254,7 +254,7 @@ func pipe01PrepareTransaction(balanceSpace *space.Space[txtypes.Account, txtypes
 }
 
 func pipe02ExecuteTransaction(
-	state *state.State,
+	appState *state.State,
 	snapshotID *types.SnapshotID,
 	snapshotInfo *types.SnapshotInfo,
 	snapshotSpace *space.Space[types.SnapshotID, types.SnapshotInfo],
@@ -262,10 +262,10 @@ func pipe02ExecuteTransaction(
 	deallocationNodeAssistant *space.DataNodeAssistant[deallocationKey, types.ListRoot],
 	balanceSpace *space.Space[txtypes.Account, txtypes.Amount],
 ) pipeline.TxFunc {
-	volatileAllocator := state.NewVolatileAllocator()
-	volatileDeallocator := state.NewVolatileDeallocator()
-	persistentAllocator := state.NewPersistentAllocator()
-	persistentDeallocator := state.NewPersistentDeallocator()
+	volatileAllocator := appState.NewVolatileAllocator()
+	volatileDeallocator := appState.NewVolatileDeallocator()
+	persistentAllocator := appState.NewPersistentAllocator()
+	persistentDeallocator := appState.NewPersistentDeallocator()
 
 	deallocationListsToCommit := map[types.SnapshotID]*types.ListRoot{}
 
@@ -277,7 +277,7 @@ func pipe02ExecuteTransaction(
 					return 0, err
 				}
 			case *deleteSnapshotTx:
-				if err := deleteSnapshot(*snapshotID, t.SnapshotID, state, tx, volatileAllocator,
+				if err := deleteSnapshot(*snapshotID, t.SnapshotID, appState, tx, volatileAllocator,
 					volatileDeallocator, persistentDeallocator, snapshotSpace, deallocationNodeAssistant); err != nil {
 					return 0, err
 				}
@@ -303,7 +303,7 @@ func pipe02ExecuteTransaction(
 				//nolint:nestif
 				if root.Pointer.SnapshotID != *snapshotID {
 					if root.Pointer.PersistentAddress != 0 {
-						listNodePointer, err := deallocateNode(state, root.Pointer.SnapshotID, *snapshotID,
+						listNodePointer, err := deallocateNode(appState, root.Pointer.SnapshotID, *snapshotID,
 							root.Pointer.PersistentAddress, deallocationListsToCommit, volatileAllocator,
 							persistentAllocator, persistentDeallocator, sr.NoSnapshots)
 						if err != nil {
@@ -343,7 +343,7 @@ func pipe02ExecuteTransaction(
 		}
 
 		if tx.Type == pipeline.Commit {
-			if err := commit(*snapshotID, *snapshotInfo, tx, state, deallocationListsToCommit, volatileAllocator,
+			if err := commit(*snapshotID, *snapshotInfo, tx, appState, deallocationListsToCommit, volatileAllocator,
 				persistentAllocator, persistentDeallocator, snapshotSpace, deallocationListSpace); err != nil {
 				return 0, err
 			}
@@ -353,7 +353,7 @@ func pipe02ExecuteTransaction(
 	}
 }
 
-func pipe03UpdateDataHashes(state *state.State, modMask, mod uint64) pipeline.TxFunc {
+func pipe03UpdateDataHashes(appState *state.State, modMask, mod uint64) pipeline.TxFunc {
 	var matrix [16]*byte
 	matrixP := &matrix[0]
 
@@ -380,7 +380,7 @@ func pipe03UpdateDataHashes(state *state.State, modMask, mod uint64) pipeline.Tx
 			}
 
 			mask |= 1 << slotIndex
-			matrix[slotIndex] = (*byte)(state.Node(volatileAddress))
+			matrix[slotIndex] = (*byte)(appState.Node(volatileAddress))
 			hashes[slotIndex] = &sr.Store[index].Hash[0]
 
 			slotIndex++
@@ -468,7 +468,7 @@ func (s *slot) Read() error {
 	return nil
 }
 
-func pipe04UpdatePointerHashes(state *state.State) pipeline.TxFunc {
+func pipe04UpdatePointerHashes(appState *state.State) pipeline.TxFunc {
 	r := &reader{}
 
 	var slots [16]*slot
@@ -554,7 +554,7 @@ func pipe04UpdatePointerHashes(state *state.State) pipeline.TxFunc {
 				}
 
 				mask |= 1 << ri
-				matrix[ri] = (*byte)(state.Node(r.StoreRequest.Store[r.PointerIndex].VolatileAddress))
+				matrix[ri] = (*byte)(appState.Node(r.StoreRequest.Store[r.PointerIndex].VolatileAddress))
 				hashes[ri] = &r.StoreRequest.Store[r.PointerIndex].Hash[0]
 			}
 
@@ -608,7 +608,7 @@ func pipe05StoreNodes(storeWriter *state.Writer) pipeline.TxFunc {
 func deleteSnapshot(
 	snapshotID types.SnapshotID,
 	deleteSnapshotID types.SnapshotID,
-	state *state.State,
+	appState *state.State,
 	tx *pipeline.TransactionRequest,
 	volatileAllocator *state.Allocator[types.VolatileAddress],
 	volatileDeallocator *state.Deallocator[types.VolatileAddress],
@@ -645,7 +645,7 @@ func deleteSnapshot(
 	deallocationLists := space.New[deallocationKey, types.ListRoot](
 		space.Config[deallocationKey, types.ListRoot]{
 			SpaceRoot:         deallocationListsRoot,
-			State:             state,
+			State:             appState,
 			DataNodeAssistant: deallocationNodeAssistant,
 			DeletionCounter:   lo.ToPtr[uint64](0),
 			NoSnapshots:       true,
@@ -654,14 +654,14 @@ func deleteSnapshot(
 
 	for nextDeallocSnapshot := range space.IteratorAndDeallocator(
 		nextSnapshotInfo.DeallocationRoot,
-		state,
+		appState,
 		deallocationNodeAssistant,
 		volatileDeallocator,
 		persistentDeallocator,
 	) {
 		if nextDeallocSnapshot.Key.SnapshotID > snapshotInfo.PreviousSnapshotID &&
 			nextDeallocSnapshot.Key.SnapshotID <= deleteSnapshotID {
-			if err := list.Deallocate(nextDeallocSnapshot.Value, state, volatileDeallocator,
+			if err := list.Deallocate(nextDeallocSnapshot.Value, appState, volatileDeallocator,
 				persistentDeallocator); err != nil {
 				return err
 			}
@@ -706,7 +706,7 @@ func commit(
 	snapshotID types.SnapshotID,
 	snapshotInfo types.SnapshotInfo,
 	tx *pipeline.TransactionRequest,
-	state *state.State,
+	appState *state.State,
 	deallocationListsToCommit map[types.SnapshotID]*types.ListRoot,
 	volatileAllocator *state.Allocator[types.VolatileAddress],
 	persistentAllocator *state.Allocator[types.PersistentAddress],
@@ -802,7 +802,7 @@ func commit(
 		PointersToStore: 1,
 		NoSnapshots:     true,
 	}
-	sr.Store[0] = state.SingularityNodeRoot(snapshotID)
+	sr.Store[0] = appState.SingularityNodeRoot(snapshotID)
 	sr.Store[0].Pointer.Revision = uintptr(unsafe.Pointer(sr))
 	tx.AddStoreRequest(sr)
 
@@ -810,7 +810,7 @@ func commit(
 }
 
 func deallocateNode(
-	state *state.State,
+	appState *state.State,
 	snapshotID types.SnapshotID,
 	nodeSnapshotID types.SnapshotID,
 	nodeAddress types.PersistentAddress,
@@ -834,7 +834,7 @@ func deallocateNode(
 		deallocationListsToCommit[nodeSnapshotID] = listRoot
 	}
 
-	return list.Add(listRoot, nodeAddress, state, volatileAllocator, persistentAllocator)
+	return list.Add(listRoot, nodeAddress, appState, volatileAllocator, persistentAllocator)
 }
 
 // GetSpace retrieves space from snapshot.

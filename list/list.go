@@ -9,7 +9,7 @@ import (
 func Add(
 	listRoot *types.ListRoot,
 	nodeAddress types.PersistentAddress,
-	state *state.State,
+	appState *state.State,
 	volatileAllocator *state.Allocator[types.VolatileAddress],
 	persistentAllocator *state.Allocator[types.PersistentAddress],
 ) (types.ListRoot, error) {
@@ -23,7 +23,7 @@ func Add(
 		if err != nil {
 			return types.ListRoot{}, err
 		}
-		n := projectNode(state.Node(listRoot.VolatileAddress))
+		n := projectNode(appState.Node(listRoot.VolatileAddress))
 
 		n.Slots[0] = nodeAddress
 		n.NumOfPointerAddresses = 1
@@ -33,7 +33,7 @@ func Add(
 		return types.ListRoot{}, nil
 	}
 
-	n := projectNode(state.Node(listRoot.VolatileAddress))
+	n := projectNode(appState.Node(listRoot.VolatileAddress))
 	if n.NumOfPointerAddresses < numOfAddresses {
 		n.Slots[n.NumOfPointerAddresses] = nodeAddress
 		n.NumOfPointerAddresses++
@@ -53,7 +53,7 @@ func Add(
 	if err != nil {
 		return types.ListRoot{}, err
 	}
-	n = projectNode(state.Node(listRoot.VolatileAddress))
+	n = projectNode(appState.Node(listRoot.VolatileAddress))
 
 	n.Slots[0] = nodeAddress
 	n.NumOfPointerAddresses = 1
@@ -65,7 +65,7 @@ func Add(
 // Deallocate deallocates nodes referenced by the list.
 func Deallocate(
 	listRoot types.ListRoot,
-	state *state.State,
+	appState *state.State,
 	volatileDeallocator *state.Deallocator[types.VolatileAddress],
 	persistentDeallocator *state.Deallocator[types.PersistentAddress],
 ) error {
@@ -74,7 +74,7 @@ func Deallocate(
 		volatileDeallocator.Deallocate(listRoot.VolatileAddress)
 		persistentDeallocator.Deallocate(listRoot.PersistentAddress)
 
-		n := projectNode(state.Node(listRoot.VolatileAddress))
+		n := projectNode(appState.Node(listRoot.VolatileAddress))
 		for i := range n.NumOfPointerAddresses {
 			persistentDeallocator.Deallocate(n.Slots[i])
 		}
