@@ -299,6 +299,7 @@ func (s *Space[K, V]) set(
 		s.config.State.Clear(volatileAddress)
 
 		store(&v.storeRequest.Store[v.storeRequest.PointersToStore-1].Pointer.VolatileAddress, volatileAddress)
+		v.storeRequest.Store[v.storeRequest.PointersToStore-1].VolatileAddress = volatileAddress
 	}
 
 	// Starting from here the data node is allocated.
