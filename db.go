@@ -657,8 +657,7 @@ func deleteSnapshot(
 		volatileDeallocator,
 		persistentDeallocator,
 	) {
-		if nextDeallocSnapshot.Key.SnapshotID > snapshotInfo.PreviousSnapshotID &&
-			nextDeallocSnapshot.Key.SnapshotID <= deleteSnapshotID {
+		if nextDeallocSnapshot.Key.SnapshotID > snapshotInfo.PreviousSnapshotID {
 			if err := list.Deallocate(nextDeallocSnapshot.Value, appState, volatileDeallocator,
 				persistentDeallocator); err != nil {
 				return err
