@@ -628,8 +628,6 @@ func deleteSnapshot(
 	}
 	snapshotInfo := snapshotSpace.ReadKey(&snapshotInfoValue)
 
-	snapshotSpace.DeleteKey(&snapshotInfoValue, tx)
-
 	var nextSnapshotInfoValue space.Entry[types.SnapshotID, types.SnapshotInfo]
 	snapshotSpace.Find(&nextSnapshotInfoValue, snapshotInfo.NextSnapshotID, space.StageData)
 
@@ -676,6 +674,8 @@ func deleteSnapshot(
 			return err
 		}
 	}
+
+	snapshotSpace.DeleteKey(&snapshotInfoValue, tx)
 
 	nextSnapshotInfo.DeallocationRoot = snapshotInfo.DeallocationRoot
 	nextSnapshotInfo.PreviousSnapshotID = snapshotInfo.PreviousSnapshotID
