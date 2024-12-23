@@ -594,7 +594,7 @@ func TestDeletingNonExistingSnapshotFails(t *testing.T) {
 	requireT.Nil(tx.ListRequest)
 }
 
-func TestDeletingWithoutDeallocationLists(t *testing.T) {
+func TestDeletingSnapshotWithoutDeallocationLists(t *testing.T) {
 	requireT := require.New(t)
 
 	const (
@@ -702,7 +702,7 @@ func TestDeletingWithoutDeallocationLists(t *testing.T) {
 	requireT.Nil(sr)
 }
 
-func TestDeletingWithDeallocationListsWhichShouldNotBeDeallocated(t *testing.T) {
+func TestDeletingSnapshotWithDeallocationListsWhichShouldNotBeDeallocated(t *testing.T) {
 	requireT := require.New(t)
 
 	const (
