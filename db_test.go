@@ -594,6 +594,134 @@ func TestDeletingNonExistingSnapshotFails(t *testing.T) {
 	requireT.Nil(tx.ListRequest)
 }
 
+func TestDeletingSnapshotFailsIfPreviousSnapshotDosNotExist(t *testing.T) {
+	requireT := require.New(t)
+
+	const (
+		snapshotID       types.SnapshotID = 10
+		deleteSnapshotID types.SnapshotID = 8
+	)
+
+	appState := state.NewForTest(t, 20*types.NodeLength)
+	txFactory := pipeline.NewTransactionRequestFactory()
+	volatileAllocator := appState.NewVolatileAllocator()
+	volatileDeallocator := appState.NewVolatileDeallocator()
+	persistentAllocator := appState.NewPersistentAllocator()
+	persistentDeallocator := appState.NewPersistentDeallocator()
+
+	deallocationNodeAssistant, err := space.NewDataNodeAssistant[deallocationKey, types.ListRoot]()
+	requireT.NoError(err)
+
+	snapshotInfoNodeAssistant, err := space.NewDataNodeAssistant[types.SnapshotID, types.SnapshotInfo]()
+	requireT.NoError(err)
+
+	var snapshotRoot types.Pointer
+
+	snapshotSpace := space.New[types.SnapshotID, types.SnapshotInfo](space.Config[types.SnapshotID, types.SnapshotInfo]{
+		SpaceRoot: types.NodeRoot{
+			Pointer: &snapshotRoot,
+		},
+		State:             appState,
+		DataNodeAssistant: snapshotInfoNodeAssistant,
+		DeletionCounter:   lo.ToPtr[uint64](0),
+		NoSnapshots:       true,
+	})
+
+	tx := txFactory.New()
+	var snapshotEntry1 space.Entry[types.SnapshotID, types.SnapshotInfo]
+	snapshotSpace.Find(&snapshotEntry1, deleteSnapshotID, space.StageData)
+	requireT.NoError(snapshotSpace.SetKey(&snapshotEntry1, tx, volatileAllocator, types.SnapshotInfo{
+		PreviousSnapshotID: deleteSnapshotID - 1,
+		NextSnapshotID:     deleteSnapshotID + 1,
+	}))
+
+	var snapshotEntry2 space.Entry[types.SnapshotID, types.SnapshotInfo]
+	snapshotSpace.Find(&snapshotEntry2, deleteSnapshotID+1, space.StageData)
+	requireT.NoError(snapshotSpace.SetKey(&snapshotEntry2, tx, volatileAllocator, types.SnapshotInfo{
+		PreviousSnapshotID: deleteSnapshotID,
+		NextSnapshotID:     deleteSnapshotID + 2,
+	}))
+
+	for {
+		if _, err := volatileAllocator.Allocate(); err != nil {
+			break
+		}
+	}
+	for {
+		if _, err := persistentAllocator.Allocate(); err != nil {
+			break
+		}
+	}
+
+	tx = txFactory.New()
+	requireT.Error(deleteSnapshot(snapshotID, deleteSnapshotID, appState, tx, volatileAllocator, volatileDeallocator,
+		persistentDeallocator, snapshotSpace, deallocationNodeAssistant))
+}
+
+func TestDeletingSnapshotFailsIfNextSnapshotDosNotExist(t *testing.T) {
+	requireT := require.New(t)
+
+	const (
+		snapshotID       types.SnapshotID = 10
+		deleteSnapshotID types.SnapshotID = 8
+	)
+
+	appState := state.NewForTest(t, 20*types.NodeLength)
+	txFactory := pipeline.NewTransactionRequestFactory()
+	volatileAllocator := appState.NewVolatileAllocator()
+	volatileDeallocator := appState.NewVolatileDeallocator()
+	persistentAllocator := appState.NewPersistentAllocator()
+	persistentDeallocator := appState.NewPersistentDeallocator()
+
+	deallocationNodeAssistant, err := space.NewDataNodeAssistant[deallocationKey, types.ListRoot]()
+	requireT.NoError(err)
+
+	snapshotInfoNodeAssistant, err := space.NewDataNodeAssistant[types.SnapshotID, types.SnapshotInfo]()
+	requireT.NoError(err)
+
+	var snapshotRoot types.Pointer
+
+	snapshotSpace := space.New[types.SnapshotID, types.SnapshotInfo](space.Config[types.SnapshotID, types.SnapshotInfo]{
+		SpaceRoot: types.NodeRoot{
+			Pointer: &snapshotRoot,
+		},
+		State:             appState,
+		DataNodeAssistant: snapshotInfoNodeAssistant,
+		DeletionCounter:   lo.ToPtr[uint64](0),
+		NoSnapshots:       true,
+	})
+
+	tx := txFactory.New()
+	var snapshotEntry1 space.Entry[types.SnapshotID, types.SnapshotInfo]
+	snapshotSpace.Find(&snapshotEntry1, deleteSnapshotID, space.StageData)
+	requireT.NoError(snapshotSpace.SetKey(&snapshotEntry1, tx, volatileAllocator, types.SnapshotInfo{
+		PreviousSnapshotID: deleteSnapshotID - 1,
+		NextSnapshotID:     deleteSnapshotID + 1,
+	}))
+
+	var snapshotEntry2 space.Entry[types.SnapshotID, types.SnapshotInfo]
+	snapshotSpace.Find(&snapshotEntry2, deleteSnapshotID-1, space.StageData)
+	requireT.NoError(snapshotSpace.SetKey(&snapshotEntry2, tx, volatileAllocator, types.SnapshotInfo{
+		PreviousSnapshotID: deleteSnapshotID - 2,
+		NextSnapshotID:     deleteSnapshotID,
+	}))
+
+	for {
+		if _, err := volatileAllocator.Allocate(); err != nil {
+			break
+		}
+	}
+	for {
+		if _, err := persistentAllocator.Allocate(); err != nil {
+			break
+		}
+	}
+
+	tx = txFactory.New()
+	requireT.Error(deleteSnapshot(snapshotID, deleteSnapshotID, appState, tx, volatileAllocator, volatileDeallocator,
+		persistentDeallocator, snapshotSpace, deallocationNodeAssistant))
+}
+
 func TestDeletingSnapshotWithoutDeallocationLists(t *testing.T) {
 	requireT := require.New(t)
 
@@ -1174,6 +1302,240 @@ func TestDeletingSnapshotWithDeallocationListsWhichShouldBeDeallocated(t *testin
 	sr := tx.StoreRequest
 
 	for range 3 {
+		requireT.NotNil(sr)
+		requireT.True(sr.NoSnapshots)
+		requireT.Equal(int8(1), sr.PointersToStore)
+		requireT.Equal(snapshotRoot, *sr.Store[0].Pointer)
+		requireT.Equal(snapshotRoot.VolatileAddress, sr.Store[0].VolatileAddress)
+		requireT.Zero(snapshotRoot.PersistentAddress)
+		requireT.Zero(snapshotRoot.SnapshotID)
+		requireT.Zero(snapshotRoot.Revision)
+		sr = sr.Next
+	}
+	requireT.Nil(sr)
+}
+
+func TestDeletingTheOldestSnapshot(t *testing.T) {
+	requireT := require.New(t)
+
+	const (
+		snapshotID       types.SnapshotID = 10
+		nextSnapshotID   types.SnapshotID = 9
+		deleteSnapshotID types.SnapshotID = 3
+	)
+
+	appState := state.NewForTest(t, 20*types.NodeLength)
+	txFactory := pipeline.NewTransactionRequestFactory()
+	volatileAllocator := appState.NewVolatileAllocator()
+	volatileDeallocator := appState.NewVolatileDeallocator()
+	persistentAllocator := appState.NewPersistentAllocator()
+	persistentDeallocator := appState.NewPersistentDeallocator()
+
+	deallocationNodeAssistant, err := space.NewDataNodeAssistant[deallocationKey, types.ListRoot]()
+	requireT.NoError(err)
+
+	snapshotInfoNodeAssistant, err := space.NewDataNodeAssistant[types.SnapshotID, types.SnapshotInfo]()
+	requireT.NoError(err)
+
+	var snapshotRoot types.Pointer
+
+	snapshotSpace := space.New[types.SnapshotID, types.SnapshotInfo](space.Config[types.SnapshotID, types.SnapshotInfo]{
+		SpaceRoot: types.NodeRoot{
+			Pointer: &snapshotRoot,
+		},
+		State:             appState,
+		DataNodeAssistant: snapshotInfoNodeAssistant,
+		DeletionCounter:   lo.ToPtr[uint64](0),
+		NoSnapshots:       true,
+	})
+
+	tx := txFactory.New()
+	var snapshotEntry1 space.Entry[types.SnapshotID, types.SnapshotInfo]
+	snapshotSpace.Find(&snapshotEntry1, deleteSnapshotID, space.StageData)
+	requireT.NoError(snapshotSpace.SetKey(&snapshotEntry1, tx, volatileAllocator, types.SnapshotInfo{
+		PreviousSnapshotID: 0,
+		NextSnapshotID:     nextSnapshotID,
+	}))
+
+	var deallocationRoot types.Pointer
+
+	deallocationListSpace := space.New[deallocationKey, types.ListRoot](
+		space.Config[deallocationKey, types.ListRoot]{
+			SpaceRoot: types.NodeRoot{
+				Pointer: &deallocationRoot,
+			},
+			State:             appState,
+			DataNodeAssistant: deallocationNodeAssistant,
+			DeletionCounter:   lo.ToPtr[uint64](0),
+			NoSnapshots:       true,
+		},
+	)
+
+	var list1, list2, list3 types.ListRoot
+	_, err = list.Add(&list1, 500, appState, volatileAllocator, persistentAllocator)
+	requireT.NoError(err)
+	_, err = list.Add(&list1, 501, appState, volatileAllocator, persistentAllocator)
+	requireT.NoError(err)
+	_, err = list.Add(&list2, 600, appState, volatileAllocator, persistentAllocator)
+	requireT.NoError(err)
+	_, err = list.Add(&list2, 601, appState, volatileAllocator, persistentAllocator)
+	requireT.NoError(err)
+	_, err = list.Add(&list3, 700, appState, volatileAllocator, persistentAllocator)
+	requireT.NoError(err)
+	_, err = list.Add(&list3, 701, appState, volatileAllocator, persistentAllocator)
+	requireT.NoError(err)
+
+	list1PersistentAddress, err := persistentAllocator.Allocate()
+	requireT.NoError(err)
+
+	list2PersistentAddress, err := persistentAllocator.Allocate()
+	requireT.NoError(err)
+
+	list3PersistentAddress, err := persistentAllocator.Allocate()
+	requireT.NoError(err)
+
+	list1.PersistentAddress = list1PersistentAddress
+	list2.PersistentAddress = list2PersistentAddress
+	list3.PersistentAddress = list3PersistentAddress
+
+	list1Key := deallocationKey{
+		ListSnapshotID: nextSnapshotID,
+		SnapshotID:     deleteSnapshotID - 2,
+	}
+	var deallocEntry1 space.Entry[deallocationKey, types.ListRoot]
+	deallocationListSpace.Find(&deallocEntry1, list1Key, space.StageData)
+	requireT.NoError(deallocationListSpace.SetKey(&deallocEntry1, tx, volatileAllocator, list1))
+
+	list2Key := deallocationKey{
+		ListSnapshotID: nextSnapshotID,
+		SnapshotID:     deleteSnapshotID - 1,
+	}
+	var deallocEntry2 space.Entry[deallocationKey, types.ListRoot]
+	deallocationListSpace.Find(&deallocEntry2, list2Key, space.StageData)
+	requireT.NoError(deallocationListSpace.SetKey(&deallocEntry2, tx, volatileAllocator, list2))
+
+	list3Key := deallocationKey{
+		ListSnapshotID: nextSnapshotID,
+		SnapshotID:     deleteSnapshotID,
+	}
+	var deallocEntry3 space.Entry[deallocationKey, types.ListRoot]
+	deallocationListSpace.Find(&deallocEntry3, list3Key, space.StageData)
+	requireT.NoError(deallocationListSpace.SetKey(&deallocEntry3, tx, volatileAllocator, list3))
+
+	deallocationRootPersistentAdress, err := persistentAllocator.Allocate()
+	requireT.NoError(err)
+	deallocationRoot.PersistentAddress = deallocationRootPersistentAdress
+	deallocationRoot.SnapshotID = nextSnapshotID
+
+	var snapshotEntry2 space.Entry[types.SnapshotID, types.SnapshotInfo]
+	snapshotSpace.Find(&snapshotEntry2, nextSnapshotID, space.StageData)
+	requireT.NoError(snapshotSpace.SetKey(&snapshotEntry2, tx, volatileAllocator, types.SnapshotInfo{
+		PreviousSnapshotID: deleteSnapshotID,
+		NextSnapshotID:     nextSnapshotID + 1,
+		DeallocationRoot:   deallocationRoot,
+	}))
+
+	for {
+		if _, err := volatileAllocator.Allocate(); err != nil {
+			break
+		}
+	}
+	for {
+		if _, err := persistentAllocator.Allocate(); err != nil {
+			break
+		}
+	}
+
+	tx = txFactory.New()
+	requireT.NoError(deleteSnapshot(snapshotID, deleteSnapshotID, appState, tx, volatileAllocator, volatileDeallocator,
+		persistentDeallocator, snapshotSpace, deallocationNodeAssistant))
+
+	volatileDeallocator.Deallocate(0x100)
+	persistentDeallocator.Deallocate(0x100)
+	appState.Commit()
+
+	_, err = volatileAllocator.Allocate()
+	requireT.NoError(err)
+
+	_, err = persistentAllocator.Allocate()
+	requireT.NoError(err)
+
+	volatileAddress, err := volatileAllocator.Allocate()
+	requireT.NoError(err)
+	requireT.Equal(deallocationRoot.VolatileAddress, volatileAddress)
+
+	persistentAddress, err := persistentAllocator.Allocate()
+	requireT.NoError(err)
+	requireT.Equal(deallocationRoot.PersistentAddress, persistentAddress)
+
+	volatileAddress, err = volatileAllocator.Allocate()
+	requireT.NoError(err)
+	requireT.Equal(list1.VolatileAddress, volatileAddress)
+
+	persistentAddress, err = persistentAllocator.Allocate()
+	requireT.NoError(err)
+	requireT.Equal(list1.PersistentAddress, persistentAddress)
+
+	persistentAddress, err = persistentAllocator.Allocate()
+	requireT.NoError(err)
+	requireT.Equal(types.PersistentAddress(500), persistentAddress)
+
+	persistentAddress, err = persistentAllocator.Allocate()
+	requireT.NoError(err)
+	requireT.Equal(types.PersistentAddress(501), persistentAddress)
+
+	volatileAddress, err = volatileAllocator.Allocate()
+	requireT.NoError(err)
+	requireT.Equal(list2.VolatileAddress, volatileAddress)
+
+	persistentAddress, err = persistentAllocator.Allocate()
+	requireT.NoError(err)
+	requireT.Equal(list2.PersistentAddress, persistentAddress)
+
+	persistentAddress, err = persistentAllocator.Allocate()
+	requireT.NoError(err)
+	requireT.Equal(types.PersistentAddress(600), persistentAddress)
+
+	persistentAddress, err = persistentAllocator.Allocate()
+	requireT.NoError(err)
+	requireT.Equal(types.PersistentAddress(601), persistentAddress)
+
+	volatileAddress, err = volatileAllocator.Allocate()
+	requireT.NoError(err)
+	requireT.Equal(list3.VolatileAddress, volatileAddress)
+
+	persistentAddress, err = persistentAllocator.Allocate()
+	requireT.NoError(err)
+	requireT.Equal(list3.PersistentAddress, persistentAddress)
+
+	persistentAddress, err = persistentAllocator.Allocate()
+	requireT.NoError(err)
+	requireT.Equal(types.PersistentAddress(700), persistentAddress)
+
+	persistentAddress, err = persistentAllocator.Allocate()
+	requireT.NoError(err)
+	requireT.Equal(types.PersistentAddress(701), persistentAddress)
+
+	_, err = volatileAllocator.Allocate()
+	requireT.Error(err)
+
+	_, err = persistentAllocator.Allocate()
+	requireT.Error(err)
+
+	_, exists := snapshotSpace.Query(deleteSnapshotID)
+	requireT.False(exists)
+
+	sInfo, exists := snapshotSpace.Query(nextSnapshotID)
+	requireT.True(exists)
+	requireT.Equal(snapshotID, sInfo.NextSnapshotID)
+	requireT.Equal(types.SnapshotID(0), sInfo.PreviousSnapshotID)
+	requireT.Zero(sInfo.DeallocationRoot)
+
+	requireT.Nil(tx.ListRequest)
+
+	sr := tx.StoreRequest
+
+	for range 2 {
 		requireT.NotNil(sr)
 		requireT.True(sr.NoSnapshots)
 		requireT.Equal(int8(1), sr.PointersToStore)
