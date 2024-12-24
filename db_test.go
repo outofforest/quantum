@@ -12,6 +12,7 @@ import (
 	"github.com/outofforest/quantum/space"
 	"github.com/outofforest/quantum/state"
 	txtypes "github.com/outofforest/quantum/tx/types"
+	"github.com/outofforest/quantum/tx/types/spaces"
 	"github.com/outofforest/quantum/types"
 )
 
@@ -1896,39 +1897,220 @@ func TestDominoSnapshotDeletion(t *testing.T) {
 	requireT.Error(err)
 }
 
-func TestPipe01PrepareTransactionsDoesNothingIfTransactionIsNil(t *testing.T) {
+func TestDBCommit(t *testing.T) {
+	const count uint64 = 1
+
 	requireT := require.New(t)
 
-	s := newSpace(t)
 	txFactory := pipeline.NewTransactionRequestFactory()
+	p := newPipe(t)
 
-	txFunc := pipe01PrepareTransaction(s)
-	tx := txFactory.New()
+	requireT.Equal(types.SnapshotID(1), p.singularityNode.LastSnapshotID)
+	requireT.Zero(p.singularityNode.SnapshotRoot)
+	requireT.Zero(p.snapshotInfo.PreviousSnapshotID)
+	requireT.Equal(types.SnapshotID(2), p.snapshotInfo.NextSnapshotID)
 
-	const readCount uint64 = 10
-	rCount, err := txFunc(tx, readCount)
+	tx, commitCh := prepareCommitRequest(txFactory)
+
+	c, err := p.Pipe01PrepareTransaction01(tx, count)
 	requireT.NoError(err)
-	requireT.Equal(readCount, rCount)
+	requireT.Equal(count, c)
 
-	requireT.Nil(tx.Transaction)
-	requireT.Nil(tx.StoreRequest)
-	requireT.Nil(tx.ListRequest)
+	c, err = p.Pipe01PrepareTransaction02(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	c, err = p.Pipe01PrepareTransaction03(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	c, err = p.Pipe02ExecuteTransaction(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	c, err = p.Pipe03UpdateDataHashes00(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	c, err = p.Pipe03UpdateDataHashes01(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	c, err = p.Pipe04UpdatePointerHashes(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	c, err = p.Pipe05StoreNodes(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	requireT.Equal(types.SnapshotID(1), p.singularityNode.LastSnapshotID)
+	requireT.Zero(p.snapshotInfo.PreviousSnapshotID)
+	requireT.Equal(types.SnapshotID(2), p.snapshotInfo.NextSnapshotID)
+
+	requireT.NoError(finalizeCommit(commitCh, p.appState, p.singularityNode, p.snapshotInfo))
+
+	requireT.Equal(types.SnapshotID(2), p.singularityNode.LastSnapshotID)
+	requireT.NotZero(p.singularityNode.SnapshotRoot.VolatileAddress)
+	requireT.NotZero(p.singularityNode.SnapshotRoot.PersistentAddress)
+	requireT.Equal(types.SnapshotID(1), p.singularityNode.SnapshotRoot.SnapshotID)
+	requireT.Equal(types.SnapshotID(1), p.snapshotInfo.PreviousSnapshotID)
+	requireT.Equal(types.SnapshotID(3), p.snapshotInfo.NextSnapshotID)
+
+	sInfo, exists := p.snapshotSpace.Query(types.SnapshotID(1))
+	requireT.True(exists)
+	requireT.Equal(types.SnapshotID(0), sInfo.PreviousSnapshotID)
+	requireT.Equal(types.SnapshotID(2), sInfo.NextSnapshotID)
+
+	_, exists = p.snapshotSpace.Query(types.SnapshotID(2))
+	requireT.False(exists)
 }
 
-func newSpace(t *testing.T) *space.Space[txtypes.Account, txtypes.Amount] {
+func newPipe(t *testing.T) *pipe {
 	appState := state.NewForTest(t, stateSize)
+	singularityNode := &types.SingularityNode{}
+	snapshotInfo := &types.SnapshotInfo{}
 
-	dataNodeAssistant, err := space.NewDataNodeAssistant[txtypes.Account, txtypes.Amount]()
+	balanceSpaceDeletionCounter := lo.ToPtr[uint64](0)
+	balanceSpaceDataNodeAssistant, err := space.NewDataNodeAssistant[txtypes.Account, txtypes.Amount]()
 	require.NoError(t, err)
 
-	return space.New[txtypes.Account, txtypes.Amount](space.Config[txtypes.Account, txtypes.Amount]{
+	snapshotInfoNodeAssistant, err := space.NewDataNodeAssistant[types.SnapshotID, types.SnapshotInfo]()
+	require.NoError(t, err)
+
+	deallocationNodeAssistant, err := space.NewDataNodeAssistant[deallocationKey, types.ListRoot]()
+	require.NoError(t, err)
+
+	storeWriter, err := appState.NewPersistentWriter()
+	require.NoError(t, err)
+	t.Cleanup(storeWriter.Close)
+
+	prepareNextSnapshot(singularityNode, snapshotInfo)
+
+	snapshotSpace := space.New[types.SnapshotID, types.SnapshotInfo](space.Config[types.SnapshotID, types.SnapshotInfo]{
 		SpaceRoot: types.NodeRoot{
-			Pointer: &types.Pointer{},
-			Hash:    &types.Hash{},
+			Pointer: &singularityNode.SnapshotRoot,
 		},
 		State:             appState,
-		DataNodeAssistant: dataNodeAssistant,
+		DataNodeAssistant: snapshotInfoNodeAssistant,
 		DeletionCounter:   lo.ToPtr[uint64](0),
-		NoSnapshots:       false,
+		NoSnapshots:       true,
 	})
+
+	return &pipe{
+		appState:        appState,
+		singularityNode: singularityNode,
+		snapshotInfo:    snapshotInfo,
+		snapshotSpace:   snapshotSpace,
+		pipe01PrepareTransaction01: pipe01PrepareTransaction(
+			space.New[txtypes.Account, txtypes.Amount](space.Config[txtypes.Account, txtypes.Amount]{
+				SpaceRoot: types.NodeRoot{
+					Pointer: &snapshotInfo.Spaces[spaces.Balances].Pointer,
+					Hash:    &snapshotInfo.Spaces[spaces.Balances].Hash,
+				},
+				State:             appState,
+				DataNodeAssistant: balanceSpaceDataNodeAssistant,
+				DeletionCounter:   balanceSpaceDeletionCounter,
+				NoSnapshots:       false,
+			}),
+		),
+		pipe01PrepareTransaction02: pipe01PrepareTransaction(
+			space.New[txtypes.Account, txtypes.Amount](space.Config[txtypes.Account, txtypes.Amount]{
+				SpaceRoot: types.NodeRoot{
+					Pointer: &snapshotInfo.Spaces[spaces.Balances].Pointer,
+					Hash:    &snapshotInfo.Spaces[spaces.Balances].Hash,
+				},
+				State:             appState,
+				DataNodeAssistant: balanceSpaceDataNodeAssistant,
+				DeletionCounter:   balanceSpaceDeletionCounter,
+				NoSnapshots:       false,
+			}),
+		),
+		pipe01PrepareTransaction03: pipe01PrepareTransaction(
+			space.New[txtypes.Account, txtypes.Amount](space.Config[txtypes.Account, txtypes.Amount]{
+				SpaceRoot: types.NodeRoot{
+					Pointer: &snapshotInfo.Spaces[spaces.Balances].Pointer,
+					Hash:    &snapshotInfo.Spaces[spaces.Balances].Hash,
+				},
+				State:             appState,
+				DataNodeAssistant: balanceSpaceDataNodeAssistant,
+				DeletionCounter:   balanceSpaceDeletionCounter,
+				NoSnapshots:       false,
+			}),
+		),
+		pipe02ExecuteTransaction: pipe02ExecuteTransaction(appState, &singularityNode.LastSnapshotID, snapshotInfo,
+			snapshotSpace,
+			space.New[deallocationKey, types.ListRoot](space.Config[deallocationKey, types.ListRoot]{
+				SpaceRoot: types.NodeRoot{
+					Pointer: &snapshotInfo.DeallocationRoot,
+				},
+				State:             appState,
+				DataNodeAssistant: deallocationNodeAssistant,
+				DeletionCounter:   lo.ToPtr[uint64](0),
+				NoSnapshots:       true,
+			}),
+			deallocationNodeAssistant,
+			space.New[txtypes.Account, txtypes.Amount](space.Config[txtypes.Account, txtypes.Amount]{
+				SpaceRoot: types.NodeRoot{
+					Pointer: &snapshotInfo.Spaces[spaces.Balances].Pointer,
+					Hash:    &snapshotInfo.Spaces[spaces.Balances].Hash,
+				},
+				State:             appState,
+				DataNodeAssistant: balanceSpaceDataNodeAssistant,
+				DeletionCounter:   balanceSpaceDeletionCounter,
+				NoSnapshots:       false,
+			}),
+		),
+		pipe03UpdateDataHashes00:  pipe03UpdateDataHashes(appState, 1, 0),
+		pipe03UpdateDataHashes01:  pipe03UpdateDataHashes(appState, 1, 1),
+		pipe04UpdatePointerHashes: pipe04UpdatePointerHashes(appState),
+		pipe05StoreNodes:          pipe05StoreNodes(storeWriter),
+	}
+}
+
+type pipe struct {
+	appState                   *state.State
+	singularityNode            *types.SingularityNode
+	snapshotInfo               *types.SnapshotInfo
+	snapshotSpace              *space.Space[types.SnapshotID, types.SnapshotInfo]
+	pipe01PrepareTransaction01 pipeline.TxFunc
+	pipe01PrepareTransaction02 pipeline.TxFunc
+	pipe01PrepareTransaction03 pipeline.TxFunc
+	pipe02ExecuteTransaction   pipeline.TxFunc
+	pipe03UpdateDataHashes00   pipeline.TxFunc
+	pipe03UpdateDataHashes01   pipeline.TxFunc
+	pipe04UpdatePointerHashes  pipeline.TxFunc
+	pipe05StoreNodes           pipeline.TxFunc
+}
+
+func (p *pipe) Pipe01PrepareTransaction01(tx *pipeline.TransactionRequest, count uint64) (uint64, error) {
+	return p.pipe01PrepareTransaction01(tx, count)
+}
+
+func (p *pipe) Pipe01PrepareTransaction02(tx *pipeline.TransactionRequest, count uint64) (uint64, error) {
+	return p.pipe01PrepareTransaction02(tx, count)
+}
+
+func (p *pipe) Pipe01PrepareTransaction03(tx *pipeline.TransactionRequest, count uint64) (uint64, error) {
+	return p.pipe01PrepareTransaction03(tx, count)
+}
+
+func (p *pipe) Pipe02ExecuteTransaction(tx *pipeline.TransactionRequest, count uint64) (uint64, error) {
+	return p.pipe02ExecuteTransaction(tx, count)
+}
+
+func (p *pipe) Pipe03UpdateDataHashes00(tx *pipeline.TransactionRequest, count uint64) (uint64, error) {
+	return p.pipe03UpdateDataHashes00(tx, count)
+}
+
+func (p *pipe) Pipe03UpdateDataHashes01(tx *pipeline.TransactionRequest, count uint64) (uint64, error) {
+	return p.pipe03UpdateDataHashes01(tx, count)
+}
+
+func (p *pipe) Pipe04UpdatePointerHashes(tx *pipeline.TransactionRequest, count uint64) (uint64, error) {
+	return p.pipe04UpdatePointerHashes(tx, count)
+}
+
+func (p *pipe) Pipe05StoreNodes(tx *pipeline.TransactionRequest, count uint64) (uint64, error) {
+	return p.pipe05StoreNodes(tx, count)
 }
