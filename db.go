@@ -55,7 +55,7 @@ func New(config Config) *DB {
 		queueReader:      queueReader,
 	}
 
-	db.prepareNextSnapshot()
+	prepareNextSnapshot(db.singularityNode, &db.snapshotInfo)
 	return db
 }
 
@@ -90,20 +90,16 @@ func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) {
 
 // Commit commits current snapshot and returns next one.
 func (db *DB) Commit() error {
-	commitCh := make(chan error, 2) // 1 for store and 1 for supervisor
-	tx := db.txRequestFactory.New()
-	tx.Type = pipeline.Commit
-	tx.CommitCh = commitCh
+	tx, commitCh := prepareCommitRequest(db.txRequestFactory)
+
 	db.queue.Push(tx)
 
-	if err := <-commitCh; err != nil {
-		return err
-	}
-
-	db.config.State.Commit()
-	db.prepareNextSnapshot()
-
-	return nil
+	return finalizeCommit(
+		commitCh,
+		db.config.State,
+		db.singularityNode,
+		&db.snapshotInfo,
+	)
 }
 
 // Close tells that there will be no more operations done.
@@ -230,13 +226,6 @@ func (db *DB) Run(ctx context.Context) error {
 
 		return nil
 	})
-}
-
-func (db *DB) prepareNextSnapshot() {
-	db.singularityNode.LastSnapshotID++
-	db.snapshotInfo.PreviousSnapshotID = db.singularityNode.LastSnapshotID - 1
-	db.snapshotInfo.NextSnapshotID = db.singularityNode.LastSnapshotID + 1
-	db.snapshotInfo.DeallocationRoot = types.Pointer{}
 }
 
 func pipe01PrepareTransaction(balanceSpace *space.Space[txtypes.Account, txtypes.Amount]) pipeline.TxFunc {
@@ -699,6 +688,44 @@ func deleteSnapshot(
 	}
 
 	return nil
+}
+
+func prepareCommitRequest(
+	txRequestFactory *pipeline.TransactionRequestFactory,
+) (*pipeline.TransactionRequest, <-chan error) {
+	commitCh := make(chan error, 2) // 1 for store and 1 for supervisor
+
+	tx := txRequestFactory.New()
+	tx.Type = pipeline.Commit
+	tx.CommitCh = commitCh
+
+	return tx, commitCh
+}
+
+func finalizeCommit(
+	commitCh <-chan error,
+	appState *state.State,
+	singularityNode *types.SingularityNode,
+	snapshotInfo *types.SnapshotInfo,
+) error {
+	if err := <-commitCh; err != nil {
+		return err
+	}
+
+	appState.Commit()
+	prepareNextSnapshot(singularityNode, snapshotInfo)
+
+	return nil
+}
+
+func prepareNextSnapshot(
+	singularityNode *types.SingularityNode,
+	snapshotInfo *types.SnapshotInfo,
+) {
+	singularityNode.LastSnapshotID++
+	snapshotInfo.PreviousSnapshotID = singularityNode.LastSnapshotID - 1
+	snapshotInfo.NextSnapshotID = singularityNode.LastSnapshotID + 1
+	snapshotInfo.DeallocationRoot = types.Pointer{}
 }
 
 func commit(
