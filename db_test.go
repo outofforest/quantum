@@ -1905,10 +1905,15 @@ func TestDBCommit(t *testing.T) {
 	txFactory := pipeline.NewTransactionRequestFactory()
 	p := newPipe(t)
 
-	requireT.Equal(types.SnapshotID(1), p.singularityNode.LastSnapshotID)
-	requireT.Zero(p.singularityNode.SnapshotRoot)
-	requireT.Zero(p.snapshotInfo.PreviousSnapshotID)
-	requireT.Equal(types.SnapshotID(2), p.snapshotInfo.NextSnapshotID)
+	volatileAllocator := p.AppState.NewVolatileAllocator()
+	volatileDeallocator := p.AppState.NewVolatileDeallocator()
+	persistentAllocator := p.AppState.NewPersistentAllocator()
+	persistentDeallocator := p.AppState.NewPersistentDeallocator()
+
+	requireT.Equal(types.SnapshotID(1), p.SingularityNode.LastSnapshotID)
+	requireT.Zero(p.SingularityNode.SnapshotRoot)
+	requireT.Zero(p.SnapshotInfo.PreviousSnapshotID)
+	requireT.Equal(types.SnapshotID(2), p.SnapshotInfo.NextSnapshotID)
 
 	tx, commitCh := prepareCommitRequest(txFactory)
 
@@ -1944,25 +1949,61 @@ func TestDBCommit(t *testing.T) {
 	requireT.NoError(err)
 	requireT.Equal(count, c)
 
-	requireT.Equal(types.SnapshotID(1), p.singularityNode.LastSnapshotID)
-	requireT.Zero(p.snapshotInfo.PreviousSnapshotID)
-	requireT.Equal(types.SnapshotID(2), p.snapshotInfo.NextSnapshotID)
+	requireT.Equal(types.SnapshotID(1), p.SingularityNode.LastSnapshotID)
+	requireT.Zero(p.SnapshotInfo.PreviousSnapshotID)
+	requireT.Equal(types.SnapshotID(2), p.SnapshotInfo.NextSnapshotID)
 
-	requireT.NoError(finalizeCommit(commitCh, p.appState, p.singularityNode, p.snapshotInfo))
+	for {
+		if _, err := volatileAllocator.Allocate(); err != nil {
+			break
+		}
+	}
+	for {
+		if _, err := persistentAllocator.Allocate(); err != nil {
+			break
+		}
+	}
 
-	requireT.Equal(types.SnapshotID(2), p.singularityNode.LastSnapshotID)
-	requireT.NotZero(p.singularityNode.SnapshotRoot.VolatileAddress)
-	requireT.NotZero(p.singularityNode.SnapshotRoot.PersistentAddress)
-	requireT.Equal(types.SnapshotID(1), p.singularityNode.SnapshotRoot.SnapshotID)
-	requireT.Equal(types.SnapshotID(1), p.snapshotInfo.PreviousSnapshotID)
-	requireT.Equal(types.SnapshotID(3), p.snapshotInfo.NextSnapshotID)
+	volatileDeallocator.Deallocate(0x100)
+	volatileDeallocator.Deallocate(0x101)
+	persistentDeallocator.Deallocate(0x100)
+	persistentDeallocator.Deallocate(0x101)
 
-	sInfo, exists := p.snapshotSpace.Query(types.SnapshotID(1))
+	_, err = volatileAllocator.Allocate()
+	requireT.Error(err)
+
+	_, err = persistentAllocator.Allocate()
+	requireT.Error(err)
+
+	requireT.NoError(finalizeCommit(commitCh, p.AppState, p.SingularityNode, p.SnapshotInfo))
+
+	_, err = volatileAllocator.Allocate()
+	requireT.NoError(err)
+
+	_, err = persistentAllocator.Allocate()
+	requireT.NoError(err)
+
+	volatileAddress, err := volatileAllocator.Allocate()
+	requireT.NoError(err)
+	requireT.Equal(types.VolatileAddress(0x100), volatileAddress)
+
+	persistentAddress, err := persistentAllocator.Allocate()
+	requireT.NoError(err)
+	requireT.Equal(types.PersistentAddress(0x100), persistentAddress)
+
+	requireT.Equal(types.SnapshotID(2), p.SingularityNode.LastSnapshotID)
+	requireT.NotZero(p.SingularityNode.SnapshotRoot.VolatileAddress)
+	requireT.NotZero(p.SingularityNode.SnapshotRoot.PersistentAddress)
+	requireT.Equal(types.SnapshotID(1), p.SingularityNode.SnapshotRoot.SnapshotID)
+	requireT.Equal(types.SnapshotID(1), p.SnapshotInfo.PreviousSnapshotID)
+	requireT.Equal(types.SnapshotID(3), p.SnapshotInfo.NextSnapshotID)
+
+	sInfo, exists := p.SnapshotSpace.Query(types.SnapshotID(1))
 	requireT.True(exists)
 	requireT.Equal(types.SnapshotID(0), sInfo.PreviousSnapshotID)
 	requireT.Equal(types.SnapshotID(2), sInfo.NextSnapshotID)
 
-	_, exists = p.snapshotSpace.Query(types.SnapshotID(2))
+	_, exists = p.SnapshotSpace.Query(types.SnapshotID(2))
 	requireT.False(exists)
 }
 
@@ -1998,11 +2039,11 @@ func newPipe(t *testing.T) *pipe {
 	})
 
 	return &pipe{
-		appState:        appState,
-		singularityNode: singularityNode,
-		snapshotInfo:    snapshotInfo,
-		snapshotSpace:   snapshotSpace,
-		pipe01PrepareTransaction01: pipe01PrepareTransaction(
+		AppState:        appState,
+		SingularityNode: singularityNode,
+		SnapshotInfo:    snapshotInfo,
+		SnapshotSpace:   snapshotSpace,
+		Pipe01PrepareTransaction01: pipe01PrepareTransaction(
 			space.New[txtypes.Account, txtypes.Amount](space.Config[txtypes.Account, txtypes.Amount]{
 				SpaceRoot: types.NodeRoot{
 					Pointer: &snapshotInfo.Spaces[spaces.Balances].Pointer,
@@ -2014,7 +2055,7 @@ func newPipe(t *testing.T) *pipe {
 				NoSnapshots:       false,
 			}),
 		),
-		pipe01PrepareTransaction02: pipe01PrepareTransaction(
+		Pipe01PrepareTransaction02: pipe01PrepareTransaction(
 			space.New[txtypes.Account, txtypes.Amount](space.Config[txtypes.Account, txtypes.Amount]{
 				SpaceRoot: types.NodeRoot{
 					Pointer: &snapshotInfo.Spaces[spaces.Balances].Pointer,
@@ -2026,7 +2067,7 @@ func newPipe(t *testing.T) *pipe {
 				NoSnapshots:       false,
 			}),
 		),
-		pipe01PrepareTransaction03: pipe01PrepareTransaction(
+		Pipe01PrepareTransaction03: pipe01PrepareTransaction(
 			space.New[txtypes.Account, txtypes.Amount](space.Config[txtypes.Account, txtypes.Amount]{
 				SpaceRoot: types.NodeRoot{
 					Pointer: &snapshotInfo.Spaces[spaces.Balances].Pointer,
@@ -2038,7 +2079,7 @@ func newPipe(t *testing.T) *pipe {
 				NoSnapshots:       false,
 			}),
 		),
-		pipe02ExecuteTransaction: pipe02ExecuteTransaction(appState, &singularityNode.LastSnapshotID, snapshotInfo,
+		Pipe02ExecuteTransaction: pipe02ExecuteTransaction(appState, &singularityNode.LastSnapshotID, snapshotInfo,
 			snapshotSpace,
 			space.New[deallocationKey, types.ListRoot](space.Config[deallocationKey, types.ListRoot]{
 				SpaceRoot: types.NodeRoot{
@@ -2061,56 +2102,25 @@ func newPipe(t *testing.T) *pipe {
 				NoSnapshots:       false,
 			}),
 		),
-		pipe03UpdateDataHashes00:  pipe03UpdateDataHashes(appState, 1, 0),
-		pipe03UpdateDataHashes01:  pipe03UpdateDataHashes(appState, 1, 1),
-		pipe04UpdatePointerHashes: pipe04UpdatePointerHashes(appState),
-		pipe05StoreNodes:          pipe05StoreNodes(storeWriter),
+		Pipe03UpdateDataHashes00:  pipe03UpdateDataHashes(appState, 1, 0),
+		Pipe03UpdateDataHashes01:  pipe03UpdateDataHashes(appState, 1, 1),
+		Pipe04UpdatePointerHashes: pipe04UpdatePointerHashes(appState),
+		Pipe05StoreNodes:          pipe05StoreNodes(storeWriter),
 	}
 }
 
 type pipe struct {
-	appState                   *state.State
-	singularityNode            *types.SingularityNode
-	snapshotInfo               *types.SnapshotInfo
-	snapshotSpace              *space.Space[types.SnapshotID, types.SnapshotInfo]
-	pipe01PrepareTransaction01 pipeline.TxFunc
-	pipe01PrepareTransaction02 pipeline.TxFunc
-	pipe01PrepareTransaction03 pipeline.TxFunc
-	pipe02ExecuteTransaction   pipeline.TxFunc
-	pipe03UpdateDataHashes00   pipeline.TxFunc
-	pipe03UpdateDataHashes01   pipeline.TxFunc
-	pipe04UpdatePointerHashes  pipeline.TxFunc
-	pipe05StoreNodes           pipeline.TxFunc
-}
+	AppState        *state.State
+	SingularityNode *types.SingularityNode
+	SnapshotInfo    *types.SnapshotInfo
+	SnapshotSpace   *space.Space[types.SnapshotID, types.SnapshotInfo]
 
-func (p *pipe) Pipe01PrepareTransaction01(tx *pipeline.TransactionRequest, count uint64) (uint64, error) {
-	return p.pipe01PrepareTransaction01(tx, count)
-}
-
-func (p *pipe) Pipe01PrepareTransaction02(tx *pipeline.TransactionRequest, count uint64) (uint64, error) {
-	return p.pipe01PrepareTransaction02(tx, count)
-}
-
-func (p *pipe) Pipe01PrepareTransaction03(tx *pipeline.TransactionRequest, count uint64) (uint64, error) {
-	return p.pipe01PrepareTransaction03(tx, count)
-}
-
-func (p *pipe) Pipe02ExecuteTransaction(tx *pipeline.TransactionRequest, count uint64) (uint64, error) {
-	return p.pipe02ExecuteTransaction(tx, count)
-}
-
-func (p *pipe) Pipe03UpdateDataHashes00(tx *pipeline.TransactionRequest, count uint64) (uint64, error) {
-	return p.pipe03UpdateDataHashes00(tx, count)
-}
-
-func (p *pipe) Pipe03UpdateDataHashes01(tx *pipeline.TransactionRequest, count uint64) (uint64, error) {
-	return p.pipe03UpdateDataHashes01(tx, count)
-}
-
-func (p *pipe) Pipe04UpdatePointerHashes(tx *pipeline.TransactionRequest, count uint64) (uint64, error) {
-	return p.pipe04UpdatePointerHashes(tx, count)
-}
-
-func (p *pipe) Pipe05StoreNodes(tx *pipeline.TransactionRequest, count uint64) (uint64, error) {
-	return p.pipe05StoreNodes(tx, count)
+	Pipe01PrepareTransaction01 pipeline.TxFunc
+	Pipe01PrepareTransaction02 pipeline.TxFunc
+	Pipe01PrepareTransaction03 pipeline.TxFunc
+	Pipe02ExecuteTransaction   pipeline.TxFunc
+	Pipe03UpdateDataHashes00   pipeline.TxFunc
+	Pipe03UpdateDataHashes01   pipeline.TxFunc
+	Pipe04UpdatePointerHashes  pipeline.TxFunc
+	Pipe05StoreNodes           pipeline.TxFunc
 }
