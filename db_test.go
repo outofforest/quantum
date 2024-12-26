@@ -1915,7 +1915,7 @@ func TestDBCommit(t *testing.T) {
 	requireT.Zero(p.SnapshotInfo.PreviousSnapshotID)
 	requireT.Equal(types.SnapshotID(2), p.SnapshotInfo.NextSnapshotID)
 
-	tx, commitCh := prepareCommitRequest(txFactory)
+	tx, commitCh := prepareCommitTx(txFactory)
 
 	c, err := p.Pipe01PrepareTransaction01(tx, count)
 	requireT.NoError(err)
@@ -2005,6 +2005,75 @@ func TestDBCommit(t *testing.T) {
 
 	_, exists = p.SnapshotSpace.Query(types.SnapshotID(2))
 	requireT.False(exists)
+}
+
+func TestDBDeleteSnapshot(t *testing.T) {
+	const (
+		count     uint64           = 1
+		snapshot1 types.SnapshotID = 1
+		snapshot2 types.SnapshotID = 2
+		snapshot3 types.SnapshotID = 3
+	)
+
+	requireT := require.New(t)
+
+	txFactory := pipeline.NewTransactionRequestFactory()
+	p := newPipe(t)
+	volatileAllocator := p.AppState.NewVolatileAllocator()
+
+	tx := txFactory.New()
+
+	var snapshotEntry1 space.Entry[types.SnapshotID, types.SnapshotInfo]
+	p.SnapshotSpace.Find(&snapshotEntry1, snapshot1, space.StageData)
+	requireT.NoError(p.SnapshotSpace.SetKey(&snapshotEntry1, tx, volatileAllocator, types.SnapshotInfo{
+		PreviousSnapshotID: types.SnapshotID(0),
+		NextSnapshotID:     snapshot2,
+	}))
+
+	var snapshotEntry2 space.Entry[types.SnapshotID, types.SnapshotInfo]
+	p.SnapshotSpace.Find(&snapshotEntry2, snapshot2, space.StageData)
+	requireT.NoError(p.SnapshotSpace.SetKey(&snapshotEntry2, tx, volatileAllocator, types.SnapshotInfo{
+		PreviousSnapshotID: snapshot1,
+		NextSnapshotID:     snapshot3,
+	}))
+
+	var snapshotEntry3 space.Entry[types.SnapshotID, types.SnapshotInfo]
+	p.SnapshotSpace.Find(&snapshotEntry3, snapshot3, space.StageData)
+	requireT.NoError(p.SnapshotSpace.SetKey(&snapshotEntry3, tx, volatileAllocator, types.SnapshotInfo{
+		PreviousSnapshotID: snapshot2,
+		NextSnapshotID:     snapshot3 + 1,
+	}))
+
+	tx = prepareDeleteSnapshotTx(snapshot2, txFactory)
+
+	c, err := p.Pipe01PrepareTransaction01(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	c, err = p.Pipe01PrepareTransaction02(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	c, err = p.Pipe01PrepareTransaction03(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	c, err = p.Pipe02ExecuteTransaction(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	sInfo, exists := p.SnapshotSpace.Query(snapshot1)
+	requireT.True(exists)
+	requireT.Equal(types.SnapshotID(0), sInfo.PreviousSnapshotID)
+	requireT.Equal(snapshot3, sInfo.NextSnapshotID)
+
+	_, exists = p.SnapshotSpace.Query(snapshot2)
+	requireT.False(exists)
+
+	sInfo, exists = p.SnapshotSpace.Query(snapshot3)
+	requireT.True(exists)
+	requireT.Equal(snapshot1, sInfo.PreviousSnapshotID)
+	requireT.Equal(snapshot3+1, sInfo.NextSnapshotID)
 }
 
 func newPipe(t *testing.T) *pipe {
