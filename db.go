@@ -81,16 +81,12 @@ func (db *DB) ApplyTransaction(tx any) {
 
 // DeleteSnapshot deletes snapshot.
 func (db *DB) DeleteSnapshot(snapshotID types.SnapshotID) {
-	tx := db.txRequestFactory.New()
-	tx.Transaction = &deleteSnapshotTx{
-		SnapshotID: snapshotID,
-	}
-	db.queue.Push(tx)
+	db.queue.Push(prepareDeleteSnapshotTx(snapshotID, db.txRequestFactory))
 }
 
 // Commit commits current snapshot and returns next one.
 func (db *DB) Commit() error {
-	tx, commitCh := prepareCommitRequest(db.txRequestFactory)
+	tx, commitCh := prepareCommitTx(db.txRequestFactory)
 
 	db.queue.Push(tx)
 
@@ -690,7 +686,19 @@ func deleteSnapshot(
 	return nil
 }
 
-func prepareCommitRequest(
+func prepareDeleteSnapshotTx(
+	snapshotID types.SnapshotID,
+	txRequestFactory *pipeline.TransactionRequestFactory,
+) *pipeline.TransactionRequest {
+	tx := txRequestFactory.New()
+	tx.Transaction = &deleteSnapshotTx{
+		SnapshotID: snapshotID,
+	}
+
+	return tx
+}
+
+func prepareCommitTx(
 	txRequestFactory *pipeline.TransactionRequestFactory,
 ) (*pipeline.TransactionRequest, <-chan error) {
 	commitCh := make(chan error, 2) // 1 for store and 1 for supervisor
