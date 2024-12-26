@@ -11,6 +11,8 @@ import (
 	"github.com/outofforest/quantum/pipeline"
 	"github.com/outofforest/quantum/space"
 	"github.com/outofforest/quantum/state"
+	"github.com/outofforest/quantum/tx/genesis"
+	"github.com/outofforest/quantum/tx/transfer"
 	txtypes "github.com/outofforest/quantum/tx/types"
 	"github.com/outofforest/quantum/tx/types/spaces"
 	"github.com/outofforest/quantum/types"
@@ -2076,6 +2078,105 @@ func TestDBDeleteSnapshot(t *testing.T) {
 	requireT.Equal(snapshot3+1, sInfo.NextSnapshotID)
 }
 
+func TestGenesisTransaction(t *testing.T) {
+	const count uint64 = 1
+
+	requireT := require.New(t)
+
+	txFactory := pipeline.NewTransactionRequestFactory()
+	p := newPipe(t)
+
+	account1 := txtypes.Account{0x01}
+	account2 := txtypes.Account{0x02}
+
+	tx := txFactory.New()
+	tx.Transaction = &genesis.Tx{
+		Accounts: []genesis.InitialBalance{
+			{
+				Account: account1,
+				Amount:  20,
+			},
+			{
+				Account: account2,
+				Amount:  50,
+			},
+		},
+	}
+
+	c, err := p.Pipe01PrepareTransaction01(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	c, err = p.Pipe01PrepareTransaction02(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	c, err = p.Pipe01PrepareTransaction03(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	c, err = p.Pipe02ExecuteTransaction(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	balance, exists := p.BalanceSpace.Query(account1)
+	requireT.True(exists)
+	requireT.Equal(txtypes.Amount(20), balance)
+
+	balance, exists = p.BalanceSpace.Query(account2)
+	requireT.True(exists)
+	requireT.Equal(txtypes.Amount(50), balance)
+}
+
+func TestTransferTransaction(t *testing.T) {
+	const count uint64 = 1
+
+	requireT := require.New(t)
+
+	txFactory := pipeline.NewTransactionRequestFactory()
+	p := newPipe(t)
+	volatileAllocator := p.AppState.NewVolatileAllocator()
+
+	account1 := txtypes.Account{0x01}
+	account2 := txtypes.Account{0x02}
+	tx := txFactory.New()
+
+	var balanceEntry space.Entry[txtypes.Account, txtypes.Amount]
+	p.BalanceSpace.Find(&balanceEntry, account1, space.StageData)
+	requireT.NoError(p.BalanceSpace.SetKey(&balanceEntry, tx, volatileAllocator, 100))
+
+	tx = txFactory.New()
+	tx.Transaction = &transfer.Tx{
+		From:   account1,
+		To:     account2,
+		Amount: 20,
+	}
+
+	c, err := p.Pipe01PrepareTransaction01(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	c, err = p.Pipe01PrepareTransaction02(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	c, err = p.Pipe01PrepareTransaction03(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	c, err = p.Pipe02ExecuteTransaction(tx, count)
+	requireT.NoError(err)
+	requireT.Equal(count, c)
+
+	balance, exists := p.BalanceSpace.Query(account1)
+	requireT.True(exists)
+	requireT.Equal(txtypes.Amount(80), balance)
+
+	balance, exists = p.BalanceSpace.Query(account2)
+	requireT.True(exists)
+	requireT.Equal(txtypes.Amount(20), balance)
+}
+
 func newPipe(t *testing.T) *pipe {
 	appState := state.NewForTest(t, stateSize)
 	singularityNode := &types.SingularityNode{}
@@ -2106,12 +2207,23 @@ func newPipe(t *testing.T) *pipe {
 		DeletionCounter:   lo.ToPtr[uint64](0),
 		NoSnapshots:       true,
 	})
+	balanceSpace := space.New[txtypes.Account, txtypes.Amount](space.Config[txtypes.Account, txtypes.Amount]{
+		SpaceRoot: types.NodeRoot{
+			Pointer: &snapshotInfo.Spaces[spaces.Balances].Pointer,
+			Hash:    &snapshotInfo.Spaces[spaces.Balances].Hash,
+		},
+		State:             appState,
+		DataNodeAssistant: balanceSpaceDataNodeAssistant,
+		DeletionCounter:   balanceSpaceDeletionCounter,
+		NoSnapshots:       false,
+	})
 
 	return &pipe{
 		AppState:        appState,
 		SingularityNode: singularityNode,
 		SnapshotInfo:    snapshotInfo,
 		SnapshotSpace:   snapshotSpace,
+		BalanceSpace:    balanceSpace,
 		Pipe01PrepareTransaction01: pipe01PrepareTransaction(
 			space.New[txtypes.Account, txtypes.Amount](space.Config[txtypes.Account, txtypes.Amount]{
 				SpaceRoot: types.NodeRoot{
@@ -2125,16 +2237,7 @@ func newPipe(t *testing.T) *pipe {
 			}),
 		),
 		Pipe01PrepareTransaction02: pipe01PrepareTransaction(
-			space.New[txtypes.Account, txtypes.Amount](space.Config[txtypes.Account, txtypes.Amount]{
-				SpaceRoot: types.NodeRoot{
-					Pointer: &snapshotInfo.Spaces[spaces.Balances].Pointer,
-					Hash:    &snapshotInfo.Spaces[spaces.Balances].Hash,
-				},
-				State:             appState,
-				DataNodeAssistant: balanceSpaceDataNodeAssistant,
-				DeletionCounter:   balanceSpaceDeletionCounter,
-				NoSnapshots:       false,
-			}),
+			balanceSpace,
 		),
 		Pipe01PrepareTransaction03: pipe01PrepareTransaction(
 			space.New[txtypes.Account, txtypes.Amount](space.Config[txtypes.Account, txtypes.Amount]{
@@ -2183,6 +2286,7 @@ type pipe struct {
 	SingularityNode *types.SingularityNode
 	SnapshotInfo    *types.SnapshotInfo
 	SnapshotSpace   *space.Space[types.SnapshotID, types.SnapshotInfo]
+	BalanceSpace    *space.Space[txtypes.Account, txtypes.Amount]
 
 	Pipe01PrepareTransaction01 pipeline.TxFunc
 	Pipe01PrepareTransaction02 pipeline.TxFunc
