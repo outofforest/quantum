@@ -15,7 +15,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/zeebo/blake3 v0.2.4
 	golang.org/x/sys v0.28.0
-	lukechampine.com/blake3 v1.3.0
+	lukechampine.com/blake3 v1.4.0
 )
 
 require (
